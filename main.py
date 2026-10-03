@@ -4494,6 +4494,10 @@ _WA_L = {
                  "es": "Hola 🙏 ¿Qué te gustaría saber? Escribe tu pregunta o responde con un número:",
                  "pt": "Olá 🙏 O que você gostaria de saber? Escreva sua pergunta ou responda com um número:",
                  "hinglish": "Namaste 🙏 Aap kya jaanna chahte hain? Apna sawaal likhiye, ya ek number bhejiye:"},
+    "more_hint": {"en": "_Reply *more* for the full read._",
+                  "es": "_Responde *más* para la lectura completa._",
+                  "pt": "_Responda *mais* para a leitura completa._",
+                  "hinglish": "_Poora padhne ke liye *more* bhejiye._"},
     "btn_choose": {"en": "Choose a question", "es": "Elegir pregunta", "pt": "Escolher pergunta",
                    "hinglish": "Sawaal chuniye"},
     "btn_next": {"en": "Ask next", "es": "Siguiente pregunta", "pt": "Próxima pergunta",
@@ -4779,6 +4783,13 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
         if not body and num_media:
             send(_wa_text("media", lang))
             return
+        # [whatsapp-compact] "more" → the full version of the last answer
+        if (body.strip().lower().strip(" .!?¿¡") in _msg.WA_MORE_WORDS
+                and ctx.get("last_full")):
+            send(ctx["last_full"])
+            ctx.pop("last_full", None)
+            _save(ctx)
+            return
         # [whatsapp-typing] short non-questions never become Ask questions:
         #   answer in progress → just keep "typing…" going (no message);
         #   thanks → a short reply; greeting/"waiting" → a menu of starters.
@@ -4928,7 +4939,28 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
                 _save(ctx)
             return
         prefix = f"*→ {question}*\n\n" if question != body else ""
-        text, fus = _msg.format_ask_whatsapp_v2(payload, lang, header=header, asked=question)
+        # [whatsapp-compact] one screen per answer (no "Read more" hiding the
+        # follow-ups); the full read is kept for a "more" reply. The practice
+        # line shows once a day per practice.
+        _today = datetime.now(timezone.utc).date().isoformat()
+        _seen = ctx.get("practice_seen") or {}
+        if _seen.get("date") != _today:
+            _seen = {"date": _today, "labels": []}
+        _pc_label = ((payload.get("practice_cta") or {}).get("label") or "").strip()
+        _show_pc = bool(_pc_label) and _pc_label not in _seen["labels"]
+        text, fus = _msg.format_ask_whatsapp_v2(payload, lang, header=header, asked=question,
+                                                compact=True, include_practice=_show_pc)
+        full, _ = _msg.format_ask_whatsapp_v2(payload, lang, header=header, asked=question,
+                                              include_practice=_show_pc)
+        _trimmed = len(_wa_strip_numbered(full)) > len(_wa_strip_numbered(text)) + 40
+        if _trimmed:
+            text = text + "\n\n" + _wa_text("more_hint", lang)
+            ctx["last_full"] = _wa_strip_numbered(full)[:3000]
+        else:
+            ctx.pop("last_full", None)
+        if _show_pc and _pc_label in text:
+            _seen["labels"] = (_seen["labels"] + [_pc_label])[-10:]
+        ctx["practice_seen"] = _seen
         if not text:
             send(_wa_text("failed", lang))
         else:

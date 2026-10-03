@@ -640,3 +640,44 @@ def test_chart_tap_switches(m, monkeypatch):
 def test_short_title():
     assert msg.short_title("Which day this week is best for me?") == "Which day this week is\u2026"
     assert len(msg.short_title("x" * 40)) == 24 and msg.short_title("Short") == "Short"
+
+
+# ─── compact answers, "more", practice once a day ──────────────────
+
+_LONG = {"read": ("Speculation is moderately favorable today — the gains side has real support "
+                  "right now, and hidden gains are possible if you keep positions small. Your "
+                  "savings are still under pressure, so don't pull from them to fund any move. "
+                  "Best window: morning. Act before midday — after that, the window tightens fast. "
+                  "Debt is live, so only put in what you can walk away from completely."),
+         "next": "Cap any speculative position at an amount that leaves your savings untouched.",
+         "practice_cta": {"available": True, "label": "A grounding minute before you act",
+                          "step": "Pause and set a hard limit before you decide."},
+         "suggested_questions": ["Which day this week is best for me?", "What is my safest way to play this?"]}
+
+
+def test_compact_keeps_timing_and_fits_one_screen():
+    full, _ = msg.format_ask_whatsapp_v2(_LONG, "en")
+    c, _ = msg.format_ask_whatsapp_v2(_LONG, "en", compact=True, include_practice=False)
+    assert len(c) < len(full) and "Best window: morning." in c and "Debt is live" not in c
+    assert c.startswith("*Speculation is moderately favorable today")
+    assert "→ Cap any speculative position" in c and "1  Which day" in c
+
+
+def test_long_answer_offers_more_and_more_sends_full(m, monkeypatch):
+    link = _link()
+    cv = _Conv(m, monkeypatch, link=link, answer=dict(_LONG))
+    cv.run("How is speculation today")
+    assert "Reply *more* for the full read" in cv.sent[-1]
+    assert "Debt is live" not in cv.sent[-1] and "Debt is live" in link["context"]["last_full"]
+    n_asked = len(cv.asked)
+    cv.run("more")
+    assert "Debt is live" in cv.sent[-1] and len(cv.asked) == n_asked   # no new Ask
+
+
+def test_practice_line_shows_once_a_day(m, monkeypatch):
+    link = _link()
+    cv = _Conv(m, monkeypatch, link=link, answer=dict(_LONG, read="Short answer today. Keep it small."))
+    cv.run("How is speculation today")
+    assert "A grounding minute" in cv.sent[-1]
+    cv.run("And what about money this month in general")
+    assert "A grounding minute" not in cv.sent[-1]
