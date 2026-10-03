@@ -4666,19 +4666,21 @@ _WA_L = {
                     "es": "_Uso tu hora local ({label}) — parece que estás de viaje._",
                     "pt": "_Usando seu horário local ({label}) — parece que você está viajando._",
                     "hinglish": "_Aapka local time ({label}) use kar raha hoon — lagta hai aap travel kar rahe hain._"},
-    "kp_offer": {"en": "_Want a Prashna (yes/no) reading on this? Reply *prashna*._",
-                 "es": "_¿Quieres una lectura Prashna (sí/no) sobre esto? Responde *prashna*._",
-                 "pt": "_Quer uma leitura Prashna (sim/não) sobre isso? Responda *prashna*._",
-                 "hinglish": "_Iska Prashna (haan/na) jawab chahiye? *prashna* bhejiye._"},
-    "kp_ask": {"en": "Hold your question in mind and send me a number from 1 to 249 — that number sets your Prashna chart.\n\n_Reply *skip* to read the moment instead._",
-               "es": "Mantén tu pregunta en mente y envíame un número del 1 al 249 — ese número fija tu carta de Prashna.\n\n_Responde *saltar* para leer el momento._",
-               "pt": "Pense na sua pergunta e me envie um número de 1 a 249 — esse número define seu mapa de Prashna.\n\n_Responda *pular* para ler o momento._",
-               "hinglish": "Apna sawaal mann mein rakhiye aur 1 se 249 ke beech ek number bhejiye — wahi number aapka Prashna chart banata hai.\n\n_Moment se padhne ke liye *skip* bhejiye._"},
+    # [whatsapp-plain-yesno 2026-10-03] owner: a non-Indian reader doesn't know
+    # "Prashna" — en/es/pt say what it IS (a yes/no reading); Hinglish keeps the word.
+    "kp_offer": {"en": "_Want a straight yes-or-no reading on this? Reply *yes or no*._",
+                 "es": "_¿Quieres una respuesta directa de sí o no? Responde *sí o no*._",
+                 "pt": "_Quer uma resposta direta de sim ou não? Responda *sim ou não*._",
+                 "hinglish": "_Iska seedha haan/na (Prashna) jawab chahiye? *prashna* bhejiye._"},
+    "kp_ask": {"en": "For a yes-or-no reading, hold your question in mind and send me any number from 1 to 249 — the number you pick sets the chart I read your answer from.\n\n_Reply *skip* and I'll read this exact moment instead._",
+               "es": "Para una respuesta de sí o no, mantén tu pregunta en mente y envíame cualquier número del 1 al 249 — el número que elijas fija la carta desde la que leo tu respuesta.\n\n_Responde *saltar* y leeré este momento exacto._",
+               "pt": "Para uma resposta de sim ou não, pense na sua pergunta e me envie qualquer número de 1 a 249 — o número que você escolher define o mapa de onde leio sua resposta.\n\n_Responda *pular* e eu leio este exato momento._",
+               "hinglish": "Apna sawaal mann mein rakhiye aur 1 se 249 ke beech koi bhi number bhejiye — wahi number aapka Prashna (haan/na) chart banata hai.\n\n_Isi pal se padhne ke liye *skip* bhejiye._"},
     "kp_range": {"en": "Please send a number from 1 to 249.", "es": "Envía un número del 1 al 249.",
                  "pt": "Envie um número de 1 a 249.", "hinglish": "1 se 249 ke beech ka number bhejiye."},
-    "kp_locked": {"en": "_You asked this earlier — one Prashna per question a day, so here is your original answer. You can ask it fresh after {t}._",
-                  "es": "_Ya preguntaste esto hoy — un Prashna por pregunta al día, así que aquí va tu respuesta original. Puedes volver a preguntarlo después de {t}._",
-                  "pt": "_Você já perguntou isso hoje — um Prashna por pergunta ao dia, então aqui está sua resposta original. Pode perguntar de novo depois {t}._",
+    "kp_locked": {"en": "_You asked this earlier — a yes-or-no reading is cast once per question a day, so here is your original answer. You can ask it fresh after {t}._",
+                  "es": "_Ya preguntaste esto hoy — la respuesta de sí o no se lee una vez por pregunta al día, así que aquí va tu respuesta original. Puedes volver a preguntarlo después de {t}._",
+                  "pt": "_Você já perguntou isso hoje — a resposta de sim ou não é lida uma vez por pergunta ao dia, então aqui está sua resposta original. Pode perguntar de novo depois {t}._",
                   "hinglish": "_Yeh aap pehle pooch chuke hain — ek sawaal ka Prashna din mein ek baar, isliye yeh aapka original jawab hai. {t} ke baad phir pooch sakte hain._"},
     "btn_choose": {"en": "Choose a question", "es": "Elegir pregunta", "pt": "Escolher pergunta",
                    "hinglish": "Sawaal chuniye"},
@@ -5424,7 +5426,9 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
         if payload.get("mode") == "yesno":
             _num = (payload.get("horary_number") if str(payload.get("method") or "") == "kp_number"
                     else None)
-            _head.append(f"_Prashna · #{_num}_" if _num else "_Prashna_")
+            _yl = {"es": "Lectura sí/no", "pt": "Leitura sim/não",
+                   "hinglish": "Prashna"}.get(lang, "Yes/No reading")
+            _head.append(f"_{_yl} · #{_num}_" if _num else f"_{_yl}_")
         prefix = ("\n".join(_head) + "\n\n") if _head else ""
         # [whatsapp-compact] one screen per answer (no "Read more" hiding the
         # follow-ups); the full read is kept for a "more" reply. The practice
