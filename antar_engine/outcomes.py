@@ -312,3 +312,60 @@ _THANKS_FOR_OUTCOME = {
 
 def outcome_thanks(lang: str) -> str:
     return _THANKS_FOR_OUTCOME.get((lang or "en")[:2], _THANKS_FOR_OUTCOME["en"])
+
+
+# ── bridge: Yes/No "did it happen?" answers → prediction_outcomes ──
+# [yesno-bridge 2026-10-02] Yes/No (KP Prashna) answers are collected by the
+# existing check-back card into user_correlations (POST /api/v1/predictions/
+# feedback). Mirror each into prediction_outcomes so the accuracy board sees KP
+# results. Matching is by chart + nearest timestamp (both rows are written within
+# a second of each other at answer time) — NOT by text: the claim keeps what was
+# typed, the correlation row keeps the conversation layer's resolved question.
+FEEDBACK_TO_OUTCOME = {"yes": "yes", "partial": "partly", "no": "no"}   # skipped → none
+MATCH_WINDOW_S = 120
+
+
+def _ts(v) -> Optional[datetime]:
+    try:
+        return datetime.fromisoformat(str(v).replace("Z", "+00:00"))
+    except Exception:
+        return None
+
+
+def find_yesno_claim(sb, chart_id: str, created_at) -> Optional[str]:
+    t = _ts(created_at)
+    if not (chart_id and t):
+        return None
+    lo = (t - timedelta(seconds=MATCH_WINDOW_S)).isoformat()
+    hi = (t + timedelta(seconds=MATCH_WINDOW_S)).isoformat()
+    try:
+        rows = (sb.table("prediction_claims").select("id,created_at")
+                .eq("chart_id", chart_id).eq("source", "ask_yesno")
+                .gte("created_at", lo).lte("created_at", hi).limit(10).execute()).data or []
+    except Exception as e:
+        if not _table_missing(e):
+            print(f"[outcomes] yesno match failed: {e}")
+        return None
+    best = min(rows, key=lambda r: abs(((_ts(r["created_at"]) or t) - t).total_seconds()),
+               default=None)
+    return best["id"] if best else None
+
+
+def bridge_yesno_feedback(sb, correlation_id: str, status: str,
+                          note: Optional[str] = None, via: str = "app") -> Optional[str]:
+    """Mirror one Yes/No feedback answer into prediction_outcomes. Returns the
+    claim id it was written to, or None. Never raises."""
+    outcome = FEEDBACK_TO_OUTCOME.get((status or "").lower())
+    if not outcome:
+        return None
+    try:
+        rows = (sb.table("user_correlations").select("id,chart_id,concern,created_at")
+                .eq("id", correlation_id).limit(1).execute()).data or []
+        if not rows or rows[0].get("concern") != "yesno":
+            return None
+        claim_id = find_yesno_claim(sb, rows[0]["chart_id"], rows[0]["created_at"])
+        if claim_id and record_outcome(sb, claim_id, outcome, note, via=via):
+            return claim_id
+    except Exception as e:
+        print(f"[outcomes] yesno bridge skipped: {e}")
+    return None
