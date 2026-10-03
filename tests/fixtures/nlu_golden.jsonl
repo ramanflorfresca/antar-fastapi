@@ -1,0 +1,34 @@
+{"q": "Will I make good money doing defence deals with the goverment? Being part of the company that connect manufacturers from India with govermwnt institutions", "language": "en", "area": ["business_venture", "clients_sales", "income_money"], "yes_no_fit": true}
+{"q": "Will my partnership break", "language": "en", "area": ["partnership_ending", "separation"], "polarity": "feared"}
+{"q": "Will I find a new girl friend in next 60’days", "language": "en", "area": ["new_romance"], "horizon_days": 60}
+{"q": "Will in win in speculation ?", "language": "en", "area": ["speculation_betting"], "gambling": true}
+{"q": "should I play the lottery this week?", "language": "en", "area": ["speculation_betting"], "gambling": true}
+{"q": "will i move in next 30 days", "language": "en", "area": ["residence_move"], "horizon_days": 30}
+{"q": "What should I focus on this month to work through what's blocking me and move forward", "language": "en", "area": ["purpose_spiritual", "general"], "intent": ["what_to_do"]}
+{"q": "Will I make money with gold mine advisory", "language": "en", "area": ["business_venture", "clients_sales", "income_money"]}
+{"q": "Will I make money in defense related business with other people in Colombia", "language": "en", "area": ["business_partnership", "business_venture", "income_money"]}
+{"q": "Where will my first real customers come from?", "language": "en", "area": ["clients_sales"], "intent": ["where_who"]}
+{"q": "Is business or a job a better fit for me?", "language": "en", "area": ["career_job", "business_venture"], "intent": ["which"]}
+{"q": "How is my cash flow this month?", "language": "en", "area": ["income_money"], "horizon_days": 31}
+{"q": "Do I get my owed money today?", "language": "en", "area": ["debt_owed_money", "income_money"], "horizon_days": 1}
+{"q": "When will I get funding for my startup?", "language": "en", "area": ["funding_investment"], "intent": ["when"]}
+{"q": "kya meri shaadi is saal hogi?", "language": "hinglish", "area": ["marriage"], "horizon_days": 365}
+{"q": "meri naukri kab lagegi", "language": "hinglish", "area": ["career_job"], "intent": ["when"]}
+{"q": "¿Voy a conseguir un nuevo cliente este mes?", "language": "es", "area": ["clients_sales"], "horizon_days": 31}
+{"q": "¿Se va a romper mi sociedad?", "language": "es", "area": ["partnership_ending", "separation"], "polarity": "feared"}
+{"q": "Voy a cerrar la representación comercial de una empresa, ¿me conviene?", "language": "es", "area": ["business_venture", "clients_sales", "business_partnership"]}
+{"q": "Vou conseguir o emprego?", "language": "pt", "area": ["career_job"], "yes_no_fit": true}
+{"q": "Meu sócio vai sair da empresa?", "language": "pt", "area": ["partnership_ending"], "polarity": "feared"}
+{"q": "Will my ex come back?", "language": "en", "area": ["reunion_ex"]}
+{"q": "Will my mother recover from surgery?", "language": "en", "area": ["health_other"], "subject": "parent"}
+{"q": "Will I win the court case against my landlord?", "language": "en", "area": ["legal_case"]}
+{"q": "Will I get my US visa this year?", "language": "en", "area": ["foreign_travel_visa"], "horizon_days": 365}
+{"q": "Will I pass my exam?", "language": "en", "area": ["education_exam"], "yes_no_fit": true}
+{"q": "Will we have a baby next year?", "language": "en", "area": ["children_conception"]}
+{"q": "I lost my ring, will I find it?", "language": "en", "area": ["lost_item"]}
+{"q": "Is there any point in going on, nothing works", "language": "en", "area": ["general", "purpose_spiritual"], "crisis": true}
+{"q": "Why am I always so tired lately?", "language": "en", "area": ["health_self"], "intent": ["why"]}
+{"q": "Which day this week is best for me?", "language": "en", "area": ["daily_timing", "general"], "intent": ["when", "which"]}
+{"q": "Should I buy the apartment in Medellín?", "language": "en", "area": ["property"]}
+{"q": "Will my promotion come through before December?", "language": "en", "area": ["promotion"]}
+{"q": "thanks, that helps", "language": "en", "intent": ["thanks"]}
