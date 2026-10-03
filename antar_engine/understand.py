@@ -101,6 +101,29 @@ _EARNING_PLAIN = {"advisory": "advisory fees", "commission": "commission", "equi
                   "trading": "trading", "investing": "investing their own capital",
                   "freelance": "freelance work", "rental": "rental income", "royalties": "royalties"}
 
+# [profile-updates 2026-10-03] owner: a clear, present-tense statement updates the
+# profile. The message itself must carry the status word (a bare "my wife" does
+# not prove "married"; questions/hypotheticals never count — see explicit_now).
+_EXPLICIT_EVIDENCE = {
+    "work": re.compile(
+        r"(?i)\b(unemployed|laid off|lost my job|fired|let go|got a (new )?job|new job|started (a|my) "
+        r"(job|business|company)|i work (at|for|as|in)|i'?m (a |an )?(student|retired|self.?employed|freelancer)|"
+        r"i run (a|my)|i own (a|my)|quit my job|desempleado|sin trabajo|me despidieron|tengo (un )?trabajo|"
+        r"desempregad|fui demitid|consegui (um )?emprego|naukri (chali gayi|lag gayi|mil gayi))\b"),
+    "relationship": re.compile(
+        r"(?i)\b(i'?m|i am|we'?re|we are|i got|we got|we just|i just|i'?ve been|we'?ve been|i have been|"
+        r"we have been|i recently|we recently)\b[^.?!]{0,25}\b(married|single|divorced|separated|widow(ed)?|"
+        r"engaged|dating|in a relationship|split up|broke up)\b"
+        r"|\b(estoy|soy|somos|estamos|nos)\b[^.?!]{0,20}\b(casad[oa]s?|solter[oa]|divorciad[oa]s?|"
+        r"separad[oa]s?|viud[oa]|comprometid[oa]s?|casamos|separamos|divorciamos)\b"
+        r"|\b(sou|estou|somos|estamos|nos)\b[^.?!]{0,20}\b(casad[oa]s?|solteir[oa]|divorciad[oa]s?|"
+        r"separad[oa]s?|viúv[oa]|noiv[oa]s?|namorando)\b"),
+    "children": re.compile(
+        r"(?i)\b(i|we) (have|has|'?ve got) (a |an |\d+ |one |two |three |four |no )?(kids?|children|"
+        r"son|daughter|sons|daughters|baby)\b|\bno (kids|children)\b|\b(tengo|tenemos) (un |una |\d+ |dos |tres )?"
+        r"(hij[oa]s?|bebé)\b|\b(tenho|temos) (um |uma |\d+ |dois |duas |três )?(filh[oa]s?|bebê)\b"),
+}
+
 _PAST_WORK_EVIDENCE = re.compile(
     r"(?i)\b(worked as|working as|was (a|an)|used to (be|work)|former(ly)?|previously|"
     r"laid off|fired|let go|my last job|trabajaba|trabaj[eé] como|era (un|una)|trabalhava|"
@@ -170,7 +193,10 @@ SYSTEM = (
     'from ' + json.dumps(list(EARNING)) + ' or [] (e.g. "advisory + commission + sweat '
     'equity" → ["advisory","commission","equity"]; never guess), '
     '"past_work": the job/field they SAY they did before, in their words (e.g. "finance / '
-    'bookkeeping manager"), or null},\n'
+    'bookkeeping manager"), or null, '
+    '"explicit_now": which of ["work","relationship","children"] they EXPLICITLY state as their '
+    'CURRENT situation in this message ("I\'m married now", "I was laid off", "we separated", '
+    '"I just got a job") — never for questions or hypotheticals ("will I get married?")},\n'
     ' "outcome_claim": true if they ask the reading to promise a wealth level or rank '
     'options by how much money / potential / success they will bring (e.g. "will it make me '
     'a millionaire", "which work gives me the most potential", "which will make me rich"),\n'
@@ -238,6 +264,14 @@ def parse(raw: str, original: str = "") -> Optional[dict]:
                                 if isinstance(sf.get("earning"), list))
                     if e in EARNING and _EARNING_EVIDENCE[e].search(original or "")][:4],
     }
+    ex = sf.get("explicit_now") if isinstance(sf.get("explicit_now"), list) else []
+    # evidence must sit in a sentence that is NOT a question
+    _stmts = " ".join(m.group(0) for m in re.finditer(r"[^.!?]+[.!]?", original or "")
+                      if not m.group(0).rstrip().endswith("?")
+                      and not re.match(r"(?i)\s*(will|should|would|could|can|do|does|did|is|am|are|when|"
+                                       r"what|why|how|which|voy|vou|ser[aá]|cu[aá]ndo|quando|kya)\b", m.group(0)))
+    facts["explicit_now"] = [f for f in ("work", "relationship", "children")
+                             if f in [str(x).lower() for x in ex] and _EXPLICIT_EVIDENCE[f].search(_stmts)]
     pw = str(sf.get("past_work") or "").strip()[:60]
     facts["past_work"] = pw if (pw and _PAST_WORK_EVIDENCE.search(original or "")) else None
     opts = obj.get("options") if isinstance(obj.get("options"), list) else []
@@ -706,3 +740,45 @@ def drop_invented_background(text, background_known: bool):
     # "your finance network / contacts" → "your network / contacts"
     return re.sub(r"\b([Yy]our) (?!own\b|professional\b|personal\b)[A-Za-z]+(?: [A-Za-z]+)? "
                   r"(network|contacts|circle)\b", r"\1 \2", out)
+
+
+
+# ── explicit statements update the profile (owner 2026-10-03) ───────────────
+_WORK_STORE = {"unemployed": "between_jobs", "employed": "employed", "self_employed": "running_business",
+               "student": "student", "retired": "retired", "homemaker": "homemaker"}
+_WORK_CLASS = {"running_business": "biz", "entrepreneur": "biz", "business_owner": "biz", "founder": "biz",
+               "self_employed": "biz", "between_jobs": "out", "seeking": "out", "unemployed": "out",
+               "job_seeking": "out", "transition": "out", "in_transition": "out", "student": "study",
+               "studying": "study", "retired": "retired", "homemaker": "home", "employed": "job",
+               "early_career": "job", "mid_career": "job", "senior_career": "job", "creative": "job"}
+_REL_STORE = {"single": "single", "dating": "in_relationship", "married": "married",
+              "separated": "separated", "divorced": "divorced", "widowed": "widowed"}
+_KIDS_CLASS = {"adult_children": "yes", "grown_children": "yes", "has_children": "yes", "young_children": "yes",
+               "older_children": "yes", "yes": "yes", "kids": "yes", "parent": "yes", "expecting": "yes",
+               "no_children": "no", "no": "no", "none": "no", "childless": "no", "no_children_wants": "no",
+               "no_children_by_choice": "no"}
+
+
+def explicit_updates(u: Optional[dict], row: dict) -> dict:
+    """{field: (old, new)} for explicit present-tense statements that CHANGE a
+    stored value (same-meaning values are left alone)."""
+    f = (u or {}).get("stated_facts") or {}
+    ex = set(f.get("explicit_now") or [])
+    row = row or {}
+    out = {}
+    if "work" in ex and f.get("work") in _WORK_STORE:
+        new = _WORK_STORE[f["work"]]
+        old = str(row.get("career_stage") or "").strip()
+        if old and _WORK_CLASS.get(old, old) != _WORK_CLASS.get(new, new):
+            out["career_stage"] = (old, new)
+    if "relationship" in ex and f.get("relationship") in _REL_STORE:
+        new = _REL_STORE[f["relationship"]]
+        old = str(row.get("marital_status") or "").strip()
+        if old and old != new:
+            out["marital_status"] = (old, new)
+    if "children" in ex and f.get("children") in ("yes", "no"):
+        new = "has_children" if f["children"] == "yes" else "no_children"
+        old = str(row.get("children_status") or "").strip()
+        if old and _KIDS_CLASS.get(old) != f["children"]:
+            out["children_status"] = (old, new)
+    return out

@@ -82,6 +82,14 @@ _CAREER_FROM_PATRA = {
     "creative":      "job",
     "transition":    "in_transition",
     "retired":       None,            # out of canonical scope → neutral
+    # [between-jobs 2026-10-03] stored by onboarding / stated-facts updates but
+    # missing here, so .get(real, "job") framed someone out of work as EMPLOYED
+    # (live: Harleen, unemployed, got "your boss and colleagues" / "promotion").
+    "between_jobs":  "in_transition",
+    "seeking":       "in_transition",
+    "unemployed":    "in_transition",
+    "studying":      "studying",
+    "employed":      "job",
 }
 # Onboarding life_work tokens. "building" = a business not yet stable (founder
 # ruling 2026-06-15) → running_business.
