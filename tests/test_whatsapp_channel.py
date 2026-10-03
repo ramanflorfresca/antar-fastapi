@@ -298,7 +298,7 @@ def test_soft_cap_once_a_day(m, monkeypatch):
         return JSONResponse(status_code=200, content={
             "read": "You've used today's 1 Ask question.", "error": "daily_cap", "soft_capped": True})
     monkeypatch.setattr(m, "ask_endpoint", capped)
-    cv.run("Should I move?")
+    cv.run("Where should I move next year?")
     assert "antar.world/upgrade" in cv.sent[-1]
     cv.run("And next month?")
     assert "upgrade" not in cv.sent[-1] and "resets tomorrow" in cv.sent[-1]
@@ -735,18 +735,71 @@ def test_source_question_skips_the_dated_verdict():
 
 # ─── Yes/No routing + timezone ─────────────────────────────────────
 
-def test_yesno_shaped_questions_go_to_kp(m, monkeypatch):
-    cv = _Conv(m, monkeypatch, link=_link(), answer={
-        "mode": "yesno", "verdict": "NO", "lean": "conditional",
-        "why": "The door isn't open yet, but it can be if you clear one hurdle first.",
-        "timing": "Oct 3, 2026 – Jan 31, 2027", "verify_after": "2027-01-31"})
+_YN_ANSWER = {"mode": "yesno", "verdict": "NO", "lean": "conditional",
+              "why": "The door isn't open yet, but it can be if you clear one hurdle first.",
+              "timing": "Oct 3, 2026 – Jan 31, 2027", "verify_after": "2027-01-31"}
+
+
+def test_yesno_asks_for_the_kp_number_then_answers(m, monkeypatch):
+    link = _link()
+    cv = _Conv(m, monkeypatch, link=link, answer=dict(_YN_ANSWER))
     cv.run("Will I raise funding by March?")
-    assert cv.asked[-1].mode == "yesno"
+    assert cv.asked == [] and "number from 1 to 249" in cv.sent[-1]
+    assert link["context"]["kp_pending"]["q"] == "Will I raise funding by March?"
+    cv.run("74")
+    req = cv.asked[-1]
+    assert req.mode == "yesno" and req.horary_number == 74
+    assert req.question == "Will I raise funding by March?"
     out = cv.sent[-1]
-    assert out.startswith("*Possible — once one piece falls into place.*")
-    assert "check back after Jan 31" in out
+    assert out.startswith("*→ Will I raise funding by March?* · #74")
+    assert "*Possible — once one piece falls into place.*" in out
+    assert "check back after Jan 31" in out and "kp_pending" not in link["context"]
+
+
+def test_kp_skip_reads_the_moment_and_range_is_checked(m, monkeypatch):
+    link = _link()
+    cv = _Conv(m, monkeypatch, link=link, answer=dict(_YN_ANSWER))
+    cv.run("Will I get the job?")
+    cv.run("300")
+    assert "1 to 249" in cv.sent[-1] and cv.asked == []
+    cv.run("Will I get the job?")
+    cv.run("skip")
+    assert cv.asked[-1].mode == "yesno" and cv.asked[-1].horary_number is None
+
+
+def test_number_in_the_question_skips_the_ritual(m, monkeypatch):
+    cv = _Conv(m, monkeypatch, link=_link(), answer=dict(_YN_ANSWER))
+    cv.run("Will I get the job? number 74")
+    assert cv.asked and cv.asked[-1].mode == "yesno"
+
+
+def test_prashna_command_forces_kp(m, monkeypatch):
+    cv = _Conv(m, monkeypatch, link=_link(), answer=dict(_YN_ANSWER))
+    cv.run("prashna: tell me about the job offer")
+    assert "number from 1 to 249" in cv.sent[-1]
+    cv.run("12")
+    assert cv.asked[-1].mode == "yesno" and cv.asked[-1].question == "tell me about the job offer"
+
+
+def test_new_question_while_waiting_moves_on(m, monkeypatch):
+    link = _link()
+    cv = _Conv(m, monkeypatch, link=link)
+    cv.run("Will I get the job?")
+    cv.run("How is my career looking this year overall")
+    assert cv.asked[-1].mode == "explore" and "kp_pending" not in link["context"]
+
+
+def test_choice_question_is_not_yesno(m, monkeypatch):
+    cv = _Conv(m, monkeypatch, link=_link())
     cv.run("Should I build alone or bring in a partner?")
     assert cv.asked[-1].mode == "explore"
+
+
+def test_ritual_can_be_switched_off(m, monkeypatch):
+    monkeypatch.setenv("WHATSAPP_KP_NUMBER_RITUAL", "off")
+    cv = _Conv(m, monkeypatch, link=_link(), answer=dict(_YN_ANSWER))
+    cv.run("Will I raise funding by March?")
+    assert cv.asked[-1].mode == "yesno" and cv.asked[-1].horary_number is None
 
 
 def test_yesno_auto_can_be_switched_off(m, monkeypatch):

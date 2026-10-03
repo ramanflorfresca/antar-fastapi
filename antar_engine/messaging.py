@@ -1006,3 +1006,18 @@ def tz_from_coords(lat, lon) -> Optional[str]:
         return TimezoneFinder().timezone_at(lat=float(lat), lng=float(lon))
     except Exception:
         return None
+
+
+
+# ── KP Prashna on WhatsApp ──
+# [whatsapp-prashna 2026-10-02] "prashna: will I get the job?" forces the KP path
+# even when the wording isn't a clean yes/no; "skip" during the number ritual
+# reads the moment horary instead of a 1-249 number.
+_PRASHNA_CMD = re.compile(r"(?i)^\s*(?:prashna|prashn|prashan|horary|horaria|horária)\s*[:,\-]?\s+(.{3,})$")
+KP_SKIP_WORDS = frozenset({"skip", "saltar", "pular", "chhodo", "chodo", "moment", "no number",
+                           "sin número", "sem número", "none"})
+
+
+def parse_prashna_command(text: str) -> Optional[str]:
+    m = _PRASHNA_CMD.match(text or "")
+    return m.group(1).strip() if m else None

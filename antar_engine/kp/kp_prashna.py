@@ -185,7 +185,7 @@ def parse_horizon_days(question):
 # --------------------------------------------------------------------------
 # Number: request field wins; else "number 74" / "#74" / "número 74" typed in.
 # --------------------------------------------------------------------------
-_NUM_IN_Q = re.compile(r"(?:number|num|n[uú]mero|pick|#)\D{0,8}(\d{1,3})", re.I)
+_NUM_IN_Q = re.compile(r"(?:(?:number|num|n[uú]mero|pick|#)\D{0,8}|\bno\.\s*)(\d{1,3})", re.I)
 
 
 def resolve_number(request_number=None, question=""):

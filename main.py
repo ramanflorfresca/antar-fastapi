@@ -4514,6 +4514,12 @@ _WA_L = {
                     "es": "_Uso tu hora local ({label}) — parece que estás de viaje._",
                     "pt": "_Usando seu horário local ({label}) — parece que você está viajando._",
                     "hinglish": "_Aapka local time ({label}) use kar raha hoon — lagta hai aap travel kar rahe hain._"},
+    "kp_ask": {"en": "Hold your question in mind and send me a number from 1 to 249 — that number sets your Prashna chart.\n\n_Reply *skip* to read the moment instead._",
+               "es": "Mantén tu pregunta en mente y envíame un número del 1 al 249 — ese número fija tu carta de Prashna.\n\n_Responde *saltar* para leer el momento._",
+               "pt": "Pense na sua pergunta e me envie um número de 1 a 249 — esse número define seu mapa de Prashna.\n\n_Responda *pular* para ler o momento._",
+               "hinglish": "Apna sawaal mann mein rakhiye aur 1 se 249 ke beech ek number bhejiye — wahi number aapka Prashna chart banata hai.\n\n_Moment se padhne ke liye *skip* bhejiye._"},
+    "kp_range": {"en": "Please send a number from 1 to 249.", "es": "Envía un número del 1 al 249.",
+                 "pt": "Envie um número de 1 a 249.", "hinglish": "1 se 249 ke beech ka number bhejiye."},
     "btn_choose": {"en": "Choose a question", "es": "Elegir pregunta", "pt": "Escolher pergunta",
                    "hinglish": "Sawaal chuniye"},
     "btn_next": {"en": "Ask next", "es": "Siguiente pregunta", "pt": "Próxima pergunta",
@@ -5020,9 +5026,30 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
                 return
         # a bare digit picks from the last numbered list
         question = body
+        # [whatsapp-prashna] waiting for the KP number (1-249)? A bare number now
+        # is the horary number — not a follow-up pick; "skip" reads the moment.
+        _kp_number = None
+        _force_kp = False
+        _kp_pend = ctx.get("kp_pending") or {}
+        if _kp_pend.get("q") and _time.time() - float(_kp_pend.get("at") or 0) < 1800:
+            _bt = body.strip().lower().strip(" .!#")
+            if re.fullmatch(r"\d{1,3}", _bt):
+                if not 1 <= int(_bt) <= 249:
+                    send(_wa_text("kp_range", lang))
+                    return
+                _kp_number = int(_bt)
+            elif _bt in _msg.KP_SKIP_WORDS:
+                _kp_number = 0                       # 0 = moment horary
+            ctx.pop("kp_pending", None)
+            if _kp_number is not None:
+                question, _force_kp = _kp_pend["q"], True
+        if not _force_kp:
+            _pc = _msg.parse_prashna_command(question)
+            if _pc:
+                question, _force_kp = _pc, True
         if choice_id.startswith("q:") and choice_id[2:].strip():
             question = choice_id[2:].strip()
-        n = _msg.parse_pick(body)
+        n = None if _kp_number is not None else _msg.parse_pick(body)
         if n is not None:
             kind, item = _msg.pick_option(ctx, n)
             if kind == "chart" and item:
@@ -5044,16 +5071,32 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
         if primary and cid != primary:
             header = await asyncio.to_thread(_wa_chart_name, cid)
 
+        # [whatsapp-yesno] no toggle on WhatsApp: a yes/no-shaped question (or a
+        # "prashna:" command) goes to KP Prashna like the app's Yes/No mode (Ask
+        # still diverts crisis and gambling to explore). WHATSAPP_YESNO_AUTO=off.
+        _mode = ("yesno" if (_force_kp or ((os.getenv("WHATSAPP_YESNO_AUTO") or "on").strip().lower()
+                                           not in ("0", "off", "false", "no")
+                                           and _msg.is_yesno_question(question)))
+                 else "explore")
+        # [whatsapp-prashna] the traditional KP number ritual: ask for 1-249 first,
+        # unless the question already carries one. WHATSAPP_KP_NUMBER_RITUAL=off.
+        if (_mode == "yesno" and _kp_number is None
+                and (os.getenv("WHATSAPP_KP_NUMBER_RITUAL") or "on").strip().lower()
+                not in ("0", "off", "false", "no")):
+            try:
+                from antar_engine.kp.kp_prashna import resolve_number as _kp_rn
+                _has_num = _kp_rn(None, question) is not None
+            except Exception:
+                _has_num = False
+            if not _has_num:
+                ctx["kp_pending"] = {"q": question, "at": int(_time.time())}
+                _save(ctx)
+                send(_wa_text("kp_ask", lang))
+                return
         ctx["in_flight_at"] = int(_time.time())
         owns_flight = True
         await asyncio.to_thread(_msg.save_link_context, sb, link, dict(ctx, lang=lang))
         _ASK_CHANNEL.set("whatsapp")     # [outcome-loop] copied into the task's context
-        # [whatsapp-yesno] no toggle on WhatsApp: a yes/no-shaped question goes to
-        # KP Prashna like the app's Yes/No mode (Ask itself still diverts crisis and
-        # gambling questions to the explore path). Kill switch WHATSAPP_YESNO_AUTO=off.
-        _mode = ("yesno" if ((os.getenv("WHATSAPP_YESNO_AUTO") or "on").strip().lower()
-                             not in ("0", "off", "false", "no")
-                             and _msg.is_yesno_question(question)) else "explore")
         _tz_min, _tz_src, _tz_label = await asyncio.to_thread(_wa_resolve_tz, primary or cid, number, ctx)
         _travel_note = ""
         if _tz_src == "device":
@@ -5065,7 +5108,7 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
         ask = asyncio.create_task(ask_endpoint(AskRequest(
             question=question, chart_id=cid, mode=_mode,
             language=("hinglish" if lang == "hinglish" else lang),
-            tz_offset=_tz_min)))
+            tz_offset=_tz_min, horary_number=(_kp_number or None))))
         _WA_TASKS.add(ask)
         ask.add_done_callback(_WA_TASKS.discard)
 
@@ -5115,6 +5158,8 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
                 _save(ctx)
             return
         prefix = f"*→ {question}*\n\n" if question != body else ""
+        if locals().get("_kp_number"):
+            prefix = f"*→ {question}* · #{_kp_number}\n\n"
         # [whatsapp-compact] one screen per answer (no "Read more" hiding the
         # follow-ups); the full read is kept for a "more" reply. The practice
         # line shows once a day per practice.
