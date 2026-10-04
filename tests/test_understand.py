@@ -675,3 +675,10 @@ def test_retirement_question_gets_retirement_block_and_next():
 def test_kids_offtopic_covers_portuguese_fathers_side():
     t = "Há pressão este ano. O lado da família do seu pai parece mais apoiado. Fale com seu médico."
     assert "pai" not in u.kids_offtopic(t, "children_conception", "Como está meu gravidez?")
+
+
+# ── audit round 12 ────────────────────────────────────────────────────────────
+def test_loan_clause_cut_from_a_one_sentence_next_step():
+    t = "Analise a avaliação da compra da participação e quaisquer termos de empréstimo linha por linha antes de aceitar."
+    out = u.drop_asserted_loans(t, "Vale a pena comprar a parte dele?", "business_partnership")
+    assert "empréstimo" not in out and "Analise a avaliação" in out and "linha por linha" in out
