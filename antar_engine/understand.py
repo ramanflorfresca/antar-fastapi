@@ -893,7 +893,9 @@ _NEW_PARTNER_TALK = re.compile(
     r"(?i)\b((new|future|next|potential|fresh) (partnership|partner|relationship|romance|chapter in love)|"
     r"partnership (chapter|transition|window)|a (new )?partnership|"
     r"(nueva|futura|pr[oó]xima) (pareja|relaci[oó]n|asociaci[oó]n)|(nova|futura|pr[oó]xima) (parceria|relaci[oó]n|rela[cç][aã]o)|"
-    r"(naya|nayi|nai|future) (partner|partnership|rishta)|naye (partner|rishte))\b")
+    r"(naya|nayi|nai|future) (partner|partnership|rishta)|naye (partner|rishte)|"
+    r"(novo|nuevo|new|naya) (v[ií]nculo|bond|relacionamento|bandhan)|promessa de um novo|"
+    r"promise of a new)\b")
 
 # loans / outside capital / credit asserted as part of the person's situation
 _ASSERTED_LOAN = re.compile(
@@ -1084,8 +1086,8 @@ _FAR_FROM_FAMILY = re.compile(
     r"(?i)(family se door|away from (your )?family|far from (your )?family|lejos de (tu )?familia|"
     r"longe da (sua )?fam[ií]lia)")
 _FOREIGN_DEAL = re.compile(
-    r"(?i)\b(property|contract|deal|propiedad|contrato|im[oó]vel)s? (ya|or|y|o|ou|aur) "
-    r"(property|contract|deal|propiedad|contrato|im[oó]vel)s?\b")
+    r"(?i)\b(property|contract|deal|propiedad|contrato|im[oó]vel|propriedade)s?\b[^.!?]{0,30}"
+    r"\b(property|contract|deal|propiedad|contrato|im[oó]vel|propriedade)s?\b")
 _REL_ASSUMED = re.compile(
     r"(?i)\b(hidden gains|ganhos ocultos|ganancias ocultas|(your|tu|sua|aapka|aapke|apna|apne) (own )?(home|casa|ghar)|"
     r"agreements?|acordos?|acuerdos?|shared finances?|finan[cç]as compartilhadas)\b")
@@ -1128,6 +1130,73 @@ def retirement_block(question: str) -> str:
             "- Do NOT answer with client wins, deals, reputation or a business-growth window.\n"
             "- No investment advice and no product names. The step is planning-level: sketch the monthly income "
             "they would need later and where it would come from.")
+
+
+# ── round 14 ─────────────────────────────────────────────────────────────────
+_DHARMA_PAREN = re.compile(r"(?i)\bdharma\s*\(([^)]{3,40})\)")
+_SYSTEM_WORD = {"en": "purpose", "es": "propósito", "pt": "propósito", "hinglish": "maqsad"}
+
+
+def strip_system_terms(text, language: str = "en"):
+    """[audit r14] 'o dharma (propósito de vida)' reached a Portuguese answer: system/Sanskrit words
+    are never user-facing. 'dharma (X)' → 'X'; a bare 'dharma' → the plain word."""
+    if not isinstance(text, str) or "dharma" not in text.lower():
+        return text
+    out = _DHARMA_PAREN.sub(lambda m: m.group(1), text)
+    lg = language if language in ("es", "pt", "hinglish") else "en"
+    out = re.sub(r"(?i)\bdharma\b", _SYSTEM_WORD[lg], out)
+    return re.sub(r"\b(o|a|el|la) (propósito de vida)", r"\1 \2", out)
+
+
+_INVENTED_LEGAL = re.compile(r"(?i)\b(cau[cç][aã]o|fian[cç]a|bail|bond posted|garant[ií]a judicial)\b")
+
+
+def drop_invented_legal(text, question: str = ""):
+    """A bail / deposit nobody mentioned is not part of someone's case."""
+    if not isinstance(text, str) or not text.strip() or _INVENTED_LEGAL.search(question or ""):
+        return text
+    kept = [x for x in _sentences(text) if not _INVENTED_LEGAL.search(x)]
+    return " ".join(kept).strip() if kept else text
+
+
+_STUDY_WORDS = re.compile(r"(?i)\b(exam\w*|study|studying|studies|prova|provas|estud\w+|examen\w*|test|resultados?|"
+                          r"results?|course|curso|college|school|aprend\w+|learn\w*|pariksha|padhai)\b")
+_EDU_FLOOR = {
+    "en": "The reading shows a steady, preparation-favouring season for study — consistent, unhurried preparation beats last-minute pushes.",
+    "es": "La lectura muestra una temporada estable que favorece la preparación para el estudio — la preparación constante y sin prisa supera los empujones de último momento.",
+    "pt": "A leitura mostra uma temporada estável que favorece a preparação para o estudo — a preparação constante e sem pressa vence os arrancos de última hora.",
+    "hinglish": "Reading padhai ke liye ek steady, taiyari-wala season dikhati hai — lagatar aur bina jaldi ki taiyari aakhri minute ke dabaav se behtar hai.",
+}
+_EDU_NEXT = {
+    "en": "This week, set a fixed daily study block and list the two topics that need the most work.",
+    "es": "Esta semana fija un bloque de estudio diario y anota los dos temas que más trabajo necesitan.",
+    "pt": "Esta semana, defina um bloco diário de estudo e liste os dois temas que mais precisam de trabalho.",
+    "hinglish": "Is hafte roz ka ek fixed study block rakho aur un do topics ko likho jin par sabse zyada kaam chahiye.",
+}
+
+
+def education_floor(read, nxt, u: Optional[dict], question: str = "", language: str = "en"):
+    """[audit r14] Exam questions fell back to the business reading ('O que devo fazer com meu prova?' →
+    business timing; an empty next step). If the answer never mentions study, one on-topic sentence
+    leads it, and a business / empty next step becomes a study step. Returns (read, next)."""
+    if (u or {}).get("area") != "education_exam":
+        return read, nxt
+    lg = language if language in ("es", "pt", "hinglish") else "en"
+    if isinstance(read, str) and read.strip() and not _STUDY_WORDS.search(read):
+        read = (_EDU_FLOOR[lg] + " " + read).strip()
+    if (not isinstance(nxt, str) or not nxt.strip()
+            or (_BUSINESS_NEXT.search(nxt) and not _BUSINESS_NEXT.search(question or ""))):
+        nxt = _EDU_NEXT[lg]
+    return read, nxt
+
+
+def education_block(u: Optional[dict]) -> str:
+    if (u or {}).get("area") != "education_exam":
+        return ""
+    return ("\n\nEXAM / STUDY — the question is about studying, an exam or its results.\n"
+            "- Speak to preparation, focus and the season for results — not business, clients or a "
+            "career window.\n"
+            "- Do NOT mention their money or home situation unless they did.")
 
 
 def parse_model_json(raw) -> Optional[dict]:

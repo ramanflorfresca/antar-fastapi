@@ -24036,6 +24036,9 @@ def _ask_is_english(text):
     return en >= 2 and en > es and en > pt
 
 
+_REFUSAL_RX = r"(?i)maafi|sorry|apolog|provide|rewrite|rephrase|hindi ya hinglish|as an ai|i cannot|i can't|i'm unable"
+
+
 async def _ask_to_hinglish(text):
     """Rewrite an English / mixed passage as natural Roman-script Hinglish. Keeps months, years and
     names exactly. Fail-open → None."""
@@ -24045,18 +24048,27 @@ async def _ask_to_hinglish(text):
               "if the text does not mention a job, a loan or a person, neither may you. Keep every "
               "month, year, number and name EXACTLY as written. No Devanagari. Output only the rewritten text.")
     try:
-        raw = await asyncio.wait_for(call_llm_claude(
-            prompt=text, system_override=sysmsg, model_override=HAIKU_MODEL,
-            max_tokens_override=500, temperature_override=0), timeout=8)
-        raw = raw[0] if isinstance(raw, tuple) else raw
-        raw = (raw or "").strip()
+        raw = ""
+        for _attempt in (0, 1):
+            raw = await asyncio.wait_for(call_llm_claude(
+                prompt=text, system_override=sysmsg if _attempt == 0 else
+                (sysmsg + " IMPORTANT: use ONLY Latin (English) letters — every Hindi word spelled in Roman "
+                 "letters, never a single Devanagari character."),
+                model_override=HAIKU_MODEL, max_tokens_override=500, temperature_override=0), timeout=8)
+            raw = raw[0] if isinstance(raw, tuple) else raw
+            raw = (raw or "").strip()
+            if not re.search(r"[\u0900-\u097F]", raw):
+                break
         # [audit r12] live: the model answered the rewrite request itself ("Aap bilkul sahi kah rahe
         # hain! Mujhe maafi chahiye…") and that became the user's next-step line — reject anything
         # that is not a plain rewrite of the same text
+        # a stray Devanagari mark or two (live: one lone vowel sign) is removed rather than throwing a
+        # good rewrite away; a real Devanagari passage is still rejected
+        if raw and len(re.findall(r"[\u0900-\u097F]", raw)) <= 3:
+            raw = re.sub(r"[\u0900-\u097F]", "", raw)
         if (not raw or not re.search(r"[A-Za-z]", raw) or re.search(r"[\u0900-\u097F]", raw)
                 or len(raw) > 2.2 * len(text) + 40
-                or re.search(r"(?i)maafi|sorry|apolog|provide|rewrite|rephrase|hindi ya hinglish|as an ai|"
-                             r"i cannot|i can't", raw)
+                or (re.search(_REFUSAL_RX, raw) and not re.search(_REFUSAL_RX, text))
                 or ("\n\n" in raw and "\n\n" not in text)):
             return None
         return raw
@@ -28302,7 +28314,7 @@ async def ask_endpoint(request: AskRequest):
                         _ask_life_block = re.sub(r"Their children are GROWN ADULTS\.[^\n]*",
                                                  "Their children are grown adults (mention only where relevant).",
                                                  _ask_life_block or "")
-                    _wb = (_und.retirement_block(question) + _und.why_block(_ask_u)
+                    _wb = (_und.retirement_block(question) + _und.education_block(_ask_u) + _und.why_block(_ask_u)
                            + _und.kids_block(_ask_u, question, str((chart_row.data or {}).get("gender") or ""))
                            + _und.purpose_block(_ask_u))
                     if _wb:
@@ -28316,7 +28328,7 @@ async def ask_endpoint(request: AskRequest):
                             "divorced", "separated", "widowed", "single"):
                         _ask_life_block = ((_ask_life_block or "") + (
                             "\n\nMARRIAGE QUESTION from someone who is not currently married "
-                            f"({_ms}) — speak to the bond or the past marriage and what it still asks of "
+                            f"({_ms}) — open by naming it as their PAST marriage (it has ended), then speak to what it still asks of "
                             "them; do NOT talk about a future or new partner unless they ask. Do NOT mention agreements, "
                             "finances, property, deals or a home — they did not raise any.")).strip()
                 except Exception:
@@ -30620,6 +30632,11 @@ async def ask_endpoint(request: AskRequest):
                     for _rf in ("read", "next"):
                         payload[_rf] = _und3.kids_offtopic(payload.get(_rf), _au3.get("area") or "", question, language)
                 payload["read"] = _und3.relationship_floor(payload.get("read"), _au3, language)
+                payload["read"], payload["next"] = _und3.education_floor(
+                    payload.get("read"), payload.get("next"), _au3, question, language)
+                for _rf in ("read", "next"):
+                    payload[_rf] = _und3.drop_invented_legal(
+                        _und3.strip_system_terms(payload.get(_rf), language), question)
                 payload["next"] = _und3.safe_next(_au3.get("area") or "", payload.get("next"), question, language)
                 for _rf in ("read", "next"):
                     payload[_rf] = _und3.drop_asserted_loans(payload.get(_rf), question, _au3.get("area") or "")

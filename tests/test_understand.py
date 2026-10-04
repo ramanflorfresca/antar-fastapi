@@ -709,3 +709,33 @@ def test_kids_guard_restores_an_on_topic_sentence():
     t = "Felicidades por el embarazo. Tus ahorros están bajo presión."
     out = u.kids_offtopic(t, "children_conception", "¿Qué debo hacer con mi embarazo?", "es")
     assert "Felicidades" not in out and "crecimiento familiar" in out and "ahorros" in out
+
+
+# ── audit round 14 ────────────────────────────────────────────────────────────
+def test_dharma_never_reaches_the_user():
+    assert u.strip_system_terms("pode fazer o dharma (propósito de vida) parecer distante", "pt") == \
+        "pode fazer o propósito de vida parecer distante"
+    assert "dharma" not in u.strip_system_terms("Tu dharma pide calma.", "es").lower()
+    assert u.strip_system_terms("Nothing special here.", "en") == "Nothing special here."
+
+
+def test_invented_bail_dropped_unless_asked():
+    t = "Ainda não. A caução está segurando o avanço. Liste os obstáculos."
+    assert "caução" not in u.drop_invented_legal(t, "Quando vai melhorar meu processo?")
+    assert u.drop_invented_legal(t, "A caução foi paga, e agora?") == t
+
+
+def test_education_floor_and_next():
+    r, n = u.education_floor("O potencial de negócios é real.", "Anote o que seu negócio precisa.",
+                             {"area": "education_exam"}, "O que devo fazer com meu prova?", "pt")
+    assert "estudo" in r and "bloco diário de estudo" in n
+    r2, n2 = u.education_floor("Your exam preparation is steady.", "", {"area": "education_exam"}, "x", "en")
+    assert r2 == "Your exam preparation is steady." and "study block" in n2
+    assert u.education_floor("Text", "Next", {"area": "career_job"}, "x", "en") == ("Text", "Next")
+
+
+def test_new_bond_and_foreign_property_variants():
+    t = "A promessa de um novo vínculo está no seu mapa. Fale com alguém de confiança."
+    assert "novo vínculo" not in u.drop_off_topic_pressure(t, "existing_relationship", "Quando vai melhorar meu casamento?")
+    f = "Há um contrato ou questão de propriedade a resolver. Defina três passos."
+    assert "propriedade" not in u.drop_other_people_claims(f, "foreign_travel_visa", "Onde minha mudança vai me levar?")
