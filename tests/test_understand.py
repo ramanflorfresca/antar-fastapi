@@ -791,3 +791,55 @@ def test_pregnancy_in_progress_drops_month_range_family_growth_sentence():
     t = "O período de outubro até janeiro traz o sinal mais favorável do ano para crescimento familiar. Marque uma consulta médica."
     out = u.kids_offtopic(t, "children_conception", "Quando vai melhorar meu gravidez?", "pt")
     assert "outubro" not in out and "consulta" in out
+
+
+# ── audit round 16 ────────────────────────────────────────────────────────────
+def test_explicit_topic_word_names_one_area_or_none():
+    assert u.explicit_area("Vale a pena mudar meu separação?") == "separation"
+    assert u.explicit_area("¿Me conviene cambiar mi salud?") == "health_self"
+    assert u.explicit_area("Why is my income so hard?") == "income_money"
+    assert u.explicit_area("Does my health affect my income?") is None        # two topics → no lock
+    assert u.explicit_area("What should I do?") is None
+
+
+def test_unsure_reading_yields_to_the_topic_word():
+    raw = '{"area":"speculation_betting","intent":"yes_no","confidence":0.3,"language":"pt"}'
+    r = u.parse(raw, "Vale a pena mudar meu saúde?")
+    assert r and r["area"] == "health_self"
+    # a confident reading is not overridden
+    raw2 = '{"area":"career_job","intent":"yes_no","confidence":0.9,"language":"en"}'
+    assert u.parse(raw2, "Will my health startup raise money?")["area"] == "career_job"
+
+
+def test_named_topic_the_reading_agrees_with_needs_almost_no_confidence():
+    uu = {"area": "separation", "confidence": 0.3}
+    assert u.concern_override(uu, "speculation", question="Vale a pena mudar meu separação?") == "divorce"
+    assert u.concern_override(uu, "speculation", question="Vale a pena mudar?") is None
+
+
+def test_guard_never_starts_on_a_sentence_that_leans_on_a_deleted_one():
+    t = ("Your business has hidden gains in play. These build the exact skills that raise your odds. "
+         "Pick one course this week.")
+    out = u.drop_off_topic_pressure(t, "education_exam", "What type of courses should I take?")
+    assert not out.lstrip().startswith("These")
+
+
+def test_father_asserted_and_single_child_claims():
+    t = "Your father is the authority figure backing you. Pick one clear role."
+    assert "authority figure backing" not in u.drop_other_people_claims(t, "business_partnership", "Father or partners?")
+    assert "tends to" in u.drop_other_people_claims("Your father's backing tends to help. Write roles down.",
+                                                    "business_partnership", "Father or partners?")
+    es = "Llama a tu hijo esta semana. Escribe lo que necesitas."
+    out = u.drop_other_people_claims(es, "separation", "¿Cuál es el mejor camino para mi separación?")
+    assert "tu hijo" not in out and "uno de tus hijos" in out
+    assert "tu hijo" in u.drop_other_people_claims(es, "separation", "¿Debo llamar a mi hijo?")
+
+
+def test_lean_not_field_rule_is_in_the_guardrails():
+    assert "LEAN" in u.guardrails_block()
+
+
+def test_connector_openers_count_as_dangling():
+    t = "A separação pesa agora. Porém, o período pede cuidado. Fale com alguém de confiança."
+    out = u.drop_off_topic_pressure("Seu negócio tem pressão. " + t.split(". ", 1)[1], "separation", "Vale a pena mudar meu separação?")
+    assert not out.lstrip().startswith("Porém")

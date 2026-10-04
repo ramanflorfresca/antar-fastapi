@@ -28525,6 +28525,18 @@ async def ask_endpoint(request: AskRequest):
                                 _inherit_ok = False
                     except Exception as _the:
                         print(f"[ask-thread] nlu check failed: {type(_the).__name__}: {_the}")
+                    try:
+                        from antar_engine import understand as _und_ea
+                        _ea = _und_ea.explicit_area(question)
+                        if _ea and not _ask_is_day_overview(_ASK_TYPED_Q.get() or question):
+                            _ea_c = _und_ea.AREAS[_ea][1]
+                            if _inherit_ok or _ask_concern in ("", "general"):
+                                print(f"[ask-thread] topic word in the message wins over inheritance: "
+                                      f"{_ask_concern} -> {_ea_c} (area={_ea})")
+                                _ask_concern = _ea_c
+                            _inherit_ok = False
+                    except Exception as _eae:
+                        print(f"[ask-thread] explicit-area check failed: {_eae}")
                     if _inherit_ok and _ask_concern != _prev_dom:
                         print(f"[ask-thread] concern inherited from prior turn: "
                               f"{_ask_concern} -> {_prev_dom} (kw_general={_kw_general})")
