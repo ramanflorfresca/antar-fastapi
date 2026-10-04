@@ -854,7 +854,7 @@ def drop_off_topic_pressure(text, area: str = "", question: str = ""):
         # the 7th-house partner signal reads as "business partnership" — a personal relationship
         # question must not be answered with deals and agreements
         rxs.append(_DEAL_TALK)
-    if (area == "separation" and not _NEW_RELATIONSHIP_Q.search(question or "")
+    if (area in ("separation", "existing_relationship") and not _NEW_RELATIONSHIP_Q.search(question or "")
             and not _DEAL_TALK.search(question or "")):
         rxs.append(_NEW_PARTNER_TALK)
     kept = [x for x in _sentences(text) if not any(r.search(x) for r in rxs)]
@@ -904,12 +904,90 @@ def drop_asserted_loans(text, question: str = ""):
     return " ".join(kept).strip() if kept else text
 
 
+def parse_model_json(raw) -> Optional[dict]:
+    """[audit r9] The answer JSON from model text. The model sometimes writes a JSON object, then
+    'Wait — let me correct that:' and a second one (live: the whole mess reached the user as text).
+    Take the LAST well-formed object that has a 'read'; None when there is none."""
+    import json as _json
+    txt = raw if isinstance(raw, str) else ""
+    try:
+        o = _json.loads(txt[txt.find("{"): txt.rfind("}") + 1])
+        if isinstance(o, dict):
+            return o
+    except Exception:
+        pass
+    dec, best, i = _json.JSONDecoder(), None, 0
+    while True:
+        i = txt.find("{", i)
+        if i < 0:
+            break
+        try:
+            o, end = dec.raw_decode(txt[i:])
+            if isinstance(o, dict) and isinstance(o.get("read"), str) and o["read"].strip():
+                best = o
+            i += max(end, 1)
+        except Exception:
+            i += 1
+    return best
+
+
+_JSONISH = re.compile(r'^\s*(`{1,3}\s*json|\{\s*"(read|next|why)")', re.I)
+
+
+def looks_like_json_leak(text) -> bool:
+    return isinstance(text, str) and bool(_JSONISH.search(text))
+
+
+def why_block(u: Optional[dict]) -> str:
+    """Narrator rule for 'why is X so hard / why does X keep happening' questions."""
+    if (u or {}).get("intent") != "why":
+        return ""
+    return ("\n\nWHY QUESTION — they asked for the REASON.\n"
+            "- Give the reason the reading shows in plain words BEFORE any reassurance: the specific "
+            "pressure or pattern in this area and what feeds it ('it is hard because …').\n"
+            "- One reason, concrete, about this topic only; then what eases it. Reassurance alone, or "
+            "'this will pass', is not an answer.")
+
+
+def kids_block(u: Optional[dict], question: str = "") -> str:
+    if (u or {}).get("area") not in ("children_wellbeing", "children_conception"):
+        return ""
+    return ("\n\nCHILDREN / PREGNANCY — the question is about children or a pregnancy; answer exactly that.\n"
+            "- This OVERRIDES any earlier rule that treats their children as 'grown adults' / a creative project: "
+            "when the question names a child or a pregnancy, answer about THAT.\n"
+            "- NEVER reinterpret it as a mentee, a project, a venture or a creative work.\n"
+            "- Do NOT bring up career windows or business. If the person already has grown children, mention "
+            "them only where it genuinely fits the question; otherwise answer the question as asked "
+            "(the family / children reading, the season for it, one human step).")
+
+
+def separation_assumes_home(text, question: str = ""):
+    """Separation answers must not assume a shared home, property or assets."""
+    if not isinstance(text, str) or not text.strip():
+        return text
+    if _HOME_Q.search(question or ""):
+        return text
+    kept = [x for x in _sentences(text) if not _HOME_ASSUMED.search(x)]
+    return " ".join(kept).strip() if kept else text
+
+
+_HOME_Q = re.compile(r"(?i)\b(home|house|property|assets?|casa|propiedad|im[oó]vel|ghar|jaaydaad|sampatti)\b")
+_HOME_ASSUMED = re.compile(
+    r"(?i)\b(your (home|house)|shared (home|house|assets?)|(your|tu|sua|aapke|aapka) (casa|ghar)|"
+    r"sus bienes|seus bens|assets?|hidden gains|financial agreement|acuerdo financiero|acordo financeiro|"
+    r"bienes compartidos)\b")
+
 CONCERN_MIN_CONFIDENCE = 0.75
 OWN_TOPIC_MIN_CONFIDENCE = 0.6   # own topic vs inheriting the previous turn's
 
 
+_CHILD_WORD = re.compile(
+    r"(?i)\b(child|children|kids?|son|sons|daughter|daughters|baby|babies|pregnan\w*|conceiv\w*|"
+    r"bachch?[ae]\w*|bacha|beta|beti|hij[oa]s?|embaraz\w*|filh[oa]s?|gravidez|gr[aá]vida|bebé|bebê)\b")
+
+
 def concern_override(u: Optional[dict], keyword_concern: str,
-                     min_confidence: float = None) -> Optional[str]:
+                     min_confidence: float = None, question: str = "") -> Optional[str]:
     """[nlu-primary: concern 2026-10-03] The Ask concern to use instead of the
     keyword router's, or None to keep it. Live: "How is my work with partners?"
     → keyword concern 'love' → an answer about his SPOUSE. Only a confident,
@@ -917,8 +995,13 @@ def concern_override(u: Optional[dict], keyword_concern: str,
     c = concern(u)
     if not c or c == "general" or c == keyword_concern:
         return None
-    if float((u or {}).get("confidence") or 0) < (CONCERN_MIN_CONFIDENCE if min_confidence is None
-                                                   else min_confidence):
+    floor = CONCERN_MIN_CONFIDENCE if min_confidence is None else min_confidence
+    # [audit r9] "Mere bachcha ke liye kya karun?" read as children at 0.65 and lost to a career
+    # guess: a child word IN the message is evidence enough for the children topic
+    if (u or {}).get("area") in ("children_wellbeing", "children_conception") \
+            and _CHILD_WORD.search(question or ""):
+        floor = min(floor, 0.4)
+    if float((u or {}).get("confidence") or 0) < floor:
         return None
     return c
 

@@ -560,3 +560,42 @@ def test_life_purpose_is_a_subject_not_vague():
     assert not main._ask_is_vague("What should I do about my life purpose?")
     assert not main._ask_is_vague("What should I do about my retirement?")
     assert main._ask_is_vague("What should I do?")
+
+
+# ── audit round 9 ─────────────────────────────────────────────────────────────
+def test_parse_model_json_takes_the_corrected_last_object():
+    raw = ('```json\n{"read": "first", "next": "a"}\n``` Wait — let me fix that: json\n'
+           '{"read": "second", "next": "b"}')
+    assert u.parse_model_json(raw)["read"] == "second"
+    assert u.parse_model_json('{"read": "ok", "next": null}')["read"] == "ok"
+    assert u.parse_model_json("no json here") is None
+
+
+def test_json_leak_detector():
+    assert u.looks_like_json_leak('`json\n{"read": "x"}')
+    assert u.looks_like_json_leak('{"read": "x"}')
+    assert not u.looks_like_json_leak("Raman, this is a normal answer.")
+
+
+def test_child_word_lowers_children_override_floor():
+    uu = {"area": "children_wellbeing", "confidence": 0.65}
+    assert u.concern_override(uu, "career", question="Mere bachcha ke liye kya karun?") == "children"
+    assert u.concern_override(uu, "career", question="What should I do for work?") is None
+
+
+def test_why_and_kids_blocks():
+    assert "REASON" in u.why_block({"intent": "why"}) and u.why_block({"intent": "when"}) == ""
+    assert "mentee" in u.kids_block({"area": "children_conception"}) and u.kids_block({"area": "marriage"}) == ""
+
+
+def test_existing_relationship_drops_new_partner_talk():
+    t = "This weight is real. A future partnership is supported. Say one honest thing this week."
+    out = u.drop_off_topic_pressure(t, "existing_relationship", "Why is my marriage so hard?")
+    assert "partnership" not in out and "honest thing" in out
+
+
+def test_separation_does_not_assume_home():
+    t = "The stretch is hard. Protect your home and any financial agreement. Get documents reviewed."
+    out = u.separation_assumes_home(t, "Como está meu separação?")
+    assert "home" not in out and "documents" in out
+    assert u.separation_assumes_home(t, "Who keeps the house?") == t
