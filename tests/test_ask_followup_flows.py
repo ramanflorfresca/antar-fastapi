@@ -52,3 +52,12 @@ def test_every_language_has_every_lane():
 def test_day_bucket_stays_in_domain():
     out = af.pick("day", "How is my day today?", "en")
     assert "bridge" not in _lanes(out) and len(out) == 3
+
+
+def test_love_never_assumes_a_partner_unless_named():
+    single = [f["q"] for f in af.pick("love", "When will I find love?", "en")]
+    assert not any("partner" in q or "we?" in q for q in single), single
+    paired = [f["q"] for f in af.pick("love", "Is my marriage going through a rough patch?", "en")]
+    assert any("partner" in q or "compatible" in q for q in paired), paired
+    es = [f["q"] for f in af.pick("love", "¿Cuándo llega el amor?", "es")]
+    assert not any("pareja" in q or "somos" in q for q in es), es
