@@ -28177,7 +28177,15 @@ async def ask_endpoint(request: AskRequest):
                     pass
                 # [audit r9] why-questions need a reason; child questions answer about children
                 try:
-                    _wb = _und.why_block(_ask_u) + _und.kids_block(_ask_u, question)
+                    if (_ask_u or {}).get("area") in ("children_wellbeing", "children_conception"):
+                        # [audit r10] the "children are grown adults → creative project / mentee" framing is
+                        # for general 5th-house reads; a question that NAMES a child or pregnancy is not one
+                        _ask_life_block = re.sub(r"Their children are GROWN ADULTS\.[^\n]*",
+                                                 "Their children are grown adults (mention only where relevant).",
+                                                 _ask_life_block or "")
+                    _wb = (_und.why_block(_ask_u)
+                           + _und.kids_block(_ask_u, question, str((chart_row.data or {}).get("gender") or ""))
+                           + _und.purpose_block(_ask_u))
                     if _wb:
                         _ask_life_block = ((_ask_life_block or "") + _wb).strip()
                 except Exception as _wbe:
@@ -30484,8 +30492,12 @@ async def ask_endpoint(request: AskRequest):
                 if _au3.get("area") == "separation":
                     for _rf in ("read", "next"):
                         payload[_rf] = _und3.separation_assumes_home(payload.get(_rf), question)
+                if _au3.get("area") in ("children_wellbeing", "children_conception"):
+                    for _rf in ("read", "next"):
+                        payload[_rf] = _und3.kids_offtopic(payload.get(_rf), _au3.get("area") or "", question)
+                payload["next"] = _und3.safe_next(_au3.get("area") or "", payload.get("next"), question, language)
                 for _rf in ("read", "next"):
-                    payload[_rf] = _und3.drop_asserted_loans(payload.get(_rf), question)
+                    payload[_rf] = _und3.drop_asserted_loans(payload.get(_rf), question, _au3.get("area") or "")
                 for _rf in ("read", "next"):
                     payload[_rf] = _und3.drop_off_topic_pressure(payload.get(_rf), _au3.get("area") or "", question)
                 for _rf in ("read", "next"):
