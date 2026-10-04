@@ -76,6 +76,29 @@ def test_every_entry_is_a_real_chart_keyed_deletable_table(m):
     assert not bad, f"cascade entries that can never delete: {bad}"
 
 
+def test_profile_pointer_clear_names_no_phantom_column(m):
+    """profiles has no `chart_id` column (renamed to primary_chart_id). Clearing
+    it returned PGRST204 in `partial_cascade` on every chart delete (seen live
+    2026-10-03, chart ab780058)."""
+    assert "chart_id" not in m._PROFILE_CHART_POINTER_COLS
+    assert "primary_chart_id" in m._PROFILE_CHART_POINTER_COLS
+    import inspect
+    src = inspect.getsource(m.settings_charts_delete)
+    assert '"primary_chart_id", "chart_id"' not in src
+
+
+def test_profile_pointer_cols_are_real_columns(m):
+    if not os.getenv("SUPABASE_URL"):
+        pytest.skip("needs Supabase")
+    bad = []
+    for col in m._PROFILE_CHART_POINTER_COLS:
+        try:
+            m.supabase.table("profiles").select(col).limit(1).execute()
+        except Exception as e:
+            bad.append((col, str(e)[:60]))
+    assert not bad, f"profiles pointer columns that do not exist: {bad}"
+
+
 def test_static_reference_data_is_never_purged(m):
     """lal_kitab_remedies is a shared library of remedy text, not user data.
     Deleting a chart must not be able to touch it."""
