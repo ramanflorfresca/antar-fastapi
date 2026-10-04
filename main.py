@@ -5830,8 +5830,11 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
             pass
         text, fus = _msg.format_ask_whatsapp_v2(payload, lang, header=header, asked=question,
                                                 compact=True, include_practice=_show_pc)
-        full, _ = _msg.format_ask_whatsapp_v2(payload, lang, header=header, asked=question,
-                                              include_practice=_show_pc)
+        full, _fus_all = _msg.format_ask_whatsapp_v2(payload, lang, header=header, asked=question,
+                                                     include_practice=_show_pc)
+        # [followup-flows] the one-screen trim drops the 3rd numbered follow-up (the bridge);
+        # list rows cost no message space, so the tappable list keeps all of them
+        _fus_all = _fus_all or fus
         _trimmed = (len(_wa_strip_numbered(full)) > len(_wa_strip_numbered(text)) + 40
                     and not payload.get("needs_clarification"))
         if _trimmed:
@@ -5853,9 +5856,9 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
             send(_wa_text("failed", lang))
         else:
             send_choices(prefix + text, "btn_next", _q_items(
-                fus, {f.get("q"): f.get("title") for f in (payload.get("suggested_followups") or [])
+                _fus_all, {f.get("q"): f.get("title") for f in (payload.get("suggested_followups") or [])
                       if isinstance(f, dict)}))
-        _save(_msg.remember_options(ctx, "ask", fus) if fus else {k: v for k, v in ctx.items() if k != "options"})
+        _save(_msg.remember_options(ctx, "ask", _fus_all) if _fus_all else {k: v for k, v in ctx.items() if k != "options"})
     except Exception as e:
         print(f"[whatsapp] handler non-fatal …{number[-4:]}: {e}")
         try:
