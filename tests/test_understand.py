@@ -640,3 +640,38 @@ def test_kids_offtopic_drops_mentor_and_fathers_side():
     assert "mentor" not in out and "father" not in out and "doctor" in out
     assert u.kids_offtopic(t, "children_conception", "How is my father with my pregnancy?") == t
     assert u.kids_offtopic(t, "career_job", "x") == t
+
+
+# ── audit round 11 ────────────────────────────────────────────────────────────
+def test_legal_cause_words_dropped_unless_asked():
+    t = "The case leans in your favour. It likely touches fraud or a regulatory angle. Prepare your papers."
+    out = u.drop_other_people_claims(t, "legal_case", "Why is my court case so hard?")
+    assert "fraud" not in out and "Prepare" in out
+    assert u.drop_other_people_claims(t, "legal_case", "My case is about tax fraud") == t
+
+
+def test_other_people_claims_dropped():
+    assert "reliab" not in u.drop_other_people_claims(
+        "Caution. La confiabilidad de tu hermano en el seguimiento se lee más débil. Escribe los términos.",
+        "business_partnership", "¿Me conviene asociarme con mi hermano?")
+    assert "mushkil" not in u.drop_other_people_claims(
+        "Aapka bachcha mushkil mein hai. Doctor se baat karo.", "health_other", "Mera bachcha kab theek hoga?")
+    assert "family se door" not in u.drop_other_people_claims(
+        "Abhi aapka family se door hona kathin hai. Kisi trusted insaan se baat karo.", "separation", "Talaq?")
+    assert "contract" not in u.drop_other_people_claims(
+        "Aapka property ya contract foreign land mein ready hai. Mentor se baat karo.", "foreign_travel_visa", "Videsh?")
+    assert "hidden gains" not in u.drop_other_people_claims(
+        "Your hidden gains and home are safer with trust. Take it slowly.", "marriage", "Where will my marriage lead?")
+
+
+def test_retirement_question_gets_retirement_block_and_next():
+    assert u.is_retirement_q("¿Cómo va mi jubilación?") and u.is_retirement_q("Mera retirement kab theek hoga?")
+    assert "Do NOT answer with client wins" in u.retirement_block("How is my retirement?")
+    assert u.retirement_block("How is my work?") == ""
+    n = "Is hafte ek concrete step lo apne business ke cashflow ko stable karne ke liye."
+    assert "business" not in u.safe_next("general", n, "Mera retirement kab theek hoga?", "hinglish")
+
+
+def test_kids_offtopic_covers_portuguese_fathers_side():
+    t = "Há pressão este ano. O lado da família do seu pai parece mais apoiado. Fale com seu médico."
+    assert "pai" not in u.kids_offtopic(t, "children_conception", "Como está meu gravidez?")
