@@ -289,6 +289,11 @@ def pricing_summary(country_code: str) -> dict:
     if excluded:
         out["model"] = "packs"
         out["packs"] = india_packs_display()
+        try:   # [billing-lifecycle] the India subscription switches on when its Razorpay Plan ids exist
+            from antar_engine.billing_lifecycle import razorpay_plan_id
+            out["subscription_available"] = bool(razorpay_plan_id("ask_unlimited_monthly"))
+        except Exception:
+            out["subscription_available"] = False
         return out
     out["model"] = "subscription"
     for key, prod in (("monthly", "ask_unlimited_monthly"),
@@ -508,7 +513,8 @@ def create_razorpay_order(
     # [pricing-3bucket 2026-06-29] India is excluded this launch — the Ask
     # subscription is not sold via Razorpay.
     if plan_key in ("ask_unlimited_monthly", "ask_unlimited_annual"):
-        return {"error": "unavailable_in_region", "country": "IN"}
+        # [billing-lifecycle] India subscription goes through create_razorpay_subscription
+        return {"error": "use_create_subscription", "country": "IN"}
     try:
         import razorpay
         client = razorpay.Client(
@@ -559,6 +565,41 @@ def create_razorpay_order(
             }
     except Exception as e:
         return {"error": str(e)}
+
+
+def create_razorpay_subscription(chart_id: str, plan_key: str = "ask_unlimited_monthly") -> dict:
+    """[billing-lifecycle] A Razorpay SUBSCRIPTION for the Ask Unlimited plan. The amount is whatever the
+    Razorpay Plan says (RAZORPAY_PLAN_ID_MONTHLY / _ANNUAL) — no price in code."""
+    from antar_engine.billing_lifecycle import razorpay_plan_id
+    plan_id = razorpay_plan_id(plan_key)
+    if not plan_id:
+        return {"error": "razorpay_plan_not_configured"}
+    try:
+        import razorpay
+        client = razorpay.Client(auth=(os.getenv("RAZORPAY_KEY_ID", ""), os.getenv("RAZORPAY_KEY_SECRET", "")))
+        annual = "annual" in plan_key or "yearly" in plan_key
+        sub = client.subscription.create({
+            "plan_id": plan_id, "quantity": 1,
+            "total_count": 10 if annual else 120,     # long-running; the user cancels when they want
+            "customer_notify": 1,
+            "notes": {"chart_id": chart_id, "plan": plan_key},
+        })
+        return {"provider": "razorpay", "subscription_id": sub["id"],
+                "key_id": os.getenv("RAZORPAY_KEY_ID", ""), "chart_id": chart_id, "plan_key": plan_key}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def verify_razorpay_subscription(payment_id: str, subscription_id: str, signature: str) -> dict:
+    """Checkout success signature for a subscription: HMAC_SHA256(payment_id|subscription_id)."""
+    import hmac, hashlib
+    secret = os.getenv("RAZORPAY_KEY_SECRET", "").encode()
+    if not secret:
+        return {"error": "razorpay_secret_not_configured"}
+    digest = hmac.new(secret, f"{payment_id}|{subscription_id}".encode(), hashlib.sha256).hexdigest()
+    if hmac.compare_digest(digest, signature or ""):
+        return {"verified": True}
+    return {"verified": False, "reason": "signature_mismatch"}
 
 
 def verify_razorpay_payment(
