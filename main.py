@@ -4992,9 +4992,14 @@ class _WaSink:
             self.outbox.append(("text", text, None))
         return True
 
-    def send_choices(self, body: str, button: str, items: list, text: str) -> bool:
-        """A tappable list when replies go via REST; numbered `text` otherwise."""
-        if (self.inline and not self.closed) or not _wa_interactive_on() or not items:
+    def send_choices(self, body: str, button: str, items: list, text: str,
+                     prefer_rest: bool = False) -> bool:
+        """A tappable list when replies go via REST; numbered `text` otherwise.
+        [wa-consistent 2026-10-04] `prefer_rest`: outbound is known to work for this number, so
+        a fast (inline) answer ALSO goes out as the tappable list — the same look as a slow one."""
+        if not _wa_interactive_on() or not items:
+            return self.send(text)
+        if (self.inline and not self.closed) and not prefer_rest:
             return self.send(text)
         self.outbox.append(("list", text, (body, button, items)))
         return True
@@ -5012,7 +5017,11 @@ class _WaSink:
                 ok = _msg.whatsapp_send(self.number, text, self.inbound_ts)
             any_ok = any_ok or ok
             if not ok:
-                failed.append(text)
+                # still inside the webhook window → the reply rides the TwiML response instead
+                if self.inline and not self.closed:
+                    self.buf.append(text)
+                else:
+                    failed.append(text)
         self.outbox = []
         return failed, any_ok
 
@@ -5324,7 +5333,13 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
 
     def send_choices(text: str, button_key: str, items: list):
         """`text` = the numbered fallback; items = [(title, id, description)]."""
-        sink.send_choices(_wa_strip_numbered(text) or text, _wa_text(button_key, lang), items, text)
+        _pref = False
+        try:
+            _pref = (_time.time() - int((ctx or {}).get("rest_ok_at") or 0)) < 7 * 24 * 3600
+        except Exception:
+            pass
+        sink.send_choices(_wa_strip_numbered(text) or text, _wa_text(button_key, lang), items, text,
+                          prefer_rest=_pref)
 
     def _q_items(qs):
         return [(q, "q:" + q, q) for q in qs]
@@ -5739,7 +5754,9 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
         # [whatsapp-prashna] every Prashna answer is labelled so the reader always
         # knows it's a KP horary, not a regular read ("read: …" forces regular)
         _head = []
-        if question != body:
+        # [wa-consistent 2026-10-04] a tapped suggestion already shows as the user's own message
+        # (quoted by WhatsApp) — repeating it as a bold "→ …" line made this answer look different
+        if question != body and not str(choice_id or "").startswith("q:"):
             _head.append(f"*→ {question}*")
         if payload.get("mode") == "yesno":
             _num = (payload.get("horary_number") if str(payload.get("method") or "") == "kp_number"
