@@ -1758,7 +1758,6 @@ def _record_cron_run(kind: str, utc_hour: int, matched: int, totals: dict):
     try:
         import json as _json
         from datetime import datetime as _dt, timezone as _tz
-        from antar_engine import app_config as _ac
         _key = "push_cron_log"
         try:
             _row = supabase.table("app_config").select("value").eq("key", _key).limit(1).execute()
@@ -1773,7 +1772,13 @@ def _record_cron_run(kind: str, utc_hour: int, matched: int, totals: dict):
             "failed": int((totals or {}).get("failed", 0)), "pruned": int((totals or {}).get("pruned", 0)),
         })
         _log = _log[-60:]   # keep last ~60 runs
-        _ac.set_value(supabase, _key, _json.dumps(_log), by="cron")
+        # Direct upsert — NOT app_config.set_value (that rejects any key not in its
+        # ALLOWED_KEYS whitelist, silently returning {ok:False} without writing,
+        # which is why the durable log was never persisting).
+        supabase.table("app_config").upsert({
+            "key": _key, "value": _json.dumps(_log), "updated_by": "cron",
+            "updated_at": _dt.now(_tz.utc).isoformat(),
+        }, on_conflict="key").execute()
     except Exception as _e:
         print(f"[push_cron] durable log skip: {_e}")
 
