@@ -28329,7 +28329,8 @@ async def ask_endpoint(request: AskRequest):
                         _ask_life_block = ((_ask_life_block or "") + (
                             "\n\nMARRIAGE QUESTION from someone who is not currently married "
                             f"({_ms}) — open by naming it as their PAST marriage (it has ended), then speak to what it still asks of "
-                            "them; do NOT talk about a future or new partner unless they ask. Do NOT mention agreements, "
+                            "them; do NOT claim they have unresolved feelings, closure needs or grief — they did not say so. "
+                            "Do NOT talk about a future or new partner unless they ask. Do NOT mention agreements, "
                             "finances, property, deals or a home — they did not raise any.")).strip()
                 except Exception:
                     pass
@@ -29806,6 +29807,15 @@ async def ask_endpoint(request: AskRequest):
                     print(f"[ask][separation] verdict chip + lead phrase suppressed for {chart_id[:8]}")
             except Exception as _sve:
                 print(f"[ask][separation] verdict skip failed: {_sve}")
+            try:
+                from antar_engine import understand as _undpg
+                if _ask_conv and (locals().get("_ask_u") or {}).get("area") in ("children_conception", "children_wellbeing") \
+                        and _undpg.pregnancy_in_progress(question):
+                    _ask_conv["suppress_verdict"] = True
+                    _ask_conv["verdict_phrase"] = ""
+                    print(f"[ask][pregnancy] conception-window lead suppressed for {chart_id[:8]}")
+            except Exception as _pge:
+                print(f"[ask][pregnancy] skipped: {_pge}")
             if locals().get("_ask_compare") and _ask_conv:
                 _ask_conv["suppress_verdict"] = True
                 _ask_conv["verdict_phrase"] = ""

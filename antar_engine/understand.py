@@ -253,6 +253,10 @@ def _clean_enum(v, allowed, default):
     return v if v in allowed else default
 
 
+_SEPARATION_WORD = re.compile(
+    r"(?i)\b(separaci[oó]n|separa[cç][aã]o|separation|separated|separat\w+|divorce|divorcio|div[oó]rcio|talaq|alag ho)\b")
+
+
 def parse(raw: str, original: str = "") -> Optional[dict]:
     """Strict parse + menu validation. Any structural failure → None."""
     try:
@@ -285,6 +289,10 @@ def parse(raw: str, original: str = "") -> Optional[dict]:
     if polarity == "feared":
         area = {"business_partnership": "partnership_ending",
                 "existing_relationship": "separation"}.get(area, area)
+    # [audit r15] "Seria bom mudar meu separação?" was filed under moving house ("mudar" = change AND move):
+    # an explicit separation / divorce word in the message wins over a residence / general guess
+    if area in ("residence_move", "general", "daily_timing") and _SEPARATION_WORD.search(original or ""):
+        area = "separation"
     sf = obj.get("stated_facts") if isinstance(obj.get("stated_facts"), dict) else {}
     other = sf.get("other") if isinstance(sf.get("other"), list) else []
     # [stated-evidence 2026-10-03] a stated fact counts only if the message says it
@@ -863,7 +871,15 @@ def drop_off_topic_pressure(text, area: str = "", question: str = ""):
             and not _DEAL_TALK.search(question or "")):
         rxs.append(_NEW_PARTNER_TALK)
     kept = [x for x in _sentences(text) if not any(r.search(x) for r in rxs)]
-    return " ".join(kept).strip() if kept else text
+    return _keep(kept, text)
+
+
+def _keep(kept: list, text: str) -> str:
+    """[audit r15] A guard must never leave nothing, nor ONLY a question: live, a residence answer was
+    reduced to its closing offer ('Aap chahte hain ki main … dekh loon?') — no reading at all."""
+    if not kept or all(k.rstrip().endswith("?") for k in kept):
+        return text
+    return " ".join(kept).strip()
 
 
 _NEW_RELATIONSHIP_Q = re.compile(
@@ -1018,6 +1034,8 @@ def kids_offtopic(text, area: str = "", question: str = "", language: str = "en"
     rxs = [_KIDS_CONGRATS]
     if not _PARENT_Q.search(question or ""):
         rxs += [_KIDS_OFFTOPIC, _KIDS_OLDER_HELP]
+    if pregnancy_in_progress(question):
+        rxs += [_KIDS_WINDOW, _KIDS_MONTHS]
     kept = [x for x in _sentences(text) if not any(r.search(x) for r in rxs)]
     if not kept:
         return text
@@ -1049,6 +1067,14 @@ _WHEN_SOFT = {
     "pt": "Nenhuma data única aparece para isso — a leitura aponta para um alívio lento nos próximos meses, com a tensão diminuindo aos poucos e não em um único momento.",
     "hinglish": "Iske liye koi ek tareekh nahi dikhti — reading agle kuch mahinon mein dheere dheere rahat dikhati hai, strain ek hi pal mein nahi balki dheere dheere kam hota hai.",
 }
+_OUTLOOK_SOFT = {
+    "en": "The reading points to a slow easing over the coming months rather than one decisive moment — the strain lifts gradually, and steady choices help it along.",
+    "es": "La lectura apunta a un alivio lento en los próximos meses, no a un momento decisivo — la tensión baja poco a poco y las decisiones firmes ayudan.",
+    "pt": "A leitura aponta para um alívio lento nos próximos meses, não para um momento decisivo — a tensão diminui aos poucos e escolhas firmes ajudam.",
+    "hinglish": "Reading agle kuch mahinon mein dheere dheere rahat dikhati hai, ek faisla-kun pal nahi — strain dheere dheere kam hota hai aur steady choices madad karti hain.",
+}
+_OUTLOOK_WORDS = re.compile(r"(?i)\b(ease|easing|eases|lift|lifts|improv\w+|alivio|alivia|diminui|melhor\w*|mejor\w*|rahat|kam hoga|"
+                            r"over the coming|próximos meses|proximos meses|agle (kuch )?mahin\w+)\b")
 _HAS_DATE = re.compile(r"(?i)\b(20\d\d|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|ene|abr|ago|set|out|dic|"
                        r"enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\b")
 
@@ -1067,6 +1093,11 @@ def relationship_floor(text, u: Optional[dict], language: str = "en"):
         return (text.rstrip() + " " + _WHY_FLOOR[fam][lg]).strip()
     if intent == "when" and area in ("separation", "existing_relationship") and not _HAS_DATE.search(text):
         return (text.rstrip() + " " + _WHEN_SOFT[lg]).strip()
+    # [audit r15] "Where will my separation take me?" / "Will it work out?" / "How is it looking?" got
+    # 'this is hard' and nothing about direction. One date-free outlook line, only when none is there.
+    if (area == "separation" and intent in ("where_who", "how", "yes_no", "which", "statement")
+            and not _HAS_DATE.search(text) and not _OUTLOOK_WORDS.search(text)):
+        return (text.rstrip() + " " + _OUTLOOK_SOFT[lg]).strip()
     return text
 
 
@@ -1109,7 +1140,7 @@ def drop_other_people_claims(text, area: str = "", question: str = ""):
     if area in _RELATIONSHIP_AREAS and not _HOME_Q.search(q):
         rxs.append(_REL_ASSUMED)
     kept = [x for x in _sentences(text) if not any(r.search(x) for r in rxs)]
-    return " ".join(kept).strip() if kept else text
+    return _keep(kept, text)
 
 
 _RETIRE_Q = re.compile(r"(?i)\b(retire\w*|pension|jubilaci[oó]n|jubilarme|aposentadoria|aposentar\w*|old age|"
@@ -1156,7 +1187,7 @@ def drop_invented_legal(text, question: str = ""):
     if not isinstance(text, str) or not text.strip() or _INVENTED_LEGAL.search(question or ""):
         return text
     kept = [x for x in _sentences(text) if not _INVENTED_LEGAL.search(x)]
-    return " ".join(kept).strip() if kept else text
+    return _keep(kept, text)
 
 
 _STUDY_WORDS = re.compile(r"(?i)\b(exam\w*|study|studying|studies|prova|provas|estud\w+|examen\w*|test|resultados?|"
@@ -1197,6 +1228,25 @@ def education_block(u: Optional[dict]) -> str:
             "- Speak to preparation, focus and the season for results — not business, clients or a "
             "career window.\n"
             "- Do NOT mention their money or home situation unless they did.")
+
+
+_PREG_NOW = re.compile(
+    r"(?i)\b(my|mi|meu|minha|mera|meri)\s+(pregnancy|embarazo|gravidez|gestaci[oó]n|gesta[cç][aã]o)\b")
+_KIDS_WINDOW = re.compile(r"(?i)\b(janela|ventana|window|opening|apertura|abertura)\b[^.!?]{0,90}\b(fam[ií]lia|familiar|family|"
+                          r"gravidez|embarazo|pregnan\w*|filhos|hijos|children)\b|\b(fam[ií]lia|familiar|family)\b[^.!?]{0,20}"
+                          r"\b(janela|ventana|window)\b")
+
+
+_KIDS_MONTHS = re.compile(
+    r"(?i)\b(jan\w*|feb\w*|fev\w*|mar\w*|apr\w*|abr\w*|may\w*|mai\w*|jun\w*|jul\w*|aug\w*|ago\w*|sep\w*|set\w*|"
+    r"oct\w*|out\w*|nov\w*|dec\w*|dic\w*|dez\w*|20\d\d)\b[^.!?]{0,70}\b(crescimento familiar|crecimiento familiar|"
+    r"family growth|growth in the family|fam[ií]lia e filhos|familia e hijos|gravidez|embarazo|pregnan\w*)\b")
+
+
+def pregnancy_in_progress(question: str) -> bool:
+    """'my pregnancy' — a pregnancy that EXISTS. A conception-window verdict ('Provável — janela familiar …')
+    answers a different question ('when will I conceive?') and asserts a window nobody asked about."""
+    return bool(_PREG_NOW.search(question or ""))
 
 
 def parse_model_json(raw) -> Optional[dict]:
@@ -1270,14 +1320,15 @@ def separation_assumes_home(text, question: str = ""):
     if _HOME_Q.search(question or ""):
         return text
     kept = [x for x in _sentences(text) if not _HOME_ASSUMED.search(x)]
-    return " ".join(kept).strip() if kept else text
+    return _keep(kept, text)
 
 
 _HOME_Q = re.compile(r"(?i)\b(home|house|property|assets?|casa|propiedad|im[oó]vel|ghar|jaaydaad|sampatti)\b")
 _HOME_ASSUMED = re.compile(
     r"(?i)\b(your (home|house)|shared (home|house|assets?)|(your|tu|sua|aapke|aapka|apna|apne) (own )?(casa|ghar)|ghar|"
     r"sus bienes|seus bens|assets?|hidden gains|financial agreement|acuerdo financiero|acordo financeiro|"
-    r"bienes compartidos)\b")
+    r"bienes compartidos|things at home|at home (feel|is|are|seems)|em casa (est|tud|as coisas)|"
+    r"en casa (est|las cosas|todo)|ghar (mein|me) (tension|kuch|sab))\b")
 
 CONCERN_MIN_CONFIDENCE = 0.75
 OWN_TOPIC_MIN_CONFIDENCE = 0.6   # own topic vs inheriting the previous turn's
@@ -1298,6 +1349,11 @@ def concern_override(u: Optional[dict], keyword_concern: str,
     if not c or c == "general" or c == keyword_concern:
         return None
     floor = CONCERN_MIN_CONFIDENCE if min_confidence is None else min_confidence
+    # [audit r15] "Kya mera sehat safal hoga?" was read as health at 0.6 but lost to the keyword router's
+    # 'general' (the word "safal" = success) and got a reputation answer. When the keyword router found NO
+    # topic at all, a specific reading is far safer to trust.
+    if (keyword_concern or "general") == "general":
+        floor = min(floor, 0.6)
     # [audit r9] "Mere bachcha ke liye kya karun?" read as children at 0.65 and lost to a career
     # guess: a child word IN the message is evidence enough for the children topic
     if (u or {}).get("area") in ("children_wellbeing", "children_conception") \
