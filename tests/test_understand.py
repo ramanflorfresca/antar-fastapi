@@ -423,7 +423,9 @@ def test_real_statements_are_kept():
 
 def test_own_topic_threshold_is_lower_than_override():
     r = u.parse(_raw(area="separation", confidence=0.7))
-    assert u.concern_override(r, "general") is None                                   # 0.75 rule
+    assert u.concern_override(r, "general") == "divorce"          # [r15] keyword found NO topic → 0.6 is enough
+    assert u.concern_override(u.parse(_raw(area="separation", confidence=0.5)), "general") is None
+    assert u.concern_override(r, "career") is None                # a real keyword topic still needs 0.75
     assert u.concern_override(r, "general", u.OWN_TOPIC_MIN_CONFIDENCE) == "divorce"  # beats inheritance
     assert u.concern_override(u.parse(_raw(area="general", confidence=0.99)), "general", 0.6) is None
 
@@ -739,3 +741,53 @@ def test_new_bond_and_foreign_property_variants():
     assert "novo vínculo" not in u.drop_off_topic_pressure(t, "existing_relationship", "Quando vai melhorar meu casamento?")
     f = "Há um contrato ou questão de propriedade a resolver. Defina três passos."
     assert "propriedade" not in u.drop_other_people_claims(f, "foreign_travel_visa", "Onde minha mudança vai me levar?")
+
+
+# ── audit round 15 ────────────────────────────────────────────────────────────
+def test_guards_never_leave_only_a_question():
+    t = "O potencial de negócios é real. Quer que eu olhe os próximos meses para ver onde o ritmo muda?"
+    out = u.drop_off_topic_pressure(t, "residence_move", "Qual é o melhor caminho para meu casa nova?")
+    assert "potencial" in out                      # the reading survives; the offer alone would not
+    ok = "A casa tem apoio. Quer que eu olhe os próximos meses?"
+    assert u.drop_off_topic_pressure(ok, "residence_move", "x") == ok
+
+
+def test_keyword_general_yields_to_a_specific_reading_at_lower_confidence():
+    uu = {"area": "health_self", "confidence": 0.6}
+    assert u.concern_override(uu, "general") == "health"
+    assert u.concern_override(uu, "career") is None        # a real keyword topic still needs 0.75
+
+
+def test_separation_word_beats_a_residence_misread():
+    raw = '{"area":"residence_move","intent":"yes_no","confidence":0.8,"language":"pt"}'
+    r = u.parse(raw, "Seria bom mudar meu separação?")
+    assert r and r["area"] == "separation"
+    r2 = u.parse(raw, "Seria bom mudar minha casa?")
+    assert r2 and r2["area"] == "residence_move"
+
+
+def test_separation_outlook_line_for_where_how_and_works_out():
+    for intent in ("where_who", "how", "yes_no"):
+        out = u.relationship_floor("This stretch is hard. Lean on someone.", {"area": "separation", "intent": intent}, "en")
+        assert "slow easing" in out
+    already = "It is hard but it does ease over time."
+    assert u.relationship_floor(already, {"area": "separation", "intent": "how"}, "en") == already
+    assert u.relationship_floor("Hard stretch.", {"area": "separation", "intent": "how"}, "es").endswith("ayudan.")
+
+
+def test_invented_home_strain_dropped_for_separation():
+    t = "This is a tough time. Things at home feel strained. Name one boundary."
+    assert "at home" not in u.separation_assumes_home(t, "How is my separation looking?")
+
+
+def test_pregnancy_in_progress_drops_the_window_sentence():
+    assert u.pregnancy_in_progress("Quando vai melhorar meu gravidez?") and not u.pregnancy_in_progress("When will I conceive?")
+    t = "A janela de outubro a janeiro é a mais favorável para a área de família. Fale com seu médico."
+    out = u.kids_offtopic(t, "children_conception", "Quando vai melhorar meu gravidez?", "pt")
+    assert "janela" not in out and "médico" in out
+
+
+def test_pregnancy_in_progress_drops_month_range_family_growth_sentence():
+    t = "O período de outubro até janeiro traz o sinal mais favorável do ano para crescimento familiar. Marque uma consulta médica."
+    out = u.kids_offtopic(t, "children_conception", "Quando vai melhorar meu gravidez?", "pt")
+    assert "outubro" not in out and "consulta" in out
