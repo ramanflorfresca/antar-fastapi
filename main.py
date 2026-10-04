@@ -25752,6 +25752,7 @@ _ASK_FOLLOWUPS = {
         "spiritual": ["Which practice fits me best right now?",
                       "When is my strongest spiritual window?",
                       "How do I steady my mind this month?"],
+        "day": ["How is tomorrow looking?", "What is the best time of day for me today?", "How is my week ahead?"],
         "general": ["How is my money looking right now?",
                     "When does my next strong window open?",
                     "What should I focus on this month?"],
@@ -25787,6 +25788,7 @@ _ASK_FOLLOWUPS = {
         "spiritual": ["¿Qué práctica me conviene más ahora?",
                       "¿Cuándo es mi ventana espiritual más fuerte?",
                       "¿Cómo calmo mi mente este mes?"],
+        "day": ["¿Cómo se ve mañana?", "¿Cuál es la mejor hora del día para mí hoy?", "¿Cómo se ve mi semana?"],
         "general": ["¿Cómo está mi dinero ahora mismo?",
                     "¿Cuándo se abre mi próxima ventana fuerte?",
                     "¿En qué debo enfocarme este mes?"],
@@ -25822,6 +25824,7 @@ _ASK_FOLLOWUPS = {
         "spiritual": ["Qual prática combina mais comigo agora?",
                       "Quando é minha janela espiritual mais forte?",
                       "Como acalmo minha mente este mês?"],
+        "day": ["Como está amanhã?", "Qual é o melhor horário do dia para mim hoje?", "Como está minha semana?"],
         "general": ["Como está meu dinheiro agora?",
                     "Quando abre minha próxima janela forte?",
                     "No que devo focar este mês?"],
@@ -25833,12 +25836,36 @@ def _ask_norm(_s):
     return _re_crisis.sub(r"[^a-z0-9]+", " ", (_s or "").lower()).strip()
 
 
+_DAY_OVERVIEW = re.compile(
+    r"(?i)^\s*¿?\s*(how('?s| is| was| will| does)?|what('?s| is| about)|and)\s+(is |was |will |does |about )?"
+    r"(my |the )?(day|today|tomorrow|week|weekend|this week|next week)\b[^.?!]{0,25}\??\s*$"
+    r"|^\s*¿?\s*(c[oó]mo|qu[eé] tal)\s+(est[aá]|va( a ser)?|ser[aá]|se ve|me va)\s+(mi |el |la )?(d[ií]a|hoy|ma[nñ]ana|semana)\b[^.?!]{0,25}\??\s*$"
+    r"|^\s*(como)\s+(est[aá]|vai( ser)?|ser[aá])\s+(meu |o |a |minha )?(dia|hoje|amanh[aã]|semana)\b[^.?!]{0,25}\??\s*$"
+    r"|^\s*(aaj|kal|is hafte|aaj ka din|mera din|mera hafta)\b[^.?!]{0,25}(kaisa|kaisi|kaise)\b[^.?!]{0,20}\??\s*$")
+_DAY_DOMAIN = re.compile(
+    r"(?i)\b(money|cash|income|career|work|job|business|love|relationship|health|speculat\w*|trad\w*|"
+    r"invest\w*|funding|marriage|family|dinero|trabajo|negocio|amor|salud|dinheiro|neg[oó]cio|"
+    r"sa[uú]de|paisa|kaam|pyaar)\b")
+
+
+def _ask_is_day_overview(question: str) -> bool:
+    """'How is my day today?' / 'How is tomorrow?' / 'How is my week?' (EN/ES/PT/Hinglish)
+    with no life-area word — those are about the DAY, not a domain."""
+    q = (question or "").strip()
+    return bool(q) and len(q) <= 60 and bool(_DAY_OVERVIEW.search(q)) and not _DAY_DOMAIN.search(q)
+
+
 def _ask_followups(concern: str, question: str, language: str = "en") -> list:
     """2-3 forward next-questions to LEAD the reader on, scoped to the answer's
     concern. Drops any suggestion that just repeats what they already asked."""
     _lang = (language or "en").lower()[:2]
     table = _ASK_FOLLOWUPS.get(_lang) or _ASK_FOLLOWUPS["en"]
     bucket = _ASK_FOLLOWUP_BUCKET.get((concern or "general").lower(), "general")
+    # [day-chips 2026-10-03] owner screenshot: "How is my day today" came back with CAREER
+    # chips ("Which profession fits me best?"). A plain how-is-my-day/tomorrow/week question
+    # gets day chips, whatever concern the thread inherited. Domain words keep their bucket.
+    if _ask_is_day_overview(question):
+        bucket = "day"
     cands = list(table.get(bucket) or table["general"])
     _qn = _ask_norm(question)
     out = [c for c in cands if _ask_norm(c) != _qn][:3]
