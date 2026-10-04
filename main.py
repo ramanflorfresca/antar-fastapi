@@ -25864,9 +25864,15 @@ def _ask_followups(concern: str, question: str, language: str = "en") -> list:
     # [day-chips 2026-10-03] owner screenshot: "How is my day today" came back with CAREER
     # chips ("Which profession fits me best?"). A plain how-is-my-day/tomorrow/week question
     # gets day chips, whatever concern the thread inherited. Domain words keep their bucket.
-    if _ask_is_day_overview(question):
+    _day_bucket = _ask_is_day_overview(question)
+    if _day_bucket:
         bucket = "day"
     cands = list(table.get(bucket) or table["general"])
+    if _day_bucket:   # "How is tomorrow?" must not offer "How is tomorrow looking?" back
+        _ql = (question or "").lower()
+        for _w in ("tomorrow", "week", "mañana", "semana", "amanhã", "amanha", "kal", "hafte"):
+            if _w in _ql:
+                cands = [c for c in cands if _w not in c.lower()] or cands
     _qn = _ask_norm(question)
     out = [c for c in cands if _ask_norm(c) != _qn][:3]
     return out or cands[:2]
@@ -26776,7 +26782,7 @@ async def ask_endpoint(request: AskRequest):
             from antar_engine import conversation as _convl
             _cl_thread = await asyncio.to_thread(
                 _ask_recent_thread, chart_id, 2, _convl.FOLLOWUP_WINDOW_MIN)
-            if _convl.looks_like_followup(question, _cl_thread):
+            if _convl.looks_like_followup(question, _cl_thread) and not _ask_is_day_overview(question):
                 _cl_raw = await asyncio.wait_for(call_llm_claude(
                     prompt=_convl.rewrite_request(question, _cl_thread, language),
                     system_override=_convl.REWRITE_SYSTEM, model_override=HAIKU_MODEL), timeout=8)
@@ -28273,6 +28279,12 @@ async def ask_endpoint(request: AskRequest):
                         _prev_dom and _prev_dom != "general" and _is_followup
                         and (_ask_concern in ("", "general") or _kw_general)
                     )
+                    # [day-overview 2026-10-03] "How is my day today?" / "How is tomorrow?" is about
+                    # the DAY, whatever the last question was (live: right after a speculation
+                    # turn it inherited speculation and answered about capital and bets).
+                    if _ask_is_day_overview(_ASK_TYPED_Q.get() or question):
+                        _inherit_ok = False
+                        _ask_concern = "general"
                     # [nlu-vs-thread 2026-10-03] a confident, specific reading of THIS
                     # message beats inheritance (audit: "¿Cuándo mejorará mi separación?"
                     # — keyword 'general' → inherited 'finance' from the prior cash-flow
@@ -30225,8 +30237,8 @@ async def ask_endpoint(request: AskRequest):
                 # speculation / trading / betting (live regression: Andres's gold-mine
                 # deals question got the speculation verdict).
                 _sp_words = _spp0.SPECULATION_Q.search(question or "")
-                if _sp_gamb or _is_gambling_q(question) or (
-                        _sp_words and (_sp_area or locals().get("_ask_concern") == "speculation")):
+                if not _ask_is_day_overview(_ASK_TYPED_Q.get() or question) and (_sp_gamb or _is_gambling_q(question) or (
+                        _sp_words and (_sp_area or locals().get("_ask_concern") == "speculation"))):
                     from antar_engine import speculation_policy as _spp
                     _sp_natal = _spp.natal_read(chart_data, locals().get("_ask_dashas") or {},
                                                 locals().get("_ask_bdate") or "")
@@ -30268,9 +30280,41 @@ async def ask_endpoint(request: AskRequest):
                     if (_spp.is_day_question(question) and not _sp_gamb and not _sp_how
                             and _sp_state in ("open", "later")):
                         _ctx = _spp.day_context(_sp_state, _sp_win, language)
-                        _body = (payload.get("read") or "").strip()
-                        payload["read"] = (_ctx + " " + _body).strip()
-                        print(f"[ask][speculation-policy] day-level kept (state={_sp_state}) for {chart_id[:8]}")
+                        # [spec-days-from-today 2026-10-03] the day pick comes from the SAME
+                        # per-day data as the Today screen (daily-week) — never a second
+                        # calculation that can disagree with it.
+                        _sd = None
+                        try:
+                            from antar_engine import speculation_days as _spd
+                            # English data (structural fields only; the cached/fast one) —
+                            # our own ES/PT strings do the localizing, so a slow translated
+                            # fetch can never push us back to a second calculation.
+                            _wk = await asyncio.wait_for(get_daily_week(
+                                chart_id, tz_offset=(float(request.tz_offset) if request.tz_offset else None),
+                                language="en", force_refresh=False, full_compute=False,
+                                background_tasks=None), timeout=12)
+                            _wk = _wk if isinstance(_wk, dict) else json.loads(getattr(_wk, "body", b"{}") or b"{}")
+                            _wdays = [d for d in (_wk.get("days") or []) if not d.get("pending")]
+                            _which = _spd.which_day(question)
+                            _sd = (_spd.specific_day(_wdays, _which, language) if _which
+                                   else _spd.week_answer(_wdays, language))
+                        except Exception as _sde:
+                            print(f"[ask][speculation-policy] day data unavailable: {type(_sde).__name__}")
+                        if _sd:
+                            payload["read"] = (_ctx + " " + _sd["read"]).strip()
+                            payload["next"] = _sd["next"]
+                            payload["timing"] = _sd["timing"] or None
+                            print(f"[ask][speculation-policy] day-level from Today data "
+                                  f"(state={_sp_state}) for {chart_id[:8]}")
+                        else:
+                            # no day data → the period answer (never the old, separately
+                            # calculated day pick that disagreed with Today)
+                            payload["read"] = _spp.merge(payload.get("read") or "", _sp["read"], _sp_state)
+                            payload["next"] = _sp["next"]
+                            if _sp_win:
+                                payload["timing"] = _sp_win
+                            print(f"[ask][speculation-policy] day data missing → period answer "
+                                  f"(state={_sp_state}) for {chart_id[:8]}")
                     else:
                         payload["read"] = _spp.merge(payload.get("read") or "", _sp["read"], _sp_state)
                         payload["next"] = _sp["next"]
@@ -30278,6 +30322,12 @@ async def ask_endpoint(request: AskRequest):
                             payload["timing"] = _sp_win          # one window everywhere
                         elif _sp_state in ("losses", "no"):
                             payload["timing"] = None
+                    # the policy text is deterministic: keep its timing chip, and let the
+                    # integrity gate treat its dates as grounded (live: a tomorrow question had
+                    # "Jun 2027" and the day label rewritten to "a future period" / "October 4th")
+                    _ask_tf_windowscan = False
+                    _sp_ground = " ".join(str(x) for x in (
+                        _sp_win, payload.get("timing"), payload.get("read"), payload.get("next")) if x)
                     print(f"[ask][speculation-policy] state={_sp_state} window={_sp_win!r} "
                           f"gambling={_sp_gamb} score={(_sp_natal or {}).get('score')} "
                           f"kp={_sp_kp} for {chart_id[:8]}")
@@ -30404,7 +30454,7 @@ async def ask_endpoint(request: AskRequest):
                 from antar_engine.integrity_gate import run_gate as _ig_run
                 _ig_ground = "\n".join(str(x) for x in (
                     locals().get("_sys") or "", question, payload.get("timing") or "",
-                    locals().get("_ee_timing") or "") if x)
+                    locals().get("_ee_timing") or "", locals().get("_sp_ground") or "") if x)
 
                 async def _ig_rewrite(_sysp, _userp):
                     _rt = await call_llm_claude(prompt=_userp, system_override=_sysp,
