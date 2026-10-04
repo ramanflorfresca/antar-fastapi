@@ -991,14 +991,81 @@ _KIDS_OFFTOPIC = re.compile(
 _PARENT_Q = re.compile(r"(?i)\b(father|dad|papa|pap[aá]|padre|pai|mother|mom|madre|m[aã]e)\b")
 
 
-def kids_offtopic(text, area: str = "", question: str = ""):
-    """[audit r10] Pregnancy / child answers drift to mentors, 'your father's side' and an asserted
-    arriving child. Those sentences go (never emptying the text)."""
-    if not isinstance(text, str) or not text.strip() or area not in ("children_wellbeing", "children_conception") \
-            or _PARENT_Q.search(question or ""):
+_KIDS_CONGRATS = re.compile(
+    r"(?i)\b(congratulat\w+|felicidades|felicitaciones|parab[eé]ns|mubarak|badhai|"
+    r"(arrival|llegada|chegada) (of|de|do|da) (your|tu|seu|sua) (child|baby|hijo|beb[eé]|filho|beb[eê]))\b")
+_KIDS_OLDER_HELP = re.compile(
+    r"(?i)\b((seu|tu|your) (pai|padre|father|m[aã]e|madre|mother)( ou)?\b[^.!?]{0,30}(mais velho|mayor|older|elder)|"
+    r"alguém mais velho|alguien mayor|someone older|an elder|um anci[aã]o)\b")
+
+
+_KIDS_FLOOR = {
+    "en": "The reading shows a mixed season for family growth — unhurried steps and a conversation with your doctor serve you better than pushing a timeline.",
+    "es": "La lectura muestra una temporada mixta para el crecimiento familiar — los pasos sin prisa y una conversación con tu médico te sirven más que forzar un calendario.",
+    "pt": "A leitura mostra uma temporada mista para o crescimento da família — passos sem pressa e uma conversa com seu médico ajudam mais do que forçar um calendário.",
+    "hinglish": "Reading family growth ke liye ek mixed season dikhati hai — bina jaldi ke kadam aur doctor se baat, timeline ko dhakelne se zyada kaam aate hain.",
+}
+
+
+def kids_offtopic(text, area: str = "", question: str = "", language: str = "en"):
+    """[audit r10/r13] Pregnancy / child answers drift to mentors, 'your father's side', an asserted
+    arriving child, a congratulation nobody asked for. Those sentences go (never emptying the text);
+    if what is left no longer mentions children/family at all, one on-topic sentence is added back."""
+    if not isinstance(text, str) or not text.strip() or area not in ("children_wellbeing", "children_conception"):
         return text
-    kept = [x for x in _sentences(text) if not _KIDS_OFFTOPIC.search(x)]
-    return " ".join(kept).strip() if kept else text
+    rxs = [_KIDS_CONGRATS]
+    if not _PARENT_Q.search(question or ""):
+        rxs += [_KIDS_OFFTOPIC, _KIDS_OLDER_HELP]
+    kept = [x for x in _sentences(text) if not any(r.search(x) for r in rxs)]
+    if not kept:
+        return text
+    out = " ".join(kept).strip()
+    if len(kept) < len(_sentences(text)) and not _CHILD_WORD.search(out) \
+            and not re.search(r"(?i)\b(family|familia|fam[ií]lia|pregnan\w*|embaraz\w*|gravidez)\b", out):
+        lg = language if language in ("es", "pt", "hinglish") else "en"
+        out = (_KIDS_FLOOR[lg] + " " + out).strip()
+    return out
+
+
+_WHY_FLOOR = {
+    "relationship": {
+        "en": "The reading shows this stretch puts real strain on close bonds — pressure and distance between you and the people closest to you is what makes it feel so heavy.",
+        "es": "La lectura muestra que esta etapa pone una tensión real en los vínculos cercanos — la presión y la distancia con las personas más cercanas es lo que la hace tan pesada.",
+        "pt": "A leitura mostra que esta fase coloca uma tensão real nos vínculos próximos — a pressão e a distância com as pessoas mais próximas é o que a torna tão pesada.",
+        "hinglish": "Reading dikhata hai ki yeh daur close rishton par asli strain daal raha hai — apne sabse kareebi logon ke saath pressure aur doori hi ise itna bhaari bana rahi hai.",
+    },
+    "general": {
+        "en": "The reading shows pressure building in this area right now — that is what makes it feel heavier than it should.",
+        "es": "La lectura muestra presión acumulándose en esta área ahora mismo — eso es lo que la hace sentir más pesada de lo que debería.",
+        "pt": "A leitura mostra pressão se acumulando nesta área agora — é isso que a faz parecer mais pesada do que deveria.",
+        "hinglish": "Reading dikhata hai ki is area mein abhi pressure badh raha hai — yahi ise zaroorat se zyada bhaari bana raha hai.",
+    },
+}
+_WHEN_SOFT = {
+    "en": "No single date shows for this — the reading points to a slow easing over the coming months, the strain lifting gradually rather than at one moment.",
+    "es": "No aparece una fecha única para esto — la lectura apunta a un alivio lento en los próximos meses, con la tensión aflojando poco a poco y no en un solo momento.",
+    "pt": "Nenhuma data única aparece para isso — a leitura aponta para um alívio lento nos próximos meses, com a tensão diminuindo aos poucos e não em um único momento.",
+    "hinglish": "Iske liye koi ek tareekh nahi dikhti — reading agle kuch mahinon mein dheere dheere rahat dikhati hai, strain ek hi pal mein nahi balki dheere dheere kam hota hai.",
+}
+_HAS_DATE = re.compile(r"(?i)\b(20\d\d|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|ene|abr|ago|set|out|dic|"
+                       r"enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\b")
+
+
+def relationship_floor(text, u: Optional[dict], language: str = "en"):
+    """[audit r13] After the filters a relationship answer can be a single sentence with no reason
+    ('Mera shaadi itna mushkil kyun hai?' → one line), and a separation 'when' question gets no
+    timing at all (the 'next partnership window' is suppressed on purpose). Add ONE deterministic,
+    date-free sentence: a reason for why-questions, a gradual-easing line for when-questions."""
+    if not isinstance(text, str) or not text.strip():
+        return text
+    area, intent = (u or {}).get("area"), (u or {}).get("intent")
+    lg = language if language in ("es", "pt", "hinglish") else "en"
+    fam = "relationship" if area in _RELATIONSHIP_AREAS or area == "separation" else "general"
+    if intent == "why" and len(_sentences(text)) < 2:
+        return (text.rstrip() + " " + _WHY_FLOOR[fam][lg]).strip()
+    if intent == "when" and area in ("separation", "existing_relationship") and not _HAS_DATE.search(text):
+        return (text.rstrip() + " " + _WHEN_SOFT[lg]).strip()
+    return text
 
 
 # ── round 11 ─────────────────────────────────────────────────────────────────

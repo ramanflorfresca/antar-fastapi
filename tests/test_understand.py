@@ -682,3 +682,30 @@ def test_loan_clause_cut_from_a_one_sentence_next_step():
     t = "Analise a avaliação da compra da participação e quaisquer termos de empréstimo linha por linha antes de aceitar."
     out = u.drop_asserted_loans(t, "Vale a pena comprar a parte dele?", "business_partnership")
     assert "empréstimo" not in out and "Analise a avaliação" in out and "linha por linha" in out
+
+
+# ── audit round 13 ────────────────────────────────────────────────────────────
+def test_kids_guard_drops_congratulations_and_older_helper():
+    t = "Felicidades por el embarazo. La temporada pide pasos firmes. Seu pai ou alguém mais velho pode ajudar. Fale com seu médico."
+    out = u.kids_offtopic(t, "children_conception", "¿Qué debo hacer con mi embarazo?")
+    assert "Felicidades" not in out and "mais velho" not in out and "médico" in out
+    # congratulations are dropped even if a parent is named
+    assert "Congratulations" not in u.kids_offtopic("Congratulations! Rest well.", "children_conception", "My mother and my pregnancy")
+
+
+def test_relationship_floor_adds_reason_and_soft_when():
+    one = "Raman, yeh dard real hai — aur aap akele nahi hain isme."
+    out = u.relationship_floor(one, {"area": "separation", "intent": "why"}, "hinglish")
+    assert out.startswith(one) and "strain" in out
+    two = "Hard stretch. Steady choices help."
+    assert u.relationship_floor(two, {"area": "separation", "intent": "why"}, "en") == two
+    w = u.relationship_floor("This is a heavy season. Lean on someone.", {"area": "separation", "intent": "when"}, "en")
+    assert "No single date" in w
+    assert u.relationship_floor("Easing by Nov 2026. Hold on.", {"area": "separation", "intent": "when"}, "en") == "Easing by Nov 2026. Hold on."
+    assert u.relationship_floor("Text.", {"area": "career_job", "intent": "when"}, "en") == "Text."
+
+
+def test_kids_guard_restores_an_on_topic_sentence():
+    t = "Felicidades por el embarazo. Tus ahorros están bajo presión."
+    out = u.kids_offtopic(t, "children_conception", "¿Qué debo hacer con mi embarazo?", "es")
+    assert "Felicidades" not in out and "crecimiento familiar" in out and "ahorros" in out

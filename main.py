@@ -30618,7 +30618,8 @@ async def ask_endpoint(request: AskRequest):
                     payload[_rf] = _und3.drop_other_people_claims(payload.get(_rf), _au3.get("area") or "", question)
                 if _au3.get("area") in ("children_wellbeing", "children_conception"):
                     for _rf in ("read", "next"):
-                        payload[_rf] = _und3.kids_offtopic(payload.get(_rf), _au3.get("area") or "", question)
+                        payload[_rf] = _und3.kids_offtopic(payload.get(_rf), _au3.get("area") or "", question, language)
+                payload["read"] = _und3.relationship_floor(payload.get("read"), _au3, language)
                 payload["next"] = _und3.safe_next(_au3.get("area") or "", payload.get("next"), question, language)
                 for _rf in ("read", "next"):
                     payload[_rf] = _und3.drop_asserted_loans(payload.get(_rf), question, _au3.get("area") or "")
