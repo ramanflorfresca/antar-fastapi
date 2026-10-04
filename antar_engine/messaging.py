@@ -711,6 +711,12 @@ def _yesno_as_read(p: dict, language: str) -> dict:
     return q
 
 
+_OWN_LINE = {"en": "_…or just type your own question._",
+             "es": "_…o escribe tu propia pregunta._",
+             "pt": "_…ou escreva sua própria pergunta._",
+             "hinglish": "_…ya apna koi bhi sawaal likhiye._"}
+
+
 def format_ask_whatsapp_v2(payload: dict, language: str = "en",
                            header: Optional[str] = None, asked: str = "",
                            compact: bool = False, include_practice: bool = True) -> tuple:
@@ -784,7 +790,10 @@ def format_ask_whatsapp_v2(payload: dict, language: str = "en",
             parts.append(f"*{head}*" if len(head) <= 180 else head)
         parts += [x for x in (rest_, win, move_, practice_, checkback) if x]
         if fus_:
-            parts.append("\n".join(f"{i}  {q}" for i, q in enumerate(fus_, 1)))
+            # [followup-flows] same paragraph as the numbers → dropped when the tappable list
+            # (which has its own "Ask your own" row) replaces them
+            parts.append("\n".join(f"{i}  {q}" for i, q in enumerate(fus_, 1))
+                         + "\n" + _OWN_LINE.get(language, _OWN_LINE["en"]))
         return "\n\n".join(parts).strip()
 
     text = build(opener, rest, practice, move, fus)
