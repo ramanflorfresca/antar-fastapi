@@ -91,6 +91,8 @@ def block(chart_data, birth_date: str, rel: Optional[str]) -> str:
             f"relationship ({sup} supportive signal(s), {fri} friction signal(s)): it is {tone}.\n"
             f"- Say this in plain words (no house, planet or sign names).\n"
             f"- NEVER mention the {p['label']}'s health, illness, lifespan or death.\n"
+            f"- Say what the reading shows as a TENDENCY ('tends to open doors'), never as past fact "
+            f"('some of your gains have come through him').\n"
             f"- If they're weighing it against partners or another option, don't name a winner: "
             f"say how working with their {p['label']} tends to go for them, and what makes it work.\n"
             f"- The practical move for working together: agree roles, who decides what, and how "

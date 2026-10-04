@@ -181,6 +181,11 @@ _OUTCOME_Q = re.compile(
     r"richest|millonari[oa]|hacerme rico|volverme rico|riqueza|m[aá]ximo potencial|"
     r"milion[aá]ri[oa]|ficar rico|maior potencial|crorepati|amir ban)\b")
 
+_OUTCOME_MARKERS = re.compile(
+    r"(?i)\b(most|highest|maximum|max|biggest|best.paying|richest|rich|wealthy|millions?|billions?|crore|lakh|"
+    r"potential|\d[\d,.]*\s?(k|m|usd|dollars|pesos|rupees)|\$\s?\d|rank|ranking|top|m[aá]s dinero|"
+    r"mais dinheiro|sabse zyada)\b")
+
 WORK = ("employed", "unemployed", "self_employed", "student", "retired", "homemaker")
 RELATIONSHIP = ("single", "dating", "married", "separated", "divorced", "widowed")
 
@@ -324,7 +329,12 @@ def parse(raw: str, original: str = "") -> Optional[dict]:
     except Exception:
         pass
     return {
-        "outcome_claim": bool(obj.get("outcome_claim")) or bool(_OUTCOME_Q.search(original or "")),
+        "has_choice": bool(_CHOICE_RX.search(original or "")),
+        # the model's flag counts only when the wording really asks for an amount or a ranking
+        # (audit r6: "Will I make good money doing deals with…" is an ordinary yes/no, but the
+        # model called it a wealth promise and the verdict was suppressed)
+        "outcome_claim": bool(_OUTCOME_Q.search(original or "")) or (
+            bool(obj.get("outcome_claim")) and bool(_OUTCOME_MARKERS.search(original or ""))),
         "options": options,
         "feeling": _clean_enum(obj.get("feeling"), FEELINGS, "neutral"),
         "stated_facts": facts,
@@ -523,9 +533,17 @@ def tone_block(u: Optional[dict]) -> str:
 # can't support (business-vertical study: no better than chance), reasoned from a
 # deal structure he never stated (his gold work is advisory + commission + sweat
 # equity, the SAME role as his defence and real-estate deals).
+_CHOICE_RX = re.compile(
+    r"(?i)\b(or|vs\.?|versus|either|better|which|whether|ou|ya|ya phir|between|entre|cu[aá]l|qual|quais|"
+    r"kaun(?:sa|si)?)\b|¿[^?]*\bo\b")
+
+
 def is_comparison(u: Optional[dict]) -> bool:
+    """A choice between options. [audit r6] Listing several things ('deals with a gold mine,
+    a processing plant and a refinery') is NOT a choice — it needs an or/vs/which/better
+    marker, else 'Will I make good money doing X, Y and Z?' lost its Yes/Not-yet answer."""
     u = u or {}
-    return len(u.get("options") or []) >= 2 or u.get("intent") == "which"
+    return u.get("intent") == "which" or (len(u.get("options") or []) >= 2 and bool(u.get("has_choice")))
 
 
 def earning_text(earning: list) -> str:
@@ -753,6 +771,18 @@ def not_employed(u: Optional[dict], career_stage: str = "") -> bool:
     return w == "unemployed" or (career_stage or "").strip().lower() in NOT_EMPLOYED_STAGES
 
 
+_PARENT_GAINS = re.compile(
+    r"(?i)\b(some of )?(your )?(gains|good fortune|fortune|success|money|income|luck)( have| has)? "
+    r"(come|came|flowed|flow|arrived|arrive)s? (through|from) (him|her|them|your (?:father|mother|dad|mom|parents?))\b")
+_AT_YOUR_JOB = re.compile(r"(?i)\b(at|in|from) your (?:[a-z]+ ){0,3}(job|role|company|office|workplace)\b")
+
+
+def _parent_gains(m):
+    who = m.group(7).lower()
+    poss = {"him": "his", "her": "her", "them": "their"}.get(who, who + "'s" if not who.endswith("s") else who + "'")
+    return f"{poss} backing tends to help {m.group(2) or ''}{m.group(3)}".replace("  ", " ")
+
+
 def guard_answer(text, question: str = "", options: Optional[list] = None,
                  unemployed: bool = False, known_background: str = ""):
     """Deterministic backstop for the rules above. Drops investment-advice and
@@ -775,7 +805,11 @@ def guard_answer(text, question: str = "", options: Optional[list] = None,
             continue
         kept.append(snt)
     out = " ".join(kept).strip() if kept else text
+    # [audit r6] "some of your gains have come through him" — a past fact about a parent the
+    # reading cannot know; the reading shows a tendency, not a history
+    out = _PARENT_GAINS.sub(_parent_gains, out)
     if unemployed:
+        out = _AT_YOUR_JOB.sub("in your field", out)
         # [between-jobs 2026-10-03] live: "a specialist your boss and colleagues come to"
         out = _WORKPLACE.sub(lambda m: "People" if m.group(0)[0].isupper() else "people", out)
         if not re.search(r"(?i)laid off|fired|let go|despid|demitid|layoff",

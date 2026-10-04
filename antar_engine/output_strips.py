@@ -259,7 +259,13 @@ _VEDIC_SUBS_ES: list[tuple[str, str]] = [
     (r'\b(\w+) PD\b',             r'\1 en sub-subperíodo'),
     (r'\b(\w+) SD\b',             r'\1 en ciclo menor'),
     # Sanskrit nouns
-    # [polish] named nakshatras — added via patch_polish_content_tables.py
+    # [hasta-scrub 2026-10-03] "Hasta" and "Mula" are nakshatra names AND ordinary words —
+# Spanish "hasta" = until (in nearly every date range: "disponible hasta el viernes" came
+# out as "disponible la energía lunar el viernes"), "mula" = mule. The tables below run
+# IGNORECASE, so these two now match only when capitalised AND clearly the star name:
+# "in/en/em/of Hasta", "star/estrella Hasta", "Hasta nakshatra", "Hasta · Mitra", or the
+# whole string. (Found by an audit of the Spanish speculation answer.)
+# [polish] named nakshatras — added via patch_polish_content_tables.py
     (r'\bPurva\s+Phalguni\b', 'la energía lunar'),
     (r'\bUttara\s+Phalguni\b', 'la energía lunar'),
     (r'\bPurva\s+Ashadha\b', 'la energía lunar'),
@@ -276,13 +282,13 @@ _VEDIC_SUBS_ES: list[tuple[str, str]] = [
     (r'\bPushya\b', 'la energía lunar'),
     (r'\bAshlesha\b', 'la energía lunar'),
     (r'\bMagha\b', 'la energía lunar'),
-    (r'\bHasta\b', 'la energía lunar'),
+    (r'(?:(?<=\bin )|(?<=\ben )|(?<=\bem )|(?<=\bof )|(?<=star )|(?<=estrella )|(?<=estrela )|(?<=nakshatra ))(?-i:Hasta)\b|(?-i:\bHasta\b)(?=\s*(?:nakshatra\b|\u00b7|\())|^(?-i:Hasta)$', 'la energía lunar'),
     (r'\bChitra\b', 'la energía lunar'),
     (r'\bSwati\b', 'la energía lunar'),
     (r'\bVishakha\b', 'la energía lunar'),
     (r'\bAnuradha\b', 'la energía lunar'),
     (r'\bJyeshtha\b', 'la energía lunar'),
-    (r'\bMula\b', 'la energía lunar'),
+    (r'(?:(?<=\bin )|(?<=\ben )|(?<=\bem )|(?<=\bof )|(?<=star )|(?<=estrella )|(?<=estrela )|(?<=nakshatra ))(?-i:Mula)\b|(?-i:\bMula\b)(?=\s*(?:nakshatra\b|\u00b7|\())|^(?-i:Mula)$', 'la energía lunar'),
     (r'\bShravana\b', 'la energía lunar'),
     (r'\bDhanishta\b', 'la energía lunar'),
     (r'\bShatabhisha\b', 'la energía lunar'),
@@ -405,13 +411,13 @@ _VEDIC_SUBS_EN: list[tuple[str, str]] = [
     (r'\bPushya\b', 'lunar energy'),
     (r'\bAshlesha\b', 'lunar energy'),
     (r'\bMagha\b', 'lunar energy'),
-    (r'\bHasta\b', 'lunar energy'),
+    (r'(?:(?<=\bin )|(?<=\ben )|(?<=\bem )|(?<=\bof )|(?<=star )|(?<=estrella )|(?<=estrela )|(?<=nakshatra ))(?-i:Hasta)\b|(?-i:\bHasta\b)(?=\s*(?:nakshatra\b|\u00b7|\())|^(?-i:Hasta)$', 'lunar energy'),
     (r'\bChitra\b', 'lunar energy'),
     (r'\bSwati\b', 'lunar energy'),
     (r'\bVishakha\b', 'lunar energy'),
     (r'\bAnuradha\b', 'lunar energy'),
     (r'\bJyeshtha\b', 'lunar energy'),
-    (r'\bMula\b', 'lunar energy'),
+    (r'(?:(?<=\bin )|(?<=\ben )|(?<=\bem )|(?<=\bof )|(?<=star )|(?<=estrella )|(?<=estrela )|(?<=nakshatra ))(?-i:Mula)\b|(?-i:\bMula\b)(?=\s*(?:nakshatra\b|\u00b7|\())|^(?-i:Mula)$', 'lunar energy'),
     (r'\bShravana\b', 'lunar energy'),
     (r'\bDhanishta\b', 'lunar energy'),
     (r'\bShatabhisha\b', 'lunar energy'),
