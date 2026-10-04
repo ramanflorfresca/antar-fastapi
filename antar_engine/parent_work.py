@@ -37,10 +37,42 @@ def who(question: str, u: Optional[dict] = None) -> Optional[str]:
     return None
 
 
+_WORK_Q = re.compile(
+    r"(?i)\b(work|working|business|partner|partners|partnership|company|firm|deal|deals|money|income|"
+    r"career|job|venture|startup|trabaj\w*|negocio|socio\w*|empresa|neg[oó]cio|s[oó]cio\w*|kaam|vyapar|"
+    r"dhandha|naukri)\b")
+_HEALTH_AREAS = frozenset({"health_self", "health_other", "children_wellbeing"})
+
+
+def applies(question: str, u: Optional[dict] = None) -> bool:
+    """[audit r7] The father-backing / money-split reading belongs to questions about working with
+    or relating to a parent — never to the parent's HEALTH (live: "How is my father's health
+    looking?" got 'his name opens doors for you')."""
+    return (u or {}).get("area") not in _HEALTH_AREAS
+
+
+def health_block(rel: Optional[str]) -> str:
+    """A question about a parent's HEALTH: the reading is about the asker, so say so, and never
+    predict the parent's conditions (live r7: 'kidneys, skin, a health-sensitive window')."""
+    if rel not in _PLAIN:
+        return ""
+    lab = _PLAIN[rel]["label"]
+    return (f"\n\nTHEIR {lab.upper()}'S HEALTH — the reading is THEIR chart; it cannot diagnose or "
+            f"forecast another person's body.\n"
+            f"- Do NOT name any condition, body part, illness, lifespan or risk window for their {lab}.\n"
+            f"- Acknowledge it is weighing on them; say what this period is like FOR THEM (energy, "
+            f"worry, how much they can carry); keep the practical step to a check-up with a qualified "
+            f"doctor, being present, sharing the load. No herbs or remedies.")
+
+
+def is_work_question(question: str, u: Optional[dict] = None) -> bool:
+    return bool(_WORK_Q.search(question or "")) or (u or {}).get("area") in (
+        "business_partnership", "business_venture", "career_job", "income_money")
+
+
 _PLAIN = {
     "father": {
-        "support": "their father's backing, name or network tends to open doors for them, and "
-                   "some of their good fortune comes through him",
+        "support": "their father's backing tends to be a real source of support for them",
         "friction": "authority clashes, distance or differing views are part of this bond — "
                     "who decides needs to be clear",
         "label": "father",
@@ -70,7 +102,7 @@ def _engine(chart_data: dict, birth_date: str, rel: str) -> Optional[dict]:
         return None
 
 
-def block(chart_data, birth_date: str, rel: Optional[str]) -> str:
+def block(chart_data, birth_date: str, rel: Optional[str], work: bool = True) -> str:
     """Narrator block for a question about working with / relating to a parent."""
     if rel not in _PLAIN:
         return ""
@@ -87,6 +119,16 @@ def block(chart_data, birth_date: str, rel: Optional[str]) -> str:
         tone = f"mixed: {p['support']}; and {p['friction']}"
     else:
         tone = "neutral — neither a strong push nor a strong drag"
+    if not work:
+        # a question about the relationship itself, not about working together
+        return (f"\n\nTHEIR {p['label'].upper()} — what the reading shows about this relationship "
+                f"({sup} supportive signal(s), {fri} friction signal(s)): it is {tone}.\n"
+                f"- Say this in plain words (no house, planet or sign names); a tendency, never a past fact.\n"
+                f"- NEVER mention the {p['label']}'s health, illness, lifespan or death.\n"
+                f"- This is NOT a business question: do NOT bring up business, doors opening, money, gains or "
+                f"agreements; stay on how the bond tends to go and one human step (a conversation, a visit).\n"
+                f"- If they ask whether the {p['label']} will be successful, say the reading is about THEIR "
+                f"chart and cannot judge the {p['label']}'s own success; speak to the bond instead.")
     return (f"\n\nWORKING WITH THEIR {p['label'].upper()} — what the reading shows about this "
             f"relationship ({sup} supportive signal(s), {fri} friction signal(s)): it is {tone}.\n"
             f"- Say this in plain words (no house, planet or sign names).\n"

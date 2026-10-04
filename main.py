@@ -28153,10 +28153,15 @@ async def ask_endpoint(request: AskRequest):
                 # [parent-work 2026-10-03] working with / relating to a parent
                 try:
                     from antar_engine import parent_work as _pw
-                    _pw_rel = _pw.who(question, _ask_u)
+                    _pw_rel = _pw.who(question, _ask_u) if _pw.applies(question, _ask_u) else None
+                    if (_ask_u or {}).get("area") == "health_other":
+                        _hb = _pw.health_block(_pw.who(question, _ask_u))
+                        if _hb:
+                            _ask_life_block = ((_ask_life_block or "") + _hb).strip()
                     if _pw_rel:
                         _pwb = _pw.block(chart_row.data.get("chart_data"),
-                                         chart_row.data.get("birth_date") or "", _pw_rel)
+                                         chart_row.data.get("birth_date") or "", _pw_rel,
+                                         work=_pw.is_work_question(question, _ask_u))
                         if _pwb:
                             _ask_life_block = ((_ask_life_block or "") + _pwb).strip()
                             print(f"[ask][parent-work] {_pw_rel} block added for {chart_id[:8]}")
@@ -30057,7 +30062,9 @@ async def ask_endpoint(request: AskRequest):
             try:
                 _hc = ((locals().get("_ha") or {}).get("care")
                        if locals().get("_health_fired") else None)
-                if _hc:
+                # [audit r7] a question about SOMEONE ELSE's health (father, mother) gets no
+                # herbs for the asker's own body
+                if _hc and (locals().get("_ask_u") or {}).get("area") != "health_other":
                     _blob = " ".join(str(payload.get(_k) or "")
                                      for _k in ("read", "next")).lower()
                     _HERBS = ("ashwagandha", "triphala", "brahmi", "gotu", "abhyanga",
@@ -30239,6 +30246,11 @@ async def ask_endpoint(request: AskRequest):
                 # speculation / trading / betting (live regression: Andres's gold-mine
                 # deals question got the speculation verdict).
                 _sp_words = _spp0.SPECULATION_Q.search(question or "")
+                # [audit r7] "crypto or gold?" is a choice between assets, not a speculation
+                # timing question — the comparison rules (no winner, no market timing) own it
+                if (locals().get("_ask_compare") and not _sp_gamb and not _is_gambling_q(question)
+                        and not _spp0.is_day_question(question)):
+                    _sp_words = None
                 if not _ask_is_day_overview(_ASK_TYPED_Q.get() or question) and (_sp_gamb or _is_gambling_q(question) or (
                         _sp_words and (_sp_area or locals().get("_ask_concern") == "speculation"))):
                     from antar_engine import speculation_policy as _spp
@@ -30390,6 +30402,8 @@ async def ask_endpoint(request: AskRequest):
                                  or ((_au3.get("stated_facts") or {}).get("other")))
                 for _rf in ("read", "next"):
                     payload[_rf] = _und3.drop_invented_background(payload.get(_rf), _bg_known)
+                for _rf in ("read", "next"):
+                    payload[_rf] = _und3.drop_off_topic_pressure(payload.get(_rf), _au3.get("area") or "", question)
                 for _rf in ("read", "next"):
                     payload[_rf] = _und3.guard_answer(payload.get(_rf), question, _au3.get("options"),
                                                       unemployed=_unemp, known_background=_kb)
