@@ -874,8 +874,10 @@ def separation_question(u: Optional[dict], question: str = "") -> bool:
 
 def separation_block() -> str:
     return ("\n\nSEPARATION / DIVORCE — the question is about the separation ITSELF.\n"
-            "- Speak to how it is going for them: the strain, what steadies it, what to protect, and one "
-            "concrete, human step (a conversation, a boundary, support, a document reviewed by a professional).\n"
+            "- Speak to how it is going for them: the strain, what steadies it, and one concrete, human step "
+            "(a conversation, a boundary, leaning on someone they trust, rest).\n"
+            "- Do NOT assume legal proceedings, a settlement, papers, a lawyer, a shared home or assets — they "
+            "did not mention any. Only if THEY raise legal papers may you point to a professional.\n"
             "- Do NOT talk about a new partner, a new relationship, a 'partnership chapter', deals or business. "
             "Do NOT give a date window for a 'next partnership'. No Yes / Not-yet verdict line.\n"
             "- Never predict the outcome of legal proceedings; the reading speaks to the emotional and "
@@ -893,14 +895,85 @@ _ASSERTED_LOAN = re.compile(
     r"(?i)(\bloans? or (credit|capital)\b|\b(loan|credit) (terms|or payment terms|payments?)\b|"
     r"\bnot (a )?loans? or (external )?capital\b|\b(external|outside) capital as a last resort\b|"
     r"\btermos d[eo] empr[eé]stimo|\bempr[eé]stimo ou (capital|pagamento)|\bnão (um )?empr[eé]stimo|"
-    r"\bpr[eé]stamo o (capital|pago)|\bcapital externo\b)")
+    r"\bpr[eé]stamo o (capital|pago)|\bcapital externo\b|"
+    # [audit r10] any loan wording, EN / ES / PT, when nobody raised money
+    r"\bloans?\b|\bempr[eé]stimos?\b|\bpr[eé]stamos?\b)")
+_LOAN_OK_AREAS = frozenset({"funding_investment", "debt_owed_money", "property"})
 
 
-def drop_asserted_loans(text, question: str = ""):
+def drop_asserted_loans(text, question: str = "", area: str = ""):
     """Drops sentences that assert loans / credit / outside capital nobody mentioned. Never empties."""
-    if not isinstance(text, str) or not text.strip() or _FIN_WORDS.search(question or ""):
+    if not isinstance(text, str) or not text.strip() or _FIN_WORDS.search(question or "") \
+            or area in _LOAN_OK_AREAS:
         return text
     kept = [x for x in _sentences(text) if not _ASSERTED_LOAN.search(x)]
+    return " ".join(kept).strip() if kept else text
+
+
+_LEGAL_ASSUMED = re.compile(
+    r"(?i)\b(settlement|documents?|paperwork|sign(ing)?|lawyer|attorney|legal|agreement|documentos?|advogado|"
+    r"abogado|acuerdo|acordo|assinar|firmar|dastavez|vakeel)\b")
+_LEGAL_Q = re.compile(r"(?i)\b(settlement|documents?|papers?|lawyer|attorney|court|legal|custody|alimony|"
+                      r"documentos?|advogado|abogado|tribunal|juicio|vakeel|adalat|court)\b")
+_BUSINESS_NEXT = re.compile(
+    r"(?i)\b(business|deal|deals|client|clients|customer|customers|pitch|revenue|blocker|network|"
+    r"negocio|neg[oó]cio|cliente|clientes|contrato|sauda|dhandha)\b")
+
+_NEXT_FALLBACK = {
+    "separation": {
+        "en": "Tell one person you trust how you are really doing this week — out loud, in your own words.",
+        "es": "Cuéntale a una persona de confianza cómo estás de verdad esta semana — en voz alta, con tus palabras.",
+        "pt": "Conte a uma pessoa de confiança como você realmente está esta semana — em voz alta, com suas palavras.",
+        "hinglish": "Is hafte kisi trusted insaan ko batao ki aap sach mein kaisa feel kar rahe ho — apne shabdon mein, bol kar.",
+    },
+    "purpose": {
+        "en": "Tonight, write one sentence finishing 'I feel most like myself when…' — then do one small thing this week that fits it.",
+        "es": "Esta noche escribe una frase que termine 'Me siento más yo cuando…' — y haz esta semana una cosa pequeña que encaje con ella.",
+        "pt": "Hoje à noite escreva uma frase terminando 'Me sinto mais eu quando…' — e faça esta semana uma coisa pequena que combine com ela.",
+        "hinglish": "Aaj raat ek line likho: 'Main sabse zyada khud jaisa tab feel karta hoon jab…' — aur is hafte ek chhota kaam karo jo usse match kare.",
+    },
+}
+
+
+def safe_next(area: str, nxt, question: str = "", language: str = "en"):
+    """[audit r10] Replace a next-step that assumes something the person never said: legal papers for a
+    separation, business work for a life-purpose question. Otherwise unchanged."""
+    if not isinstance(nxt, str) or not nxt.strip():
+        return nxt
+    kind = None
+    if area == "separation" and _LEGAL_ASSUMED.search(nxt) and not _LEGAL_Q.search(question or ""):
+        kind = "separation"
+    elif area == "purpose_spiritual" and _BUSINESS_NEXT.search(nxt) and not _BUSINESS_NEXT.search(question or ""):
+        kind = "purpose"
+    if not kind:
+        return nxt
+    return _NEXT_FALLBACK[kind].get(language if language in ("es", "pt", "hinglish") else "en")
+
+
+def purpose_block(u: Optional[dict]) -> str:
+    if (u or {}).get("area") != "purpose_spiritual":
+        return ""
+    return ("\n\nLIFE PURPOSE / MEANING — the question is about meaning and direction, not work.\n"
+            "- Speak to what gives their life meaning: what the season is asking (reflection, values, "
+            "service, a slower look inward), and what tends to feel aligned versus forced.\n"
+            "- Do NOT turn it into business, clients, deals, pitches, reputation or a career window. "
+            "The step is reflective and personal (a question to sit with, a walk, a conversation).")
+
+
+_KIDS_OFFTOPIC = re.compile(
+    r"(?i)\b(mentors?|mentees?|elders?|anciano|ancião|mayor de confianza|your father'?s (side|area)|"
+    r"el lado de tu padre|o lado do seu pai|your (child|baby) (is |are )?(arriving|coming|on the way)|"
+    r"tu (hijo|bebé) (est[aá] )?(llegando|por llegar)|seu (filho|bebê) (est[aá] )?chegando)\b")
+_PARENT_Q = re.compile(r"(?i)\b(father|dad|papa|pap[aá]|padre|pai|mother|mom|madre|m[aã]e)\b")
+
+
+def kids_offtopic(text, area: str = "", question: str = ""):
+    """[audit r10] Pregnancy / child answers drift to mentors, 'your father's side' and an asserted
+    arriving child. Those sentences go (never emptying the text)."""
+    if not isinstance(text, str) or not text.strip() or area not in ("children_wellbeing", "children_conception") \
+            or _PARENT_Q.search(question or ""):
+        return text
+    kept = [x for x in _sentences(text) if not _KIDS_OFFTOPIC.search(x)]
     return " ".join(kept).strip() if kept else text
 
 
@@ -949,16 +1022,23 @@ def why_block(u: Optional[dict]) -> str:
             "'this will pass', is not an answer.")
 
 
-def kids_block(u: Optional[dict], question: str = "") -> str:
+def kids_block(u: Optional[dict], question: str = "", gender: str = "") -> str:
     if (u or {}).get("area") not in ("children_wellbeing", "children_conception"):
         return ""
-    return ("\n\nCHILDREN / PREGNANCY — the question is about children or a pregnancy; answer exactly that.\n"
-            "- This OVERRIDES any earlier rule that treats their children as 'grown adults' / a creative project: "
-            "when the question names a child or a pregnancy, answer about THAT.\n"
-            "- NEVER reinterpret it as a mentee, a project, a venture or a creative work.\n"
-            "- Do NOT bring up career windows or business. If the person already has grown children, mention "
-            "them only where it genuinely fits the question; otherwise answer the question as asked "
-            "(the family / children reading, the season for it, one human step).")
+    out = ("\n\nCHILDREN / PREGNANCY — the question is about children or a pregnancy; answer exactly that.\n"
+           "- This OVERRIDES any earlier rule that treats their children as 'grown adults' / a creative project: "
+           "when the question names a child or a pregnancy, answer about THAT.\n"
+           "- NEVER reinterpret it as a mentee, a project, a venture or a creative work.\n"
+           "- Do NOT bring up career windows, business, mentors or elders; the human step is a conversation "
+           "with the partner (if there is one) or a doctor/midwife for a pregnancy.\n"
+           "- NEVER state that a pregnancy or a baby IS happening unless they said so ('you are already in "
+           "the window' about a pregnancy they did not mention is wrong). Say what the reading shows for the "
+           "season of family growth.\n")
+    if (gender or "").strip().lower() in ("male", "m", "man"):
+        out += ("- The reader is a MAN: a pregnancy is his partner's. Speak of 'a pregnancy in your family / your "
+                "partner's pregnancy' as the reading's family-growth season, and if no partner is known, say "
+                "plainly that you are reading the family-growth season and ask nothing more.")
+    return out
 
 
 def separation_assumes_home(text, question: str = ""):

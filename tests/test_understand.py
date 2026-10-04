@@ -599,3 +599,44 @@ def test_separation_does_not_assume_home():
     out = u.separation_assumes_home(t, "Como está meu separação?")
     assert "home" not in out and "documents" in out
     assert u.separation_assumes_home(t, "Who keeps the house?") == t
+
+
+# ── audit round 10 ────────────────────────────────────────────────────────────
+def test_kids_block_male_and_never_asserts_pregnancy():
+    b = u.kids_block({"area": "children_conception"}, "", "male")
+    assert "MAN" in b and "NEVER state that a pregnancy" in b and "mentors" in b
+    assert "MAN" not in u.kids_block({"area": "children_conception"}, "", "female")
+
+
+def test_separation_block_assumes_no_legal_papers():
+    b = u.separation_block()
+    assert "Do NOT assume legal proceedings" in b and "document reviewed" not in b
+
+
+def test_safe_next_separation_and_purpose():
+    n = "Kisi trusted professional se apne documents review karwao — khud sign karne se pehle."
+    assert "documents" not in u.safe_next("separation", n, "Kya mera talaq behtar hoga?", "hinglish")
+    assert u.safe_next("separation", n, "My lawyer sent the settlement papers", "en") == n
+    biz = "Kal apne business ka sabse bada blocker likh lo."
+    assert "business" not in u.safe_next("purpose_spiritual", biz, "Mere jeevan ka maqsad?", "hinglish")
+    assert u.safe_next("career_job", biz, "x", "en") == biz
+
+
+def test_loan_wording_widened_but_money_topics_exempt():
+    t = "Buying him out fits, but only if o empréstimo ou os termos forem administráveis. Revise o preço."
+    out = u.drop_asserted_loans(t, "Vale a pena comprar a parte dele?", "business_partnership")
+    assert "empréstimo" not in out and "Revise o preço" in out
+    assert u.drop_asserted_loans(t, "Devo captar?", "funding_investment") == t
+
+
+def test_purpose_block():
+    assert "not work" in u.purpose_block({"area": "purpose_spiritual"})
+    assert u.purpose_block({"area": "career_job"}) == ""
+
+
+def test_kids_offtopic_drops_mentor_and_fathers_side():
+    t = "Conditions are mixed. Your father's side looks steady. A mentor is worth leaning on. See your doctor."
+    out = u.kids_offtopic(t, "children_conception", "How is my pregnancy looking?")
+    assert "mentor" not in out and "father" not in out and "doctor" in out
+    assert u.kids_offtopic(t, "children_conception", "How is my father with my pregnancy?") == t
+    assert u.kids_offtopic(t, "career_job", "x") == t
