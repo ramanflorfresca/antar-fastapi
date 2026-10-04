@@ -27600,9 +27600,12 @@ async def ask_endpoint(request: AskRequest):
                                "preparation and counsel turn into a result."]
                         _lcause = (_lt.get("cause") or _la.get("likely_causes") or [])
                         if _lcause:
-                            _lp.append("LIKELY CAUSE / SUBJECT: " + "; ".join(_lcause[:2])
-                                       + ". Name the most likely subject plainly so the reader "
-                                       "recognizes what kind of matter it is.")
+                            # [audit r11] a tendency, never a statement of what THEIR case is about
+                            _lp.append("TENDENCY (do not state as fact): matters of this kind often involve "
+                                       + "; ".join(_lcause[:2])
+                                       + ". Use this ONLY if the person told you what the case is about; "
+                                       "otherwise do not name the subject at all — and never use the words "
+                                       "fraud, manipulation, tax or regulation.")
                         if _o["lean"] == "favourable":
                             _lp.append("Frame the position as one that LEANS in their favour and "
                                        "is defensible"
@@ -28183,7 +28186,7 @@ async def ask_endpoint(request: AskRequest):
                         _ask_life_block = re.sub(r"Their children are GROWN ADULTS\.[^\n]*",
                                                  "Their children are grown adults (mention only where relevant).",
                                                  _ask_life_block or "")
-                    _wb = (_und.why_block(_ask_u)
+                    _wb = (_und.retirement_block(question) + _und.why_block(_ask_u)
                            + _und.kids_block(_ask_u, question, str((chart_row.data or {}).get("gender") or ""))
                            + _und.purpose_block(_ask_u))
                     if _wb:
@@ -28193,12 +28196,13 @@ async def ask_endpoint(request: AskRequest):
                 # [audit r9] a divorced / separated person asking about "my marriage"
                 try:
                     _ms = str((chart_row.data or {}).get("marital_status") or "").lower()
-                    if (_ask_u or {}).get("area") == "existing_relationship" and _ms in (
+                    if (_ask_u or {}).get("area") in ("existing_relationship", "marriage") and _ms in (
                             "divorced", "separated", "widowed", "single"):
                         _ask_life_block = ((_ask_life_block or "") + (
                             "\n\nMARRIAGE QUESTION from someone who is not currently married "
                             f"({_ms}) — speak to the bond or the past marriage and what it still asks of "
-                            "them; do NOT talk about a future or new partner unless they ask.")).strip()
+                            "them; do NOT talk about a future or new partner unless they ask. Do NOT mention agreements, "
+                            "finances, property, deals or a home — they did not raise any.")).strip()
                 except Exception:
                     pass
                 # [audit r8] separation / divorce: about the separation itself — never a "new partner"
@@ -30492,6 +30496,8 @@ async def ask_endpoint(request: AskRequest):
                 if _au3.get("area") == "separation":
                     for _rf in ("read", "next"):
                         payload[_rf] = _und3.separation_assumes_home(payload.get(_rf), question)
+                for _rf in ("read", "next"):
+                    payload[_rf] = _und3.drop_other_people_claims(payload.get(_rf), _au3.get("area") or "", question)
                 if _au3.get("area") in ("children_wellbeing", "children_conception"):
                     for _rf in ("read", "next"):
                         payload[_rf] = _und3.kids_offtopic(payload.get(_rf), _au3.get("area") or "", question)
@@ -30516,6 +30522,22 @@ async def ask_endpoint(request: AskRequest):
                             if _fixed:
                                 payload[_hf] = _fixed
                                 print(f"[ask][hinglish-fix] {_hf} rewritten for {chart_id[:8]}")
+                        elif isinstance(_hv, str) and _hv.strip():
+                            # [audit r11] a mixed answer can still carry a fully English sentence
+                            # (the generated "Not yet — right now (Oct 2026)…" lead)
+                            _sents = re.split(r"(?<=[.!?])\s+", _hv.strip())
+                            _changed = False
+                            for _si, _st in enumerate(_sents):
+                                _tk = re.findall(r"[a-z']+", _st.lower())
+                                if (len(_tk) >= 6 and not any(w in _ASK_HINGLISH_WORDS for w in _tk)
+                                        and sum(1 for w in _tk if w in _ASK_EN_WORDS) >= 3):
+                                    _fx = await _ask_to_hinglish(_st)
+                                    if _fx:
+                                        _sents[_si] = _fx
+                                        _changed = True
+                            if _changed:
+                                payload[_hf] = " ".join(_sents)
+                                print(f"[ask][hinglish-fix] english sentence(s) in {_hf} rewritten for {chart_id[:8]}")
                 except Exception as _hfe:
                     print(f"[ask][hinglish-fix] skipped (non-fatal): {_hfe}")
             # [no-invented-role] a role they never stated is neutralised

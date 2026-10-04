@@ -714,6 +714,11 @@ def guardrails_block() -> str:
             "- Loans and debts: mention them ONLY when the question is about money, and never as a "
             "fact they have one (no 'your loan', 'existing debt', 'debt repayments') unless they told "
             "you. For career, business-launch, relationship or other questions, leave loans out.\n"
+            "- Never state what OTHER people are like or are going through as fact (a brother's reliability, a "
+            "child 'in trouble', a partner's behaviour, 'you are far from family'). Say only what the reading "
+            "shows about THEM and the situation.\n"
+            "- Never name what a legal matter is about (fraud, manipulation, tax, regulation, a contract) "
+            "unless they said it.\n"
             "- Never invent their past: no 'your finance years', 'your old company', 'when you "
             "worked in…' unless they told you. Fields the reading favours are possibilities, not "
             "their history.")
@@ -926,6 +931,12 @@ _NEXT_FALLBACK = {
         "pt": "Conte a uma pessoa de confiança como você realmente está esta semana — em voz alta, com suas palavras.",
         "hinglish": "Is hafte kisi trusted insaan ko batao ki aap sach mein kaisa feel kar rahe ho — apne shabdon mein, bol kar.",
     },
+    "retirement": {
+        "en": "This week, sketch the monthly income you would want in later life and list where each part would come from.",
+        "es": "Esta semana esboza el ingreso mensual que querrías en la vejez y anota de dónde saldría cada parte.",
+        "pt": "Esta semana, esboce a renda mensal que você quer na velhice e liste de onde viria cada parte.",
+        "hinglish": "Is hafte likho ki later life mein aapko mahine ki kitni income chahiye aur har hissa kahan se aayega.",
+    },
     "purpose": {
         "en": "Tonight, write one sentence finishing 'I feel most like myself when…' — then do one small thing this week that fits it.",
         "es": "Esta noche escribe una frase que termine 'Me siento más yo cuando…' — y haz esta semana una cosa pequeña que encaje con ella.",
@@ -945,6 +956,8 @@ def safe_next(area: str, nxt, question: str = "", language: str = "en"):
         kind = "separation"
     elif area == "purpose_spiritual" and _BUSINESS_NEXT.search(nxt) and not _BUSINESS_NEXT.search(question or ""):
         kind = "purpose"
+    elif is_retirement_q(question) and _BUSINESS_NEXT.search(nxt) and not _BUSINESS_NEXT.search(question or ""):
+        kind = "retirement"
     if not kind:
         return nxt
     return _NEXT_FALLBACK[kind].get(language if language in ("es", "pt", "hinglish") else "en")
@@ -963,7 +976,9 @@ def purpose_block(u: Optional[dict]) -> str:
 _KIDS_OFFTOPIC = re.compile(
     r"(?i)\b(mentors?|mentees?|elders?|anciano|ancião|mayor de confianza|your father'?s (side|area)|"
     r"el lado de tu padre|o lado do seu pai|your (child|baby) (is |are )?(arriving|coming|on the way)|"
-    r"tu (hijo|bebé) (est[aá] )?(llegando|por llegar)|seu (filho|bebê) (est[aá] )?chegando)\b")
+    r"tu (hijo|bebé) (est[aá] )?(llegando|por llegar)|seu (filho|bebê) (est[aá] )?chegando)\b"
+    r"|\b(fam[ií]lia|familia|lado|side)\b[^.!?]{0,25}\b(pai|padre|father)\b"
+    r"|\bperspectiv\w+ (do|de|of) (seu|tu|your) (filho|hijo|child)\b")
 _PARENT_Q = re.compile(r"(?i)\b(father|dad|papa|pap[aá]|padre|pai|mother|mom|madre|m[aã]e)\b")
 
 
@@ -975,6 +990,68 @@ def kids_offtopic(text, area: str = "", question: str = ""):
         return text
     kept = [x for x in _sentences(text) if not _KIDS_OFFTOPIC.search(x)]
     return " ".join(kept).strip() if kept else text
+
+
+# ── round 11 ─────────────────────────────────────────────────────────────────
+_LEGAL_CAUSE = re.compile(
+    r"(?i)\b(fraud|manipulat\w+|regulatory|regulation|tax(es)?( matter| angle)?|fraude|manipula\w+|"
+    r"regulat\w+|imposto|impuestos?)\b")
+_OTHER_TRAIT = re.compile(
+    r"(?i)\b(your|tu|seu|sua|aapka|aapke|aapki) (brother|sister|partner|child|son|daughter|hermano|hermana|"
+    r"hijo|hija|irm[aã]o|irm[aã]|filho|filha|bachcha|bachche|bhai)('s)?\b[^.!?]{0,40}"
+    r"\b(unreliab\w+|reliab\w+|follow-?through|in trouble|struggling|dishonest|lazy|weaker|d[eé]bil|mais fraco|"
+    r"confiabilid\w+|mushkil mein)\b"
+    r"|\b(reliability|follow-?through|seguimiento|confiabilidad|confiabilidade)\b[^.!?]{0,40}\b(weaker|d[eé]bil|"
+    r"mais fraca?)\b"
+    r"|\b(aapka|your|tu|seu) (bachcha|child|hijo|filho) mushkil mein\b")
+_FAR_FROM_FAMILY = re.compile(
+    r"(?i)(family se door|away from (your )?family|far from (your )?family|lejos de (tu )?familia|"
+    r"longe da (sua )?fam[ií]lia)")
+_FOREIGN_DEAL = re.compile(
+    r"(?i)\b(property|contract|deal|propiedad|contrato|im[oó]vel)s? (ya|or|y|o|ou|aur) "
+    r"(property|contract|deal|propiedad|contrato|im[oó]vel)s?\b")
+_REL_ASSUMED = re.compile(
+    r"(?i)\b(hidden gains|ganhos ocultos|ganancias ocultas|(your|tu|sua|aapka|aapke|apna|apne) (own )?(home|casa|ghar)|"
+    r"agreements?|acordos?|acuerdos?|shared finances?|finan[cç]as compartilhadas)\b")
+
+
+def drop_other_people_claims(text, area: str = "", question: str = ""):
+    """[audit r11] Sentences that state traits/circumstances of other people, a legal matter's nature, or
+    a foreign deal/home as fact when nobody said so. Never empties the text."""
+    if not isinstance(text, str) or not text.strip():
+        return text
+    q = question or ""
+    rxs = [_OTHER_TRAIT]
+    if not _LEGAL_CAUSE.search(q):
+        rxs.append(_LEGAL_CAUSE) if area == "legal_case" else None
+    if area == "separation":
+        rxs.append(_FAR_FROM_FAMILY)
+    if area == "foreign_travel_visa":
+        rxs.append(_FOREIGN_DEAL)
+    if area in _RELATIONSHIP_AREAS and not _HOME_Q.search(q):
+        rxs.append(_REL_ASSUMED)
+    kept = [x for x in _sentences(text) if not any(r.search(x) for r in rxs)]
+    return " ".join(kept).strip() if kept else text
+
+
+_RETIRE_Q = re.compile(r"(?i)\b(retire\w*|pension|jubilaci[oó]n|jubilarme|aposentadoria|aposentar\w*|old age|"
+                       r"vejez|velhice|budhapa)\b")
+
+
+def is_retirement_q(question: str) -> bool:
+    return bool(_RETIRE_Q.search(question or ""))
+
+
+def retirement_block(question: str) -> str:
+    if not is_retirement_q(question):
+        return ""
+    return ("\n\nRETIREMENT / LATER LIFE — the question is about security and ease in later life.\n"
+            "- Speak to: how steady the base is that later years would rest on (savings cushion, income that "
+            "doesn't depend on constant effort), energy and health in later years, and the season the reading "
+            "shows for building that base — in plain words.\n"
+            "- Do NOT answer with client wins, deals, reputation or a business-growth window.\n"
+            "- No investment advice and no product names. The step is planning-level: sketch the monthly income "
+            "they would need later and where it would come from.")
 
 
 def parse_model_json(raw) -> Optional[dict]:
@@ -1053,7 +1130,7 @@ def separation_assumes_home(text, question: str = ""):
 
 _HOME_Q = re.compile(r"(?i)\b(home|house|property|assets?|casa|propiedad|im[oó]vel|ghar|jaaydaad|sampatti)\b")
 _HOME_ASSUMED = re.compile(
-    r"(?i)\b(your (home|house)|shared (home|house|assets?)|(your|tu|sua|aapke|aapka) (casa|ghar)|"
+    r"(?i)\b(your (home|house)|shared (home|house|assets?)|(your|tu|sua|aapke|aapka|apna|apne) (own )?(casa|ghar)|ghar|"
     r"sus bienes|seus bens|assets?|hidden gains|financial agreement|acuerdo financiero|acordo financeiro|"
     r"bienes compartidos)\b")
 
