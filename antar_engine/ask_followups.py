@@ -69,8 +69,8 @@ _Q = {
                      "now": "Should I build alone or bring in a partner?",
                      "why": "What kind of founder am I, really?"},
         "love": {"when": "When is my best window for love?",
-                 "how": "What should I watch for with my partner?",
-                 "now": "How compatible are we?",
+                 "how": "What helps love grow for me right now?",
+                 "now": "How is my love life looking right now?",
                  "why": "What pattern do I keep repeating in love?"},
         "family": {"when": "When does the pressure at home ease?",
                    "how": "How do I handle the tension at home right now?",
@@ -125,8 +125,8 @@ _Q = {
                      "now": "Akele build karun ya partner ke saath?",
                      "why": "Main asal mein kis tarah ka founder hoon?"},
         "love": {"when": "Pyaar ke liye meri best window kab hai?",
-                 "how": "Apne partner ke saath mujhe kis cheez ka dhyan rakhna chahiye?",
-                 "now": "Hum kitne compatible hain?",
+                 "how": "Abhi mere liye pyaar ko kya badhayega?",
+                 "now": "Abhi meri love life kaisi dikh rahi hai?",
                  "why": "Pyaar mein mera kaun sa pattern baar baar aata hai?"},
         "family": {"when": "Ghar ka pressure kab kam hoga?",
                    "how": "Abhi ghar ki tension kaise sambhalun?",
@@ -179,8 +179,8 @@ _Q = {
                      "now": "¿Debo emprender solo o con un socio?",
                      "why": "¿Qué tipo de fundador soy, de verdad?"},
         "love": {"when": "¿Cuándo es mi mejor ventana para el amor?",
-                 "how": "¿Qué debo cuidar con mi pareja?",
-                 "now": "¿Qué tan compatibles somos?",
+                 "how": "¿Qué ayuda a que el amor crezca para mí ahora?",
+                 "now": "¿Cómo se ve mi vida amorosa ahora?",
                  "why": "¿Qué patrón repito en el amor?"},
         "family": {"when": "¿Cuándo baja la presión en casa?",
                    "how": "¿Cómo manejo la tensión en casa ahora?",
@@ -233,8 +233,8 @@ _Q = {
                      "now": "Devo empreender sozinho ou com um sócio?",
                      "why": "Que tipo de fundador eu sou, de verdade?"},
         "love": {"when": "Quando é minha melhor janela para o amor?",
-                 "how": "O que devo cuidar com meu parceiro?",
-                 "now": "Quão compatíveis somos?",
+                 "how": "O que ajuda o amor a crescer para mim agora?",
+                 "now": "Como está minha vida amorosa agora?",
                  "why": "Que padrão eu repito no amor?"},
         "family": {"when": "Quando a pressão em casa alivia?",
                    "how": "Como lido com a tensão em casa agora?",
@@ -266,6 +266,20 @@ _Q = {
                     "why": "Do que se trata esta fase da minha vida?"},
     },
 }
+
+# [love-no-assumed-partner 2026-10-04] the default love questions fit a single reader
+# too; the partner versions only when the question itself names a partner.
+_Q_PARTNERED = {
+    "en": {"how": "What should I watch for with my partner?", "now": "How compatible are we?"},
+    "hi": {"how": "Apne partner ke saath mujhe kis cheez ka dhyan rakhna chahiye?",
+           "now": "Hum kitne compatible hain?"},
+    "es": {"how": "¿Qué debo cuidar con mi pareja?", "now": "¿Qué tan compatibles somos?"},
+    "pt": {"how": "O que devo cuidar com meu parceiro?", "now": "Quão compatíveis somos?"},
+}
+_PARTNER = re.compile(r"(?i)\b(partner|husband|wife|spouse|boyfriend|girlfriend|fianc[eé]e?|married|"
+                      r"marriage|we|us|our|pareja|esposo|esposa|novi[oa]|marido|casad[oa]s?|matrimonio|"
+                      r"parceir[oa]|namorad[oa]|casamento|pati|patni|biwi|shaadi|gf|bf)\b")
+
 
 # WhatsApp list titles (24-char cap): name the KIND of next step instead of
 # truncating the question ("Which day this week is…"); the full question rides
@@ -344,6 +358,8 @@ def pick(bucket: str, question: str, language: str = "en", answered_when: bool =
     lang = _lang(language)
     table = _Q[lang]
     pool = table.get(bucket) or table["general"]
+    if bucket == "love" and _PARTNER.search(question or ""):
+        pool = {**pool, **_Q_PARTNERED[lang]}
     lane = asked_lane(question)
     order = DISTRESS_ORDER if is_distressed(question) else ORDER[lane]
     covered = {lane} | ({"when"} if answered_when and lane != "when" else set())
