@@ -151,7 +151,7 @@ async def run(charts, n, seed):
     import antar_engine.outcomes as oc
     oc.record_claim = lambda *a, **k: None
     row = (main.supabase.table("charts").select(
-        "name,gender,career_stage,profession,life_work,marital_status,children_status,ventures")
+        "name,first_name,display_name,gender,career_stage,profession,life_work,marital_status,children_status,ventures")
         .eq("id", charts[0]).limit(1).execute().data or [{}])[0]
     _PROFILE.update(row)
     sem = asyncio.Semaphore(3)

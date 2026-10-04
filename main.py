@@ -30303,7 +30303,9 @@ async def ask_endpoint(request: AskRequest):
                         except Exception as _sde:
                             print(f"[ask][speculation-policy] day data unavailable: {type(_sde).__name__}")
                         if _sd:
-                            payload["read"] = (_ctx + " " + _sd["read"]).strip()
+                            # the day answer leads; the far-off window is context AFTER it
+                            # (audit r6: "Is tomorrow a good day to trade crypto?" opened with Jun 2027)
+                            payload["read"] = (_sd["read"] + " " + _ctx).strip()
                             payload["next"] = _sd["next"]
                             payload["timing"] = _sd["timing"] or None
                             print(f"[ask][speculation-policy] day-level from Today data "

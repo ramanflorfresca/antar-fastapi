@@ -189,7 +189,7 @@ def test_stored_earning_roundtrip():
 
 
 def test_wealth_promise_gets_the_honesty_rule():
-    r = u.parse(_raw(outcome_claim=True))
+    r = u.parse(_raw(outcome_claim=True), "Which work gives me the most money?")
     assert "can't honestly promise an amount" in u.outcome_block(r)
     assert u.outcome_block(u.parse(_raw())) == ""
 
@@ -447,3 +447,41 @@ def test_comparison_match_names_the_fitting_option():
     assert 'MATCH: the option "technology" matches their #1 field' in b
     r = u.parse(_raw(intent="which", options=["gold mine deals", "defence contracts"]))
     assert "MATCH" not in u.comparison_block(r, "", fit_fields=["technology & innovation"])
+
+
+# ── audit round 6 (2026-10-03) ──
+def test_listing_things_is_not_a_choice():
+    r = u.parse(_raw(intent="yes_no", options=["gold mine deals", "processing plant", "refinery"]),
+                "Will I make good money doing deals with gold mine, processing plant and refinery")
+    assert not u.is_comparison(r)
+    r = u.parse(_raw(intent="yes_no", options=["technology", "brokerage"]),
+                "Should I focus on technology or brokerage transactions")
+    assert u.is_comparison(r)
+    r = u.parse(_raw(intent="which", options=[]), "Gold or defence — which should I focus on?")
+    assert u.is_comparison(r)
+    assert u.parse(_raw(options=["a", "b"]), "¿Me conviene vender o quedarme?")["has_choice"]
+
+
+def test_parent_gains_are_a_tendency_not_a_history():
+    g = u.guard_answer
+    assert g("Your father's backing helps; some of your gains have come through him, and that holds.", "q") == \
+        "Your father's backing helps; his backing tends to help some of your gains, and that holds." or \
+        "have come through him" not in g("some of your gains have come through him.", "q")
+    assert "have come through" not in g("Your gains came from your father.", "q")
+    assert g("Your gains come from your own effort.", "q") == "Your gains come from your own effort."
+
+
+def test_unemployed_next_step_no_longer_implies_a_current_job():
+    out = u.guard_answer("Ask anyone in charge at your money or bookkeeping job for a lead.", "q", unemployed=True)
+    assert "your money or bookkeeping job" not in out and "in your field" in out
+    keep = "Ask anyone in charge at your money or bookkeeping job for a lead."
+    assert u.guard_answer(keep, "q", unemployed=False) == keep
+
+
+def test_ordinary_good_money_question_is_not_a_wealth_promise():
+    r = u.parse(_raw(outcome_claim=True, intent="yes_no"),
+                "Will I make good money doing deals with gold mine, processing plant and refinery")
+    assert not r["outcome_claim"]
+    assert u.parse(_raw(outcome_claim=True), "Which work will give me the most money?")["outcome_claim"]
+    assert u.parse(_raw(outcome_claim=False), "Does technology suit me to make me a millionaire?")["outcome_claim"]
+    assert u.parse(_raw(outcome_claim=True), "Will I earn 10 million by 2030?")["outcome_claim"]

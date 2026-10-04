@@ -609,3 +609,23 @@ def test_weekday_after_date_comma_and_spanish():
 def test_stripped_weekday_leaves_no_empty_parens():
     out = _strip_day_names('Momentum builds (Saturday) through the week.', 'en')
     assert '()' not in out and 'saturday' not in out.lower()
+
+
+# ── Spanish "hasta" (until) must survive the nakshatra scrub (audit round 6, 2026-10-03) ──
+def test_spanish_hasta_and_mula_are_not_rewritten():
+    from antar_engine.output_strips import apply_user_facing_strips as s
+    for t in ["Disponible hasta el final del mes.", "Tu ventana sigue abierta hasta octubre.",
+              "Hasta entonces, mantén posiciones pequeñas.", "No hay prisa, hasta que llegue la señal.",
+              "Hasta octubre tu ventana está cerrada.", "Una mula de carga lleva peso."]:
+        assert s(t, language="es", field_type="plain") == t, t
+    assert s("Disponível até sexta e uma mula de carga.", language="pt", field_type="plain") == "Disponível até sexta e uma mula de carga."
+
+
+def test_the_star_names_are_still_scrubbed_in_context():
+    from antar_engine.output_strips import apply_user_facing_strips as s
+    assert "Hasta" not in s("The Moon is in Hasta today.", language="en", field_type="plain")
+    assert "Hasta" not in s("Moon's star: Hasta · Mitra", language="en", field_type="plain")
+    assert "Hasta" not in s("Hasta", language="en", field_type="plain")
+    assert "Hasta" not in s("la luna en Hasta hoy", language="es", field_type="plain")
+    assert "Mula" not in s("Moon in Mula nakshatra", language="en", field_type="plain")
+    assert "Mula nakshatra" not in s("Mula nakshatra", language="en", field_type="plain")
