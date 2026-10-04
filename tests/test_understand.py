@@ -485,3 +485,42 @@ def test_ordinary_good_money_question_is_not_a_wealth_promise():
     assert u.parse(_raw(outcome_claim=True), "Which work will give me the most money?")["outcome_claim"]
     assert u.parse(_raw(outcome_claim=False), "Does technology suit me to make me a millionaire?")["outcome_claim"]
     assert u.parse(_raw(outcome_claim=True), "Will I earn 10 million by 2030?")["outcome_claim"]
+
+
+# ── audit round 7 ─────────────────────────────────────────────────────────────
+def test_off_topic_pressure_dropped_from_health_answer():
+    t = "Your recovery is slow right now. Loan and business stress also weigh on the body. Sleep earlier."
+    out = u.drop_off_topic_pressure(t, "health_self", "Why is my health so hard?")
+    assert "business" not in out.lower() and "Sleep earlier" in out
+
+
+def test_pressure_kept_when_topic_is_money_or_asker_raised_it():
+    t = "Savings are under pressure. Pause one expense."
+    assert u.drop_off_topic_pressure(t, "income_money", "Why is money tight?") == t
+    assert u.drop_off_topic_pressure(t, "health_self", "Is my debt hurting my health?") == t
+
+
+def test_pressure_guard_never_empties():
+    t = "Your business is under pressure."
+    assert u.drop_off_topic_pressure(t, "marriage", "Will I marry?") == t
+
+
+def test_parent_work_skips_health_and_non_work_has_no_business_talk():
+    from antar_engine import parent_work as pw
+    assert not pw.applies("How is my father's health?", {"area": "health_other"})
+    assert pw.applies("Is it better to work with my father?", {"area": "business_partnership"})
+    assert pw.is_work_question("work with my father", {})
+    assert not pw.is_work_question("Where will my relationship with my father take me?", {"area": "family"})
+
+
+def test_relationship_answer_drops_deal_talk():
+    t = "This is a heavy time. A partnership agreement you sign now needs care. Say one clear boundary this week."
+    out = u.drop_off_topic_pressure(t, "separation", "Mera talaq kaisa rahega?")
+    assert "agreement" not in out and "boundary" in out
+    assert u.drop_off_topic_pressure(t, "separation", "Should I sign the partnership deal with my ex?") == t
+
+
+def test_parent_health_block_forbids_conditions():
+    from antar_engine import parent_work as pw
+    b = pw.health_block("father")
+    assert "Do NOT name any condition" in b and pw.health_block(None) == ""

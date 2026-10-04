@@ -822,6 +822,43 @@ def guard_answer(text, question: str = "", options: Optional[list] = None,
     return out
 
 
+# [audit r7 2026-10-04] business / loan / savings pressure is real for this person, but it
+# bled into health, marriage, exam and old-age answers ("loan aur business ka stress bhi
+# body pe load dalta hai"). On a topic that isn't about work or money, those sentences go.
+_MONEY_TOPIC_AREAS = frozenset({
+    "career_job", "promotion", "business_venture", "clients_sales", "funding_investment",
+    "income_money", "debt_owed_money", "speculation_betting", "property", "business_partnership",
+    "partnership_ending", "daily_timing", "general", "lost_item", "legal_case", "residence_move",
+    "foreign_travel_visa"})
+_BIZ_PRESSURE = re.compile(
+    r"(?i)\b(business(es)?|loans?|debts?|savings?|cash ?flow|money pressure|financial (stress|pressure|strain)|"
+    r"negocio|neg[oó]cio|pr[eé]stamos?|empr[eé]stimos?|deudas?|d[ií]vidas?|ahorros?|poupan[cç]a|"
+    r"dinero|dinheiro|karz|udhaar|paisa|paise|dhandha|vyapar)\b")
+
+
+_RELATIONSHIP_AREAS = frozenset({"marriage", "new_romance", "existing_relationship", "reunion_ex",
+                                 "separation", "children_conception", "children_wellbeing"})
+_DEAL_TALK = re.compile(
+    r"(?i)\b(partnership agreements?|business partner\w*|deals?|commercial|contracts?|asociaci[oó]n comercial|"
+    r"acuerdo|socio\w*|parceria|neg[oó]cio|sociedade|saajhedari|sauda)\b")
+
+
+def drop_off_topic_pressure(text, area: str = "", question: str = ""):
+    """Drops business/loan/savings sentences from answers about non-money topics, unless
+    the person's own question brought money up. Never empties the text."""
+    if not isinstance(text, str) or not text.strip() or not area or area in _MONEY_TOPIC_AREAS:
+        return text
+    if _BIZ_PRESSURE.search(question or "") or _FIN_WORDS.search(question or ""):
+        return text
+    rxs = [_BIZ_PRESSURE]
+    if area in _RELATIONSHIP_AREAS and not _DEAL_TALK.search(question or ""):
+        # the 7th-house partner signal reads as "business partnership" — a personal relationship
+        # question must not be answered with deals and agreements
+        rxs.append(_DEAL_TALK)
+    kept = [x for x in _sentences(text) if not any(r.search(x) for r in rxs)]
+    return " ".join(kept).strip() if kept else text
+
+
 CONCERN_MIN_CONFIDENCE = 0.75
 OWN_TOPIC_MIN_CONFIDENCE = 0.6   # own topic vs inheriting the previous turn's
 
