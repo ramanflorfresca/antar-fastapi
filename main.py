@@ -25743,9 +25743,12 @@ _ASK_FOLLOWUPS = {
         "place": ["When is a good time to buy or move?",
                   "Does real estate fit my chart?",
                   "Where does my chart support me best?"],
+        # [spec-chips 2026-10-03] owner: "which day" stays — day and crypto traders plan by day.
+        # Chips never re-ask the question just answered (same_question filter) and "safest way"
+        # is now a real how-to (risk rules), not the window answer again.
         "speculation": ["Which day this week is best for me?",
-                        "How is speculation for me today?",
-                        "What is my safest way to play this?"],
+                        "How do I keep speculation small and safe?",
+                        "When does my next window for unearned gains open?"],
         "spiritual": ["Which practice fits me best right now?",
                       "When is my strongest spiritual window?",
                       "How do I steady my mind this month?"],
@@ -25780,8 +25783,8 @@ _ASK_FOLLOWUPS = {
                   "¿Encaja el sector inmobiliario con mi carta?",
                   "¿Dónde me apoya mejor mi carta?"],
         "speculation": ["¿Qué día de esta semana es mejor para mí?",
-                        "¿Cómo está la especulación para mí hoy?",
-                        "¿Cuál es mi forma más segura de jugar esto?"],
+                        "¿Cómo mantengo la especulación pequeña y segura?",
+                        "¿Cuándo se abre mi próxima ventana de ganancias no ganadas?"],
         "spiritual": ["¿Qué práctica me conviene más ahora?",
                       "¿Cuándo es mi ventana espiritual más fuerte?",
                       "¿Cómo calmo mi mente este mes?"],
@@ -25816,8 +25819,8 @@ _ASK_FOLLOWUPS = {
                   "O mercado imobiliário combina com meu mapa?",
                   "Onde meu mapa me apoia melhor?"],
         "speculation": ["Qual dia desta semana é melhor para mim?",
-                        "Como está a especulação para mim hoje?",
-                        "Qual é minha forma mais segura de jogar isso?"],
+                        "Como mantenho a especulação pequena e segura?",
+                        "Quando abre minha próxima janela de ganhos não trabalhados?"],
         "spiritual": ["Qual prática combina mais comigo agora?",
                       "Quando é minha janela espiritual mais forte?",
                       "Como acalmo minha mente este mês?"],
@@ -30254,13 +30257,27 @@ async def ask_endpoint(request: AskRequest):
                     # KP on the birth chart — a second, independent check on promise
                     _sp_kp = _spp.kp_natal(chart_row.data)
                     _sp_state = _spp.combine(_sp_state, _sp_kp, _sp_client)
-                    _sp = _spp.lead(_sp_state, _sp_win, gambling=_sp_gamb, language=language)
-                    payload["read"] = _spp.merge(payload.get("read") or "", _sp["read"], _sp_state)
-                    payload["next"] = _sp["next"]
-                    if _sp_win and _sp_state in ("open", "later"):
-                        payload["timing"] = _sp_win          # one window everywhere
-                    elif _sp_state in ("losses", "no"):
-                        payload["timing"] = None
+                    _sp_how = _spp.is_risk_howto(question) or (
+                        (locals().get("_ask_u") or {}).get("intent") == "what_to_do")
+                    _sp = (_spp.risk_lead(_sp_state, _sp_win, gambling=_sp_gamb, language=language)
+                           if _sp_how else
+                           _spp.lead(_sp_state, _sp_win, gambling=_sp_gamb, language=language))
+                    # [spec-days 2026-10-03] owner: day / crypto traders plan by DAY. A day-level
+                    # question on plain speculation (not gambling) keeps the day-level answer,
+                    # with the unearned-gains window as one line of context. A "no" stays a no.
+                    if (_spp.is_day_question(question) and not _sp_gamb and not _sp_how
+                            and _sp_state in ("open", "later")):
+                        _ctx = _spp.day_context(_sp_state, _sp_win, language)
+                        _body = (payload.get("read") or "").strip()
+                        payload["read"] = (_ctx + " " + _body).strip()
+                        print(f"[ask][speculation-policy] day-level kept (state={_sp_state}) for {chart_id[:8]}")
+                    else:
+                        payload["read"] = _spp.merge(payload.get("read") or "", _sp["read"], _sp_state)
+                        payload["next"] = _sp["next"]
+                        if _sp_win and _sp_state in ("open", "later"):
+                            payload["timing"] = _sp_win          # one window everywhere
+                        elif _sp_state in ("losses", "no"):
+                            payload["timing"] = None
                     print(f"[ask][speculation-policy] state={_sp_state} window={_sp_win!r} "
                           f"gambling={_sp_gamb} score={(_sp_natal or {}).get('score')} "
                           f"kp={_sp_kp} for {chart_id[:8]}")

@@ -58,3 +58,39 @@ def test_commodity_deal_is_not_speculation():
     assert not sp.SPECULATION_Q.search("Will I make money with gold mine advisory")
     assert sp.SPECULATION_Q.search("When will I gain from the stock market?")
     assert sp.SPECULATION_Q.search("¿Voy a ganar con criptomonedas?")
+
+
+def test_how_to_play_safely_is_a_how_to_not_the_window_again():
+    for q in ["What is my safest way to play this?", "How do I keep speculation small and safe?",
+              "¿Cuál es mi forma más segura de jugar esto?", "Qual é minha forma mais segura de jogar isso?",
+              "How much should I risk?"]:
+        assert sp.is_risk_howto(q), q
+    assert not sp.is_risk_howto("How is speculation for me today?")
+    assert not sp.is_risk_howto("When will I gain from the stock market?")
+    r = sp.risk_lead("later", "Jun 2027 – Oct 2027")
+    assert "hard loss limit" in r["read"] and "Jun 2027 – Oct 2027" in r["read"] and "never borrow" in r["read"]
+    assert "Your reading supports gains" not in r["read"]                 # not the window answer again
+    assert sp.risk_lead("losses")["read"].startswith("Given your reading, the safest way is to not speculate")
+    assert "casino" in sp.risk_lead("open", "x", gambling=True)["read"]
+    for lang in ("es", "pt", "hinglish"):
+        assert sp.risk_lead("later", "x", language=lang)["next"]
+
+
+def test_speculation_chips_keep_which_day():
+    from dotenv import load_dotenv
+    load_dotenv()
+    import main
+    for lang, chips in ((l, main._ASK_FOLLOWUPS[l]["speculation"]) for l in ("en", "es", "pt")):
+        blob = " ".join(chips).lower()
+        assert ("which day" in blob or "qué día" in blob or "qual dia" in blob)   # owner: traders plan by day
+        assert len(chips) == 3
+
+
+def test_day_questions_keep_a_day_level_answer():
+    for q in ["Which day this week is best for speculation?", "Is tomorrow a good day to trade crypto?",
+              "¿Qué día de esta semana es mejor para mí?", "Qual dia desta semana é melhor?", "Aaj kaisa rahega"]:
+        assert sp.is_day_question(q), q
+    assert not sp.is_day_question("When will I gain from the stock market?")
+    assert "opens Jun 2027 – Oct 2027" in sp.day_context("later", "Jun 2027 – Oct 2027")
+    assert "open now — Nov 2026" in sp.day_context("open", "Nov 2026")
+    assert sp.day_context("later", "", "es").startswith("Hasta entonces")
