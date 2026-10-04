@@ -334,6 +334,34 @@ _EE_NOUN_BY_EVENT = {
 }
 
 
+# [money-not-funding 2026-10-04] every money concern scores on the "funding" recipe
+# (houses 11/2/8/6 suit income too), but the NARRATOR must not hear "funding": live
+# (Andres, an advisor) "When does my strongest money window open?" came back
+# "one deal or one raise" / "your most advanced funding conversation". Funding =
+# raising outside capital, only when the concern itself is funding.
+_MONEY_CONCERN_NOUN = {"finance": "money window", "wealth": "money window",
+                       "money": "money window", "loss": "financial window",
+                       "speculation": "speculative window"}
+_MONEY_EVENT_LABEL = ("money / income — earned money flowing in and being kept; NOT raising "
+                      "outside capital. Never mention funding, investors, backers, a raise or "
+                      "pitching unless the question itself does")
+
+
+def _event_noun(gen: dict) -> str:
+    g = gen or {}
+    event = g.get("event") or "general"
+    if event == "funding" and (g.get("concern") or "") in _MONEY_CONCERN_NOUN:
+        return _MONEY_CONCERN_NOUN[g["concern"]]
+    return _EE_NOUN_BY_EVENT.get(event, "opening")
+
+
+def _event_label(gen: dict) -> str:
+    g = gen or {}
+    if g.get("event") == "funding" and (g.get("concern") or "") in _MONEY_CONCERN_NOUN:
+        return _MONEY_EVENT_LABEL
+    return str(g.get("event"))
+
+
 def _opening_sentence_for(verdict: dict, gen: dict) -> str:
     """
     Python-authoritative opening sentence for the event-engine narrator path.
@@ -352,8 +380,7 @@ def _opening_sentence_for(verdict: dict, gen: dict) -> str:
         lead = "No"
     else:
         lead = client.title() or "Reflective"
-    event = (gen or {}).get("event") or "general"
-    noun = _EE_NOUN_BY_EVENT.get(event, "opening")
+    noun = _event_noun(gen)
     win = verdict.get("window") or {}
     label = win.get("label") or ""
     # NOT_YET / NO must still surface a forward date if present
@@ -405,7 +432,7 @@ def build_reading_sequence_prompt(board: dict, verdict: dict,
                  "you make in `read` MUST trace to a fact already in this prompt "
                  "(no new positions, no new dates, no new houses). The model "
                  "interprets the combination — Python computed it.")
-    lines.append(f"QUESTION DOMAIN: {gen.get('concern')} (event type: {gen.get('event')})")
+    lines.append(f"QUESTION DOMAIN: {gen.get('concern')} (event type: {_event_label(gen)})")
     lines.append(f"PYTHON VERDICT (authoritative): {v['verdict']} — "
                  f"{_VERDICT_FRAMING.get(v['verdict'], '')}")
     lines.append(f"CONFIDENCE: {v['confidence']} ({v['layers_agreeing']} of 6 "
