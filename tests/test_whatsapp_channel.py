@@ -234,7 +234,7 @@ def test_answer_layout_and_followups_remembered(m, monkeypatch):
     out = cv.sent[-1]
     assert out.startswith("*Hold until spring.*")              # bold first sentence
     assert "🗓 _Window: March" in out and "→ Update your portfolio" in out
-    assert out.rstrip().endswith("3  Should I start my own?")
+    assert out.rstrip().endswith("3  Should I start my own?\n_…or just type your own question._")
     assert "Reading your chart" not in " ".join(cv.sent)        # fast answer: no ack
     assert cv.saved[-1]["options"]["items"][0] == "Which role fits me?"
 
@@ -615,7 +615,9 @@ def test_answer_followups_become_a_list_when_rest_is_used(m, monkeypatch):
     assert cv.sent == [] and len(cv.lists) == 1
     body, btn, items = cv.lists[0]
     assert body.startswith("*Hold until spring.*") and "1  " not in body
-    assert btn == "Ask next" and items[0] == ("Which role fits me?", "q:Which role fits me?", "Which role fits me?")
+    # [followup-flows] title = kind of step (never the truncated question twice); last row = free text
+    assert btn == "Ask next" and items[0] == ("💬 Ask this", "q:Which role fits me?", "Which role fits me?")
+    assert items[-1][1] == "own"
 
 
 def test_list_failure_falls_back_to_numbered_text(m, monkeypatch):

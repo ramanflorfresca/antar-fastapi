@@ -4922,6 +4922,10 @@ _WA_L = {
                    "hinglish": "Sawaal chuniye"},
     "btn_next": {"en": "Ask next", "es": "Siguiente pregunta", "pt": "Próxima pergunta",
                  "hinglish": "Agla sawaal"},
+    "own_q": {"en": "Go ahead — type anything on your mind. Work, love, money, a person, a decision, a date — I'll read it from your chart.",
+              "es": "Adelante — escribe lo que tengas en mente. Trabajo, amor, dinero, una persona, una decisión, una fecha — lo leo desde tu carta.",
+              "pt": "Pode mandar — escreva o que estiver na sua mente. Trabalho, amor, dinheiro, uma pessoa, uma decisão, uma data — eu leio pelo seu mapa.",
+              "hinglish": "Boliye — jo bhi mann mein hai likhiye. Kaam, pyaar, paisa, koi insaan, koi faisla, koi date — main aapke chart se padhunga."},
     "btn_chart": {"en": "Choose chart", "es": "Elegir carta", "pt": "Escolher mapa",
                   "hinglish": "Chart chuniye"},
     "thanks":   {"en": "Anytime 🙏", "es": "Cuando quieras 🙏", "pt": "Sempre que precisar 🙏",
@@ -5366,8 +5370,15 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
         sink.send_choices(_wa_strip_numbered(text) or text, _wa_text(button_key, lang), items, text,
                           prefer_rest=_pref)
 
-    def _q_items(qs):
-        return [(q, "q:" + q, q) for q in qs]
+    def _q_items(qs, titles=None):
+        # [followup-flows 2026-10-04] the row title is the KIND of next step ("⏳ Timing"), the
+        # question is the description — a truncated question as title showed up twice in the
+        # user's tapped reply ("Which day this week is…" / "Which day this week is best for me?").
+        # The last row is always free text: the reader can ask anything.
+        from antar_engine import ask_followups as _af
+        titles = titles or {}
+        rows = [(titles.get(q) or _af.lane_title(q, lang), "q:" + q, q) for q in qs]
+        return rows + [_af.own_row(lang)] if rows else rows
 
     def _save(c):
         c = dict(c)
@@ -5424,6 +5435,10 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
         if choice_id == "show_answer":
             if not pend.get("items"):
                 send(_wa_text("answer_gone", lang))
+            return
+        if choice_id == "own":
+            # [followup-flows] "✍️ Ask your own" — invite free text; no Ask, no quota
+            send(_wa_text("own_q", lang))
             return
         if choice_id == "alert_stop" or cmd == "alerts_off":
             try:
@@ -5837,7 +5852,9 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
         if not text:
             send(_wa_text("failed", lang))
         else:
-            send_choices(prefix + text, "btn_next", _q_items(fus))
+            send_choices(prefix + text, "btn_next", _q_items(
+                fus, {f.get("q"): f.get("title") for f in (payload.get("suggested_followups") or [])
+                      if isinstance(f, dict)}))
         _save(_msg.remember_options(ctx, "ask", fus) if fus else {k: v for k, v in ctx.items() if k != "options"})
     except Exception as e:
         print(f"[whatsapp] handler non-fatal …{number[-4:]}: {e}")
@@ -26010,27 +26027,28 @@ def _ask_is_day_overview(question: str) -> bool:
     return bool(q) and len(q) <= 60 and bool(_DAY_OVERVIEW.search(q)) and not _DAY_DOMAIN.search(q)
 
 
-def _ask_followups(concern: str, question: str, language: str = "en") -> list:
-    """2-3 forward next-questions to LEAD the reader on, scoped to the answer's
-    concern. Drops any suggestion that just repeats what they already asked."""
-    _lang = (language or "en").lower()[:2]
-    table = _ASK_FOLLOWUPS.get(_lang) or _ASK_FOLLOWUPS["en"]
+def _ask_followups_rich(concern: str, question: str, language: str = "en",
+                        answered_when: bool = False) -> list:
+    """[{q, lane, title}] — next questions chosen by intent lane (antar_engine.ask_followups):
+    skip the lane just asked, agency-first under distress, then one bridge to the
+    neighbouring life area."""
+    from antar_engine import ask_followups as _af
     bucket = _ASK_FOLLOWUP_BUCKET.get((concern or "general").lower(), "general")
     # [day-chips 2026-10-03] owner screenshot: "How is my day today" came back with CAREER
     # chips ("Which profession fits me best?"). A plain how-is-my-day/tomorrow/week question
     # gets day chips, whatever concern the thread inherited. Domain words keep their bucket.
-    _day_bucket = _ask_is_day_overview(question)
-    if _day_bucket:
+    avoid = ()
+    if _ask_is_day_overview(question):
         bucket = "day"
-    cands = list(table.get(bucket) or table["general"])
-    if _day_bucket:   # "How is tomorrow?" must not offer "How is tomorrow looking?" back
-        _ql = (question or "").lower()
-        for _w in ("tomorrow", "week", "mañana", "semana", "amanhã", "amanha", "kal", "hafte"):
-            if _w in _ql:
-                cands = [c for c in cands if _w not in c.lower()] or cands
-    _qn = _ask_norm(question)
-    out = [c for c in cands if _ask_norm(c) != _qn][:3]
-    return out or cands[:2]
+        _ql = (question or "").lower()   # "How is tomorrow?" must not offer "How is tomorrow looking?" back
+        avoid = tuple(w for w in ("tomorrow", "week", "mañana", "semana", "amanhã", "amanha", "kal", "hafte")
+                      if w in _ql)
+    return _af.pick(bucket, question, language, answered_when=answered_when, avoid_words=avoid)
+
+
+def _ask_followups(concern: str, question: str, language: str = "en") -> list:
+    """2-3 forward next-questions to LEAD the reader on (strings, for the FE chips)."""
+    return [f["q"] for f in _ask_followups_rich(concern, question, language)]
 
 
 # [lang-learn 2026-09-24] Learn the reader's language from how they actually talk
@@ -30720,9 +30738,11 @@ async def ask_endpoint(request: AskRequest):
                     _fu_concern = "career"
                 if locals().get("_ask_compare"):
                     _fu_concern = "choice"   # [wa-ui] a "gold or defence?" answer must not offer speculation chips
-                _fu = _ask_followups(_fu_concern, question, language)
-                if _fu and not payload.get("needs_clarification"):
-                    payload["suggested_questions"] = _fu
+                _fur = _ask_followups_rich(_fu_concern, question, language,
+                                           answered_when=bool(payload.get("timing")))
+                if _fur and not payload.get("needs_clarification"):
+                    payload["suggested_questions"] = [f["q"] for f in _fur]
+                    payload["suggested_followups"] = _fur   # {q, lane, title}: lane-labelled rows
             except Exception as _fue:
                 print(f"[ask][followups] non-fatal: {_fue}")
             # [lang-learn 2026-09-24] Offer to switch the whole app to the language
