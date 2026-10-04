@@ -92,5 +92,5 @@ def test_day_questions_keep_a_day_level_answer():
         assert sp.is_day_question(q), q
     assert not sp.is_day_question("When will I gain from the stock market?")
     assert "opens Jun 2027 – Oct 2027" in sp.day_context("later", "Jun 2027 – Oct 2027")
-    assert "open now — Nov 2026" in sp.day_context("open", "Nov 2026")
-    assert sp.day_context("later", "", "es").startswith("Hasta entonces")
+    assert "open now — Nov 2026" in sp.day_context("open", "Nov 2026") and sp.day_context("open", "Nov 2026").count(".") == 1
+    assert sp.day_context("later", "", "es").startswith("Trata cualquier día")

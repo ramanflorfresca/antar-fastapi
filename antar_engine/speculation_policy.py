@@ -315,14 +315,18 @@ def is_day_question(question: str) -> bool:
 
 
 _DAYCTX = {
-    "en": {"open": "Your window for unearned gains is open now{t}, so the days below are inside it — keep positions small and capped.",
-           "later": "Your window for unearned gains opens {w}. Until then, treat any day below as low-conviction and keep positions small."},
-    "es": {"open": "Tu ventana de ganancias no ganadas está abierta ahora{t}, así que los días siguientes están dentro de ella — posiciones pequeñas y con tope.",
-           "later": "Tu ventana de ganancias no ganadas se abre {w}. Hasta entonces, trata cualquier día siguiente como de baja convicción y mantén posiciones pequeñas."},
-    "pt": {"open": "Sua janela de ganhos não trabalhados está aberta agora{t}, então os dias abaixo estão dentro dela — posições pequenas e com teto.",
-           "later": "Sua janela de ganhos não trabalhados abre {w}. Até lá, trate qualquer dia abaixo como de baixa convicção e mantenha posições pequenas."},
-    "hinglish": {"open": "Bina-mehnat ki kamai ki window abhi khuli hai{t}, to neeche ke din uske andar hain — positions chhoti aur limit mein rakhein.",
-                 "later": "Bina-mehnat ki kamai ki window {w} mein khulegi. Tab tak neeche ke kisi bhi din ko kam bharose ka maanein aur positions chhoti rakhein."},
+    "en": {"open": "Your window for unearned gains is open now{t} — keep any position small and capped.",
+           "later": "Your window for unearned gains opens {w} — until then, treat any single day as low-conviction and keep positions small.",
+           "later_nowin": "Treat any single day as low-conviction and keep positions small."},
+    "es": {"open": "Tu ventana de ganancias no ganadas está abierta ahora{t} — mantén cualquier posición pequeña y con tope.",
+           "later": "Tu ventana de ganancias no ganadas se abre {w} — hasta entonces, trata cualquier día como de baja convicción y mantén posiciones pequeñas.",
+           "later_nowin": "Trata cualquier día como de baja convicción y mantén posiciones pequeñas."},
+    "pt": {"open": "Sua janela de ganhos não trabalhados está aberta agora{t} — mantenha qualquer posição pequena e com teto.",
+           "later": "Sua janela de ganhos não trabalhados abre {w} — até lá, trate qualquer dia como de baixa convicção e mantenha posições pequenas.",
+           "later_nowin": "Trate qualquer dia como de baixa convicção e mantenha posições pequenas."},
+    "hinglish": {"open": "Bina-mehnat ki kamai ki window abhi khuli hai{t} — positions chhoti aur limit mein rakhein.",
+                 "later": "Bina-mehnat ki kamai ki window {w} mein khulegi — tab tak kisi bhi ek din ko kam bharose ka maanein aur positions chhoti rakhein.",
+                 "later_nowin": "Kisi bhi ek din ko kam bharose ka maanein aur positions chhoti rakhein."},
 }
 
 
@@ -331,4 +335,4 @@ def day_context(st: str, window: str = "", language: str = "en") -> str:
     w = (window or "").strip()
     if st == "open":
         return D["open"].format(t=(" — " + w) if w else "")
-    return D["later"].format(w=w) if w else D["later"].split(".", 1)[1].strip()
+    return D["later"].format(w=w) if w else D["later_nowin"]

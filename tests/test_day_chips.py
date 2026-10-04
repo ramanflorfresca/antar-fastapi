@@ -26,3 +26,25 @@ def test_day_chips_replace_career_chips_even_with_inherited_concern():
     assert main._ask_followups("general", "¿Cómo está mi día hoy?", "es")[0] == "¿Cómo se ve mañana?"
     # never repeats the question just asked
     assert "How is tomorrow looking?" not in main._ask_followups("career", "How is tomorrow looking?", "en")
+
+
+def test_day_overview_never_inherits_the_previous_topic(monkeypatch):
+    import asyncio
+    async def nop(*a, **k): return None
+    monkeypatch.setattr(main, "_ask_persist", nop)
+    monkeypatch.setattr(main, "_nlu_shadow", nop)
+    monkeypatch.setattr(main, "_ask_harvest_stated", lambda *a, **k: None)
+    monkeypatch.setattr(main, "_ask_recent_thread", lambda cid, limit=4, within_minutes=240: [
+        {"q": "How is speculation for me today", "a": "x", "domain": "speculation", "m": ""}])
+    r = asyncio.run(main.ask_endpoint(main.AskRequest(
+        question="How is my day today?", chart_id="a4c9d57b-fb9c-4890-8fe7-4a9904f515ed",
+        mode="explore", language="en", tz_offset=-240)))
+    txt = f"{r.get('read')} {r.get('next')}".lower()
+    assert "speculat" not in txt and "unearned" not in txt
+
+
+def test_day_chip_never_repeats_the_day_just_asked():
+    t = main._ask_followups("general", "How is tomorrow?", "en")
+    assert all("tomorrow" not in c.lower() for c in t) and len(t) >= 2
+    w = main._ask_followups("general", "How is my week?", "en")
+    assert all("week" not in c.lower() for c in w) and len(w) >= 2
