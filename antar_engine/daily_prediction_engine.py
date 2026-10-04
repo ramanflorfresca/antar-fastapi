@@ -358,12 +358,28 @@ def get_chandra_bala(natal_moon_sign: str, current_moon_sign: str) -> dict:
     }
 
 
+def _tz_hours(tz) -> float:
+    """UTC offset in HOURS from either unit. [tz-units 2026-10-03] The web client's contract
+    is MINUTES east of UTC (src/lib/timezone.ts: IST=+330, Colombia=-300); this engine's
+    maths ('local noon = 12 - offset') is HOURS. GET /daily-week passed the raw minutes
+    straight in, so for web users the Moon/Mercury/tithi were computed for local noon +/- a
+    few DAYS (Oct 3 2026, -240 min: Moon 'Libra 29°, tithi 3rd, 10th house' instead of the
+    true Gemini 17°, waning 8th, 6th house). Real hour offsets never exceed |14| and real
+    minute offsets are 0 or >= |60|, so the two separate cleanly (same rule as
+    main._get_local_start_date)."""
+    try:
+        t = float(tz or 0)
+    except (TypeError, ValueError):
+        return 0.0
+    return t / 60.0 if abs(t) > 14 else t
+
+
 def get_planet_sign_for_date(target_date: datetime, planet_id: int, tz_offset: float = 0) -> str:
     """Compute sidereal sign of a planet for a given date at user's local noon."""
     try:
         import swisseph as swe
         swe.set_sid_mode(swe.SIDM_LAHIRI)
-        utc_hour_for_local_noon = 12.0 - tz_offset
+        utc_hour_for_local_noon = 12.0 - _tz_hours(tz_offset)
         jd = swe.julday(target_date.year, target_date.month, target_date.day, utc_hour_for_local_noon)
         pos, _ = swe.calc_ut(jd, planet_id)
         ayanamsa = swe.get_ayanamsa(jd)
@@ -387,7 +403,7 @@ def get_moon_data_for_date(target_date: datetime, tz_offset: float = 0) -> dict:
         swe.set_sid_mode(swe.SIDM_LAHIRI)
         # Compute Moon at user's LOCAL noon:
         # Local noon = 12:00 local = (12 - tz_offset) UTC
-        utc_hour_for_local_noon = 12.0 - tz_offset
+        utc_hour_for_local_noon = 12.0 - _tz_hours(tz_offset)
         jd = swe.julday(target_date.year, target_date.month, target_date.day, utc_hour_for_local_noon)
         pos, _ = swe.calc_ut(jd, swe.MOON)
         ayanamsa = swe.get_ayanamsa(jd)
@@ -412,7 +428,7 @@ def get_tithi(target_date: datetime, tz_offset: float = 0) -> str:
     try:
         import swisseph as swe
         swe.set_sid_mode(swe.SIDM_LAHIRI)
-        utc_hour_for_local_noon = 12.0 - tz_offset
+        utc_hour_for_local_noon = 12.0 - _tz_hours(tz_offset)
         jd = swe.julday(target_date.year, target_date.month, target_date.day, utc_hour_for_local_noon)
         moon_pos, _ = swe.calc_ut(jd, swe.MOON)
         sun_pos, _ = swe.calc_ut(jd, swe.SUN)
@@ -2410,7 +2426,7 @@ def _dpc_scrub_signal(obj):
 # v2: claim-first headline + event-verb requirement, invented proper-noun
 #     rejection, day-name substitution, window overlap trimming, plain tara,
 #     planet names preserved in the signals row.
-DAILY_LOGIC_VERSION = 2
+DAILY_LOGIC_VERSION = 3   # [tz-units 2026-10-03] cards built on a Moon computed for the wrong day are discarded
 
 # [loop-unblock 2026-09-28] Which STRIP rules a cached row was written under.
 #
@@ -2590,6 +2606,7 @@ async def generate_weekly_signals(
     Returns:
         List of 7 daily signal dicts
     """
+    tz_offset = _tz_hours(tz_offset)   # [tz-units] callers may pass minutes (web) or hours
     if start_date is None:
         start_date = datetime.now(timezone.utc).replace(
             hour=0, minute=0, second=0, microsecond=0
