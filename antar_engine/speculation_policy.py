@@ -215,3 +215,120 @@ def combine(natal_state: str, kp: Optional[dict], client: str = "") -> str:
     if natal_state == "no" and kp.get("verdict") == "yes":
         return "open" if (client or "").upper() in OPEN_CLIENTS else "later"
     return natal_state
+
+
+
+# ── "what is the safest way to play this?" — a how-to, not the promise question ──
+# [spec-howto 2026-10-03] live (owner's phone): option 2 "What is my safest way to play
+# this?" returned the SAME window answer as the question before it. A how-to gets
+# practical risk rules — never where to put money, never a day.
+RISK_HOWTO = _re.compile(
+    r"(?i)\b(safest|safe way|safely|how (much )?(should|can|do) i (risk|put|stake|keep|limit|protect)|"
+    r"how (do|to) i (keep|limit|protect|manage|reduce)|stop.?loss|loss limit|risk (management|control)|"
+    r"limit (my )?(losses|risk)|c[oó]mo (limito|protejo|mantengo)|forma m[aá]s segura|manera m[aá]s segura|"
+    r"como (limito|protejo|mantenho)|forma mais segura|maneira mais segura|kaise (bachu|surakshit)|"
+    r"surakshit tarika)\b")
+
+
+def is_risk_howto(question: str) -> bool:
+    return bool(RISK_HOWTO.search(question or ""))
+
+
+_RISK = {
+    "en": {
+        "rules": ("The safest way: only use money you could lose completely and still pay your bills and "
+                  "any loans; decide a hard loss limit before you start and stop when you reach it; never "
+                  "borrow to speculate; and keep it a small share of what you have."),
+        "no": "Given your reading, the safest way is to not speculate at all for now.",
+        "timing": " Your window for unearned gains opens {w} — until then, keep it to a very small amount.",
+        "open": " Your window for unearned gains is open now{t}, so a small, capped amount fits.",
+        "next_no": "Put that money into steady, earned income or a cushion instead.",
+        "next": "Write down your loss limit today, before any decision.",
+        "gambling": " Antar doesn't give casino, lottery or betting-specific answers.",
+    },
+    "es": {
+        "rules": ("La forma más segura: usa solo dinero que puedas perder por completo y aun así pagar tus "
+                  "cuentas y deudas; fija un límite de pérdida firme antes de empezar y detente al llegar a él; "
+                  "nunca te endeudes para especular; y que sea una parte pequeña de lo que tienes."),
+        "no": "Según tu lectura, lo más seguro es no especular por ahora.",
+        "timing": " Tu ventana de ganancias no ganadas se abre {w} — hasta entonces, una cantidad muy pequeña.",
+        "open": " Tu ventana de ganancias no ganadas está abierta ahora{t}, así que encaja una cantidad pequeña y con tope.",
+        "next_no": "Mejor pon ese dinero en ingresos estables y ganados o en un colchón.",
+        "next": "Escribe hoy tu límite de pérdida, antes de cualquier decisión.",
+        "gambling": " Antar no da respuestas específicas de casino, lotería o apuestas.",
+    },
+    "pt": {
+        "rules": ("A forma mais segura: use só dinheiro que você possa perder por completo e ainda pagar suas "
+                  "contas e dívidas; defina um limite de perda firme antes de começar e pare ao atingi-lo; "
+                  "nunca se endivide para especular; e mantenha uma parte pequena do que você tem."),
+        "no": "Pela sua leitura, o mais seguro é não especular por enquanto.",
+        "timing": " Sua janela de ganhos não trabalhados abre {w} — até lá, um valor bem pequeno.",
+        "open": " Sua janela de ganhos não trabalhados está aberta agora{t}, então cabe um valor pequeno e com teto.",
+        "next_no": "Prefira colocar esse dinheiro em renda estável e trabalhada ou numa reserva.",
+        "next": "Anote hoje o seu limite de perda, antes de qualquer decisão.",
+        "gambling": " O Antar não dá respostas específicas de cassino, loteria ou apostas.",
+    },
+    "hinglish": {
+        "rules": ("Sabse surakshit tarika: sirf wahi paisa lagayein jo poora kho dein tab bhi bills aur karz chukte "
+                  "rahein; shuru karne se pehle nuksaan ki pakki limit tay karein aur wahan rukein; speculate "
+                  "karne ke liye kabhi udhaar na lein; aur apne paise ka chhota hissa hi rakhein."),
+        "no": "Aapki reading ke hisaab se abhi speculate na karna hi sabse surakshit hai.",
+        "timing": " Bina-mehnat ki kamai ki window {w} mein khulegi — tab tak bahut chhoti raqam.",
+        "open": " Bina-mehnat ki kamai ki window abhi khuli hai{t}, to chhoti aur limit wali raqam theek hai.",
+        "next_no": "Woh paisa steady, mehnat ki kamai ya cushion mein rakhein.",
+        "next": "Aaj hi apni nuksaan ki limit likh lein, kisi bhi faisle se pehle.",
+        "gambling": " Antar casino, lottery ya betting ka specific jawab nahi deta.",
+    },
+}
+
+
+def risk_lead(st: str, window: str = "", gambling: bool = False, language: str = "en") -> dict:
+    """{'read','next'} for a how-to-play-safely question (state-aware, no day, no investment advice)."""
+    R = _RISK[_lang(language)]
+    w = (window or "").strip()
+    if st in ("losses", "no"):
+        read, nxt = R["no"], R["next_no"]
+    else:
+        read = R["rules"]
+        if st == "open":
+            read += R["open"].format(t=(" — " + w) if w else "")
+        elif w:
+            read += R["timing"].format(w=w)
+        nxt = R["next"]
+    if gambling:
+        read += R["gambling"]
+    return {"read": read, "next": nxt}
+
+
+
+# ── day-level questions (owner 2026-10-03: "someone who is a day trader or crypto trader would want this") ──
+DAY_Q = _re.compile(
+    r"(?i)\b(which day|what day|best day|good day|today|tonight|tomorrow|this week|next week|this weekend|"
+    r"coming days|next few days|monday|tuesday|wednesday|thursday|friday|saturday|sunday|"
+    r"qu[eé] d[ií]a|hoy|esta noche|ma[nñ]ana|esta semana|pr[oó]xim[ao]s d[ií]as|"
+    r"que dia|qual dia|hoje|esta noite|amanh[aã]|essa semana|nesta semana|desta semana|"
+    r"aaj|kal|is hafte|kaun sa din|kaunsa din)\b")
+
+
+def is_day_question(question: str) -> bool:
+    return bool(DAY_Q.search(question or ""))
+
+
+_DAYCTX = {
+    "en": {"open": "Your window for unearned gains is open now{t}, so the days below are inside it — keep positions small and capped.",
+           "later": "Your window for unearned gains opens {w}. Until then, treat any day below as low-conviction and keep positions small."},
+    "es": {"open": "Tu ventana de ganancias no ganadas está abierta ahora{t}, así que los días siguientes están dentro de ella — posiciones pequeñas y con tope.",
+           "later": "Tu ventana de ganancias no ganadas se abre {w}. Hasta entonces, trata cualquier día siguiente como de baja convicción y mantén posiciones pequeñas."},
+    "pt": {"open": "Sua janela de ganhos não trabalhados está aberta agora{t}, então os dias abaixo estão dentro dela — posições pequenas e com teto.",
+           "later": "Sua janela de ganhos não trabalhados abre {w}. Até lá, trate qualquer dia abaixo como de baixa convicção e mantenha posições pequenas."},
+    "hinglish": {"open": "Bina-mehnat ki kamai ki window abhi khuli hai{t}, to neeche ke din uske andar hain — positions chhoti aur limit mein rakhein.",
+                 "later": "Bina-mehnat ki kamai ki window {w} mein khulegi. Tab tak neeche ke kisi bhi din ko kam bharose ka maanein aur positions chhoti rakhein."},
+}
+
+
+def day_context(st: str, window: str = "", language: str = "en") -> str:
+    D = _DAYCTX[_lang(language)]
+    w = (window or "").strip()
+    if st == "open":
+        return D["open"].format(t=(" — " + w) if w else "")
+    return D["later"].format(w=w) if w else D["later"].split(".", 1)[1].strip()
