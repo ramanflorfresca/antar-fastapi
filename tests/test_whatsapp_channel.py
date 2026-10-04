@@ -1159,3 +1159,26 @@ def test_voice_enabled_needs_the_key(monkeypatch):
     monkeypatch.setenv("ELEVENLABS_API_KEY", "x")
     monkeypatch.setenv("WHATSAPP_VOICE", "off")
     assert not msg.voice_enabled()
+
+
+# ── [wa-consistent 2026-10-04] a fast (inline) answer looks like a slow one ───────
+def test_inline_answer_goes_out_as_the_tappable_list_when_rest_is_known_good():
+    import main
+    items = [("Q1?", "q:Q1?", "Q1?")]
+    s = main._WaSink("+10000000000", time.time(), inline=True)
+    s.send_choices("body", "Ask next", items, "body\n\n1  Q1?", prefer_rest=True)
+    assert s.buf == [] and s.outbox and s.outbox[0][0] == "list"
+    s2 = main._WaSink("+10000000000", time.time(), inline=True)
+    s2.send_choices("body", "Ask next", items, "body\n\n1  Q1?", prefer_rest=False)
+    assert s2.buf == ["body\n\n1  Q1?"] and not s2.outbox
+
+
+def test_failed_rest_list_rides_the_inline_reply(monkeypatch):
+    import main
+    from antar_engine import messaging as m
+    monkeypatch.setattr(m, "whatsapp_send_list", lambda *a, **k: False)
+    monkeypatch.setattr(m, "whatsapp_send", lambda *a, **k: False)
+    s = main._WaSink("+10000000000", time.time(), inline=True)
+    s.send_choices("body", "Ask next", [("Q?", "q:Q?", "Q?")], "numbered text", prefer_rest=True)
+    failed, ok = s.flush()
+    assert failed == [] and ok is False and s.buf == ["numbered text"]
