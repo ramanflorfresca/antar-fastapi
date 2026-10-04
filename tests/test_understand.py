@@ -524,3 +524,39 @@ def test_parent_health_block_forbids_conditions():
     from antar_engine import parent_work as pw
     b = pw.health_block("father")
     assert "Do NOT name any condition" in b and pw.health_block(None) == ""
+
+
+# ── audit round 8 ─────────────────────────────────────────────────────────────
+def test_separation_question_excludes_new_relationship():
+    assert u.separation_question({"area": "separation"}, "Kya mera talaq safal hoga?")
+    assert not u.separation_question({"area": "separation"}, "Will I remarry after the divorce?")
+    assert not u.separation_question({"area": "marriage"}, "Will I marry?")
+    assert "new partner" in u.separation_block()
+
+
+def test_separation_answer_drops_new_partner_talk():
+    t = "This is a heavy season. A new partnership is supported. Name one boundary this week."
+    out = u.drop_off_topic_pressure(t, "separation", "Could my separation get better?")
+    assert "partnership" not in out and "boundary" in out
+    assert u.drop_off_topic_pressure(t, "separation", "Will I find a new partner after the divorce?") == t
+
+
+def test_asserted_loans_dropped_unless_asked():
+    t = "Buying him out looks supported. Only if the loan terms stay manageable. Check the price first."
+    out = u.drop_asserted_loans(t, "Vale a pena comprar a parte dele?")
+    assert "loan terms" not in out and "Check the price" in out
+    assert u.drop_asserted_loans(t, "Should I take a loan to buy him out?") == t
+    t2 = "Legal pressure is high. Not a loan or external capital — your reputation is the lever."
+    assert "loan" not in u.drop_asserted_loans(t2, "Mera case itna mushkil kyun hai?")
+
+
+def test_legal_and_move_topics_no_longer_exempt_from_pressure_guard():
+    t = "The move needs a calm week. Your business isn't yet stable. Visit the place first."
+    assert "business" not in u.drop_off_topic_pressure(t, "residence_move", "Should I move?")
+
+
+def test_life_purpose_is_a_subject_not_vague():
+    import main
+    assert not main._ask_is_vague("What should I do about my life purpose?")
+    assert not main._ask_is_vague("What should I do about my retirement?")
+    assert main._ask_is_vague("What should I do?")

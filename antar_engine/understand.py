@@ -828,8 +828,7 @@ def guard_answer(text, question: str = "", options: Optional[list] = None,
 _MONEY_TOPIC_AREAS = frozenset({
     "career_job", "promotion", "business_venture", "clients_sales", "funding_investment",
     "income_money", "debt_owed_money", "speculation_betting", "property", "business_partnership",
-    "partnership_ending", "daily_timing", "general", "lost_item", "legal_case", "residence_move",
-    "foreign_travel_visa"})
+    "partnership_ending", "daily_timing", "general"})
 _BIZ_PRESSURE = re.compile(
     r"(?i)\b(business(es)?|loans?|debts?|savings?|cash ?flow|money pressure|financial (stress|pressure|strain)|"
     r"negocio|neg[oó]cio|pr[eé]stamos?|empr[eé]stimos?|deudas?|d[ií]vidas?|ahorros?|poupan[cç]a|"
@@ -855,7 +854,53 @@ def drop_off_topic_pressure(text, area: str = "", question: str = ""):
         # the 7th-house partner signal reads as "business partnership" — a personal relationship
         # question must not be answered with deals and agreements
         rxs.append(_DEAL_TALK)
+    if (area == "separation" and not _NEW_RELATIONSHIP_Q.search(question or "")
+            and not _DEAL_TALK.search(question or "")):
+        rxs.append(_NEW_PARTNER_TALK)
     kept = [x for x in _sentences(text) if not any(r.search(x) for r in rxs)]
+    return " ".join(kept).strip() if kept else text
+
+
+_NEW_RELATIONSHIP_Q = re.compile(
+    r"(?i)\b(re-?marry|new (partner|relationship|love|girlfriend|boyfriend|wife|husband)|another (partner|relationship)|"
+    r"meet (someone|a partner)|find (love|a partner)|dobara shaadi|nayi shaadi|nueva pareja|nuevo amor|"
+    r"volver a casarme|novo parceiro|novo amor|casar de novo)\b")
+
+
+def separation_question(u: Optional[dict], question: str = "") -> bool:
+    """A question about a separation / divorce itself (not about a new relationship)."""
+    return (u or {}).get("area") == "separation" and not _NEW_RELATIONSHIP_Q.search(question or "")
+
+
+def separation_block() -> str:
+    return ("\n\nSEPARATION / DIVORCE — the question is about the separation ITSELF.\n"
+            "- Speak to how it is going for them: the strain, what steadies it, what to protect, and one "
+            "concrete, human step (a conversation, a boundary, support, a document reviewed by a professional).\n"
+            "- Do NOT talk about a new partner, a new relationship, a 'partnership chapter', deals or business. "
+            "Do NOT give a date window for a 'next partnership'. No Yes / Not-yet verdict line.\n"
+            "- Never predict the outcome of legal proceedings; the reading speaks to the emotional and "
+            "practical season, not the court result.")
+
+
+_NEW_PARTNER_TALK = re.compile(
+    r"(?i)\b((new|future|next|potential|fresh) (partnership|partner|relationship|romance|chapter in love)|"
+    r"partnership (chapter|transition|window)|a (new )?partnership|"
+    r"(nueva|futura|pr[oó]xima) (pareja|relaci[oó]n|asociaci[oó]n)|(nova|futura|pr[oó]xima) (parceria|relaci[oó]n|rela[cç][aã]o)|"
+    r"(naya|nayi|nai|future) (partner|partnership|rishta)|naye (partner|rishte))\b")
+
+# loans / outside capital / credit asserted as part of the person's situation
+_ASSERTED_LOAN = re.compile(
+    r"(?i)(\bloans? or (credit|capital)\b|\b(loan|credit) (terms|or payment terms|payments?)\b|"
+    r"\bnot (a )?loans? or (external )?capital\b|\b(external|outside) capital as a last resort\b|"
+    r"\btermos d[eo] empr[eé]stimo|\bempr[eé]stimo ou (capital|pagamento)|\bnão (um )?empr[eé]stimo|"
+    r"\bpr[eé]stamo o (capital|pago)|\bcapital externo\b)")
+
+
+def drop_asserted_loans(text, question: str = ""):
+    """Drops sentences that assert loans / credit / outside capital nobody mentioned. Never empties."""
+    if not isinstance(text, str) or not text.strip() or _FIN_WORDS.search(question or ""):
+        return text
+    kept = [x for x in _sentences(text) if not _ASSERTED_LOAN.search(x)]
     return " ".join(kept).strip() if kept else text
 
 
