@@ -24050,7 +24050,16 @@ async def _ask_to_hinglish(text):
             max_tokens_override=500, temperature_override=0), timeout=8)
         raw = raw[0] if isinstance(raw, tuple) else raw
         raw = (raw or "").strip()
-        return raw if raw and re.search(r"[A-Za-z]", raw) and not re.search(r"[\u0900-\u097F]", raw) else None
+        # [audit r12] live: the model answered the rewrite request itself ("Aap bilkul sahi kah rahe
+        # hain! Mujhe maafi chahiye…") and that became the user's next-step line — reject anything
+        # that is not a plain rewrite of the same text
+        if (not raw or not re.search(r"[A-Za-z]", raw) or re.search(r"[\u0900-\u097F]", raw)
+                or len(raw) > 2.2 * len(text) + 40
+                or re.search(r"(?i)maafi|sorry|apolog|provide|rewrite|rephrase|hindi ya hinglish|as an ai|"
+                             r"i cannot|i can't", raw)
+                or ("\n\n" in raw and "\n\n" not in text)):
+            return None
+        return raw
     except Exception:
         return None
 
@@ -30262,7 +30271,9 @@ async def ask_endpoint(request: AskRequest):
                        if locals().get("_health_fired") else None)
                 # [audit r7] a question about SOMEONE ELSE's health (father, mother) gets no
                 # herbs for the asker's own body
-                if _hc and (locals().get("_ask_u") or {}).get("area") != "health_other":
+                # [audit r12] and only when the question is about THEIR health: a question about a
+                # son's exam stream got brahmi / neem / sesame-oil tips appended
+                if _hc and (locals().get("_ask_u") or {}).get("area") in (None, "", "health_self", "general"):
                     _blob = " ".join(str(payload.get(_k) or "")
                                      for _k in ("read", "next")).lower()
                     _HERBS = ("ashwagandha", "triphala", "brahmi", "gotu", "abhyanga",

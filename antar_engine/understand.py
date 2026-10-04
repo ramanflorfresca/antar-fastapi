@@ -903,6 +903,10 @@ _ASSERTED_LOAN = re.compile(
     r"\bpr[eé]stamo o (capital|pago)|\bcapital externo\b|"
     # [audit r10] any loan wording, EN / ES / PT, when nobody raised money
     r"\bloans?\b|\bempr[eé]stimos?\b|\bpr[eé]stamos?\b)")
+_LOAN_CLAUSE = re.compile(
+    r"(?i)(?:\s*(?:,|\band\b|\be\b|\by\b|\bo\b|\bou\b)\s+)?(?:(?:any|quaisquer|cualquier(?:a)?)\s+)?"
+    r"(?:(?:terms?|termos?|t[eé]rminos?)\s+(?:of|de|do)\s+)?(?:the\s+|o\s+|el\s+)?"
+    r"(?:loans?|empr[eé]stimos?|pr[eé]stamos?)\b(?:\s+terms?)?")
 _LOAN_OK_AREAS = frozenset({"funding_investment", "debt_owed_money", "property"})
 
 
@@ -912,7 +916,12 @@ def drop_asserted_loans(text, question: str = "", area: str = ""):
             or area in _LOAN_OK_AREAS:
         return text
     kept = [x for x in _sentences(text) if not _ASSERTED_LOAN.search(x)]
-    return " ".join(kept).strip() if kept else text
+    if kept:
+        return " ".join(kept).strip()
+    # [audit r12] a one-sentence next-step: cut just the loan clause, keep the step
+    cut = _LOAN_CLAUSE.sub("", text)
+    cut = re.sub(r"\s{2,}", " ", cut).strip(" ,;")
+    return cut if len(cut) >= 12 else text
 
 
 _LEGAL_ASSUMED = re.compile(
