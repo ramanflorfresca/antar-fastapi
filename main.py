@@ -23979,6 +23979,25 @@ def _ask_is_english(text):
     return en >= 2 and en > es and en > pt
 
 
+async def _ask_to_hinglish(text):
+    """Rewrite an English / mixed passage as natural Roman-script Hinglish. Keeps months, years and
+    names exactly. Fail-open → None."""
+    sysmsg = ("Rewrite the user's text as natural Hinglish — Hindi in Roman script, code-mixed with "
+              "English the way an urban Indian speaks. Same meaning, same warmth, same length. Address the "
+              "person respectfully as 'aap' (NEVER 'tu' or 'tum'). Do NOT add, remove or change any fact — "
+              "if the text does not mention a job, a loan or a person, neither may you. Keep every "
+              "month, year, number and name EXACTLY as written. No Devanagari. Output only the rewritten text.")
+    try:
+        raw = await asyncio.wait_for(call_llm_claude(
+            prompt=text, system_override=sysmsg, model_override=HAIKU_MODEL,
+            max_tokens_override=500, temperature_override=0), timeout=8)
+        raw = raw[0] if isinstance(raw, tuple) else raw
+        raw = (raw or "").strip()
+        return raw if raw and re.search(r"[A-Za-z]", raw) and not re.search(r"[\u0900-\u097F]", raw) else None
+    except Exception:
+        return None
+
+
 async def _ask_localize(payload, language, fields, chart_id=None):
     """
     Translate at response time from the English source.
@@ -24966,7 +24985,13 @@ _ASK_HAS_SUBJECT = _re_crisis.compile(
     r"love|dating|health|sick|disease|ill|family|father|mother|child|kid|son|"
     r"daughter|home|house|property|move|relocat|travel|abroad|visa|study|exam|"
     r"court|legal|case|trabajo|carrera|dinero|negocio|relaci[oó]n|pareja|salud|"
-    r"familia|casa|mudar|viaj|amor|matrimonio)\b",
+    r"familia|casa|mudar|viaj|amor|matrimonio|"
+    # [audit r8] life purpose / retirement / separation / money words are subjects too
+    r"purpose|dharma|meaning|spiritual|retire\w*|pension|old age|divorce|separat\w*|pregnan\w*|"
+    r"course|college|school|loan|debt|tax|gold|crypto|"
+    r"prop[oó]sito|sentido|jubilaci[oó]n|aposentadoria|divorcio|div[oó]rcio|separaci[oó]n|separa[cç][aã]o|"
+    r"embarazo|gravidez|curso|pr[eé]stamo|deuda|d[ií]vida|"
+    r"talaq|shaadi|naukri|paisa|karz|bachche|bachcha|sehat|ghar|videsh|uddeshya)\b",
     _re_crisis.I,
 )
 
@@ -28150,6 +28175,13 @@ async def ask_endpoint(request: AskRequest):
                     _ask_life_block = ((_ask_life_block or "") + _und.guardrails_block()).strip()
                 except Exception:
                     pass
+                # [audit r8] separation / divorce: about the separation itself — never a "new partner"
+                try:
+                    if _und.separation_question(_ask_u, question):
+                        _ask_life_block = ((_ask_life_block or "") + _und.separation_block()).strip()
+                        print(f"[ask][separation] block added for {chart_id[:8]}")
+                except Exception as _spe:
+                    print(f"[ask][separation] skipped (non-fatal): {_spe}")
                 # [parent-work 2026-10-03] working with / relating to a parent
                 try:
                     from antar_engine import parent_work as _pw
@@ -29588,6 +29620,16 @@ async def ask_endpoint(request: AskRequest):
                           f"{(locals().get('_ask_u') or {}).get('intent')}) for {chart_id[:8]}")
             except Exception as _ive:
                 print(f"[ask][intent-verdict] skipped: {_ive}")
+            # [audit r8] a separation question gets no "next partnership transition" window or
+            # Yes/Not-yet lead — that is the event engine's read of a NEW relationship
+            try:
+                from antar_engine import understand as _undsep
+                if _ask_conv and _undsep.separation_question(locals().get("_ask_u"), question):
+                    _ask_conv["suppress_verdict"] = True
+                    _ask_conv["verdict_phrase"] = ""
+                    print(f"[ask][separation] verdict chip + lead phrase suppressed for {chart_id[:8]}")
+            except Exception as _sve:
+                print(f"[ask][separation] verdict skip failed: {_sve}")
             if locals().get("_ask_compare") and _ask_conv:
                 _ask_conv["suppress_verdict"] = True
                 _ask_conv["verdict_phrase"] = ""
@@ -30403,12 +30445,27 @@ async def ask_endpoint(request: AskRequest):
                 for _rf in ("read", "next"):
                     payload[_rf] = _und3.drop_invented_background(payload.get(_rf), _bg_known)
                 for _rf in ("read", "next"):
+                    payload[_rf] = _und3.drop_asserted_loans(payload.get(_rf), question)
+                for _rf in ("read", "next"):
                     payload[_rf] = _und3.drop_off_topic_pressure(payload.get(_rf), _au3.get("area") or "", question)
                 for _rf in ("read", "next"):
                     payload[_rf] = _und3.guard_answer(payload.get(_rf), question, _au3.get("options"),
                                                       unemployed=_unemp, known_background=_kb)
             except Exception:
                 pass
+            # [audit r8] Hinglish answers must be Hinglish end to end — the model sometimes
+            # writes the first line or the next-step in English
+            if language == "hinglish":
+                try:
+                    for _hf in ("read", "next"):
+                        _hv = payload.get(_hf)
+                        if isinstance(_hv, str) and _hv.strip() and not _ask_detect_hinglish(_hv):
+                            _fixed = await _ask_to_hinglish(_hv)
+                            if _fixed:
+                                payload[_hf] = _fixed
+                                print(f"[ask][hinglish-fix] {_hf} rewritten for {chart_id[:8]}")
+                except Exception as _hfe:
+                    print(f"[ask][hinglish-fix] skipped (non-fatal): {_hfe}")
             # [no-invented-role] a role they never stated is neutralised
             try:
                 if locals().get("_ask_compare"):
