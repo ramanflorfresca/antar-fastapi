@@ -26036,7 +26036,8 @@ def _ask_followups_rich(concern: str, question: str, language: str = "en",
     skip the lane just asked, agency-first under distress, then one bridge to the
     neighbouring life area."""
     from antar_engine import ask_followups as _af
-    bucket = _ASK_FOLLOWUP_BUCKET.get((concern or "general").lower(), "general")
+    _c = (concern or "general").lower()
+    bucket = _ASK_FOLLOWUP_BUCKET.get(_c) or (_c if _c in _af._Q["en"] else "general")
     # [day-chips 2026-10-03] owner screenshot: "How is my day today" came back with CAREER
     # chips ("Which profession fits me best?"). A plain how-is-my-day/tomorrow/week question
     # gets day chips, whatever concern the thread inherited. Domain words keep their bucket.
@@ -30739,8 +30740,17 @@ async def ask_endpoint(request: AskRequest):
                     _fu_concern = "wealth"
                 elif locals().get("_is_ctype") or locals().get("_is_clarify_reply"):
                     _fu_concern = "career"
-                if locals().get("_ask_compare"):
+                _ask_u_fu = locals().get("_ask_u") or {}
+                if (locals().get("_ask_compare") and len(_ask_u_fu.get("options") or []) >= 2
+                        and _ask_u_fu.get("has_choice")):
                     _fu_concern = "choice"   # [wa-ui] a "gold or defence?" answer must not offer speculation chips
+                # [followup-flows] a tapped chip keeps its own topic: "Should I concentrate or
+                # diversify?" is a money question, "Which profession fits me best?" a career one —
+                # neither is a two-option choice ("What role suits me best in each option?")
+                from antar_engine.ask_followups import bucket_of as _fu_bucket_of
+                _fu_own = _fu_bucket_of(question)
+                if _fu_own:
+                    _fu_concern = _fu_own
                 _fur = _ask_followups_rich(_fu_concern, question, language,
                                            answered_when=bool(payload.get("timing")))
                 if _fur and not payload.get("needs_clarification"):

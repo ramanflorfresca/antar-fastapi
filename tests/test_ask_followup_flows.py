@@ -61,3 +61,9 @@ def test_love_never_assumes_a_partner_unless_named():
     assert any("partner" in q or "compatible" in q for q in paired), paired
     es = [f["q"] for f in af.pick("love", "¿Cuándo llega el amor?", "es")]
     assert not any("pareja" in q or "somos" in q for q in es), es
+def test_a_tapped_chip_keeps_its_topic():
+    assert af.bucket_of("Should I concentrate or diversify?") == "money"
+    assert af.bucket_of("Which profession fits me best?") == "career"
+    assert af.bucket_of("¿Debo concentrarme o diversificar?") == "money"
+    assert af.bucket_of("Will I be rich?") is None
+    assert af.bucket_of("How is my money looking right now?") is None   # general → resolved concern decides

@@ -388,6 +388,20 @@ def pick(bucket: str, question: str, language: str = "en", answered_when: bool =
     return out[:k]
 
 
+def bucket_of(question: str):
+    """The topic of one of OUR suggestions (a tapped chip keeps its thread), else None."""
+    qn = _norm(question)
+    if not qn:
+        return None
+    for table in list(_Q.values()) + [{"love": v} for v in _Q_PARTNERED.values()]:
+        for bucket, lanes in table.items():
+            # "general" only repeats other topics' questions ("How is my money looking
+            # right now?" is a money question), so it never claims one
+            if bucket != "general" and any(_norm(q) == qn for q in lanes.values()):
+                return bucket
+    return None
+
+
 def own_row(language: str) -> tuple:
     """(title, id, description) for the WhatsApp list's free-text row."""
     t, d = OWN[_lang(language)]
