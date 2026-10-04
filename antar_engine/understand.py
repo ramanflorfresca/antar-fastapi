@@ -253,6 +253,32 @@ def _clean_enum(v, allowed, default):
     return v if v in allowed else default
 
 
+# [audit r16] A topic WORD in the message is the most reliable signal there is. "Vale a pena mudar meu
+# separação?" / "…mudar meu saúde?" came back at NLU confidence 0.3-0.4 (the model is unsure about "change my X")
+# and, as a short message, inherited the PREVIOUS turn's topic (speculation) → an answer about money.
+_EXPLICIT_TOPICS = (
+    (re.compile(r"(?i)\b(separaci[oó]n|separa[cç][aã]o|separation|separated|divorc\w*|div[oó]rcio|talaq)\b"), "separation"),
+    (re.compile(r"(?i)\b(sa[uú]de|salud|sehat|health)\b"), "health_self"),
+    (re.compile(r"(?i)\b(income|salary|dinero|dinheiro|ingresos|renda|salario|sal[aá]rio|paisa|kamai|kamaai)\b"), "income_money"),
+    (re.compile(r"(?i)\b(casamento|matrimonio|shaadi|marriage|wedding|boda)\b"), "marriage"),
+    (re.compile(r"(?i)\b(exam|examen|prova|pariksha|study|estudo|estudio)\b"), "education_exam"),
+    (re.compile(r"(?i)\b(abroad|exterior|extranjero|videsh)\b"), "foreign_travel_visa"),
+)
+
+
+def conf_for_fix(obj: dict) -> float:
+    try:
+        return max(0.0, min(1.0, float(obj.get("confidence") or 0.0)))
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def explicit_area(question: str) -> Optional[str]:
+    """The ONE life area a message names outright, or None (no topic word, or several)."""
+    hits = {a for rx, a in _EXPLICIT_TOPICS if rx.search(question or "")}
+    return next(iter(hits)) if len(hits) == 1 else None
+
+
 _SEPARATION_WORD = re.compile(
     r"(?i)\b(separaci[oó]n|separa[cç][aã]o|separation|separated|separat\w+|divorce|divorcio|div[oó]rcio|talaq|alag ho)\b")
 
@@ -293,6 +319,9 @@ def parse(raw: str, original: str = "") -> Optional[dict]:
     # an explicit separation / divorce word in the message wins over a residence / general guess
     if area in ("residence_move", "general", "daily_timing") and _SEPARATION_WORD.search(original or ""):
         area = "separation"
+    _ea = explicit_area(original)
+    if _ea and _ea != area and (conf_for_fix(obj) < 0.5 or area in ("general", "daily_timing")):
+        area = _ea
     sf = obj.get("stated_facts") if isinstance(obj.get("stated_facts"), dict) else {}
     other = sf.get("other") if isinstance(sf.get("other"), list) else []
     # [stated-evidence 2026-10-03] a stated fact counts only if the message says it
@@ -727,6 +756,8 @@ def guardrails_block() -> str:
             "shows about THEM and the situation.\n"
             "- Never name what a legal matter is about (fraud, manipulation, tax, regulation, a contract) "
             "unless they said it.\n"
+            "- Say what the reading favours as a LEAN ('the reading leans toward…'), never as the field they work in "
+            "('tech is your field', 'you are in technology') unless they said it.\n"
             "- Never invent their past: no 'your finance years', 'your old company', 'when you "
             "worked in…' unless they told you. Fields the reading favours are possibilities, not "
             "their history.")
@@ -874,10 +905,20 @@ def drop_off_topic_pressure(text, area: str = "", question: str = ""):
     return _keep(kept, text)
 
 
+_DANGLING_START = re.compile(
+    r"(?i)^\s*(this|these|that|those|it|they|but|and|so|however|esto|esta|estos|estas|eso|esa|esos|esas|pero|y|"
+    r"isso|isto|esses|essas|mas|e|yeh|woh|lekin|aur|isse|usse|"
+    r"porém|porem|contudo|entretanto|todavia|além disso|alem disso|no entanto|sin embargo|aunque|además|ademas|"
+    r"también|tambien|also|still|yet|then|moreover|though|although|par|phir|isliye|toh)\b")
+
+
 def _keep(kept: list, text: str) -> str:
-    """[audit r15] A guard must never leave nothing, nor ONLY a question: live, a residence answer was
-    reduced to its closing offer ('Aap chahte hain ki main … dekh loon?') — no reading at all."""
+    """[audit r15/r16] A guard must never leave nothing, nor ONLY a question (a residence answer was reduced to
+    its closing offer), nor a first sentence that leans on one it deleted ('These build the exact skills…')."""
     if not kept or all(k.rstrip().endswith("?") for k in kept):
+        return text
+    orig = _sentences(text)
+    if orig and kept[0] != orig[0] and _DANGLING_START.match(kept[0]):
         return text
     return " ".join(kept).strip()
 
@@ -1113,6 +1154,13 @@ _OTHER_TRAIT = re.compile(
     r"|\b(reliability|follow-?through|seguimiento|confiabilidad|confiabilidade)\b[^.!?]{0,40}\b(weaker|d[eé]bil|"
     r"mais fraca?)\b"
     r"|\b(aapka|your|tu|seu) (bachcha|child|hijo|filho) mushkil mein\b")
+_PARENT_IS = re.compile(
+    r"(?i)\b(your|tu|seu|sua|aapka|aapke)\s+(father|dad|papa|padre|pai|mother|mom|madre|m[aã]e|maa)\s+"
+    r"(is|es|[eé]|hai|supports|apoya|apoia|support karta hai|back karta hai)\b")
+_SINGLE_CHILD = re.compile(r"(?i)\b(tu hijo|tu hija|seu filho|sua filha|your son|your daughter)\b")
+_SINGLE_CHILD_SUB = {"tu hijo": "uno de tus hijos", "tu hija": "uno de tus hijos", "seu filho": "um dos seus filhos",
+                     "sua filha": "um dos seus filhos", "your son": "one of your children",
+                     "your daughter": "one of your children"}
 _FAR_FROM_FAMILY = re.compile(
     r"(?i)(family se door|away from (your )?family|far from (your )?family|lejos de (tu )?familia|"
     r"longe da (sua )?fam[ií]lia)")
@@ -1130,7 +1178,11 @@ def drop_other_people_claims(text, area: str = "", question: str = ""):
     if not isinstance(text, str) or not text.strip():
         return text
     q = question or ""
+    if not _CHILD_WORD.search(q):
+        # the profile says "adult children", not a son: don't single one out
+        text = _SINGLE_CHILD.sub(lambda m: _SINGLE_CHILD_SUB.get(m.group(0).lower(), m.group(0)), text)
     rxs = [_OTHER_TRAIT]
+    rxs.append(_PARENT_IS)                # "your father is the authority figure backing you" — a tendency at most
     if not _LEGAL_CAUSE.search(q):
         rxs.append(_LEGAL_CAUSE) if area == "legal_case" else None
     if area == "separation":
@@ -1359,6 +1411,8 @@ def concern_override(u: Optional[dict], keyword_concern: str,
     if (u or {}).get("area") in ("children_wellbeing", "children_conception") \
             and _CHILD_WORD.search(question or ""):
         floor = min(floor, 0.4)
+    if question and (u or {}).get("area") == explicit_area(question):
+        floor = min(floor, 0.25)           # the message names the topic and the reading agrees
     if float((u or {}).get("confidence") or 0) < floor:
         return None
     return c
