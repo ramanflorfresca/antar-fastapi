@@ -34464,6 +34464,14 @@ async def start_alert_scheduler():
 
 # ── Subscription / Paywall Endpoints ─────────────────────────────
 
+def _billing_view_safe(chart_id: str) -> dict:
+    try:
+        from antar_engine.billing_lifecycle import subscription_view
+        return subscription_view(supabase, chart_id)
+    except Exception as _bv:
+        return {"state": "unknown", "error": str(_bv)[:80]}
+
+
 @app.get("/api/v1/subscription/{chart_id}")
 def get_subscription_status(chart_id: str):
     """Get subscription plan + this month\'s usage."""
@@ -34494,6 +34502,7 @@ def get_subscription_status(chart_id: str):
         "compat_limit":    PLANS["free"]["compat_limit"],
         "period_end":      sub.get("current_period_end"),
         "features":        PLANS["free"]["features"],
+        "billing":         _billing_view_safe(chart_id),
     }
 
 
@@ -35100,118 +35109,36 @@ async def handle_stripe_webhook(request: Request):
                 except Exception as _cse:
                     print(f"[stripe webhook] compat slot insert FAILED: {_cse}")
 
-        # ── NEW SUBSCRIPTION or PAYMENT COMPLETED ──
-        elif event_type in ("checkout.session.completed", "customer.subscription.created"):
-            chart_id = (obj.get("client_reference_id") or
-                        obj.get("metadata", {}).get("chart_id", ""))
-            sub_id = (obj.get("subscription") or obj.get("id", ""))
-            plan_key = obj.get("metadata", {}).get("plan", "ask_unlimited_monthly")
-            plan = plan_key.split("_")[0]
-            if chart_id:
-                days = 366 if "annual" in plan_key or "yearly" in plan_key else 32
-                period_end = (datetime.now(timezone.utc) + timedelta(days=days)).isoformat()
-                activate_subscription(
-                    chart_id=chart_id, plan=plan,
-                    provider="stripe", provider_sub_id=str(sub_id),
-                    period_end_iso=period_end, sb=supabase,
-                )
-                print(f"[stripe webhook] Activated {plan} for {chart_id} (period: {days}d)")
-            # Billing P0: customer backfill — link profile to the Stripe
-            # customer created at checkout so the portal sees the subscription.
-            try:
-                _cust_id = obj.get("customer") or ""
-                _uid = (obj.get("metadata") or {}).get("user_id", "")
-                if _cust_id:
-                    if _uid:
-                        supabase.table("profiles").update(
-                            {"stripe_customer_id": _cust_id}
-                        ).eq("user_id", _uid).execute()
-                        _st_cache_bust(_uid)
-                    elif chart_id:
-                        # [profiles-rename 2026-06-16] profiles.chart_id was
-                        # renamed to primary_chart_id — filter by the new column.
-                        supabase.table("profiles").update(
-                            {"stripe_customer_id": _cust_id}
-                        ).eq("primary_chart_id", chart_id).execute()
-            except Exception as _bf:
-                print(f"[stripe webhook] customer backfill non-fatal: {_bf}")
+        # ── SUBSCRIPTION LIFECYCLE [billing-lifecycle 2026-10-04] ──
+        # checkout/created/updated/deleted, invoice paid/failed, refund, dispute — all in one
+        # tested module (antar_engine/billing_lifecycle.py): paid / past_due (access kept while
+        # the provider retries) / cancelled / expired, cancel_at_period_end, renewal period.
+        else:
+            from antar_engine.billing_lifecycle import handle_stripe_event
 
-        # ── SUBSCRIPTION UPDATED (plan change: monthly↔yearly, upgrade/downgrade) ──
-        elif event_type == "customer.subscription.updated":
-            chart_id = obj.get("metadata", {}).get("chart_id", "")
-            sub_id = obj.get("id", "")
-            # Get the new plan from the subscription items
-            items = obj.get("items", {}).get("data", [])
-            plan_key = obj.get("metadata", {}).get("plan", "")
-            plan = plan_key.split("_")[0] if plan_key else ""
-            # Check if subscription is still active
-            status = obj.get("status", "")
-            if chart_id and status in ("active", "trialing"):
-                current_period_end = obj.get("current_period_end")
-                if current_period_end:
-                    from datetime import datetime as _dt
-                    period_end = _dt.utcfromtimestamp(current_period_end).isoformat()
-                else:
-                    period_end = (datetime.now(timezone.utc) + timedelta(days=32)).isoformat()
-                if plan:
-                    activate_subscription(
-                        chart_id=chart_id, plan=plan,
-                        provider="stripe", provider_sub_id=str(sub_id),
-                        period_end_iso=period_end, sb=supabase,
-                    )
-                    print(f"[stripe webhook] Updated {chart_id} to {plan} (period_end: {period_end})")
-            elif chart_id and status in ("canceled", "unpaid", "past_due"):
-                supabase.table("subscriptions").update({
-                    "plan": "free", "status": "expired",
-                }).eq("chart_id", chart_id).execute()
-                print(f"[stripe webhook] Downgraded {chart_id} to free (status: {status})")
+            def _fetch_sub(_sid):
+                _stripe_wh.api_key = os.getenv("STRIPE_SECRET_KEY", "")
+                return _stripe_wh.Subscription.retrieve(_sid)
 
-        # ── SUBSCRIPTION CANCELLED ──
-        elif event_type == "customer.subscription.deleted":
-            chart_id = obj.get("metadata", {}).get("chart_id", "")
-            if chart_id:
-                supabase.table("subscriptions").update({
-                    "plan": "free", "status": "cancelled", "current_period_end": None,
-                }).eq("chart_id", chart_id).execute()
-                print(f"[stripe webhook] Cancelled {chart_id} → free")
-
-        # ── RECURRING PAYMENT SUCCEEDED ──
-        elif event_type == "invoice.payment_succeeded":
-            sub_id = obj.get("subscription", "")
-            chart_id = obj.get("subscription_details", {}).get("metadata", {}).get("chart_id", "")
-            # Also check lines for metadata
-            if not chart_id:
-                lines = obj.get("lines", {}).get("data", [])
-                for line in lines:
-                    chart_id = line.get("metadata", {}).get("chart_id", "")
-                    if chart_id:
-                        break
-            if chart_id and sub_id:
-                # Extend period
-                period_end = obj.get("period_end")
-                if period_end:
-                    from datetime import datetime as _dt
-                    period_end_iso = _dt.utcfromtimestamp(period_end).isoformat()
-                else:
-                    period_end_iso = (datetime.now(timezone.utc) + timedelta(days=32)).isoformat()
-                supabase.table("subscriptions").update({
-                    "period_end": period_end_iso, "current_period_end": period_end_iso, "is_paid": True,
-                }).eq("chart_id", chart_id).execute()
-                print(f"[stripe webhook] Renewed {chart_id} (next: {period_end_iso})")
-
-        # ── PAYMENT FAILED ──
-        elif event_type == "invoice.payment_failed":
-            chart_id = obj.get("subscription_details", {}).get("metadata", {}).get("chart_id", "")
-            attempt = obj.get("attempt_count", 0)
-            if chart_id:
-                # After 3 failed attempts, Stripe cancels automatically
-                # For now just log it — Stripe sends the user an email
-                print(f"[stripe webhook] Payment failed for {chart_id} (attempt {attempt})")
-                if attempt >= 3:
-                    supabase.table("subscriptions").update({
-                        "plan": "free", "is_paid": False,
-                    }).eq("chart_id", chart_id).execute()
-                    print(f"[stripe webhook] Downgraded {chart_id} after {attempt} failed payments")
+            _res = handle_stripe_event(event, supabase, fetch_subscription=_fetch_sub)
+            print(f"[stripe webhook] {event_type} -> {_res}")
+            # Billing P0: link the profile to the Stripe customer created at checkout so the
+            # portal sees the subscription.
+            if event_type in ("checkout.session.completed", "customer.subscription.created"):
+                try:
+                    _cust_id = obj.get("customer") or ""
+                    _uid = (obj.get("metadata") or {}).get("user_id", "")
+                    _cid = _res.get("chart_id") or ""
+                    if _cust_id:
+                        if _uid:
+                            supabase.table("profiles").update(
+                                {"stripe_customer_id": _cust_id}).eq("user_id", _uid).execute()
+                            _st_cache_bust(_uid)
+                        elif _cid:
+                            supabase.table("profiles").update(
+                                {"stripe_customer_id": _cust_id}).eq("primary_chart_id", _cid).execute()
+                except Exception as _bf:
+                    print(f"[stripe webhook] customer backfill non-fatal: {_bf}")
 
         return {"received": True}
     except Exception as e:
@@ -35323,6 +35250,84 @@ def verify_razorpay_pack_endpoint(request: dict):
             "already_applied": not granted, "ask_paid_balance": balance}
 
 
+@app.post("/api/v1/payments/razorpay/create-subscription")
+def create_razorpay_subscription_endpoint(request: dict):
+    """[billing-lifecycle] Start a Razorpay SUBSCRIPTION (India). The price lives in the Razorpay Plan
+    (env RAZORPAY_PLAN_ID_MONTHLY / _ANNUAL), not in code. Body: { chart_id, plan_key }.
+    Returns what Razorpay Checkout needs: { subscription_id, key_id }."""
+    from antar_engine.payment_engine import create_razorpay_subscription
+    chart_id = request.get("chart_id", "")
+    plan_key = request.get("plan_key", "ask_unlimited_monthly")
+    if not chart_id:
+        raise HTTPException(400, "chart_id required")
+    result = create_razorpay_subscription(chart_id, plan_key)
+    if result.get("error"):
+        raise HTTPException(503 if result["error"] == "razorpay_plan_not_configured" else 500,
+                            f"Razorpay error: {result['error']}")
+    return result
+
+
+@app.post("/api/v1/payments/razorpay/verify-subscription")
+def verify_razorpay_subscription_endpoint(request: dict):
+    """[billing-lifecycle] After Checkout success. Body: { payment_id, subscription_id, signature,
+    chart_id, plan_key }. Marks the subscriber paid; the webhook keeps renewals in step."""
+    from antar_engine.payment_engine import verify_razorpay_subscription
+    from antar_engine.billing_lifecycle import _activate, _iso
+    r = verify_razorpay_subscription(request.get("payment_id", ""), request.get("subscription_id", ""),
+                                     request.get("signature", ""))
+    if r.get("error"):
+        raise HTTPException(500, r["error"])
+    if not r.get("verified"):
+        raise HTTPException(402, f"Payment verification failed: {r.get('reason')}")
+    chart_id = request.get("chart_id", "")
+    plan_key = request.get("plan_key", "ask_unlimited_monthly")
+    if not chart_id:
+        raise HTTPException(400, "chart_id required")
+    from antar_engine.billing_lifecycle import _interval_days
+    pe = _iso(datetime.now(timezone.utc) + timedelta(days=_interval_days(plan_key)))
+    return {"success": True, **_activate(supabase, chart_id, plan_key, "razorpay",
+                                          request.get("subscription_id", ""), pe)}
+
+
+def _billing_chart_for(authorization):
+    """The signed-in user's primary chart (JWT) — cancel / resume act only on your own subscription."""
+    user_id, _ = _st_identity(authorization)
+    if not user_id:
+        return None
+    prof = _st_get_profile(user_id) or {}
+    return prof.get("primary_chart_id") or prof.get("chart_id")
+
+
+@app.post("/api/v1/subscription/cancel")
+def cancel_my_subscription(request: dict = None, authorization: Optional[str] = Header(None)):
+    """[billing-lifecycle] Cancel at period end (the user keeps what they paid for). Body optional:
+    { immediate: bool }. Apple / Google subscriptions are managed in the store."""
+    from fastapi.responses import JSONResponse
+    from antar_engine.billing_lifecycle import cancel_subscription, subscription_view
+    chart_id = _billing_chart_for(authorization)
+    if not chart_id:
+        return _st_guest_401()
+    r = cancel_subscription(supabase, chart_id, immediate=bool((request or {}).get("immediate")))
+    if not r.get("ok"):
+        return JSONResponse(status_code=409 if r.get("error") in ("no_active_subscription", "manage_in_store") else 502,
+                            content={**r, "subscription": subscription_view(supabase, chart_id)})
+    return {**r, "subscription": subscription_view(supabase, chart_id)}
+
+
+@app.post("/api/v1/subscription/resume")
+def resume_my_subscription(authorization: Optional[str] = Header(None)):
+    """[billing-lifecycle] Undo a scheduled cancellation (Stripe)."""
+    from fastapi.responses import JSONResponse
+    from antar_engine.billing_lifecycle import resume_subscription, subscription_view
+    chart_id = _billing_chart_for(authorization)
+    if not chart_id:
+        return _st_guest_401()
+    r = resume_subscription(supabase, chart_id)
+    if not r.get("ok"):
+        return JSONResponse(status_code=409, content={**r, "subscription": subscription_view(supabase, chart_id)})
+    return {**r, "subscription": subscription_view(supabase, chart_id)}
+
+
 @app.post("/api/v1/payments/razorpay/webhook")
 async def handle_razorpay_webhook(request: Request):
     """Razorpay webhook — handle subscription renewals."""
@@ -35338,6 +35343,18 @@ async def handle_razorpay_webhook(request: Request):
             raise HTTPException(400, "Invalid signature")
 
         event = json.loads(body)
+        # [billing-lifecycle] subscription events + failed payments + refunds → the tested module.
+        # A payment.captured that belongs to a subscription is covered by subscription.charged.
+        _ev = event.get("event", "")
+        _pay_ent = ((event.get("payload") or {}).get("payment") or {}).get("entity") or {}
+        if (_ev.startswith("subscription.") or _ev in ("payment.failed", "refund.processed", "refund.created")
+                or (_ev == "payment.captured" and _pay_ent.get("subscription_id"))):
+            if _ev == "payment.captured":
+                return {"received": True, "handled_by": "subscription.charged"}
+            from antar_engine.billing_lifecycle import handle_razorpay_event
+            _res = handle_razorpay_event(event, supabase)
+            print(f"[razorpay webhook] {_ev} -> {_res}")
+            return {"received": True}
         if event.get("event") in ("payment.captured", "subscription.charged"):
             payload  = event.get("payload", {})
             payment  = payload.get("payment", {}).get("entity", {})

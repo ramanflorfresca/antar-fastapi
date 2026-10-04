@@ -153,7 +153,7 @@ def check_limit(chart_id: str, usage_type: str, sb) -> dict:
     plan  = sub.get("plan", "free")
 
     # Active paid plan — always allowed
-    if plan != "free" and sub.get("status") == "active":
+    if plan != "free" and sub.get("status") in ("active", "trialing", "past_due"):
         return {
             "allowed": True, "plan": plan,
             "used": 0, "limit": 999, "is_free": False,
@@ -249,6 +249,11 @@ def activate_subscription(
 ) -> dict:
     """Activate or upgrade a subscription after payment verified."""
     now = datetime.now(timezone.utc).isoformat()
+    try:
+        from antar_engine.billing_lifecycle import plan_from_key
+        plan = plan_from_key(plan)          # "ask" / "ask_unlimited_*" -> the paid tier
+    except Exception:
+        pass
     data = {
         "chart_id":            chart_id,
         "plan":                plan,
@@ -268,6 +273,11 @@ def activate_subscription(
             ).execute()
         else:
             res = sb.table("subscriptions").insert(data).execute()
+        try:
+            from antar_engine.entitlements import bust_entitlement_cache
+            bust_entitlement_cache(chart_id)      # the paying user must not wait 60s for access
+        except Exception:
+            pass
         return res.data[0] if res.data else {}
     except Exception as e:
         return {"error": str(e)}

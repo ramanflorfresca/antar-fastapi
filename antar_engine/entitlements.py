@@ -25,8 +25,12 @@ from antar_engine.subscription_engine import get_subscription
 # "seeker" and "navigator" are retained as ALIASES of "paid" so historical
 # rows in `subscriptions` and any in-flight webhook still resolve — they are
 # unreachable from the current pricing UI and rank identically to paid.
-TIER_RANK = {"free": 0, "paid": 1, "seeker": 1, "navigator": 1}
-PAID_TIERS = ("paid", "seeker", "navigator")
+# "ask" / "ask_unlimited" are what the old webhook wrote (plan_key.split("_")[0]) — historical
+# rows must still count as paid.
+TIER_RANK = {"free": 0, "paid": 1, "seeker": 1, "navigator": 1, "ask": 1, "ask_unlimited": 1}
+PAID_TIERS = ("paid", "seeker", "navigator", "ask", "ask_unlimited")
+# [billing-lifecycle] a failed renewal keeps access (the provider is retrying) until the period ends
+ACCESS_STATUSES = ("active", "trialing", "past_due")
 UPGRADE_URL = "https://antar.world/upgrade"
 
 # 30-day Ask trial (replaced the lifetime-3 cap on 2026-06-05).
@@ -269,8 +273,8 @@ def get_entitlement(chart_id: str, sb) -> str:
         sub = get_subscription(chart_id, sb) or {}
         plan = str(sub.get("plan") or "free").lower()
         status = str(sub.get("status") or "").lower()
-        if plan in PAID_TIERS and status in ("active", "trialing"):
-            tier = plan
+        if plan in PAID_TIERS and status in ACCESS_STATUSES:
+            tier = "paid" if plan in ("ask", "ask_unlimited") else plan
     except Exception:
         tier = "free"
     _ENT_CACHE[chart_id] = (time.time() + _ENT_TTL, tier)
@@ -369,7 +373,7 @@ def has_unlimited_ask(chart_id: str, sb) -> bool:
         sub = get_subscription(chart_id, sb) or {}
         plan = str(sub.get("plan") or "free").lower()
         status = str(sub.get("status") or "").lower()
-        return plan not in ("", "free") and status in ("active", "trialing")
+        return plan not in ("", "free") and status in ACCESS_STATUSES
     except Exception:
         return False
 

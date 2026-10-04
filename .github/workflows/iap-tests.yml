@@ -83,3 +83,14 @@ jobs:
         # product must never appear in the deprecated-tier fallback, and every
         # annual plan must actually beat 12x monthly.
         run: python tools/test_pricing_consistency.py
+
+      - name: Billing lifecycle — Stripe + Razorpay events, renewals, failures, cancels, refunds
+        # What a payment event does to a subscriber: paid / past_due (access kept while the provider
+        # retries) / cancelled / expired, cancel at period end, refunds, and the webhook routes.
+        env:
+          DEEPSEEK_API_KEY: ci-placeholder-not-a-real-key
+          SUPABASE_URL: https://ci.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: ci-placeholder-not-a-real-key
+        run: |
+          pip install pytest
+          python -m pytest tests/test_billing_lifecycle.py -q
