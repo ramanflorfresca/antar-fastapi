@@ -4779,6 +4779,10 @@ _WA_L = {
                  "es": "Hola 🙏 ¿Qué te gustaría saber? Escribe tu pregunta o responde con un número:",
                  "pt": "Olá 🙏 O que você gostaria de saber? Escreva sua pergunta ou responda com um número:",
                  "hinglish": "Namaste 🙏 Aap kya jaanna chahte hain? Apna sawaal likhiye, ya ek number bhejiye:"},
+    "no_more": {"en": "That was the full read. Ask me anything else, or send *help*.",
+                "es": "Esa fue la lectura completa. Pregúntame lo que quieras, o envía *ayuda*.",
+                "pt": "Essa foi a leitura completa. Pergunte o que quiser, ou envie *ajuda*.",
+                "hinglish": "Yeh poora read tha. Aur kuch poochiye, ya *help* bhejiye."},
     "more_hint": {"en": "_Reply *more* for the full read._",
                   "es": "_Responde *más* para la lectura completa._",
                   "pt": "_Responda *mais* para a leitura completa._",
@@ -5045,6 +5049,18 @@ class _WaSink:
 
 def _wa_on() -> bool:
     return (os.getenv("WHATSAPP_ENABLED") or "").strip().lower() in ("1", "true", "yes", "on")
+
+
+_WA_AREA_Q = {
+    "en": ["How is my love life right now?", "How is my work and career right now?",
+           "How is my money looking right now?"],
+    "es": ["¿Cómo está mi vida amorosa ahora?", "¿Cómo va mi trabajo y carrera ahora?",
+           "¿Cómo está mi dinero ahora mismo?"],
+    "pt": ["Como está minha vida amorosa agora?", "Como está meu trabalho e carreira agora?",
+           "Como está meu dinheiro agora?"],
+    "hinglish": ["Abhi meri love life kaisi hai?", "Abhi mera kaam aur career kaisa hai?",
+                 "Abhi mera paisa kaisa dikh raha hai?"],
+}
 
 
 def _wa_text(key: str, lang: str, **kw) -> str:
@@ -5330,6 +5346,10 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
     _saved = await asyncio.to_thread(_wa_saved_lang, (link or {}).get("chart_id")) if link else None
     _fb = _saved or ctx.get("lang") or "en"
     lang = _wa_lang(body, _fb) if body else _fb
+    if str(choice_id or "").startswith("q:"):
+        # [wa-ui 2026-10-04] a tapped suggestion keeps the conversation's language (a Hinglish chat
+        # flipped to English when the tapped chip text was English)
+        lang = ctx.get("lang") or _fb
     sink = sink or _WaSink(number, inbound_ts, inline=False)
     undelivered: list = []          # [whatsapp-pending] REST sends that failed
     owns_flight = False             # only the handler that started the Ask clears in_flight
@@ -5479,6 +5499,10 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
             send(ctx["last_full"])
             ctx.pop("last_full", None)
             _save(ctx)
+            return
+        # [wa-ui 2026-10-04] "more" when there is nothing more used to be answered as a new question
+        if body.strip().lower().strip(" .!?¿¡") in _msg.WA_MORE_WORDS:
+            send(_wa_text("no_more", lang))
             return
         # [whatsapp-typing] short non-questions never become Ask questions:
         #   answer in progress → just keep "typing…" going (no message);
@@ -5779,11 +5803,22 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
             _seen = {"date": _today, "labels": []}
         _pc_label = ((payload.get("practice_cta") or {}).get("label") or "").strip()
         _show_pc = bool(_pc_label) and _pc_label not in _seen["labels"]
+        # [wa-ui 2026-10-04] every answer ends with the same tappable "Ask next" list: a clarify
+        # prompt offers its areas as questions, and a Yes/No reading gets the general next questions
+        try:
+            if not payload.get("suggested_questions"):
+                if payload.get("needs_clarification"):
+                    payload["suggested_questions"] = _WA_AREA_Q.get(lang, _WA_AREA_Q["en"])[:3]
+                else:
+                    payload["suggested_questions"] = _ask_followups("general", question, lang)[:3]
+        except Exception:
+            pass
         text, fus = _msg.format_ask_whatsapp_v2(payload, lang, header=header, asked=question,
                                                 compact=True, include_practice=_show_pc)
         full, _ = _msg.format_ask_whatsapp_v2(payload, lang, header=header, asked=question,
                                               include_practice=_show_pc)
-        _trimmed = len(_wa_strip_numbered(full)) > len(_wa_strip_numbered(text)) + 40
+        _trimmed = (len(_wa_strip_numbered(full)) > len(_wa_strip_numbered(text)) + 40
+                    and not payload.get("needs_clarification"))
         if _trimmed:
             text = text + "\n\n" + _wa_text("more_hint", lang)
             ctx["last_full"] = _wa_strip_numbered(full)[:3000]
@@ -25762,10 +25797,14 @@ _ASK_FOLLOWUP_BUCKET = {
     "property": "place", "foreign": "place",
     "speculation": "speculation",
     "spiritual": "spiritual",
+    "choice": "choice",
     "general": "general",
 }
 _ASK_FOLLOWUPS = {
     "en": {
+        "choice": ["What is my timing window for the next year?",
+                   "How do I protect my cash while I decide?",
+                   "What role suits me best in each option?"],
         "money": ["When does my strongest money window open?",
                   "Should I concentrate or diversify?",
                   "How is my cash flow this month?"],
@@ -25806,7 +25845,50 @@ _ASK_FOLLOWUPS = {
                     "When does my next strong window open?",
                     "What should I focus on this month?"],
     },
+    # [wa-ui 2026-10-04] Hinglish asks used the English table — tapping a chip flipped the chat to English
+    "hi": {
+        "money": ["Mera sabse strong money window kab khulega?",
+                  "Kya ek jagah focus karun ya diversify karun?",
+                  "Is mahine mera cash flow kaisa hai?"],
+        "funding": ["Funding kab tak aane ke chance hain?",
+                    "Mera paisa kahan se aane ke zyada chance hain?",
+                    "Intezaar ke dauran mera cash flow kaisa hai?"],
+        "career": ["Kaun sa profession mere liye sabse sahi hai?",
+                   "Mera career kab take off karega?",
+                   "Mere liye business behtar hai ya job?"],
+        "business": ["Funding raise karne ka best time kab hai?",
+                     "Mere pehle real customers kahan se aayenge?",
+                     "Akele build karun ya partner ke saath?"],
+        "love": ["Pyaar ke liye meri best window kab hai?",
+                 "Apne partner ke saath mujhe kis cheez ka dhyan rakhna chahiye?",
+                 "Hum kitne compatible hain?"],
+        "family": ["Is saal meri family life kaisi dikh rahi hai?",
+                   "Ghar ka pressure kab kam hoga?",
+                   "Kya bachche ki planning ke liye yeh sahi time hai?"],
+        "health": ["Meri energy kab badhegi?",
+                   "Is saal sehat ke liye mujhe kis par focus karna chahiye?",
+                   "Abhi mere liye kaun si daily practice sahi hai?"],
+        "place": ["Ghar kharidne ya shift hone ka sahi time kab hai?",
+                  "Kya real estate mere chart se match karta hai?",
+                  "Mera chart mujhe kahan sabse zyada support karta hai?"],
+        "speculation": ["Is hafte mere liye kaun sa din best hai?",
+                        "Speculation ko chhota aur safe kaise rakhun?",
+                        "Unearned gains ki meri agli window kab khulegi?"],
+        "spiritual": ["Abhi mere liye kaun si practice sahi hai?",
+                      "Meri sabse strong spiritual window kab hai?",
+                      "Is mahine apna mann kaise shaant rakhun?"],
+        "choice": ["Agle saal ke liye meri timing window kya hai?",
+                   "Faisla karte waqt apna cash kaise bachaun?",
+                   "Har option mein mere liye kaun sa role sahi hai?"],
+        "day": ["Kal kaisa dikh raha hai?", "Aaj mere liye din ka best time kaun sa hai?", "Mera hafta kaisa hai?"],
+        "general": ["Abhi mera paisa kaisa dikh raha hai?",
+                    "Meri agli strong window kab khulegi?",
+                    "Is mahine mujhe kis par focus karna chahiye?"],
+    },
     "es": {
+        "choice": ["¿Cuál es mi ventana de tiempo para el próximo año?",
+                   "¿Cómo protejo mi efectivo mientras decido?",
+                   "¿Qué rol me conviene más en cada opción?"],
         "money": ["¿Cuándo se abre mi mejor ventana de dinero?",
                   "¿Debo concentrarme o diversificar?",
                   "¿Cómo está mi flujo de caja este mes?"],
@@ -25843,6 +25925,9 @@ _ASK_FOLLOWUPS = {
                     "¿En qué debo enfocarme este mes?"],
     },
     "pt": {
+        "choice": ["Qual é minha janela de tempo para o próximo ano?",
+                   "Como protejo meu caixa enquanto decido?",
+                   "Que papel combina mais comigo em cada opção?"],
         "money": ["Quando abre minha melhor janela de dinheiro?",
                   "Devo concentrar ou diversificar?",
                   "Como está meu fluxo de caixa este mês?"],
@@ -30594,6 +30679,8 @@ async def ask_endpoint(request: AskRequest):
                     _fu_concern = "wealth"
                 elif locals().get("_is_ctype") or locals().get("_is_clarify_reply"):
                     _fu_concern = "career"
+                if locals().get("_ask_compare"):
+                    _fu_concern = "choice"   # [wa-ui] a "gold or defence?" answer must not offer speculation chips
                 _fu = _ask_followups(_fu_concern, question, language)
                 if _fu and not payload.get("needs_clarification"):
                     payload["suggested_questions"] = _fu

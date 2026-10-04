@@ -1182,3 +1182,21 @@ def test_failed_rest_list_rides_the_inline_reply(monkeypatch):
     s.send_choices("body", "Ask next", [("Q?", "q:Q?", "Q?")], "numbered text", prefer_rest=True)
     failed, ok = s.flush()
     assert failed == [] and ok is False and s.buf == ["numbered text"]
+
+
+# ── [wa-ui 2026-10-04] consistent look across every answer ───────────────────────
+def test_hinglish_followups_are_hinglish_and_choice_bucket_exists():
+    import main
+    hi = main._ask_followups("business", "Mera business kaisa chalega?", "hinglish")
+    assert hi and all(not q.startswith(("When ", "Where ", "Should ")) for q in hi)
+    ch = main._ask_followups("choice", "Gold or defence?", "en")
+    assert ch and not any("speculation" in q.lower() for q in ch)
+    for lg in ("es", "pt", "hinglish"):
+        assert main._ask_followups("choice", "x", lg)
+
+
+def test_every_language_has_no_more_text_and_area_questions():
+    import main
+    for lg in ("en", "es", "pt", "hinglish"):
+        assert main._wa_text("no_more", lg)
+        assert len(main._WA_AREA_Q[lg]) == 3
