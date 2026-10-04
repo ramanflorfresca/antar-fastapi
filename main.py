@@ -28175,6 +28175,24 @@ async def ask_endpoint(request: AskRequest):
                     _ask_life_block = ((_ask_life_block or "") + _und.guardrails_block()).strip()
                 except Exception:
                     pass
+                # [audit r9] why-questions need a reason; child questions answer about children
+                try:
+                    _wb = _und.why_block(_ask_u) + _und.kids_block(_ask_u, question)
+                    if _wb:
+                        _ask_life_block = ((_ask_life_block or "") + _wb).strip()
+                except Exception as _wbe:
+                    print(f"[ask][why/kids] skipped (non-fatal): {_wbe}")
+                # [audit r9] a divorced / separated person asking about "my marriage"
+                try:
+                    _ms = str((chart_row.data or {}).get("marital_status") or "").lower()
+                    if (_ask_u or {}).get("area") == "existing_relationship" and _ms in (
+                            "divorced", "separated", "widowed", "single"):
+                        _ask_life_block = ((_ask_life_block or "") + (
+                            "\n\nMARRIAGE QUESTION from someone who is not currently married "
+                            f"({_ms}) — speak to the bond or the past marriage and what it still asks of "
+                            "them; do NOT talk about a future or new partner unless they ask.")).strip()
+                except Exception:
+                    pass
                 # [audit r8] separation / divorce: about the separation itself — never a "new partner"
                 try:
                     if _und.separation_question(_ask_u, question):
@@ -28266,7 +28284,7 @@ async def ask_endpoint(request: AskRequest):
                 _ask_u_c = await _ask_await_nlu(locals().get("_ask_nlu_task"), 3.0)
                 if _ask_u_c:
                     from antar_engine import understand as _undc
-                    _ov = _undc.concern_override(_ask_u_c, _ask_concern)
+                    _ov = _undc.concern_override(_ask_u_c, _ask_concern, question=question)
                     if _ov:
                         print(f"[ask][nlu-concern] {_ask_concern} -> {_ov} "
                               f"(area={_ask_u_c.get('area')} conf={_ask_u_c.get('confidence')})")
@@ -28334,7 +28352,8 @@ async def ask_endpoint(request: AskRequest):
                         if _u_th:
                             from antar_engine import understand as _und_th
                             _own = _und_th.concern_override(_u_th, "general",
-                                                            _und_th.OWN_TOPIC_MIN_CONFIDENCE)
+                                                            _und_th.OWN_TOPIC_MIN_CONFIDENCE,
+                                                            question=question)
                             if _own:
                                 if _ask_concern != _own:
                                     print(f"[ask-thread] own topic wins over inheritance: "
@@ -28367,7 +28386,8 @@ async def ask_endpoint(request: AskRequest):
                         _u_rc = await _ask_await_nlu(locals().get("_ask_nlu_task"), 1.5)
                         from antar_engine import understand as _und_rc
                         if _u_rc and _und_rc.concern_override(_u_rc, "general",
-                                                              _und_rc.OWN_TOPIC_MIN_CONFIDENCE):
+                                                              _und_rc.OWN_TOPIC_MIN_CONFIDENCE,
+                                                              question=question):
                             print(f"[ask-role] earlier-turn role ignored — this message has its "
                                   f"own topic ({_u_rc.get('area')})")
                             _role_c = None
@@ -29534,7 +29554,10 @@ async def ask_endpoint(request: AskRequest):
             _ask_verdict, _ask_actions = None, []
             try:
                 if raw and "{" in raw and "}" in raw:
-                    _parsed = json.loads(raw[raw.find("{"): raw.rfind("}") + 1])
+                    from antar_engine import understand as _undj
+                    _parsed = _undj.parse_model_json(raw)
+                    if _parsed is None:
+                        raise ValueError("no JSON object with a read")
                     read_txt = (_parsed.get("read") or "").strip()
                     _n = _parsed.get("next")
                     next_txt = _n.strip() if isinstance(_n, str) and _n.strip() else None
@@ -29548,6 +29571,19 @@ async def ask_endpoint(request: AskRequest):
                     read_txt = (raw or "").strip()
             except Exception:
                 read_txt = (raw or "").strip()
+            # [audit r9] never ship raw JSON / a code fence as the answer
+            try:
+                from antar_engine import understand as _undj2
+                if _undj2.looks_like_json_leak(read_txt):
+                    _rm = re.findall(r'"read"\s*:\s*"((?:[^"\\]|\\.)*)"', read_txt)
+                    _nm = re.findall(r'"next"\s*:\s*"((?:[^"\\]|\\.)*)"', read_txt)
+                    if _rm:
+                        read_txt = json.loads('"' + _rm[-1] + '"').strip()
+                        if _nm and not next_txt:
+                            next_txt = json.loads('"' + _nm[-1] + '"').strip() or None
+                        print("[ask][json-leak] recovered the answer from malformed model JSON")
+            except Exception as _jle:
+                print(f"[ask][json-leak] recovery failed: {_jle}")
 
             # [narrator-hardbind 2026-06-05] Timing fidelity: the model's
             # prose may not carry any month/year the convergence engine did
@@ -29713,7 +29749,8 @@ async def ask_endpoint(request: AskRequest):
                         _t2 = await call_llm_claude(prompt=question, system_override=_corr, model_override=HAIKU_MODEL)
                         _raw2 = _t2[0] if isinstance(_t2, tuple) else _t2
                         if _raw2 and "{" in _raw2 and "}" in _raw2:
-                            _p2 = json.loads(_raw2[_raw2.find("{"): _raw2.rfind("}") + 1])
+                            from antar_engine import understand as _undj3
+                            _p2 = _undj3.parse_model_json(_raw2) or {}
                             _r2 = (_p2.get("read") or "").strip()
                             _n2 = _p2.get("next")
                             _n2 = _n2.strip() if isinstance(_n2, str) and _n2.strip() else None
@@ -30444,6 +30481,9 @@ async def ask_endpoint(request: AskRequest):
                                  or ((_au3.get("stated_facts") or {}).get("other")))
                 for _rf in ("read", "next"):
                     payload[_rf] = _und3.drop_invented_background(payload.get(_rf), _bg_known)
+                if _au3.get("area") == "separation":
+                    for _rf in ("read", "next"):
+                        payload[_rf] = _und3.separation_assumes_home(payload.get(_rf), question)
                 for _rf in ("read", "next"):
                     payload[_rf] = _und3.drop_asserted_loans(payload.get(_rf), question)
                 for _rf in ("read", "next"):
