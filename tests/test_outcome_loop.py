@@ -6,6 +6,16 @@ import pytest
 
 from antar_engine import outcomes as oc
 
+
+@pytest.fixture(autouse=True)
+def _policy_already_accepted(monkeypatch):
+    """[wa-policy] These tests are about the conversation, not the data-policy gate (tested in
+    test_wa_policy_acceptance.py). Without this, policy_state reads the REAL wa_policy_acceptances table
+    whenever a local .env is present and every unknown test number is asked to accept first."""
+    from antar_engine import messaging as _m
+    monkeypatch.setattr(_m, "policy_state", lambda *a, **k: "ok")
+
+
 T = date(2026, 10, 2)
 
 

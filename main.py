@@ -25520,7 +25520,7 @@ _ASK_HAS_SUBJECT = _re_crisis.compile(
     r"court|legal|case|trabajo|carrera|dinero|negocio|relaci[oó]n|pareja|salud|"
     r"familia|casa|mudar|viaj|amor|matrimonio|"
     # [audit r8] life purpose / retirement / separation / money words are subjects too
-    r"purpose|dharma|meaning|spiritual|retire\w*|pension|old age|divorce|separat\w*|pregnan\w*|"
+    r"purpose|dharma|meaning|spiritual|retire\w*|pension|old age|later years|later life|divorce|separat\w*|pregnan\w*|"
     r"course|college|school|loan|debt|tax|gold|crypto|"
     r"prop[oó]sito|sentido|jubilaci[oó]n|aposentadoria|divorcio|div[oó]rcio|separaci[oó]n|separa[cç][aã]o|"
     r"embarazo|gravidez|curso|pr[eé]stamo|deuda|d[ií]vida|"
@@ -31365,6 +31365,7 @@ async def ask_endpoint(request: AskRequest):
                 for _rf in ("read", "next"):
                     payload[_rf] = _und3.drop_asker_health(payload.get(_rf), _au3.get("area") or "", question)
                     payload[_rf] = _und3.drop_unstable_business(payload.get(_rf), question)
+                    payload[_rf] = _und3.field_as_lean(payload.get(_rf), question)
                 payload["read"] = _und3.relationship_floor(payload.get("read"), _au3, language)
                 payload["read"], payload["next"] = _und3.education_floor(
                     payload.get("read"), payload.get("next"), _au3, question, language)

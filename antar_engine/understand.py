@@ -1381,6 +1381,11 @@ _MALE_PREG_NEXT = (
      {"es": "sobre el embarazo en tu familia", "en": "about the pregnancy in your family",
       "pt": "sobre a gravidez na sua família"}),
 )
+# [audit r22] any other "your pregnancy" for a man ("el médico que lleva tu embarazo") → the family's
+_MALE_YOUR_PREG = ((re.compile(r"(?i)\btu embarazo\b"), "el embarazo en tu familia"),
+                   (re.compile(r"(?i)\b(sua|tua) gravidez\b"), "a gravidez na sua família"),
+                   (re.compile(r"(?i)\byour pregnancy\b"), "the pregnancy in your family"),
+                   (re.compile(r"(?i)\b(aapki|aapka) pregnancy\b"), "aapke parivaar ki pregnancy"))
 _MIDWIFE = ((re.compile(r"(?i)\b(your )?midwife or (your )?doctor\b"), "a doctor"),
             (re.compile(r"(?i)\b(your )?doctor or (a |your )?midwife\b"), "a doctor"),
             (re.compile(r"(?i)\bmidwife\b"), "doctor"),
@@ -1399,6 +1404,8 @@ def male_pregnancy_guard(text, area: str = "", gender: str = ""):
     for rx, reps in _MALE_PREG_NEXT:
         out = rx.sub(lambda m: reps["es"] if m.group(2).lower() == "tu" else
                      (reps["pt"] if m.group(2).lower() in ("sua", "seu") else reps["en"]), out)
+    for rx, rep in _MALE_YOUR_PREG:
+        out = rx.sub(rep, out)
     for rx, rep in _MIDWIFE:
         out = rx.sub(rep, out)
     return out
@@ -1483,6 +1490,46 @@ def drop_unstable_business(text, question: str = ""):
         return text
     kept = [x for x in _sentences(text) if not _UNSTABLE_BIZ.search(x)]
     return _keep(kept, text)
+
+
+# ── round 22 ─────────────────────────────────────────────────────────────────
+# "la tecnología e innovación es tu ámbito más fuerte" / "technology is your strongest field": the reading
+# LEANS toward a field (D-10); it isn't the field they work in. Rewritten to a lean, not deleted.
+_FIELD_FACT = (
+    (re.compile(r"(?i)\b(?P<f>[^.!?,;—]{3,60}?) (?:is|are) (?:your|the) (?:strongest|natural|core|best) "
+                r"(?:field|domain|area|lane|arena|strength)\b"),
+     "the reading leans toward {f}"),
+    (re.compile(r"(?i)\b(?P<f>[^.!?,;—]{3,60}?) (?:es|son) tu (?:ámbito|campo|terreno|área) más (?:fuerte|natural)\b"),
+     "la lectura se inclina hacia {f}"),
+    (re.compile(r"(?i)\b(?P<f>[^.!?,;—]{3,60}?) (?:é|são) (?:o )?seu (?:campo|terreno|âmbito|ponto) mais (?:forte|natural)\b"),
+     "a leitura se inclina para {f}"),
+    (re.compile(r"(?i)\b(?P<f>[^.!?,;—]{3,60}?) son exactamente hacia donde tu (?:timing|momento|lectura) apunta\b"),
+     "la lectura se inclina hacia {f}"),
+    (re.compile(r"(?i)\byour (?:field|domain|area) is (?P<f>[^.!?,;—]{3,60})"), "the reading leans toward {f}"),
+    (re.compile(r"(?i)\b(?P<f>[^.!?;—]{3,70}?) (?:son|es) lo tuyo\b"), "la lectura se inclina hacia {f}"),
+    (re.compile(r"(?i)\b(?P<f>[^.!?;—]{3,70}?) (?:são|é) a sua praia\b"), "a leitura se inclina para {f}"),
+    (re.compile(r"(?i)\b(?P<f>[^.!?;—]{3,70}?) (?:is|are) (?:your thing|what you're built for|where you belong)\b"),
+     "the reading leans toward {f}"),
+)
+
+
+def field_as_lean(text, question: str = ""):
+    if not isinstance(text, str) or not text.strip():
+        return text
+    out = text
+
+    def _rep(m, t):
+        f = m.group("f").strip()
+        before = m.string[:m.start()].rstrip()
+        at_start = (not before) or before[-1] in ".!?"
+        if at_start:
+            f = f[:1].lower() + f[1:]          # "La tecnología…" → "…hacia la tecnología…"
+            return (t[:1].upper() + t[1:]).format(f=f)
+        return t.format(f=f)
+
+    for rx, tpl in _FIELD_FACT:
+        out = rx.sub(lambda m, t=tpl: _rep(m, t), out)
+    return out
 
 
 def parse_model_json(raw) -> Optional[dict]:
