@@ -54,9 +54,13 @@ DOMAIN_SPEC = {
                "finca raíz", "finca raiz", "bienes raíces", "bienes raices",
                "inmueble", "inmobiliari", "propiedad", "terreno", "lote",
                "predio", "apartamento",
+               # [finca 2026-10-04] a bare "finca" (farm/rural property) missed the
+               # property domain, so no raise-funding guard (Jaime)
+               "finca", "hacienda", "parcela",
                # PT
                "imóvel", "imovel", "imóveis", "imoveis", "imobiliári",
                "imobiliari", "propriedade", "terreno", "loteamento",
+               "fazenda", "sítio", "chácara", "chacara",
                # Hinglish (romanized Hindi)
                "zameen", "zamin", "makaan", "makan", "jaaydaad", "jaidad",
                "jaydad", "property ki", "plot le"),

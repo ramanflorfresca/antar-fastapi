@@ -28014,7 +28014,9 @@ async def ask_endpoint(request: AskRequest):
                             f"2) STABILITY (does it hold → how to spread money across ventures): {_s['grade']} — "
                             f"{_s['sizing_advice']}\n"
                             "Speak in plain business language — 'ventures', 'where you put your "
-                            "money', 'don't put everything in one place' — NEVER 'bet' or 'bets' "
+                            "money', 'don't put everything in one place' (written in the READER'S "
+                            "language, e.g. Spanish 'emprendimientos', Portuguese 'empreendimentos') "
+                            "— NEVER 'bet' or 'bets' "
                             "(this is a founder building ventures, not gambling).\n"
                             "HARD RULE: the chart grades the PERSON'S wealth capacity and how to "
                             "spread money across ventures. It CANNOT tell them which venture/business/startup wins, "
@@ -30899,6 +30901,22 @@ async def ask_endpoint(request: AskRequest):
                     payload["next"] = _ask_md(payload["next"])
             except Exception:
                 pass
+            # [es-leak 2026-10-04] English business words left in a Spanish/Portuguese answer
+            # (Jaime: "tu venture actual") — swap the known leaks for the local word
+            try:
+                _lk = (language or "en").lower()[:2]
+                if _lk in ("es", "pt"):
+                    _leak = {"es": (("ventures", "emprendimientos"), ("venture", "emprendimiento")),
+                             "pt": (("ventures", "empreendimentos"), ("venture", "empreendimento"))}[_lk]
+                    for _f in ("read", "next"):
+                        _v = payload.get(_f)
+                        if isinstance(_v, str):
+                            for _en, _loc in _leak:
+                                _v = re.sub(rf"(?i)\b{_en}\b",
+                                            lambda m, loc=_loc: loc.capitalize() if m.group(0)[0].isupper() else loc, _v)
+                            payload[_f] = _v
+            except Exception as _lke:
+                print(f"[ask][es-leak] non-fatal: {_lke}")
             # [allin-multi 2026-10-04] Python owns sentence one where the narrator's
             # "all in = good" instinct fights the chart (concentrate + 2 ventures,
             # spread + 1). Late, after the voice gates, so nothing rewrites it.
