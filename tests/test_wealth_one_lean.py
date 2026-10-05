@@ -77,3 +77,24 @@ def test_hinglish_echo_dropped():
     r = wm.apply_alloc_opener("Shashi, yahi toh reading ka sabse bada warning hai. Savings ka ek hissa bahar rakho.",
                               "spread_single", "hinglish", "Shashi")
     assert "warning" not in r and "Savings ka ek hissa" in r
+
+
+def test_percent_sign_and_spanish_lists():
+    assert wm.named_count("Estoy 100% metido en mi negocio y en una finca") == 2
+    assert wm.named_count("Estoy 100% metido en mi negocio") == 1
+
+
+def test_allocation_statement_never_asks_deal_role():
+    import main
+    assert not main._ask_needs_role_clarify("Estoy 100% metido en mi negocio", [])
+
+
+def test_lean_guards_exist_for_both_leans():
+    assert "Never tell them to pick one venture" in wm.LEAN_CONSISTENCY["spread"]
+    assert "Never tell them to add ventures" in wm.LEAN_CONSISTENCY["concentrate"]
+
+
+def test_spanish_echo_dropped():
+    r = wm.apply_alloc_opener("Jaime, un único emprendimiento concentrando todo es exactamente el riesgo que la "
+                              "lectura señala. Protege tus ahorros.", "spread_single", "es", "Jaime")
+    assert r.count("riesgo") == 1 and "Protege tus ahorros" in r
