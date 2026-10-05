@@ -271,3 +271,61 @@ def polish_answer(payload: dict, language: str = "en", typed_question: str = "",
     except Exception as e:
         print(f"[ask][polish] non-fatal: {e}")
     return payload
+
+
+# ── register scrub: the last pass on every shipped answer ──────────────────
+# "reading" is the horoscope register (App Store 4.3 — the answer card is the
+# landing screen); "timing" is what the product does. #196 fixed the repair layer
+# and the source strings, but the LLM and the opener templates still produce
+# "the reading shows…" on other paths, so this runs at the exit.
+_READING_RX = re.compile(r"\b(the|your|this)\s+readings?\b", re.I)
+# the body is "robust"/"strong" is a medical reassurance about a person who may be
+# ill — not something timing can promise (product-liability, Guideline 1.4.1)
+_BODY_REASSURE = re.compile(
+    r"(?i)\b(constitution|body|health|system|immunity)\b[^.!?]{0,60}\b(robust|strong|sturdy|resilient|solid|healthy)\b"
+    r"|\b(robust|strong|sturdy|resilient|solid)\b[^.!?]{0,40}\b(constitution|body|immunity)\b"
+    r"|\bno (deep|serious|structural) (structural )?(problems?|issues?)\b|\bdeep structural\b")
+_BUT = re.compile(r",?\s+but\s+|\s+—\s+|;\s+", re.I)
+
+
+def _scrub_reading(m):
+    return f"{m.group(1)} timing"
+
+
+def _strip_body_reassurance(text):
+    """Drop the clause (or sentence) that vouches for the body's strength; keep the rest."""
+    if not isinstance(text, str) or not _BODY_REASSURE.search(text):
+        return text
+    out = []
+    for sent in _SENT.split(text.strip()):
+        if not _BODY_REASSURE.search(sent):
+            out.append(sent)
+            continue
+        parts = _BUT.split(sent, maxsplit=1)
+        if len(parts) == 2 and _BODY_REASSURE.search(parts[0]) and not _BODY_REASSURE.search(parts[1]):
+            tail = parts[1].strip()
+            if tail:
+                out.append(tail[0].upper() + tail[1:])
+        # otherwise the whole sentence is the reassurance — drop it
+    return " ".join(out) if out else text
+
+
+def scrub_register(payload: dict, language: str = "en") -> dict:
+    """In-place: English "the reading" → "the timing" and no body-strength reassurance.
+    Non-fatal; es/pt/hi sources were already reworded in #196."""
+    try:
+        if not isinstance(payload, dict) or _lang(language) != "en":
+            return payload
+        for f in ("read", "next", "why"):
+            v = payload.get(f)
+            if isinstance(v, str) and v:
+                v = _READING_RX.sub(_scrub_reading, v)
+                v2 = _strip_body_reassurance(v)
+                payload[f] = v2 if v2.strip() else v
+        acts = payload.get("actions")
+        if isinstance(acts, list):
+            payload["actions"] = [_READING_RX.sub(_scrub_reading, a) if isinstance(a, str) else a
+                                  for a in acts]
+    except Exception as e:
+        print(f"[ask][scrub] non-fatal: {e}")
+    return payload

@@ -23806,6 +23806,11 @@ def _ask_attach_disclaimer(payload, concern, language):
     """
     if not isinstance(payload, dict):
         return payload
+    try:   # last pass on every exit: no "the reading", no body-strength reassurance
+        from antar_engine.answer_polish import scrub_register as _scrub
+        _scrub(payload, language)
+    except Exception as _sce:
+        print(f"[ask][scrub] non-fatal: {_sce}")
     try:
         from antar_engine.answer_disclaimer import disclaimer_for as _adz
         _dz = _adz(concern,
@@ -27974,7 +27979,7 @@ async def ask_endpoint(request: AskRequest):
                         _ht = health_timing(chart_data, get_dashas_for_chart(chart_id),
                                             birth_date=_ask_birth_date)
                         _c, _ch = _ha["constitution"], _ha["chronic"]
-                        _hp = ["HEALTH QUESTION — answer from THIS deterministic reading of the "
+                        _hp = ["HEALTH QUESTION — answer from THIS deterministic analysis of the "
                                "body/illness houses and the timing of life-periods. Be caring and "
                                "NON-alarmist; never diagnose. Never name a planet, house, or "
                                "system — plain life-language. IMPORTANT EXCEPTION: you MAY and "
@@ -27982,7 +27987,11 @@ async def ask_endpoint(request: AskRequest):
                                "(e.g. ashwagandha, triphala, brahmi, gotu kola, neem, sesame-oil "
                                "self-massage/abhyanga) — those are welcome and expected; only "
                                "planet/house/system names are banned.",
-                               f"CONSTITUTION: {_c['level']}. TENDENCY: {_ch['kind']}."]
+                               f"CONSTITUTION: {_c['level']}. TENDENCY: {_ch['kind']}.",
+                               "WORDING RULES: never write \"the reading\" — say \"the timing\". "
+                               "CONSTITUTION is background only: NEVER tell the person their body, "
+                               "constitution or health is robust/strong/fine, and never promise "
+                               "recovery or say there are no deep problems — you cannot know that."]
                         if _ha.get("nature"):
                             _hp.append("LIKELY AREA (a tendency to be aware of, NOT a diagnosis): "
                                        + "; ".join(_ha["nature"][:2]) + ".")
@@ -27991,15 +28000,16 @@ async def ask_endpoint(request: AskRequest):
                                        "time (routine, prevention, the right specialist) — never as "
                                        "doom; the chart shows a tendency, not a sentence.")
                         else:
-                            _hp.append("Frame as passing/manageable — reassure that these come and "
-                                       "go and respond well to timely care.")
+                            _hp.append("Frame as passing/manageable — say these tend to come and go "
+                                       "and are worth timely care, without vouching for how strong "
+                                       "the body is.")
                         if _ht.get("best"):
                             _hp.append("TIMING: " + _ht["summary"] + " Give this as a window to be "
                                        "extra attentive to health (checkups, rest), in plain months-"
                                        "years — a caution to act on, not a scare.")
                         if _ha.get("care"):
                             _hp.append(
-                                "PREVENTIVE CARE (grounded in the reading — use the MOST relevant "
+                                "PREVENTIVE CARE (grounded in the analysis — use the MOST relevant "
                                 "ONE as your concrete closing step; keep the plain lifestyle part "
                                 "AND the Ayurvedic remedy — the herb/practice names are welcome, but "
                                 "still never name a planet/house/system): "
