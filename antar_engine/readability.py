@@ -153,6 +153,13 @@ async def maybe_simplify(text: str, language: str = "en",
         rewrite = (resp.content[0].text or "").strip()
         if not rewrite:
             return out
+        # [keep-content 2026-10-04] a "simpler" rewrite that dropped half the words lost
+        # content, and always wins the best-of (Harleen's move came back as "Decide this
+        # week which one — bookkeeping or consulting.") — keep the original
+        if len(rewrite.split()) < 0.5 * len(text.split()):
+            print(f"[readability] surface={surface} rewrite rejected: lost content "
+                  f"({len(text.split())}→{len(rewrite.split())} words)")
+            return out
         if _CHILDISH_RX.search(rewrite) and not _CHILDISH_RX.search(text):
             print(f"[readability] surface={surface} rewrite rejected: talks down")
             return out
