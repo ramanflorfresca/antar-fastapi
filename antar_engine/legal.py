@@ -169,8 +169,8 @@ def analyze_legal(chart_data: dict) -> dict:
         }
 
         summary = (f"Propensity for disputes is {propensity['level']}; if a legal "
-                   f"matter arises, the chart leans {outcome['lean']}"
-                   + (" — Jupiter's protection is a real asset." if jup_grace else ".")
+                   f"matter arises, the timing leans {outcome['lean']}"
+                   + (" — conditions are more supportive than usual." if jup_grace else ".")
                    + (f" Disputes tend to involve {likely_causes[0]}." if likely_causes else ""))
 
         return {"available": True, "propensity": propensity, "outcome": outcome,
@@ -214,17 +214,17 @@ def _leg_lang(language: str) -> str:
 
 _LEG_LINE = {
     "favourable": {
-        "en": "The chart leans in your favour on this matter — but the outcome isn't fated; strong preparation is what turns a lean into a result.",
+        "en": "The timing leans in your favour on this matter — but the outcome isn't fated; strong preparation is what turns a lean into a result.",
         "es": "La carta se inclina a tu favor en este asunto — pero el resultado no está sellado; la buena preparación es lo que convierte una inclinación en un resultado.",
         "pt": "O mapa pende a seu favor neste assunto — mas o resultado não está selado; boa preparação é o que transforma uma inclinação em resultado.",
     },
     "contested": {
-        "en": "This reads as genuinely contested — the chart doesn't decide it; how well you prepare and who you retain does.",
+        "en": "This reads as genuinely contested — the timing doesn't decide it; how well you prepare and who you retain does.",
         "es": "Esto se lee como genuinamente disputado — la carta no lo decide; lo decide qué tan bien te prepares y a quién contrates.",
         "pt": "Isto se lê como genuinamente disputado — o mapa não decide; quem decide é o quanto você se prepara e quem você contrata.",
     },
     "unfavourable": {
-        "en": "The chart leans against you here — treat a fair settlement or airtight preparation as the smart play, not a gamble on winning.",
+        "en": "The timing leans against you here — treat a fair settlement or airtight preparation as the smart play, not a gamble on winning.",
         "es": "La carta se inclina en tu contra aquí — trata un acuerdo justo o una preparación impecable como la jugada inteligente, no una apuesta por ganar.",
         "pt": "O mapa pende contra você aqui — trate um acordo justo ou uma preparação impecável como a jogada inteligente, não uma aposta em vencer.",
     },
