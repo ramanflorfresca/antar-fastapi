@@ -896,8 +896,9 @@ def test_male_pregnancy_guard():
 
 
 def test_next_floor_replaces_fragments():
-    assert "write down" in u.next_floor("Keep it practical.", "en")
-    assert "escreva" in u.next_floor("Mantenha isso prático, não romântico.", "pt")
+    # [audit-b3] a fragment is handed to answer_polish's topic-specific fallback (None here)
+    assert u.next_floor("Keep it practical.", "en") is None
+    assert u.next_floor("Mantenha isso prático, não romântico.", "pt") is None
     long = "Call your father this week and say the one thing you have been holding back."
     assert u.next_floor(long, "en") == long and u.next_floor(None, "en") is None
 

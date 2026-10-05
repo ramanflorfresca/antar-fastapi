@@ -26367,7 +26367,12 @@ def _ask_scrub_payload(payload: dict, fields: list, language: str = 'en') -> dic
         _faux = {
             'signal_line':   payload.get(fields[0]) if fields else None,
             'plain_summary': payload.get(fields[1]) if len(fields) > 1 else None,
-            'action_item':   payload.get('next') if 'next' in payload else None,
+            # [scrub-respects-fields 2026-10-04] only polish `next` when the caller asked
+            # for it — the explore path passes ["timing"] alone (read/next are owned by the
+            # voice gate), yet `next` was polished anyway and lost everything before an
+            # em-dash ("Move 10% of every payment… — treat it as untouchable." → "treat it
+            # as untouchable."). Found by the conversation audit.
+            'action_item':   payload.get('next') if ('next' in payload and 'next' in fields) else None,
             'timing_window': payload.get('timing') or payload.get('window') or '',
         }
         _ask_polish(_faux, language=language)
@@ -26376,7 +26381,7 @@ def _ask_scrub_payload(payload: dict, fields: list, language: str = 'en') -> dic
             payload[fields[0]] = _faux.get('signal_line') or payload.get(fields[0])
         if len(fields) > 1:
             payload[fields[1]] = _faux.get('plain_summary') or payload.get(fields[1])
-        if 'next' in payload:
+        if 'next' in payload and 'next' in fields:
             payload['next'] = _faux.get('action_item') or payload.get('next')
         # Raw (H#) house reference strip — /ask was emitting '(H2)'.
         import re as _ask_re

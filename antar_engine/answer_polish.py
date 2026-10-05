@@ -56,7 +56,11 @@ _PICK_ONE = re.compile(
     r"company|idea)\b|\bdouble down (on|there)\b|\bgo deep on one\b|\bput your (full|whole) (weight|effort)"
     r" behind (one|it)\b|\bel[ií]ge (un|una) (solo |sola )?(negocio|proyecto|emprendimiento|empresa|opci[oó]n|"
     r"servicio)\b|\bescolha (um|uma) (s[oó] )?(neg[oó]cio|projeto|empresa|op[cç][aã]o)\b|"
-    r"\bek (hi )?(project|venture|option|business) (choose|chuno|chuniye|chun)|\bdouble down kar")
+    r"\bek (hi )?(project|venture|option|business) (choose|chuno|chuniye|chun)|\bdouble down kar|"
+    # [audit-b3] the career "drive scatters" framing on a spread chart
+    r"\bone clear (mandate|lane|focus|venture)\b|\bhalf-built (ventures|projects)\b|"
+    r"\bchas(e|ing) (new )?ventures\b|\bnaye ventures chase\b|\bpick the one (active )?(work stream|stream|track)\b|"
+    r"\b(presence|focus) double kar")
 
 _ROLE_MOVE = {
     "en": "Write down the kind of work where people come to you for your judgment, and give it more of your week.",
@@ -73,10 +77,10 @@ _FUND_OK_CONCERNS = {"funding", "business", "startup"}
 
 # ── never ship without a move ──
 _FALLBACK_NEXT = {
-    "money": {"en": "Write down this month's three biggest outflows and cut or pause one of them this week.",
-              "es": "Anota las tres salidas de dinero más grandes de este mes y recorta o pausa una esta semana.",
-              "pt": "Anote as três maiores saídas de dinheiro deste mês e corte ou pause uma esta semana.",
-              "hi": "Is mahine ke teen sabse bade kharche likhiye aur is hafte unmein se ek kam ya band kijiye."},
+    "money": {"en": "Starting this week, move a fixed share of every payment — say 10% — into a separate savings account.",
+              "es": "Desde esta semana, pasa una parte fija de cada pago — por ejemplo el 10% — a una cuenta de ahorro aparte.",
+              "pt": "A partir desta semana, mova uma parte fixa de cada pagamento — por exemplo 10% — para uma conta poupança separada.",
+              "hi": "Is hafte se har payment ka ek fixed hissa — jaise 10% — ek alag savings account mein daaliye."},
     "work": {"en": "Block one hour this week for the single task that moves your work forward most, and do it first.",
              "es": "Reserva una hora esta semana para la tarea que más hace avanzar tu trabajo, y hazla primero.",
              "pt": "Reserve uma hora esta semana para a tarefa que mais faz seu trabalho avançar, e faça-a primeiro.",
@@ -108,7 +112,10 @@ def _lang(language: str) -> str:
 def plain_words(text, language: str = "en"):
     if not isinstance(text, str) or not text:
         return text
-    for rx, rep in _JARGON.get(_lang(language), []) + (_JARGON["en"] if _lang(language) == "hi" else []):
+    # Hinglish keeps its own words (EN "slip away" inside Hinglish read oddly) — only the
+    # pure internal terms are replaced there
+    extra = [r for r in _JARGON["en"] if "wealth" in r[0] or "grain" in r[0]] if _lang(language) == "hi" else []
+    for rx, rep in _JARGON.get(_lang(language), []) + extra:
         text = re.sub(rx, rep, text, flags=re.I)
     return text
 
@@ -159,6 +166,12 @@ def polish_answer(payload: dict, language: str = "en", typed_question: str = "",
         # never ship without a move
         if not (isinstance(payload.get("next"), str) and payload["next"].strip()):
             grp = _CONCERN_GROUP.get((concern or "general").lower(), "work")
+            try:   # "I'm 100% all in on X" is a money-placement statement whatever the concern
+                from antar_engine.wealth_magnitude import is_allocation_statement as _ias
+                if _ias(typed_question):
+                    grp = "money"
+            except Exception:
+                pass
             payload["next"] = _FALLBACK_NEXT[grp][lang]
             print(f"[ask][polish] fallback move ({grp})")
     except Exception as e:

@@ -302,13 +302,15 @@ def allocation_case(lean: str, question: str) -> str:
 # the chart. Python owns sentence one there; an affirming first sentence is dropped.
 ALLOC_OPENER = {
     "conc_multi": {
+        # [audit-b3] tried an "acknowledging" variant — the audit graded it worse
+        # (contradictions 22→44: it read as walking the verdict back). Kept the verdict.
         "en": "{n}the reading says concentrate — being all in on two things at once is the split to fix.",
         "es": "{n}la lectura dice concentrarse — estar con todo en dos cosas a la vez es la división que hay que corregir.",
         "pt": "{n}a leitura diz concentrar — estar com tudo em duas coisas ao mesmo tempo é a divisão a corrigir.",
         "hi": "{n}reading kehti hai ek jagah focus karo — do cheezon mein ek saath poora lagana hi woh split hai jise theek karna hai.",
     },
     "spread_single": {
-        "en": "{n}the reading says spread — one venture holding everything is the risk here.",
+        "en": "{n}the reading says spread your risk — one venture holding everything is the risk here.",
         "es": "{n}la lectura dice repartir — que un solo proyecto lo sostenga todo es el riesgo aquí.",
         "pt": "{n}a leitura diz espalhar — um único projeto segurando tudo é o risco aqui.",
         "hi": "{n}reading kehti hai alag alag rakho — ek hi venture mein sab kuch hona hi yahan risk hai.",

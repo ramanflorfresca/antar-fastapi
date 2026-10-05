@@ -70,3 +70,28 @@ def test_fragment_move_replaced_and_phrasal_end_kept():
     import main
     assert main._ask_repair_next("Find someone you can rely on.") == "Find someone you can rely on."
     assert main._ask_repair_next("Send the deck to.") == "Send the deck."
+
+
+def test_b3_openers_acknowledge_and_wider_pick_one():
+    from antar_engine import wealth_magnitude as wm
+    r = wm.apply_alloc_opener("Raman, cap it. Keep a reserve. Add a line later.", "spread_single", "en", "Raman")
+    assert r.startswith("Raman, the reading says spread your risk")
+    p = {"read": "a. b. One clear mandate beats three half-built ventures.", "next": "Pick the one active work stream and double down there."}
+    ap.polish_answer(p, "en", "Which profession fits me best?", "career", "spread")
+    assert "half-built" not in p["read"] and "double down" not in p["next"]
+    m = {"read": "a. b. c.", "next": None}
+    ap.polish_answer(m, "en", "I am all in", "finance", "spread")
+    assert "10%" in m["next"]
+    h = ap.plain_words("Gains dissolve ho jaate hain. Tera wealth engine strong hai.", "hinglish")
+    assert "dissolve" in h and "wealth engine" not in h
+
+
+def test_scrub_payload_timing_only_leaves_next_alone():
+    import main
+    p = {"read": "x.", "next": "Move 10% of every payment into a separate account this week — treat it as untouchable.",
+         "timing": None}
+    main._ask_scrub_payload(p, ["timing"], language="en")
+    assert p["next"].startswith("Move 10% of every payment")
+    m = {"read": "a. b. c.", "next": None}
+    ap.polish_answer(m, "en", "I am 100% all in on Antar", "general", "spread")
+    assert "10%" in m["next"]
