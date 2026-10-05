@@ -521,11 +521,22 @@ def read_connect_token(secret: str, token: str) -> Optional[str]:
         return None
 
 
+def _wa_disclaimer(p: dict) -> str:
+    """The payload's domain disclaimer as one WhatsApp italic line, or ''."""
+    dz = (p or {}).get("disclaimer")
+    if not isinstance(dz, str) or not dz.strip():
+        return ""
+    return "_" + re.sub(r"\s+", " ", dz.strip()) + "_"
+
+
 def format_ask_for_whatsapp(payload: dict, language: str = "en") -> str:
     """Telegram's chat rendering + WhatsApp markup (*bold* verdict, _italic_ labels)."""
     p = payload or {}
     text = format_ask_for_telegram(p, language)
     text = re.sub(r"\*\*(.+?)\*\*", r"*\1*", text)          # markdown bold → WA bold
+    _dz = _wa_disclaimer(p)
+    if _dz and _dz.strip("_") not in text:
+        text = f"{text}\n\n{_dz}"
     verdict = p.get("verdict")
     if isinstance(verdict, str) and verdict.strip() and verdict.strip().lower() not in text.lower()[:80]:
         text = f"*{verdict.strip()}*\n\n{text}"
@@ -853,6 +864,11 @@ def format_ask_whatsapp_v2(payload: dict, language: str = "en",
     dropped when numbered follow-ups replace it. compact=True trims to fit one
     WhatsApp screen (see WA_COMPACT_BUDGET)."""
     p = payload or {}
+    # [wa-disclaimer 2026-10-05] the /ask payload carries a domain `disclaimer` (health /
+    # money / legal / fertility); the app card renders it but this formatter dropped it,
+    # so WhatsApp answers — incl. named Ayurvedic herbs — went out with no qualifier.
+    # Never trimmed by compact mode: safety copy outranks the one-screen budget.
+    disc = _wa_disclaimer(p)
     checkback = ""
     if p.get("mode") == "yesno":
         p = _yesno_as_read(p, language)
@@ -914,7 +930,7 @@ def format_ask_whatsapp_v2(payload: dict, language: str = "en",
             parts.append(opener_)
         if head:
             parts.append(f"*{head}*" if len(head) <= 180 else head)
-        parts += [x for x in (rest_, win, move_, practice_, checkback) if x]
+        parts += [x for x in (rest_, win, move_, practice_, checkback, disc) if x]
         if fus_:
             # [followup-flows] same paragraph as the numbers → dropped when the tappable list
             # (which has its own "Ask your own" row) replaces them

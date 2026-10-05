@@ -1202,3 +1202,57 @@ def test_every_language_has_no_more_text_and_area_questions():
     for lg in ("en", "es", "pt", "hinglish"):
         assert main._wa_text("no_more", lg)
         assert len(main._WA_AREA_Q[lg]) == 3
+
+
+# [wa-disclaimer 2026-10-05] the /ask payload's domain disclaimer must reach WhatsApp —
+# the formatter ignored the field, so health/money/legal/fertility answers (incl. named
+# Ayurvedic herbs) went out with no qualifier while the app card showed one.
+_DZ = "An analysis of your planetary positions and timing — not a diagnosis, and not a guarantee. See a doctor about symptoms."
+
+
+def _dz_payloads():
+    explore = {"mode": "explore", "read": "Not yet — next health window Dec 2026 – Feb 2027. The timing shows a building phase. Recovery gets traction later.",
+               "next": "Book a checkup this week. Traditionally, Ayurveda associates this period with brahmi — supportive practice, not treatment.",
+               "timing": "Dec 2026 – Feb 2027", "disclaimer": _DZ,
+               "practice_cta": {"available": True, "label": "A grounding minute", "step": "Breathe for a minute."},
+               "suggested_questions": ["What should I watch for?", "When is the best week to start?"]}
+    yesno = {"mode": "yesno", "verdict": "NO", "lean": "conditional", "locked": False,
+             "why": "The route is your own body's strength, but the final yes isn't locked in.",
+             "condition": "a clear commitment", "condition_label": "What it hinges on",
+             "timing": "Oct 5 – Oct 6, 2026", "disclaimer": _DZ}
+    return explore, yesno
+
+
+@pytest.mark.parametrize("compact", [False, True])
+def test_wa_v2_carries_the_disclaimer_in_every_mode(compact):
+    from antar_engine import messaging as m
+    for p in _dz_payloads():
+        text, _ = m.format_ask_whatsapp_v2(p, "en", compact=compact)
+        assert "not a diagnosis" in text and "See a doctor" in text
+        assert text.count("not a diagnosis") == 1
+        # italic, on its own line, and before the numbered follow-ups block
+        assert f"_{_DZ}_" in text
+        if "1  " in text:
+            assert text.index("not a diagnosis") < text.index("\n1  ")
+
+
+def test_wa_v2_without_a_disclaimer_is_unchanged():
+    from antar_engine import messaging as m
+    for p in _dz_payloads():
+        q = dict(p); q.pop("disclaimer")
+        text, _ = m.format_ask_whatsapp_v2(q, "en")
+        assert "not a diagnosis" not in text and "planetary positions" not in text
+
+
+def test_wa_legacy_formatter_carries_it_once():
+    from antar_engine import messaging as m
+    for p in _dz_payloads():
+        assert m.format_ask_for_whatsapp(p, "en").count("not a diagnosis") == 1
+
+
+def test_wa_disclaimer_survives_the_compact_budget():
+    from antar_engine import messaging as m
+    p = _dz_payloads()[0]
+    p["read"] = " ".join(["The timing shows a long careful sentence about recovery and rest."] * 12)
+    text, _ = m.format_ask_whatsapp_v2(p, "en", compact=True)
+    assert "not a diagnosis" in text
