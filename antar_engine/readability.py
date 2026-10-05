@@ -100,13 +100,23 @@ def _complexity_key(score: dict) -> tuple:
             score["long_word_ratio"])
 
 
+# a rewrite that talks down to the reader is never kept (EN/ES/PT)
+_CHILDISH_RX = re.compile(r"(?i)\b(money stuff|stuff|grown-?ups?|kid-friendly|cosas de dinero|"
+                          r"coisas de dinheiro)\b|\byou (help|tell) people (understand|how)\b")
+
+
 # ── the one bounded simplify re-pass ─────────────────────────────────────────
 
 _LANG_NAME = {"en": "English", "es": "Spanish", "pt": "Portuguese"}
 
 _SIMPLIFY_SYSTEM = (
-    "You rewrite text so a 12-year-old gets it on first read. Shorter sentences, "
-    "everyday words, same meaning. Keep the verdict in the first sentence and keep "
+    # [adult-voice 2026-10-04] was "so a 12-year-old gets it" — live (Harleen, a
+    # bookkeeping manager) got "Finance helper - You help people understand their
+    # money … paperwork and computer work with money stuff". Plain ≠ childish.
+    "You rewrite text for a busy, intelligent adult reading on a phone: shorter "
+    "sentences, everyday words, same meaning, the same respectful adult tone. Never "
+    "talk down, never explain or define ordinary words or job titles, never use "
+    "'stuff' or 'things like that'. Keep the verdict in the first sentence and keep "
     "the action at the end. Do not add new claims, names, dates, or numbers that are "
     "not in the original. Never use the words 'energy', 'vibration', or 'alignment'. "
     "Never use astrology terms, planet names, or Sanskrit. Keep the SAME language as "
@@ -136,12 +146,15 @@ async def maybe_simplify(text: str, language: str = "en",
             system=_SIMPLIFY_SYSTEM,
             messages=[{
                 "role": "user",
-                "content": (f"Language: {lang_name}. Rewrite this so a 12-year-old "
-                            f"gets it on first read:\n\n{text}"),
+                "content": (f"Language: {lang_name}. Rewrite this in plain, adult "
+                            f"language that reads easily on first pass:\n\n{text}"),
             }],
         )
         rewrite = (resp.content[0].text or "").strip()
         if not rewrite:
+            return out
+        if _CHILDISH_RX.search(rewrite) and not _CHILDISH_RX.search(text):
+            print(f"[readability] surface={surface} rewrite rejected: talks down")
             return out
         after = readability_score(rewrite)
         out["score_after"] = after

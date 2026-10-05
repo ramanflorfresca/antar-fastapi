@@ -29159,6 +29159,15 @@ async def ask_endpoint(request: AskRequest):
                                     if _conv_win and _conv_win.lower() != (_ee_timing or "").strip().lower():
                                         print(f"[ask][dasha-diff] promised_building: "
                                               f"EE window {_ee_timing!r} -> convergence {_conv_win!r}")
+                                        # [timing-one-window 2026-10-04] the opener and the
+                                        # narrator must name the SAME window as the timing
+                                        # chip (Harleen: read "Nov 2026 – Jan 2027", chip
+                                        # "Jan 2027"; Shashi: read led Nov 2026, chip Oct 2027)
+                                        _ee_win_orig = _ee.get("timing_label") or ""
+                                        _ee["timing_label"] = _conv_win
+                                        if _ee_win_orig:
+                                            _ee["narrator_prompt"] = (_ee.get("narrator_prompt") or "").replace(
+                                                _ee_win_orig, _conv_win)
                                         _ee_timing = _conv_win
                             except Exception as _dde:
                                 print(f"[ask][dasha-diff] skipped: {_dde}")
