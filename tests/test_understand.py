@@ -931,3 +931,25 @@ def test_credit_related_terms_and_later_years():
     assert "credit" not in u.drop_asserted_loans(t, "Kya mera case safal hoga?", "legal_case")
     assert u.explicit_area("Could my later years get better this year?") == "income_money"
     assert u.is_retirement_q("How will my later life look?")
+
+
+# ── audit round 20 ────────────────────────────────────────────────────────────
+def test_plain_money_and_spanish_financial_stress_leave_love_and_health_answers():
+    t = "Partnership is possible. Money and family matters would pile on stress. Start with something light."
+    out = u.drop_off_topic_pressure(t, "existing_relationship", "Which path is best for my love life?")
+    assert "Money" not in out and "light" in out
+    h = "Tu cuerpo pide estabilidad. Hay estrés financiero al mismo tiempo. Descansa cada día."
+    assert "financiero" not in u.drop_off_topic_pressure(h, "health_self", "¿Qué debo hacer con mi salud?")
+
+
+def test_male_pregnancy_big_news_and_next_step():
+    t = "Raman, esto es una noticia grande. La temporada es mixta."
+    assert "noticia" not in u.male_pregnancy_guard(t, "children_conception", "male")
+    n = "Llama esta semana a tu médico para hablar sobre tu embarazo."
+    assert "en tu familia" in u.male_pregnancy_guard(n, "children_conception", "male")
+
+
+def test_new_union_wording_dropped_for_existing_relationship():
+    t = "La promesa de una nueva unión es real. Escribe lo que necesitas de verdad."
+    out = u.drop_off_topic_pressure(t, "existing_relationship", "¿Cuándo mejorará mi matrimonio?")
+    assert "unión" not in out and "Escribe" in out
