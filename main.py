@@ -30848,7 +30848,11 @@ async def ask_endpoint(request: AskRequest):
                         _und3.drop_far_years(payload.get(_rf), question), _au3.get("area") or "",
                         str((chart_row.data or {}).get("gender") or ""))
                 payload["next"] = _und3.next_floor(
-                    _und3.kids_next(payload.get("next"), _au3.get("area") or "", question, language), language)
+                    _und3.relationship_next(
+                        _und3.kids_next(payload.get("next"), _au3.get("area") or "", question, language),
+                        _au3.get("area") or "", question, language), language)
+                for _rf in ("read", "next"):
+                    payload[_rf] = _und3.drop_asker_health(payload.get(_rf), _au3.get("area") or "", question)
                 payload["read"] = _und3.relationship_floor(payload.get("read"), _au3, language)
                 payload["read"], payload["next"] = _und3.education_floor(
                     payload.get("read"), payload.get("next"), _au3, question, language)
