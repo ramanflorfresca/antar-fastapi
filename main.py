@@ -5615,7 +5615,7 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
             # [followup-flows] "✍️ Ask your own" — invite free text; no Ask, no quota
             send(_wa_text("own_q", lang))
             return
-        if cmd == "marketing_off":
+        if cmd == "marketing_off" or choice_id == "mkt_stop":   # [wa-offers-news] button on the message
             try:
                 await asyncio.to_thread(lambda: sb.table("messaging_links").update(
                     _msg.marketing_row(False)).eq("id", link["id"]).execute())

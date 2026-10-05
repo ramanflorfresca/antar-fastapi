@@ -4,7 +4,9 @@ import pytest
 from antar_engine import wa_templates as wt, messaging as msg
 
 
-@pytest.mark.parametrize("name", list(wt.TEMPLATES))
+# UTILITY templates only: the MARKETING pair (offers & news) is held to its own rules in
+# tests/test_wa_offers_news.py — it is promotional by definition and must never be mistaken for these.
+@pytest.mark.parametrize("name", [n for n, t in wt.TEMPLATES.items() if t["category"] == "UTILITY"])
 @pytest.mark.parametrize("lang", ["en", "es", "pt_BR", "hinglish"])
 def test_templates_follow_meta_utility_rules(name, lang):
     t = wt.TEMPLATES[name]
