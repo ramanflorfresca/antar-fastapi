@@ -974,3 +974,33 @@ def test_unstable_business_sentences_dropped_unless_said():
         assert bad not in u.drop_unstable_business(s, "x")
     said = "Your business is unstable, so protect cash."
     assert u.drop_unstable_business(said, "My business is unstable — what now?") == said
+
+
+# ── audit round 22 ────────────────────────────────────────────────────────────
+def test_later_years_is_a_subject_not_vague():
+    import main
+    assert not main._ask_is_vague("What should I do about my later years?")
+    assert not main._ask_is_vague("What should I do about my later life?")
+
+
+def test_field_stated_as_fact_becomes_a_lean():
+    es = "Raman, tu camino va con tu naturaleza — la tecnología e innovación es tu ámbito más fuerte. Enfócate."
+    out = u.field_as_lean(es)
+    assert "es tu ámbito más fuerte" not in out and "la lectura se inclina hacia" in out.lower()
+    es2 = "Tecnología, redes y escala son exactamente hacia donde tu timing apunta."
+    assert "la lectura se inclina hacia" in u.field_as_lean(es2).lower()
+    en = "Technology and innovation is your strongest field right now."
+    out_en = u.field_as_lean(en)
+    assert out_en.startswith("The reading leans toward technology")
+    assert u.field_as_lean("Your reputation is strong.") == "Your reputation is strong."
+
+
+def test_male_profile_your_pregnancy_becomes_family():
+    t = "Llama al médico que lleva tu embarazo esta semana."
+    out = u.male_pregnancy_guard(t, "children_conception", "male")
+    assert "tu embarazo" not in out and "el embarazo en tu familia" in out
+
+
+def test_field_as_lean_covers_lo_tuyo():
+    out = u.field_as_lean("La tecnología, la innovación y el trabajo en red son lo tuyo, y el momento es el indicado.")
+    assert "son lo tuyo" not in out and out.startswith("La lectura se inclina hacia la tecnología")
