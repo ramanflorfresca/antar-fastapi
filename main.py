@@ -28425,7 +28425,10 @@ async def ask_endpoint(request: AskRequest):
                                        "'your savings are under pressure'. Never mention a loan, debt, runway, "
                                        "a partner, a client or an authority figure as something they HAVE unless "
                                        "they told you. Internal notes like 'wealth engine', 'grain', 'swingy' "
-                                       "are never quoted — say it in everyday words.").strip()
+                                       "are never quoted — say it in everyday words. Never say they are owed "
+                                       "money or have overdue payments or debts unless they said so. Say "
+                                       "'your business/venture' only if they mentioned one or WHAT THEY TOLD "
+                                       "YOU EARLIER names one — otherwise say 'your work'.").strip()
                 except Exception:
                     pass
                 # [audit r9] why-questions need a reason; child questions answer about children

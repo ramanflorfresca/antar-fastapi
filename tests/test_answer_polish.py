@@ -95,3 +95,30 @@ def test_scrub_payload_timing_only_leaves_next_alone():
     m = {"read": "a. b. c.", "next": None}
     ap.polish_answer(m, "en", "I am 100% all in on Antar", "general", "spread")
     assert "10%" in m["next"]
+
+
+def test_b4_receivables_backing_and_wider_pick_one():
+    p = {"read": "Income is supported. The reading shows pressure on savings. Collect what you're already owed first.",
+         "next": "Name the single oldest unpaid amount owed to you and chase it this week."}
+    ap.polish_answer(p, "en", "How is my money looking right now?", "finance", "")
+    assert "owed" not in p["read"] and "owed" not in p["next"] and "10%" in p["next"]
+    q = {"read": "a. b. You're owed money from March.", "next": "Chase what you're owed."}
+    ap.polish_answer(q, "en", "A client owes me money from March — what's owed to me?", "finance", "")
+    assert "owed" in q["next"]
+    r = {"read": "a. b. Money through backing or outside money looks good.", "next": "Track your costs this week carefully."}
+    ap.polish_answer(r, "en", "How is my money?", "finance", "")
+    assert "backing" not in r["read"]
+    for t in ("Pick the one client-facing or investigative project in your business and put your best effort there.",
+              "Elige el campo más cercano a lo que ya haces y lleva esa pieza al frente.",
+              "Channel it into one clear leadership role."):
+        s = {"read": "a. b. c.", "next": t}
+        ap.polish_answer(s, "en", "Which profession fits me best?", "career", "spread")
+        assert s["next"] != t, t
+
+
+def test_b4_definitions():
+    from antar_engine import wealth_magnitude as wm
+    assert "OUTSIDE your ventures" in wm.LEAN_DIRECTIVE["spread"] and "start more ventures" in wm.LEAN_DIRECTIVE["spread"]
+    assert "capped or paused" in wm.LEAN_DIRECTIVE["concentrate"]
+    from antar_engine.narration_contract import concern_to_noun_palette as pal
+    assert not set(pal("finance", k=15, partnered=True)) & {"other people's money", "inheritance", "windfall", "debt"}

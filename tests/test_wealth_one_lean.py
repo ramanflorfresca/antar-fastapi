@@ -31,8 +31,8 @@ def test_allocation_statement_detector():
           "When will funding come?"]
     assert all(wm.is_allocation_statement(q) for q in yes)
     assert not any(wm.is_allocation_statement(q) for q in no)
-    assert "covers part of it" in wm.ALLOCATION_DIRECTIVE["spread"]   # [audit] not "already the spread"
-    assert "Never tell them to pick one" in wm.ALLOCATION_DIRECTIVE["spread"]
+    assert "doesn't change it" in wm.ALLOCATION_DIRECTIVE["spread"]   # [audit-b4] two ventures are still inside
+    assert "never tell them to pick one" in wm.ALLOCATION_DIRECTIVE["spread"].lower()
 
 
 def test_named_count_and_case():

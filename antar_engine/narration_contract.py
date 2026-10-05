@@ -679,6 +679,9 @@ _CONCERN_TO_DOMAIN: Dict[str, str] = {
 # "talk it through with your partner". Personal-partner nouns only when the reader
 # has one (marital_status) — or, status unknown, on a love question.
 _PERSONAL_PARTNER_NOUNS = {"partner", "spouse", "your partner"}
+_ASSUMPTIVE_NOUNS = {"other people's money", "others' money", "inheritance", "windfall", "secret",
+                     "insurance", "high-risk bet", "hidden gains", "higher-risk gains", "loan",
+                     "loan or credit line", "credit decision", "credit line", "debt", "debts"}
 _PERSONAL_LIFE_NOUNS = {"partner", "spouse", "your partner", "your home", "your mother", "your father",
                         "your body", "yourself", "where you live", "home or property", "close family",
                         "family money", "family wealth", "child", "children", "romance"}
@@ -739,6 +742,10 @@ def concern_to_noun_palette(concern: str, k: int = 5,
             if low in seen or (_drop_partner and low in _PERSONAL_PARTNER_NOUNS):
                 continue
             if not _personal_ok and low in _PERSONAL_LIFE_NOUNS:
+                continue
+            # [audit-b4] "other people's money / inheritance / windfall" became "your backing",
+            # "outside money", "shared money" — facts nobody told us
+            if domain not in ("speculation", "legal") and low in _ASSUMPTIVE_NOUNS:
                 continue
             palette.append(noun)
             seen.add(low)
