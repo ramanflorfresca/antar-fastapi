@@ -55,6 +55,7 @@ CONCERN_HOUSES = {
     "health":      [6, 1, 8],
     "foreign":     [12, 9],
     "children":    [5],
+    "family":      [4, 2],          # [audit-wider] home + family (was read from the work houses)
     "property":    [4, 2],
     "education":   [5, 9],
     "legal":       [6, 7],
@@ -81,6 +82,7 @@ CONCERN_KARAKAS = {
     "health":      ["Sun", "Mars"],
     "foreign":     ["Rahu", "Moon"],
     "children":    ["Jupiter"],
+    "family":      ["Moon", "Venus"],
     "property":    ["Mars", "Venus"],
     "education":   ["Mercury", "Jupiter"],
     "legal":       ["Jupiter", "Saturn"],
@@ -213,6 +215,7 @@ PRESCAN_DOMAIN_ALIAS = {
     "funding": "finance", "loss": "finance", "speculation": "finance",
     "money": "finance", "billionaire": "wealth", "rich": "wealth",
     "spiritual": "general",
+    "family": "general",   # [audit-wider] no family pre-scan instruments; plain friend voice via ASK_PLAIN_VOICE
 }
 
 
@@ -877,6 +880,7 @@ _DOMAIN_NOUN = {
     "domestic_move": "domestic move window",
     "foreign_move":  "foreign move window",
     "health":      "health window",
+    "family":      "family window",
     "foreign":     "relocation window",
     "children":    "family window",
     "property":    "property window",

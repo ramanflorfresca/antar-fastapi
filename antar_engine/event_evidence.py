@@ -92,6 +92,9 @@ EVENT_MAP = {
                                      "health divisional evidence is "
                                      "lower-confidence (founder scope note)"},
     "litigation": {"houses": [6, 8, 12],    "divisions": [1]},
+    # [audit-wider 2026-10-05] family / home life: 4 = home & peace of mind, 2 = family, 7 = the
+    # household partnership. D4 (home) confirms.
+    "family":     {"houses": [4, 2, 7],     "divisions": [1, 4]},
     "general":    {"houses": [10, 11, 2],   "divisions": [10, 9]},
 }
 
@@ -120,12 +123,13 @@ CONCERN_TO_EVENT = {
     # legacy recipe — new code should pass "foreign_move" or "domestic_move".
     "relocation": "relocation",
     "spiritual": "general", "general": "general",
+    "family": "family",
 }
 
 # yoga_engine.DOMAIN_DETECTORS keys it actually knows
 _YOGA_DOMAIN = {
     "funding": "funding", "career": "funding", "general": "funding",
-    "relocation": "property", "marriage": "marriage",
+    "relocation": "property", "marriage": "marriage", "family": "property",
     "health": "health", "litigation": "legal",
 }
 

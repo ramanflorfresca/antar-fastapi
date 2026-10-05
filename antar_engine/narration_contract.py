@@ -657,6 +657,7 @@ _CONCERN_TO_DOMAIN: Dict[str, str] = {
     "divorce":        "relationship",
     "reconciliation": "relationship",
     "children":       "children",
+    "family":         "family",     # [audit-wider]
     # location / property
     "domestic_move": "relocation",
     "foreign_move":  "relocation",

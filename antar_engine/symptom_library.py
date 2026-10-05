@@ -110,6 +110,25 @@ DOMAIN_VOCABULARY = {
     "foreign":      {"tone":"advisor","instruction":"Speak like a relocation strategist. Use: vector, corridor, window, positioning. Never astrology terms.","nouns":["vector","corridor","window","positioning","transition"]},
 }
 
+# [prompt-simplify 2026-10-05] Ask-only plain voice. DOMAIN_VOCABULARY above is a corporate-persona
+# table ("Chairman: leverage, positioning, mandate", "CFO: runway, burn rate", "Mediator:
+# alignment, sync, resonance") that other surfaces still lean on. For Ask it contradicted the
+# readability rules (which ban alignment/energy/runway) and leaked into answers as "one clear
+# mandate", "savings and runway", "wired in" (conversation audit). Ask passes plain=True.
+ASK_PLAIN_VOICE = {
+    "career":       "Speak like a plain-spoken, experienced mentor. Everyday words only: work, role, skills, reputation, the next step.",
+    "wealth":       "Speak like a calm, practical friend who is good with money. Everyday words only: income, spending, savings, what to do this month. Never quote a metric.",
+    "finance":      "Speak like a calm, practical friend who is good with money. Everyday words only: income, spending, savings, what to do this month. Never quote a metric.",
+    "relationship": "Speak like a warm, honest friend. Everyday words only: closeness, trust, patience, a real conversation.",
+    "health":       "Speak like a caring friend with good sense about health. Everyday words only: strength, rest, recovery, routine. This is not medical advice.",
+    "legal":        "Speak like a level-headed friend who has seen a few disputes. Everyday words only: what is at stake, what to write down, who to ask. This is not legal advice.",
+    "property":     "Speak like a sensible friend who knows property. Everyday words only: buying, holding, timing, cost.",
+    "education":    "Speak like a supportive teacher. Everyday words only: preparation, pace, the next step.",
+    "children":     "Speak like a kind family friend. Everyday words only: readiness, timing, patience.",
+    "foreign":      "Speak like a practical friend who has moved abroad. Everyday words only: the move, the timing, the first steps.",
+    "general":      "Speak like a trusted, plain-spoken friend. Clear and direct, everyday words only.",
+}
+
 LIFE_EVENTS = [
     {"id":"buying_house","name":"Buying a Home","houses":[4,2],"planets":["Mars","Moon"],"label":"PROPERTY ACQUISITION"},
     {"id":"buying_car","name":"Buying a Vehicle","houses":[4,2],"planets":["Venus"],"label":"VEHICLE ACQUISITION"},
@@ -1224,7 +1243,7 @@ def build_three_point_diagnostic(wbp, instruments):
 # DIAGNOSTIC PROMPT BLOCK (for Claude injection)
 # ═══════════════════════════════════════════════════════════════════
 
-def build_diagnostic_prompt_block(cd, question, concern=None, jd=None, lk=None, current_dasha=None):
+def build_diagnostic_prompt_block(cd, question, concern=None, jd=None, lk=None, current_dasha=None, plain=False):
     """Build diagnostic context block for Claude prompt injection."""
     cd=_sj(cd)
     instruments=scan_all_instruments(cd, jd, lk, current_dasha)
@@ -1241,8 +1260,11 @@ def build_diagnostic_prompt_block(cd, question, concern=None, jd=None, lk=None, 
     lines=["="*60, "DIAGNOSTIC PRE-SCAN — 5-LAYER BLOOD WORK", "="*60]
     lines.append("DOMAIN: "+domain.upper())
     lines.append("ACTIVE DASHA: "+str(current_dasha or "unknown"))
-    lines.append("TONE: "+vocab["tone"])
-    lines.append("INSTRUCTION: "+vocab["instruction"])
+    if plain:   # Ask: friend voice, no persona jargon word-lists
+        lines.append("INSTRUCTION: "+ASK_PLAIN_VOICE.get(domain, ASK_PLAIN_VOICE["general"])+" Never astrology terms.")
+    else:
+        lines.append("TONE: "+vocab["tone"])
+        lines.append("INSTRUCTION: "+vocab["instruction"])
     lines.append("")
 
     if primary:
@@ -1268,7 +1290,8 @@ def build_diagnostic_prompt_block(cd, question, concern=None, jd=None, lk=None, 
             lines.append("  - "+bv.get("label","")+": "+bv.get("signal_status","")+" ("+bv.get("verdict","")+")")
 
     lines.append("")
-    lines.append("VOCABULARY: "+", ".join(vocab["nouns"][:5]))
+    if not plain:
+        lines.append("VOCABULARY: "+", ".join(vocab["nouns"][:5]))
     lines.append("="*60)
     return "\n".join(lines)
 
