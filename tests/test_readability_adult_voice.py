@@ -21,3 +21,10 @@ def test_childish_rewrite_is_rejected(monkeypatch):
     monkeypatch.setattr(rb, "_get_client", lambda: type("Cl", (), {"messages": _M()})())
     out = asyncio.run(rb.maybe_simplify(long, "en", "test"))
     assert out["text"] == long and not out["simplified"]
+
+
+def test_required_nouns_never_include_appearance():
+    from antar_engine.narration_contract import concern_to_noun_palette, HOUSE_NOUNS
+    assert "appearance" not in HOUSE_NOUNS[1]
+    for c in ("general", "choice", "career", "finance", "love", "health"):
+        assert "appearance" not in concern_to_noun_palette(c, k=8)
