@@ -226,6 +226,100 @@ def is_allocation_statement(question: str) -> bool:
     return bool(_ALLOC_RX.search(question or ""))
 
 
+_ALLOC_TARGET_RX = re.compile(
+    r"(?i)(?:all[- ]in|100\s?%|hundred percent|everything|all (?:of )?my \w+|put (?:it )?all|todo|tudo|"
+    r"sab kuch|poora \w+)\b.*?\b(?:on|in|into|behind|en|em|no|na|mein)\b\s+(.+)$")
+_HI_TARGET_RX = re.compile(r"(?i)\b(?:sab kuch|poora \w+)\s+(.+?)\s+(?:mein|me)\b")
+_LIST_SPLIT_RX = re.compile(r"(?i)\s*(?:,|&|\band\b|\by\b|\be\b|\baur\b|\bplus\b|\bas well as\b)\s*")
+
+
+def named_count(question: str) -> int:
+    """How many things they say they're all in on ('Tezops AI and Antar' → 2)."""
+    q = (question or "").strip().rstrip("?.!")
+    hm = _HI_TARGET_RX.search(q)          # Hinglish: "sab kuch X aur Y mein lagaya"
+    m = None if hm else _ALLOC_TARGET_RX.search(q)
+    target = hm.group(1) if hm else (m.group(1) if m else "")
+    if not target:
+        return 1
+    return max(1, len([x for x in _LIST_SPLIT_RX.split(target) if re.search(r"\w", x)]))
+
+
+def allocation_directive(lean: str, question: str) -> str:
+    """Python decides which case this is — the narrator applies it, never re-decides.
+    [allin-multi 2026-10-04] concentrate + two named ventures was rationalised as
+    'together they form one track, so staying all-in fits' (Andres)."""
+    multi = named_count(question) >= 2
+    head = ("THEY JUST TOLD YOU HOW THEIR MONEY/TIME IS PLACED. Apply the chart's answer to "
+            "exactly what they said; do not re-decide, and don't bring up raising money, "
+            "investors or funding unless they did. ")
+    if lean == "spread":
+        return head + (ALLOCATION_DIRECTIVE["spread"] if multi else (
+            "The answer is SPREAD WITH CAPS and they are all in on ONE thing — that is the "
+            "concentration the reading warns about. Don't tell them to quit it: say plainly "
+            "that one venture holding everything is the risk, and the fix is a cap on what it "
+            "can take plus a second line or money set aside. `next` = that step."))
+    if lean == "concentrate":
+        return head + (
+            "The answer is CONCENTRATE and they named TWO OR MORE ventures. Say plainly that the "
+            "split is the risk: back the one that is already earning or has traction, and cap or "
+            "pause the other. Never call them one track or one effort, never say the split fits. "
+            "`next` = decide which one gets the main effort and what the other is capped at."
+            if multi else
+            "The answer is CONCENTRATE and they are all in on ONE thing — that fits; affirm it "
+            "plainly. `next` = protect it (a cash cushion, no new side bets).")
+    return ""
+
+
+def allocation_case(lean: str, question: str) -> str:
+    """'conc_multi' / 'conc_single' / 'spread_multi' / 'spread_single' / ''."""
+    if lean not in ("concentrate", "spread"):
+        return ""
+    return ("conc_" if lean == "concentrate" else "spread_") + (
+        "multi" if named_count(question) >= 2 else "single")
+
+
+# The two cases where the narrator's instinct ("all in = commitment = good") fights
+# the chart. Python owns sentence one there; an affirming first sentence is dropped.
+ALLOC_OPENER = {
+    "conc_multi": {
+        "en": "{n}the reading says concentrate — being all in on two things at once is the split to fix.",
+        "es": "{n}la lectura dice concentrarse — estar con todo en dos cosas a la vez es la división que hay que corregir.",
+        "pt": "{n}a leitura diz concentrar — estar com tudo em duas coisas ao mesmo tempo é a divisão a corrigir.",
+        "hi": "{n}reading kehti hai ek jagah focus karo — do cheezon mein ek saath poora lagana hi woh split hai jise theek karna hai.",
+    },
+    "spread_single": {
+        "en": "{n}the reading says spread — one venture holding everything is the risk here.",
+        "es": "{n}la lectura dice repartir — que un solo proyecto lo sostenga todo es el riesgo aquí.",
+        "pt": "{n}a leitura diz espalhar — um único projeto segurando tudo é o risco aqui.",
+        "hi": "{n}reading kehti hai alag alag rakho — ek hi venture mein sab kuch hona hi yahan risk hai.",
+    },
+}
+_AFFIRM_RX = re.compile(r"(?i)(right call|strongest move|exactly|\bfits?\b|solid pairing|good call|"
+                        r"\bbacks?\b|\bsupports?\b|the right place|flags|acierto|encaja|correcto|"
+                        r"\bcerto\b|combina|respalda|apoia|sahi (hai|faisla))")
+
+
+def apply_alloc_opener(read: str, case: str, language: str = "en", name: str = "") -> str:
+    """Prepend Python's sentence one for the contested cases; drop an affirming opener."""
+    tmpl = (ALLOC_OPENER.get(case) or {})
+    if not tmpl or not isinstance(read, str):
+        return read
+    lang = "hi" if (language or "en").lower() in ("hi", "hinglish") else (language or "en").lower()[:2]
+    op = (tmpl.get(lang) or tmpl["en"]).format(n=(f"{name}, " if name else ""))
+    op = op[0].upper() + op[1:]
+    for _ in range(2):   # the narrator's own verdict sentence(s) at the top
+        sents = re.split(r"(?<=[.!?])\s+", read.strip(), maxsplit=1)
+        if len(sents) > 1 and len(sents[0]) <= 160 and _AFFIRM_RX.search(sents[0]):
+            read = sents[1]
+        else:
+            break
+    # the rest may still open with the name — drop a duplicate "Name, " lead
+    if name:
+        read = re.sub(rf"^{re.escape(name)},\s*", "", read.strip())
+        read = read[:1].upper() + read[1:]
+    return (op + " " + read).strip()
+
+
 ALLOCATION_DIRECTIVE = {
     "spread": ("THEY JUST TOLD YOU HOW THEIR MONEY/TIME IS PLACED. Apply the SAME answer — SPREAD "
                "WITH CAPS — to exactly what they said; do not re-decide. If they run two or more "
