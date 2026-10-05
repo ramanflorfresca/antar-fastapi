@@ -156,6 +156,7 @@ def format_ask_for_telegram(payload: dict, language: str = "en") -> str:
 import base64
 import hashlib
 import hmac
+import os
 import re
 import time
 import urllib.parse
@@ -211,6 +212,82 @@ def can_send_marketing(link: Optional[dict]) -> bool:
     l = link or {}
     return (l.get("status") == "linked" and l.get("marketing_opt_in") is True
             and l.get("marketing_consent_version") == WA_MARKETING_CONSENT_VERSION)
+
+
+# ── [wa-policy 2026-10-05] in-chat data-policy acceptance ──────────────────────
+# Owner: like Wompi's "Política de tratamiento de datos — para continuar, acepta…". Colombia's Ley 1581 de
+# 2012 (and India DPDP / Brazil LGPD) want PRIOR, EXPRESS, informed authorisation before personal data is
+# processed. A number that hasn't accepted the CURRENT wording (WA_CONSENT_VERSION) is asked first; nothing
+# else happens until it accepts. App-linked numbers already accepted in the app and aren't asked again.
+WA_POLICY_URL = os.getenv("WA_POLICY_URL") or "https://antar.world/privacy"
+_POLICY_YES = frozenset({"acepto", "accept", "i accept", "accepted", "aceito", "aceptar", "aceitar", "yes i accept",
+                         "si acepto", "sí acepto", "sim aceito", "manzoor", "manzoor hai", "agree", "i agree",
+                         "de acuerdo", "concordo", "1"})
+_POLICY_NO = frozenset({"no acepto", "no", "não", "nao", "não aceito", "nao aceito", "decline", "i decline",
+                        "don't accept", "do not accept", "nahi", "manzoor nahi", "2"})
+
+
+def policy_url(lang: str = "en") -> str:
+    l = (lang or "en").lower()
+    l = "es" if l.startswith("es") else "pt" if l.startswith("pt") else "en"
+    return WA_POLICY_URL + ("" if l == "en" else ("&" if "?" in WA_POLICY_URL else "?") + "lang=" + l)
+
+
+def parse_policy_reply(body: str, choice_id: str = "") -> Optional[str]:
+    """'yes' / 'no' for an answer to the policy prompt, else None."""
+    if choice_id in ("pol:yes", "pol:no"):
+        return choice_id.split(":")[1]
+    t = (body or "").strip().lower().strip(" .!¡?¿*")
+    if t in _POLICY_YES:
+        return "yes"
+    if t in _POLICY_NO:
+        return "no"
+    return None
+
+
+def policy_accepted(sb, number: str) -> Optional[bool]:
+    """Has this number accepted the CURRENT wording in chat? None when the table isn't set up yet."""
+    try:
+        rows = (sb.table("wa_policy_acceptances").select("decision")
+                .eq("number", wa_number(number)).eq("policy_version", WA_CONSENT_VERSION)
+                .order("created_at", desc=True).limit(1).execute()).data or []
+        return bool(rows) and rows[0].get("decision") == "accepted"
+    except Exception as e:
+        if _table_missing(e):
+            return None
+        print(f"[wa-policy] lookup failed: {e}")
+        return None
+
+
+def policy_state(sb, number: str, link: Optional[dict]) -> str:
+    """'ok' (accepted the current wording — in the app or in chat), 'needed', or 'unknown' (storage not set
+    up: fail open to today's behaviour rather than lock everyone out)."""
+    if link and link.get("consent_version") == WA_CONSENT_VERSION:
+        return "ok"
+    acc = policy_accepted(sb, number)
+    if acc is None:
+        return "unknown"
+    return "ok" if acc else "needed"
+
+
+def record_policy(sb, number: str, decision: str, lang: str = "en", link: Optional[dict] = None) -> bool:
+    """Append-only evidence row; on acceptance a linked number's consent is refreshed to the current wording."""
+    now = datetime.now(timezone.utc).isoformat()
+    try:
+        sb.table("wa_policy_acceptances").insert({
+            "number": wa_number(number), "policy_version": WA_CONSENT_VERSION,
+            "decision": "accepted" if decision == "yes" else "declined",
+            "language": (lang or "en")[:12], "policy_url": policy_url(lang), "source": "whatsapp",
+            "created_at": now}).execute()
+    except Exception as e:
+        print(f"[wa-policy] record failed: {e}")
+        return False
+    if decision == "yes" and link and link.get("id"):
+        try:
+            sb.table("messaging_links").update(consent_row("whatsapp")).eq("id", link["id"]).execute()
+        except Exception as e:
+            print(f"[wa-policy] link consent refresh failed: {e}")
+    return True
 
 
 def consent_row(source: str) -> dict:
