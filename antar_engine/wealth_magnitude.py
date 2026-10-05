@@ -228,7 +228,7 @@ def is_allocation_statement(question: str) -> bool:
 
 _ALLOC_TARGET_RX = re.compile(
     r"(?i)(?:all[- ]in|100\s?%|hundred percent|everything|all (?:of )?my \w+|put (?:it )?all|todo|tudo|"
-    r"sab kuch|poora \w+)\b.*?\b(?:on|in|into|behind|en|em|no|na|mein)\b\s+(.+)$")
+    r"sab kuch|poora \w+)(?:\b|(?<=%)).*?\b(?:on|in|into|behind|en|em|no|na|mein)\b\s+(.+)$")
 _HI_TARGET_RX = re.compile(r"(?i)\b(?:sab kuch|poora \w+)\s+(.+?)\s+(?:mein|me)\b")
 _LIST_SPLIT_RX = re.compile(r"(?i)\s*(?:,|&|\band\b|\by\b|\be\b|\baur\b|\bplus\b|\bas well as\b)\s*")
 
@@ -242,6 +242,18 @@ def named_count(question: str) -> int:
     if not target:
         return 1
     return max(1, len([x for x in _LIST_SPLIT_RX.split(target) if re.search(r"\w", x)]))
+
+
+# [lean-everywhere 2026-10-04] The money lean must hold on EVERY money/work answer, not
+# only the concentrate question: Raman's profession answer said "one clear mandate
+# beats three parallel bets… go deep on one venture, not wide" right after "spread".
+LEAN_CONSISTENCY = {
+    "spread": ("MONEY-LEAN GUARD: this reader's money reading says SPREAD across ventures with caps. "
+               "Never tell them to pick one venture, cut ventures, or go deep on one instead of wide. "
+               "Focus advice is about their ROLE or skill lane (what kind of work), not the number of ventures."),
+    "concentrate": ("MONEY-LEAN GUARD: this reader's money reading says CONCENTRATE on what is working. "
+                    "Never tell them to add ventures, start a second line, or diversify."),
+}
 
 
 def allocation_directive(lean: str, question: str) -> str:
@@ -307,6 +319,7 @@ _RESTATE_RX = {
     "conc_multi": re.compile(r"(?i)\bsplit\b|concentrat|\bdivid|divisi[oó]n|divis[aã]o|ek jagah|"
                              r"\byahi( toh)?\b"),
     "spread_single": re.compile(r"(?i)\bspread\b|one venture|concentration|repartir|espalhar|alag alag|"
+                                r"\b[uú]nic[oa]\b|un solo|um s[oó]|concentra|"
                                 r"\byahi( toh)?\b|sabse bada (warning|risk)"),
 }
 

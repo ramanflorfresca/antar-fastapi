@@ -25225,6 +25225,15 @@ _ASK_ROLE_WORDS = (
 
 def _ask_needs_role_clarify(question: str, thread: list) -> bool:
     q = (question or "").lower()
+    # [alloc-no-role 2026-10-04] "Estoy 100% metido en mi negocio" (negocio = business
+    # AND deal) asked "are you the broker, equity or buyer?" — a statement of how their
+    # money/time is placed is never a deal-role question
+    try:
+        from antar_engine.wealth_magnitude import is_allocation_statement as _ias
+        if _ias(question):
+            return False
+    except Exception:
+        pass
     # [role-clarify-scope 2026-09-13] The DEAL context must come from the CURRENT
     # question, not the thread — otherwise 'deals'/'deal' left in an earlier
     # answer (e.g. a relationship turn's "the deals you make together") makes a
@@ -29047,6 +29056,21 @@ async def ask_endpoint(request: AskRequest):
 
             print(f"[ask] concern={_ask_concern} dasha={_ask_dasha_str or 'unknown'} "
                   f"layers={len(_ask_layers_block)}ch prescan={len(diagnostic_block)}ch")
+            # [lean-everywhere 2026-10-04] career/business/money answers must not contradict
+            # the chart's spread/concentrate lean (Raman: "spread" then "go deep on one venture")
+            try:
+                if (not _wealth_fired and (locals().get("_ask_concern") or "") in (
+                        "career", "business", "startup", "finance", "wealth", "funding", "general")):
+                    from antar_engine.wealth_magnitude import (
+                        wealth_profile as _wpf_g, LEAN_CONSISTENCY as _wlc)
+                    _wp_g = _wpf_g(chart_data, get_dashas_for_chart(chart_id) or {},
+                                   {"lagna_sign": chart_row.data.get("lagna_sign")})
+                    _lean_g = ((_wp_g or {}).get("stability") or {}).get("lean")
+                    if _wp_g.get("available") and _lean_g in _wlc:
+                        _ask_wealth_block = (_ask_wealth_block + "\n" + _wlc[_lean_g]).strip()
+                        print(f"[ask][wealth] lean guard {_lean_g} on {_ask_concern}")
+            except Exception as _lge:
+                print(f"[ask][wealth] lean guard non-fatal: {_lge}")
 
             # ── Consultation path (2026-06-03): a timing/decision question
             #    must get verdict + convergence-derived timing + practices
