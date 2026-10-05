@@ -304,8 +304,10 @@ _AFFIRM_RX = re.compile(r"(?i)(right call|strongest move|exactly|\bfits?\b|solid
 # right under Python's sentence one — drop that echo too.
 _NEVER = re.compile(r"(?!x)x")
 _RESTATE_RX = {
-    "conc_multi": re.compile(r"(?i)\bsplit\b|concentrat|\bdivid|divisi[oó]n|divis[aã]o|ek jagah"),
-    "spread_single": re.compile(r"(?i)\bspread\b|one venture|concentration|repartir|espalhar|alag alag"),
+    "conc_multi": re.compile(r"(?i)\bsplit\b|concentrat|\bdivid|divisi[oó]n|divis[aã]o|ek jagah|"
+                             r"\byahi( toh)?\b"),
+    "spread_single": re.compile(r"(?i)\bspread\b|one venture|concentration|repartir|espalhar|alag alag|"
+                                r"\byahi( toh)?\b|sabse bada (warning|risk)"),
 }
 
 
