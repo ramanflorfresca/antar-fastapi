@@ -115,3 +115,31 @@ def test_whatsapp_line_carries_the_window_label_when_there_is_one():
 def test_copy_never_raises_on_an_empty_row():
     assert sd.push_message({})[0]
     assert sd.whatsapp_message({})
+
+
+# ── the window comes from the label the client can actually send ──────────
+def test_window_is_derived_from_the_timing_label_alone():
+    """The /ask payload carries "Nov 2026 – Jan 2027" but not parsed dates, so a
+    client can only send the label. If this regressed, every saved decision
+    would silently have no window and no reminder would ever fire."""
+    r = sd.build_row("c1", "Is this the right time to change jobs?",
+                     {"verdict": "NOT_YET", "timing": "Nov 2026 – Jan 2027"}, now=NOW)
+    assert r["window_start"] == "2026-11-01" and r["window_end"] == "2027-01-31"
+    assert r["open_reminder_due_at"].startswith("2026-11-01T08:00")
+
+
+def test_a_single_month_label_still_yields_a_window():
+    r = sd.build_row("c1", "q", {"timing": "Oct 2026"}, now=NOW)
+    assert r["window_start"] == "2026-10-01" and r["window_end"] == "2026-10-31"
+
+
+def test_explicit_dates_win_over_the_label():
+    r = sd.build_row("c1", "q", {"timing": "Oct 2026",
+                                 "window_start": "2027-03-01",
+                                 "window_end": "2027-05-31"}, now=NOW)
+    assert r["window_start"] == "2027-03-01" and r["window_end"] == "2027-05-31"
+
+
+def test_an_unparseable_label_is_not_fatal():
+    r = sd.build_row("c1", "q", {"timing": "soon-ish"}, now=NOW)
+    assert r["window_start"] is None and r["open_reminder_due_at"] is None

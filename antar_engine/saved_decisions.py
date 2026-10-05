@@ -111,6 +111,17 @@ def build_row(chart_id: str, question: str, answer: dict, *,
     """
     a = answer or {}
     ws, we = _d(a.get("window_start")), _d(a.get("window_end"))
+    if not (ws or we):
+        # [saved-decisions] The /ask payload carries the LABEL ("Nov 2026 – Jan
+        # 2027") but not the parsed dates, so a client can only ever send the
+        # label. Derive the window here rather than pushing date parsing into
+        # the FE — same parser the outcome loop already uses on the same string,
+        # so a saved decision and its claim can never disagree about the window.
+        try:
+            from antar_engine.outcomes import parse_window as _pw
+            ws, we = _pw(a.get("timing") or "", (now or datetime.now(timezone.utc)).date())
+        except Exception:
+            ws = we = None
     due = open_reminder_due(ws, tz_offset_hours, now)
     return {
         "chart_id": chart_id,
