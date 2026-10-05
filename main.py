@@ -28744,6 +28744,7 @@ async def ask_endpoint(request: AskRequest):
                         jd=_ask_jd or None,
                         lk=_ask_lk or None,
                         current_dasha=_ask_dasha_str or None,
+                        plain=True,   # [prompt-simplify 2026-10-05] friend voice, no corporate jargon lists
                     ) or ""
             except Exception as _de:
                 logger.warning(f"[ask] diagnostic block failed (non-fatal): {_de}")
@@ -29791,13 +29792,12 @@ async def ask_endpoint(request: AskRequest):
                     "infrastructure, foundation, systems, capacity, runway, potential).\n"
                     "\n"
                     "BODY: 1-2 sentences after the verdict line. Name what's working, what's "
-                    "resisting, why. Each sentence must contain at least ONE concrete life-noun "
-                    "(from the required list, or a closely-related life-noun like \"document\", "
-                    "\"deal\", \"meeting\", \"phone call\", \"your boss\", \"your mother\").\n"
+                    "resisting, why — in concrete, everyday terms.\n"
                     "\n"
-                    "CLOSE: end `read` with ONE short, inviting follow-up offer — a natural next "
-                    "thing you could look at for them (\"Want me to look at the coming months to "
-                    "see where the pace shifts?\"). One warm line, genuinely useful, never salesy.\n"
+                    # [prompt-simplify 2026-10-05] was "CLOSE: end read with ONE short follow-up offer"
+                    # — contradicted the voice guide ("closing follow-up is OPTIONAL and RARE") and the
+                    # tappable next-question list already does that job on every surface.
+                    "CLOSE: end `read` on the read itself. No 'Want me to…' offer.\n"
                     "\n"
                     + _window_block +
                     "\n"
@@ -29866,7 +29866,11 @@ async def ask_endpoint(request: AskRequest):
                 pass
             raw = ""
             try:
-                if _ask_life_block and isinstance(_sys, str):
+                # [prompt-simplify 2026-10-05] the life block is already inside _sys on both
+                # composed paths (it was appended a second time here — KNOWN LIFE FACTS, NEVER IN
+                # AN ANSWER and READING NOT FACT each appeared twice, ~2.8k chars). Append only
+                # when a scratch override replaced the whole prompt.
+                if _ask_life_block and isinstance(_sys, str) and _ask_life_block not in _sys:
                     _sys = _sys + _ask_life_block
                 # [ask-thread 2026-09-13] Hand the model the recent turns so it can
                 # resolve references ('the one I have in hand', 'so it's not

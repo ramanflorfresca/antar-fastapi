@@ -44,6 +44,18 @@ CHAINS = {
         "allin_one": ["Should I concentrate or diversify?", "I am 100% all in on {one}"],
         "allin_two": ["Should I concentrate or diversify?", "I am 100% all in on {two}"],
         "partner": ["Should I build alone or bring in a partner?"],
+        # ── [audit-wider] topics the money-only audit never touched ──
+        "love": ["How is my love life looking right now?", "When is my best window for love?",
+                 "How do I make my relationships feel steadier?"],
+        "health": ["How is my health looking this year?", "When does my energy pick up?",
+                   "Which daily practice fits me now?"],
+        "family": ["How is my family life looking this year?", "When does the pressure at home ease?",
+                   "How do I handle the tension at home right now?"],
+        "career_change": ["Should I change the direction of my work?", "When is a good time to make a big change?",
+                          "What should I prioritize this month?"],
+        "days": ["How is tomorrow looking?", "Which day this week is best for me?", "How is my week ahead?"],
+        "distress": ["I feel stuck and anxious about everything right now", "Why does it feel like nothing is moving?",
+                     "What is one thing I can do today?"],
     },
     "es": {
         "money": ["¿Cómo está mi dinero ahora mismo?", "¿Cuándo se abre mi mejor ventana de dinero?",
@@ -51,6 +63,17 @@ CHAINS = {
         "allin_one": ["¿Debo concentrarme o diversificar?", "Estoy 100% metido en {one}"],
         "allin_two": ["¿Debo concentrarme o diversificar?", "Estoy 100% metido en {two}"],
         "partner": ["¿Debo emprender solo o con un socio?"],
+        "love": ["¿Cómo se ve mi vida amorosa ahora?", "¿Cuándo es mi mejor ventana para el amor?",
+                 "¿Cómo hago que mis relaciones se sientan más estables?"],
+        "health": ["¿Cómo se ve mi salud este año?", "¿Cuándo sube mi energía?",
+                   "¿Qué práctica diaria me conviene ahora?"],
+        "family": ["¿Cómo se ve mi vida familiar este año?", "¿Cuándo baja la presión en casa?",
+                   "¿Cómo manejo la tensión en casa ahora?"],
+        "career_change": ["¿Debo cambiar la dirección de mi trabajo?", "¿Cuándo es buen momento para un gran cambio?",
+                          "¿Qué debo priorizar este mes?"],
+        "days": ["¿Cómo se ve mañana?", "¿Qué día de esta semana es mejor para mí?", "¿Cómo se ve mi semana?"],
+        "distress": ["Me siento estancado y ansioso por todo ahora mismo", "¿Por qué siento que nada se mueve?",
+                     "¿Qué una cosa puedo hacer hoy?"],
     },
     "hinglish": {
         "money": ["Abhi mera paisa kaisa dikh raha hai?", "Mera sabse strong money window kab khulega?",
@@ -58,6 +81,17 @@ CHAINS = {
         "allin_one": ["Kya ek jagah focus karun ya diversify karun?", "Maine sab kuch {one} mein laga diya hai"],
         "allin_two": ["Kya ek jagah focus karun ya diversify karun?", "Maine sab kuch {two} mein laga diya hai"],
         "partner": ["Akele build karun ya partner ke saath?"],
+        "love": ["Abhi meri love life kaisi dikh rahi hai?", "Pyaar ke liye meri best window kab hai?",
+                 "Apne rishton ko kaise zyada stable rakhun?"],
+        "health": ["Is saal meri sehat kaisi dikh rahi hai?", "Meri energy kab badhegi?",
+                   "Abhi mere liye kaun si daily practice sahi hai?"],
+        "family": ["Is saal meri family life kaisi dikh rahi hai?", "Ghar ka pressure kab kam hoga?",
+                   "Abhi ghar ki tension kaise sambhalun?"],
+        "career_change": ["Kya mujhe apne kaam ki disha badalni chahiye?", "Bada badlav karne ka sahi time kab hai?",
+                          "Is mahine mujhe kis cheez ko priority deni chahiye?"],
+        "days": ["Kal kaisa dikh raha hai?", "Is hafte mere liye kaun sa din best hai?", "Mera hafta kaisa hai?"],
+        "distress": ["Main abhi sab kuch mein atka hua aur pareshan mehsoos kar raha hoon", "Aisa kyun lagta hai ki kuch aage nahi badh raha?",
+                     "Aaj main ek kaun si cheez kar sakta hoon?"],
     },
 }
 
@@ -99,6 +133,14 @@ def _lean_of(text: str) -> str:
         if _hits(rx, t):
             return tag
     return ""
+
+
+_DISTRESS_QS = re.compile(r"(?i)(stuck and anxious|nothing is moving|one thing i can do today|estancado y ansioso|"
+                          r"nada se mueve|una cosa puedo hacer hoy|atka hua aur pareshan|kuch aage nahi badh|ek kaun si cheez)")
+
+
+def chain_name_hint(q: str) -> str:
+    return "distress" if _DISTRESS_QS.search(q or "") else ""
 
 
 def turn_checks(p: dict, q: str, lang: str, persona: dict, profile: dict, chart_lean: str) -> list:
@@ -154,6 +196,23 @@ def turn_checks(p: dict, q: str, lang: str, persona: dict, profile: dict, chart_
         out.append("LEAN_CONTRADICTION")
     if chart_lean == "concentrate" and _hits(_SPREAD, f"{read} {nxt}") and not _hits(_CONC, sents[0] if sents else ""):
         out.append("LEAN_CONTRADICTION")
+    low_q = q.lower()
+    # day/week questions must stay about the day/week, not a multi-year chapter
+    if re.search(r"(?i)\b(tomorrow|this week|my week|ma[nñ]ana|semana|kal|hafte|hafta)\b", low_q) and \
+            len(set(re.findall(r"20\d\d", read + " " + (p.get("timing") or ""))) ) >= 2:
+        out.append("DAY_Q_MULTIYEAR")
+    # a distressed message gets warmth + one tiny step first — no verdict lead, no sales-y window talk
+    if chain_name_hint(q) == "distress":
+        if re.match(r"(?i)\s*\*?\s*(yes|likely|not yet|no)\b\s*[—–-]", read):
+            out.append("DISTRESS_VERDICT_LEAD")
+        if len(nxt.split()) > 28:
+            out.append("DISTRESS_MOVE_TOO_BIG")
+    # a love/family answer must not drift into business/money pressure nobody raised
+    if re.search(r"(?i)\b(love|relationship|pyaar|rishta|amor|relaci|family|familia|ghar|home|casa)\b", low_q) and \
+            not re.search(r"(?i)\b(money|income|business|paisa|dinero|negocio|savings|ahorros)\b", low_q):
+        if re.search(r"(?i)\b(your (business|income|savings|clients?|revenue)|tu (negocio|ingreso|ahorro)|apne (business|savings))\b",
+                     f"{read} {nxt}"):
+            out.append("OFF_TOPIC_MONEY")
     fus = p.get("suggested_followups") or []
     if not fus:
         out.append("FU_NONE")
@@ -274,6 +333,9 @@ def repeat_flips(convs: list) -> list:
     return flips
 
 
+_ONLY_CHAINS = set()
+
+
 async def run(personas, repeats, use_judge):
     async def nop(*a, **k):
         return None
@@ -297,6 +359,8 @@ async def run(personas, repeats, use_judge):
         profile = {k: v for k, v in row.items() if k != "lagna_sign"}
         for rep in range(repeats):
             for chain_name, steps in CHAINS[persona["lang"]].items():
+                if _ONLY_CHAINS and chain_name not in _ONLY_CHAINS:
+                    continue
                 jobs.append(run_chain(sem, persona, chain_name, steps, rep, profile, chart_lean, use_judge))
     convs = await asyncio.gather(*jobs)
     return convs
@@ -387,9 +451,11 @@ if __name__ == "__main__":
     ap.add_argument("--repeats", type=int, default=2)
     ap.add_argument("--persona", action="append")
     ap.add_argument("--no-judge", action="store_true")
+    ap.add_argument("--chains", help="comma list, e.g. love,health (default: all)")
     ap.add_argument("--rescore", help="re-check a saved conv_*.json instead of running")
     a = ap.parse_args()
     ps = [p for p in PERSONAS if not a.persona or p["name"] in a.persona]
+    _ONLY_CHAINS.update(x.strip() for x in (a.chains or "").split(",") if x.strip())
     convs = rescore(a.rescore) if a.rescore else asyncio.run(run(ps, a.repeats, not a.no_judge))
     stamp = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H%M")
     outdir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "Antar.world", "answer_audit")

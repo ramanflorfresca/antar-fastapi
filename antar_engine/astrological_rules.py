@@ -720,6 +720,25 @@ def detect_concern(question: str) -> str:
     if any(w in q for w in specul_words):
         return "speculation"
 
+    # ── "alone or with a partner?" is a BUSINESS question, not love (audit-wider 2026-10-05) ──
+    try:
+        from antar_engine.partner_lean import is_alone_or_partner as _iap
+        if _iap(question) and not any(w in q for w in ("husband", "wife", "boyfriend", "girlfriend", "marriage")):
+            return "business"
+    except Exception:
+        pass
+
+    # ── Personal energy / stamina → health (audit-wider 2026-10-05) ───────────
+    # Our own health chip "When does my energy pick up?" routed to BUSINESS (the business
+    # list below contains "pick up"), so a question about being tired got a business window.
+    # Only the reader's OWN energy: "my energy", "drain(ing) my energy", EN/ES/PT/Hinglish.
+    if _fre.search(r"\b(my|mi|minha|meri|mera|mere)\s+(energy|energ[ií]a|energia|stamina|vitality|vitalidad|"
+                   r"vitalidade|urja|thakaan)\b|\b(drain\w*|exhaust\w*|sap\w*|drena\w*|drenando|"
+                   r"cansad[oa]|agotad[oa])\b[^.?!]{0,20}\b(energy|energ[ií]a|energia)\b|"
+                   r"\b(energy|energ[ií]a|energia)\s+(pick\w* up|sube|melhora|badh\w*|returns?|comes? back)\b", q) \
+            and not any(w in q for w in ("energy sector", "energy company", "energy business", "energy stock")):
+        return "health"
+
     # ── Running a business / startup growth (2026-07-21) ──────
     # There was no business branch at all, so "my startup's growth is slow,
     # my team does the selling" matched nothing and fell through to "general".
@@ -932,7 +951,7 @@ def detect_concern(question: str) -> str:
         return "wealth"
 
     # ── Finance (general money questions) ─────────────────────
-    finance_words = ["financ","money","business","revenue","budget","payment","cashflow","cash flow","earning","afford","economic",
+    finance_words = ["flujo de caja","fluxo de caixa","cash flow","financ","money","business","revenue","budget","payment","cashflow","cash flow","earning","afford","economic",
                      "afford","economic"]
     if any(w in q for w in finance_words):
         return "finance"
@@ -966,6 +985,21 @@ def detect_concern(question: str) -> str:
                        "inner peace","detachment","renunciation","self-realization"]
     if any(w in q for w in spiritual_words):
         return "spiritual"
+
+    # ── Family / home life (audit-wider 2026-10-05) ───────────────────────
+    # There was no family route: "the pressure at home", "my family life" fell to general and
+    # were read from the WORK houses ("your reputation and work standing are strong" in a
+    # family answer). Checked last, so property / children / love / health keep their own routes.
+    family_words = ["family life","my family","home life","at home","tension at home","pressure at home",
+                    "household","in-laws","in laws","my parents","family tension","family pressure",
+                    "family situation","family matters","domestic life",
+                    "vida familiar","mi familia","en casa","tensión en casa","tension en casa","presión en casa",
+                    "presion en casa","hogar","ambiente en casa","vida en familia",
+                    "minha família","minha familia","em casa","tensão em casa","tensao em casa","pressão em casa",
+                    "pressao em casa","vida em família","vida em familia",
+                    "ghar ka","ghar ki","ghar mein","ghar me","parivaar","parivar","family ke","meri family"]
+    if any(w in q for w in family_words):
+        return "family"
 
     # ── Business fallback — if biz keywords present but nothing
     #    more specific matched, route to finance ────────────────

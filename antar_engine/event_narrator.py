@@ -52,7 +52,7 @@ _POSITIVE_DUSTHANA = {
 # Which divisional confirms each event, and the karaka that carries it.
 _EVENT_VARGA = {
     "funding": "d10", "career": "d10", "marriage": "d9",
-    "relocation": "d4", "health": "d1", "litigation": "d1", "general": "d10",
+    "relocation": "d4", "health": "d1", "litigation": "d1", "general": "d10", "family": "d4",
 }
 _EVENT_KARAKA = {           # 7-scheme abbrs (founder ruling R4)
     "marriage": "DK", "career": "AmK", "funding": "AmK", "general": "AmK",
@@ -331,6 +331,7 @@ _EE_NOUN_BY_EVENT = {
     "domestic_move":   "domestic move window",
     "relocation":      "relocation window",
     "general":         "opening",
+    "family":          "family window",
 }
 
 
