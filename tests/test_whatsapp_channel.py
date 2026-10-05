@@ -1321,3 +1321,20 @@ def test_storage_not_set_up_fails_open_rather_than_locking_everyone_out(m, monke
     cv = _Conv(m, monkeypatch, link=_link(), policy="unknown")
     cv.run("When will I change jobs?")
     assert len(cv.asked) == 1
+
+
+# [tg-disclaimer 2026-10-05] Telegram's renderer dropped the payload disclaimer too.
+def test_telegram_carries_the_disclaimer_once_before_suggestions():
+    from antar_engine import messaging as m
+    for p in _dz_payloads():
+        p = dict(p, suggested_questions=["What should I watch for?"])
+        text = m.format_ask_for_telegram(p, "en")
+        assert text.count("not a diagnosis") == 1
+        assert "_An analysis" not in text          # plain text — no WhatsApp italics
+        assert text.index("not a diagnosis") < text.index("You could also ask")
+
+
+def test_telegram_without_a_disclaimer_is_unchanged():
+    from antar_engine import messaging as m
+    p = dict(_dz_payloads()[0]); p.pop("disclaimer")
+    assert "planetary positions" not in m.format_ask_for_telegram(p, "en")
