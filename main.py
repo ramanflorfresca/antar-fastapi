@@ -24510,6 +24510,7 @@ def _is_wealth_magnitude_q(question):
     _stability = any(w in ql for w in (
         "will it last", "will my wealth last", "will the money last", "hold on to",
         "hold onto", "keep the money", "concentrate or diversify", "diversify",
+        "diversificar",
         "spread my bets", "spread the bets", "put everything", "put all my",
         "all my eggs", "go all in", "all-in", "bet the house", "how should i size",
     ))
@@ -27975,6 +27976,11 @@ async def ask_endpoint(request: AskRequest):
                             "sizing, but execution and market decide which vehicle catches it. "
                             "Be direct and encouraging; give the magnitude, then the sizing "
                             "discipline, then that boundary. NEVER name a planet, house, or sign.")
+                        from antar_engine.wealth_magnitude import (
+                            LEAN_DIRECTIVE as _wlean, is_concentrate_vs_diversify as _is_cvd)
+                        if _is_cvd(question) and _s.get("lean") in _wlean:
+                            _ask_wealth_block += "\n" + _wlean[_s["lean"]]
+                            print(f"[ask][wealth] concentrate-vs-diversify lean={_s['lean']} ({_s['grade']})")
             except Exception as _wpe:
                 logger.warning(f"[ask] wealth-engine skipped (non-fatal): {_wpe}")
 
@@ -28320,7 +28326,15 @@ async def ask_endpoint(request: AskRequest):
                     _known_earn = ""
                 _ask_compare = bool(_ask_u) and (_und.is_comparison(_ask_u)
                                                  or bool(_ask_u.get("outcome_claim")))
-                if _ask_compare and _und.is_comparison(_ask_u):
+                # [one-lean] concentrate-vs-diversify is answered by the wealth stability
+                # lean — the "don't name a winner" comparison rules would hedge it
+                _cvd_led = False
+                try:
+                    from antar_engine.wealth_magnitude import is_concentrate_vs_diversify as _is_cvd2
+                    _cvd_led = bool(locals().get("_wealth_fired")) and _is_cvd2(question)
+                except Exception:
+                    pass
+                if _ask_compare and _und.is_comparison(_ask_u) and not _cvd_led:
                     # [compare-fit 2026-10-03] hand the comparison the reading's top
                     # career fields so a choice between FIELDS gets a fit lean (live:
                     # "technology or brokerage?" for a tech founder got the
