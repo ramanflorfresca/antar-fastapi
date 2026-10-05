@@ -4831,6 +4831,20 @@ _WA_L = {
                    "pt": "_Uma resposta de sim ou não precisa de uma área clara da vida (trabalho, dinheiro, um relacionamento, uma mudança…) — aqui vai a leitura completa._",
                    "hinglish": "_Haan/na jawab ke liye zindagi ka ek saaf area chahiye (kaam, paisa, rishta, shift…) — yeh poori reading hai._"},
     # [wa-templates 2026-10-03] alert / answer-ready buttons
+    "policy_prompt": {"en": "*Data processing policy*\nTo continue, please accept our data processing policy.\n{url}\n\nReply *ACCEPT* to continue, or *NO* if you don't accept.",
+                      "es": "*Política de tratamiento de datos*\nPara continuar, acepta nuestra política de tratamiento de datos.\n{url}\n\nResponde *ACEPTO* para continuar, o *NO* si no la aceptas.",
+                      "pt": "*Política de tratamento de dados*\nPara continuar, aceite nossa política de tratamento de dados.\n{url}\n\nResponda *ACEITO* para continuar, ou *NÃO* se não aceitar.",
+                      "hinglish": "*Data processing policy*\nAage badhne ke liye hamari data processing policy accept kijiye.\n{url}\n\nAage badhne ke liye *ACCEPT* likhiye, ya *NO* agar aap accept nahi karte."},
+    "policy_ok": {"en": "Thank you — accepted. Ask me anything about your life, timing or a decision.",
+                  "es": "Gracias — aceptado. Pregúntame lo que quieras sobre tu vida, tus tiempos o una decisión.",
+                  "pt": "Obrigado — aceito. Pergunte o que quiser sobre sua vida, seus tempos ou uma decisão.",
+                  "hinglish": "Shukriya — accept ho gaya. Zindagi, timing ya kisi decision ke baare mein kuch bhi poochiye."},
+    "policy_no": {"en": "Understood. Without your authorisation we can't process your messages here. If you change your mind, just reply *ACCEPT*.",
+                  "es": "Entendido. Sin tu autorización no podemos tratar tus mensajes aquí. Si cambias de opinión, responde *ACEPTO*.",
+                  "pt": "Entendido. Sem a sua autorização não podemos tratar suas mensagens aqui. Se mudar de ideia, responda *ACEITO*.",
+                  "hinglish": "Samajh gaye. Aapki ijazat ke bina hum yahan aapke messages process nahi kar sakte. Mann badle to *ACCEPT* likhiye."},
+    "opt_accept": {"en": "Accept", "es": "Acepto", "pt": "Aceito", "hinglish": "Accept"},
+    "opt_decline": {"en": "Don't accept", "es": "No acepto", "pt": "Não aceito", "hinglish": "Accept nahi"},
     "marketing_off": {"en": "Done — no more offers or news from Antar on WhatsApp. Your answers and any alerts you chose stay on.",
                       "es": "Listo — no más ofertas ni novedades de Antar por WhatsApp. Tus respuestas y las alertas que elegiste siguen activas.",
                       "pt": "Pronto — sem mais ofertas ou novidades da Antar no WhatsApp. Suas respostas e os alertas que você escolheu continuam.",
@@ -5416,6 +5430,28 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
             await asyncio.to_thread(_msg.unlink_whatsapp, sb, number)
             send(_wa_text("unlinked", lang))
             return
+
+        # [wa-policy 2026-10-05] data-policy acceptance before anything else (Ley 1581 / DPDP / LGPD):
+        # a number that hasn't accepted the current wording — in the app or here — is asked first.
+        if cmd != "help":
+            _pol = await asyncio.to_thread(_msg.policy_state, sb, number, link)
+            if _pol == "needed":
+                _dec = _msg.parse_policy_reply(body, choice_id)
+                if _dec in ("yes", "no"):
+                    await asyncio.to_thread(_msg.record_policy, sb, number, _dec, lang, link)
+                    print(f"[wa-policy] {_dec} …{number[-4:]}")
+                if _dec == "no":
+                    send(_wa_text("policy_no", lang))
+                    return
+                if _dec is None:
+                    send_choices(_wa_text("policy_prompt", lang, url=_msg.policy_url(lang)), "btn_answer",
+                                 [(_wa_text("opt_accept", lang), "pol:yes", ""),
+                                  (_wa_text("opt_decline", lang), "pol:no", "")])
+                    return
+                if link:                          # accepted: a linked number can ask straight away
+                    send(_wa_text("policy_ok", lang))
+                    return
+                # accepted, not linked yet → fall through to how to connect
 
         if not link:
             secret = os.getenv("WHATSAPP_LINK_SECRET")
