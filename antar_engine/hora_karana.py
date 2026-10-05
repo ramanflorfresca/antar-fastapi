@@ -43,15 +43,19 @@ from typing import Any, Dict, List, Optional
 # Cheap router — these tactical markers indicate the answer must carry
 # a clock boundary, not a date range.
 _TACTICAL_MARKERS = [
-    "today", "right now", "this morning", "this afternoon",
+    "today", "this morning", "this afternoon",
     "this evening", "tonight", "this week",
-    "now ", " now?", " now.", " now,",
     "in the next hour", "in the next few hours",
     "this hour", "before tonight", "before tomorrow",
     # Spanish
-    "hoy", "ahora", "esta tarde", "esta noche", "esta mañana",
+    "hoy", "esta tarde", "esta noche", "esta mañana",
     "en la próxima hora", "en la proxima hora",
 ]
+# [right-now 2026-10-05] "now" words are tactical only when they really mean THIS MOMENT. In
+# "How is my love life looking right now?" / "Why does work feel stuck right now?" they mean
+# "currently" — treating them as tactical put an invented clock ("before 14:02 today") into
+# status answers once the day-scope flag (which had been masking this) was fixed.
+_NOW_MARKERS = ["right now", "now ", " now?", " now.", " now,", "ahora", "agora"]
 
 
 def is_tactical_question(question: str) -> bool:
@@ -59,7 +63,15 @@ def is_tactical_question(question: str) -> bool:
     if not question:
         return False
     q = str(question).lower()
-    return any(m in q for m in _TACTICAL_MARKERS)
+    if any(m in q for m in _TACTICAL_MARKERS):
+        return True
+    if any(m in q for m in _NOW_MARKERS):
+        try:
+            from antar_engine.ask_timeframe import now_means_today
+            return now_means_today(q)
+        except Exception:
+            return True   # fail-open to the old behaviour
+    return False
 
 
 # ─────────────────────────────────────────────────────────────────────

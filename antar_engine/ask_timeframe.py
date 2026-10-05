@@ -86,6 +86,22 @@ def _concern_houses(concern: str):
     return set(cfg.get("houses") or [1]), set(cfg.get("neg_houses") or [])
 
 
+# an act-at-this-moment question, or one about the day itself (EN / ES / PT)
+_NOW_ACTION = re.compile(
+    r"^\s*[¿¡]?\s*(should|shall|can|could|may|do i|am i|is it (a )?(good|bad|right|wise|ok)|is now|"
+    r"debo|puedo|deber[ií]a|es (un )?buen momento|es buena hora|devo|posso|[eé] (um )?bom momento|"
+    r"vale a pena)\b|\bwhat (should|can|do) i do\b|\bqu[eé] (debo|puedo) hacer\b|\bo que (devo|posso) fazer\b|"
+    r"\b(good|right|best|bad) (time|moment)\b|\b(day|morning|afternoon|evening|hour|d[ií]a|manh[aã]|"
+    r"tarde|hora)\b")
+
+
+def now_means_today(question: str) -> bool:
+    """[right-now 2026-10-05] True when a "right now / now / ahora / agora" in the question really
+    means THIS MOMENT (an act-now decision, or the day itself) rather than "currently". One rule,
+    shared by the day-scope detector and hora_karana.is_tactical_question so they cannot drift."""
+    return bool(_NOW_ACTION.search(_norm(question)))
+
+
 def detect_horizon(question: str, today: Optional[date] = None) -> Optional[dict]:
     """Return a horizon spec, or None when the question has no day/window scope
     (so the caller keeps its normal behavior). Specs:
@@ -97,9 +113,16 @@ def detect_horizon(question: str, today: Optional[date] = None) -> Optional[dict
     q = _norm(question)
     today = today or date.today()
 
-    has_today = bool(re.search(
-        r"\btoday\b|\bright now\b|\btonight\b|\bhoy\b|\bahora\b|"
-        r"\besta noche\b|\bhoje\b|\bagora\b|\besta noite\b", q))
+    # [right-now 2026-10-05] "right now / ahora / agora" means "currently" in "How is my love life
+    # looking right now?" / "Why does work feel stuck right now?" — NOT "today". It was read as a
+    # day question (22 of our own suggestion chips), which added per-day instructions and switched
+    # the timing path off. It counts as today only when the question is about ACTING at this
+    # moment ("Should I sign this right now?", "What should I do right now?") or about the day itself.
+    explicit_today = bool(re.search(
+        r"\btoday\b|\btonight\b|\bhoy\b|\besta noche\b|\bhoje\b|\besta noite\b", q))
+    now_word = bool(re.search(r"\bright now\b|\bahora\b|\bagora\b", q))
+    now_is_today = now_word and bool(_NOW_ACTION.search(q))
+    has_today = explicit_today or now_is_today
     has_tom = bool(re.search(r"\btomorrow\b|\bmanana\b|\bamanha\b", q))
     wants_day = bool(re.search(
         r"\b(which|what)\s+day\b|\bbest\s+day\b|\bwhen\b|\bwhat\s+time\b|"
