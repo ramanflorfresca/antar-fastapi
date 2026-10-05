@@ -93,7 +93,7 @@ def checks(q: str, qlang: str, u: dict, read: str, nxt: str) -> list:
         issues.append(f"language: asked {qlang}, answered {got}")
     if qlang == "en" and got in ("es", "pt"):
         issues.append(f"language: asked en, answered {got}")
-    vios = validate_narration(text, language="en")
+    vios = validate_narration(main._ask_voice_text(text, q), language="en")   # same home-question rule as Ask
     if vios:
         issues.append("banned words: " + ", ".join(sorted({str(v).split(':')[0] for v in vios}))[:120])
     no_verdict = und.suppress_verdict(u) or und.is_comparison(u) or (u or {}).get("outcome_claim")
