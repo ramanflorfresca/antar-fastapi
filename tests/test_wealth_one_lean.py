@@ -31,7 +31,7 @@ def test_allocation_statement_detector():
           "When will funding come?"]
     assert all(wm.is_allocation_statement(q) for q in yes)
     assert not any(wm.is_allocation_statement(q) for q in no)
-    assert "already fits" in wm.ALLOCATION_DIRECTIVE["spread"]
+    assert "covers part of it" in wm.ALLOCATION_DIRECTIVE["spread"]   # [audit] not "already the spread"
     assert "Never tell them to pick one" in wm.ALLOCATION_DIRECTIVE["spread"]
 
 

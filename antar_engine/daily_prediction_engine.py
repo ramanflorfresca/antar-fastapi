@@ -1740,14 +1740,27 @@ _BROKEN_PATTERNS = (
 _ADJ_HINT = re.compile(r"\w+(ly|ful|ous|ive|able|ible|al|ic|ant|ent)$", re.I)
 
 
+_PHRASAL_END = re.compile(
+    r"(?i)\b(look|looking|ask|asking|wait|waiting|plan|planning|aim|aiming|pay|paying|search|"
+    r"rely|relying|count|counting|depend|depending|focus|focusing|work|working|deal|dealing|"
+    r"talk|talking|listen|listening|go|turn|reach out|care|think|worry|come|comes|"
+    r"answer|account|hope|hoping|stand|vote|fight|apply|sign up|follow up|check in)\s+"
+    r"(for|on|with|to|about|from|in|up)\s*[.!?]")
+
+
 def _looks_broken(text) -> bool:
     """True if a user-facing sentence has an unrecoverable structural break."""
     if not isinstance(text, str) or len(text.strip()) < 8:
         return False
     t = text.strip()
     # dangling function word before dash / punctuation / end
-    for rx in _BROKEN_PATTERNS[:4]:
-        if rx.search(t):
+    for i, rx in enumerate(_BROKEN_PATTERNS[:4]):
+        m = rx.search(t)
+        # [phrasal-end 2026-10-04] "who to look for." / "someone you can rely on." end on a
+        # preposition legitimately — trimming it made "who to look" (conversation audit)
+        if m and i == 2 and _PHRASAL_END.search(t[:m.end()]):
+            continue
+        if m:
             return True
     # determiner + adjective + determiner (no noun): "the favorable your ..."
     for m in _BROKEN_PATTERNS[4].finditer(t):
@@ -1758,8 +1771,12 @@ def _looks_broken(text) -> bool:
     # Split on em-dash ONLY, never en-dash: en-dash is a RANGE connector
     # ("February–March", "Jul 2026 – Oct 2026") whose short tail is a label, not
     # a dangling sentence — flagging it was a false positive.
-    for seg in re.split(r"—", t)[1:]:
-        tail = seg.strip()
+    # [aside-dash 2026-10-04] only the LAST segment can dangle — a short aside BETWEEN two
+    # dashes ("Move a fixed share — 10% — of every payment…") is a complete sentence; flagging
+    # it cut the move to "Move a fixed share." (conversation audit, INCOMPLETE_MOVE ×8)
+    _segs = re.split(r"—", t)
+    if len(_segs) > 1:
+        tail = _segs[-1].strip()
         if tail and len(re.findall(r"\w+", tail.split(".")[0])) < 2:
             return True
     return False
