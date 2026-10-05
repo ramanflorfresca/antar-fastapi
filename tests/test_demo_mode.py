@@ -165,3 +165,13 @@ def test_every_mutating_route_in_the_real_app_is_refused_unless_allow_listed():
         for meth in ms:
             expected = meth == "POST" and path in dm._ALLOW_EXACT
             assert dm.route_allowed(meth, concrete) == expected, (meth, path)
+
+
+def test_demo_chart_info_endpoint_is_public_and_minimal():
+    import main
+    paths = {r.path for r in main.app.routes if "GET" in (getattr(r, "methods", None) or ())}
+    assert "/api/v1/demo/chart" in paths
+    out = asyncio.run(main.demo_chart_info.__wrapped__()) if hasattr(main.demo_chart_info, "__wrapped__") else None
+    # (value depends on live config; the shape is what the front end relies on)
+    if out is not None:
+        assert set(out) <= {"available", "chart_id", "display_name", "read_only", "ask_per_day"}

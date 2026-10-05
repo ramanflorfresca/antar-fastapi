@@ -48088,6 +48088,19 @@ def _support_log_write(row: dict) -> None:
         print(f"[support] log write skipped (non-fatal): {e!r}")
 
 
+@app.get("/api/v1/demo/chart")
+async def demo_chart_info():
+    """[demo-mode] Public: which chart the "Try the demo" button opens, if any.
+    {available:false} until scripts/seed_demo_chart.py has run — the front end then
+    hides the button. Never returns anything but the id and a display name."""
+    from antar_engine.demo_mode import demo_chart_id
+    cid = await asyncio.to_thread(demo_chart_id, supabase)
+    if not cid:
+        return {"available": False}
+    return {"available": True, "chart_id": cid, "display_name": "Alex",
+            "read_only": True, "ask_per_day": 15}
+
+
 @app.post("/api/v1/support")
 async def support_agent_endpoint(request: SupportRequest, http_request: Request = None):
     import asyncio as _sup_aio
