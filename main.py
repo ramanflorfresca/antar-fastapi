@@ -31245,6 +31245,7 @@ async def ask_endpoint(request: AskRequest):
                 print(f"[ask][integrity] non-fatal: {_ige}")
             try:   # [outcome-loop] a checkable claim → prediction_claims
                 from antar_engine.outcomes import build_claim as _oc_build, record_claim as _oc_rec
+                from antar_engine import outcomes as _oc
                 _oc_claim = _oc_build(chart_id, _ASK_TYPED_Q.get() or question, payload,
                                       mode="explore", topic=locals().get("_ask_concern") or "general",
                                       language=language, channel=_ASK_CHANNEL.get(),
@@ -31254,6 +31255,16 @@ async def ask_endpoint(request: AskRequest):
                     if _oc_id:
                         print(f"[outcomes] claim {_oc_claim['claim_type']} {_oc_claim['topic']} "
                               f"{_oc_claim['window_start']}→{_oc_claim['window_end']}")
+                        # [checkin-visible 2026-10-05] Surface WHEN we'll come back
+                        # and ask whether this happened. The store listing promises
+                        # "dated answers, then it checks" — until this shipped, the
+                        # answer card showed the date and said nothing about the
+                        # check. Only for sources the check-in job actually sends
+                        # to (CHECKIN_SOURCES = ask_explore): a yes/no claim is
+                        # recorded but never asked about, so promising a check-back
+                        # there would be a lie the UI couldn't keep.
+                        if _oc_claim.get("source") in _oc.CHECKIN_SOURCES:
+                            payload["checkin_due_at"] = _oc_claim.get("checkin_due_at")
             except Exception as _oce:
                 print(f"[outcomes] claim skipped (non-fatal): {_oce}")
             _ask_attach_disclaimer(payload, locals().get("_ask_concern"), language)
