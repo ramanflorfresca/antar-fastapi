@@ -172,11 +172,13 @@ JUDGE_CONV = (
     "ALLOWED: what 'the reading' shows, timing windows, gentle next steps, facts in the KNOWN PROFILE.\n"
     "PROBLEMS: (1) CONTRADICTION — an answer or move contradicts an earlier answer in the same "
     "conversation (e.g. 'spread across ventures' then 'pick one venture'); (2) ODD PHRASE — a phrase "
-    "that reads wrong or unnatural to a native speaker (wrong word, wrong register, forced vocabulary "
-    "like 'your appearance in the market', a family word dropped into a business answer); "
+    "that reads wrong or unnatural to a native speaker (wrong word, wrong register, forced vocabulary, "
+    "a family word dropped into a business answer); "
     "(3) ASSUMPTION — states as fact something about the person not in the profile or their messages "
     "(a partner, children, a loan, raising money); (4) NON-ANSWER — doesn't answer what was asked; "
     "(5) INCOMPLETE MOVE — the next step is cut off or missing.\n"
+    "QUOTE RULE: every item must begin with an EXACT quote copied from the conversation in single "
+    "quotes, then a short reason. Never report something that is not in the text.\n"
     "Reply STRICT JSON only: {\"contradictions\": [short quotes], \"odd_phrases\": [short quotes], "
     "\"assumptions\": [short quotes], \"non_answers\": [question text], \"incomplete_moves\": [quotes], "
     "\"score\": 1-5}")
@@ -297,6 +299,16 @@ async def run(personas, repeats, use_judge):
     return convs
 
 
+def _verified(item, convo_text: str) -> bool:
+    """[audit-honesty] keep a judge finding only if the phrase it quotes is really in the
+    conversation — the judge echoed its own prompt example ('your appearance in the market')."""
+    m = re.search(r"'([^']{4,200})'", str(item))
+    if not m:
+        return True
+    norm = lambda x: re.sub(r"[^\w%]+", " ", x.lower()).strip()
+    return norm(m.group(1))[:60] in norm(convo_text)
+
+
 def report(convs: list, stamp: str) -> str:
     classes = {}
     def add(cls, ex):
@@ -309,18 +321,26 @@ def report(convs: list, stamp: str) -> str:
                 add(i, f"{t['persona']} · {t['chain']} · {'tap '+t['tap'] if t.get('tap') else 'turn'} · "
                        f"“{t['q']}” → {(t.get('read') or t.get('error') or '')[:160]} | MOVE: {(t.get('next') or '')[:100]}")
         j = c.get("judge") or {}
+        convo_text = " ".join(f"{t.get('q','')} {t.get('read','')} {t.get('next','')}" for t in c["turns"])
         for key, cls in (("contradictions", "JUDGE_CONTRADICTION"), ("odd_phrases", "JUDGE_ODD_PHRASE"),
                          ("assumptions", "JUDGE_ASSUMPTION"), ("non_answers", "JUDGE_NON_ANSWER"),
                          ("incomplete_moves", "JUDGE_INCOMPLETE_MOVE")):
             for x in j.get(key) or []:
+                if key != "non_answers" and not _verified(x, convo_text):
+                    add("JUDGE_UNVERIFIED (ignored)", f"{c['persona']} · {str(x)[:120]}")
+                    continue
                 add(cls, f"{c['persona']} · {c['chain']} · rep {c['rep']} · {str(x)[:200]}")
     for f in repeat_flips(convs):
         add(f"REPEAT_FLIP_{f['field'].upper()}", f"{f['persona']} · {f['chain']} · “{f['q']}” → {f['values']}")
     scores = [c["judge"].get("score") for c in convs if isinstance((c.get("judge") or {}).get("score"), (int, float))]
+    _ign = classes.pop("JUDGE_UNVERIFIED (ignored)", [])
     order = sorted(classes.items(), key=lambda kv: -len(kv[1]))
+    if _ign:
+        order.append(("JUDGE_UNVERIFIED (ignored — quote not in the text)", _ign))
     lines = [f"# Conversation audit {stamp}", "",
              f"{len(convs)} conversations · {n_turns} answers · "
              f"{sum(len(v) for v in classes.values())} findings in {len(classes)} classes"
+             + (f" ({len(_ign)} unverified judge quotes ignored)" if _ign else "")
              + (f" · mean judge {sum(scores)/len(scores):.2f}/5" if scores else ""), "",
              "## Classes (most frequent first)", ""]
     lines += [f"- **{k}**: {len(v)}" for k, v in order]

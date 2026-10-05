@@ -1407,7 +1407,9 @@ def next_floor(nxt, language: str = "en"):
     if nxt is None or (isinstance(nxt, str) and not nxt.strip()):
         return nxt
     if isinstance(nxt, str) and len(re.findall(r"\w+", nxt)) < 6:
-        return _NEXT_FLOOR.get(language if language in ("es", "pt", "hinglish") else "en")
+        # [audit-b3] hand over to answer_polish's topic-specific fallback — the generic
+        # "write down the one outcome you want here" replaced concrete all-in moves
+        return None
     return nxt
 
 

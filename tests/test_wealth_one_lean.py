@@ -64,7 +64,7 @@ def test_opener_drops_the_narrators_echo():
     r = wm.apply_alloc_opener("Harleen, the split itself is the risk — the reading says concentrate, not "
                               "divide. Back whichever of the two is already earning more.", "conc_multi",
                               "en", "Harleen")
-    assert r.count("concentrate") == 1 and "Back whichever" in r
+    assert "split itself is the risk" not in r and "Back whichever" in r
 
 
 def test_stranded_preposition_is_not_broken():
@@ -97,4 +97,4 @@ def test_lean_guards_exist_for_both_leans():
 def test_spanish_echo_dropped():
     r = wm.apply_alloc_opener("Jaime, un único emprendimiento concentrando todo es exactamente el riesgo que la "
                               "lectura señala. Protege tus ahorros.", "spread_single", "es", "Jaime")
-    assert r.count("riesgo") == 1 and "Protege tus ahorros" in r
+    assert "exactamente el riesgo" not in r and "Protege tus ahorros" in r
