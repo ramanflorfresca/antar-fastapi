@@ -197,6 +197,14 @@ def turn_checks(p: dict, q: str, lang: str, persona: dict, profile: dict, chart_
     if chart_lean == "concentrate" and _hits(_SPREAD, f"{read} {nxt}") and not _hits(_CONC, sents[0] if sents else ""):
         out.append("LEAN_CONTRADICTION")
     low_q = q.lower()
+    # an invented clock ("before 14:02 today", "act before 2 PM") in an answer to a question that
+    # never asked about the day or acting now — [right-now 2026-10-05]
+    if re.search(r"(?i)\b\d{1,2}:\d{2}\b|\b\d{1,2}\s?(am|pm)\b", f"{read} {nxt}"):
+        from antar_engine.ask_timeframe import now_means_today
+        if not (re.search(r"(?i)\b(today|tonight|tomorrow|this (morning|afternoon|evening|week)|hoy|hoje|"
+                          r"ma[nñ]ana|amanh[aã]|kal|aaj|time of day|best time|hour|hora)\b", low_q)
+                or now_means_today(q)):
+            out.append("CLOCK_UNASKED")
     # day/week questions must stay about the day/week, not a multi-year chapter
     if re.search(r"(?i)\b(tomorrow|this week|my week|ma[nñ]ana|semana|kal|hafte|hafta)\b", low_q) and \
             len(set(re.findall(r"20\d\d", read + " " + (p.get("timing") or ""))) ) >= 2:
