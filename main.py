@@ -23794,7 +23794,7 @@ _ASK_CHART_FIX = [
 ]
 
 
-def _ask_attach_disclaimer(payload, concern, language):
+def _ask_attach_disclaimer(payload, concern, language, question=None):
     """[appstore-disclaimer 2026-10-05] Attach the domain disclaimer, in place.
 
     Health / money / legal / fertility answers must carry their qualifier on the
@@ -23817,7 +23817,8 @@ def _ask_attach_disclaimer(payload, concern, language):
                    payload.get("read"), payload.get("next"), payload.get("why"),
                    payload.get("verdict"),
                    " ".join(str(a) for a in (payload.get("actions") or [])),
-                   language=language)
+                   language=language,
+                   question=question or payload.get("question"))
         if _dz:
             payload["disclaimer"] = _dz
     except Exception as _dze:
@@ -31256,7 +31257,7 @@ async def ask_endpoint(request: AskRequest):
                               f"{_oc_claim['window_start']}→{_oc_claim['window_end']}")
             except Exception as _oce:
                 print(f"[outcomes] claim skipped (non-fatal): {_oce}")
-            _ask_attach_disclaimer(payload, locals().get("_ask_concern"), language)
+            _ask_attach_disclaimer(payload, locals().get("_ask_concern"), language, question)
             await _ask_persist(supabase, chart_id, question, payload, language,
                                "explore", locals().get("_ask_concern"))
             return payload
@@ -31356,7 +31357,7 @@ async def ask_endpoint(request: AskRequest):
                                        _ask_practice_cta(locals().get("_ask_concern"), language))
                 except Exception:
                     pass
-                _ask_attach_disclaimer(payload, locals().get("_ask_concern"), language)
+                _ask_attach_disclaimer(payload, locals().get("_ask_concern"), language, question)
                 return payload
 
             # 2. NOT LOCKED — cast a fresh chart at the moment of asking.
@@ -31772,7 +31773,7 @@ async def ask_endpoint(request: AskRequest):
                     await asyncio.to_thread(_oc_rec, supabase, _oc_claim)
             except Exception as _oce:
                 print(f"[outcomes] yesno claim skipped (non-fatal): {_oce}")
-            _ask_attach_disclaimer(payload, locals().get("_ask_concern"), language)
+            _ask_attach_disclaimer(payload, locals().get("_ask_concern"), language, question)
             await _ask_persist(supabase, chart_id, question, payload, language,
                                "yesno", locals().get("_ask_concern"))
             return payload

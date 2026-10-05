@@ -153,10 +153,41 @@ _TEXT = {
 }
 
 
-def _domain(concern: Optional[str], blob: str) -> Optional[str]:
+# [yesno-disclaimer 2026-10-05] What the person ASKED is the strongest domain signal.
+# A Yes/No answer is a short timing line ("the timing is not aligned yet…") with
+# no herb or court words in it, and its concern label is generic — so the text
+# sniff below found nothing and "Will my health improve this year?" shipped with
+# no disclaimer at all. Mirrors main.py's _is_health_q / _is_legal_q lists.
+_Q_HEALTH = re.compile(
+    r"(?i)my health|health issue|illness|\bsick\b|disease|my body|diagnos|surgery|hospital|"
+    r"medical|recover|chronic|\bpain\b|\bache\b|immun|always tired|fatigue|wellness|"
+    r"be healthy|\bheal|ailment|(an|my|the) operation\b|blood pressure|diabetes|anxiety|depress|cancer|"
+    r"salud|enferm|dolor|saúde|doen[cç]a|sehat|bimar")
+_Q_FERTILITY = re.compile(
+    r"(?i)conceiv|pregnan|fertil|\bivf\b|miscarr|trying (for|to have) (a )?(baby|child)|"
+    r"(have|having) a (baby|child)|embarazo|embarazada|gravidez|gr[aá]vida|garbh")
+_Q_LEGAL = re.compile(
+    r"(?i)lawsuit|\bcourt\b|my case|win the case|lose the case|being sued|\bsuing\b|\bsue\b|"
+    r"litigation|(the|my|a) trial\b|court hearing|hearing date|settlement|the judge|custody|restraining order|arbitration|"
+    r"legal (case|matter|dispute|battle|trouble|action|fight)|demanda|juicio|processo|tribunal|"
+    r"adalat|mukadma")
+_Q_MONEY = re.compile(
+    r"(?i)invest|\bstocks?\b|share market|shares in|crypto|bitcoin|forex|trading|lottery|lotto|"
+    r"gambl|casino|poker|betting|\bbet\b|wager|mutual fund|\bloan\b|"
+    r"inversi|invertir|investir|apuesta|aposta|loter")
+
+
+def _domain(concern: Optional[str], blob: str, question: Optional[str] = None) -> Optional[str]:
     c = (concern or "").strip().lower()
     if c in _CONCERN_MAP:
         return _CONCERN_MAP[c]
+    q = question or ""
+    if q:
+        # same precedence as the text sniff: health is the sharpest risk
+        for dom, rx in (("health", _Q_HEALTH), ("fertility", _Q_FERTILITY),
+                        ("legal", _Q_LEGAL), ("money", _Q_MONEY)):
+            if rx.search(q):
+                return dom
     # Content sniff — order matters: health substances are the sharpest risk,
     # and a money/legal word can appear incidentally in a health answer.
     if _HEALTH_RX.search(blob):
@@ -170,7 +201,8 @@ def _domain(concern: Optional[str], blob: str) -> Optional[str]:
     return None
 
 
-def disclaimer_for(concern: Optional[str], *texts, language: str = "en") -> Optional[str]:
+def disclaimer_for(concern: Optional[str], *texts, language: str = "en",
+                    question: Optional[str] = None) -> Optional[str]:
     """The disclaimer this answer must carry, or None.
 
     `concern` is the Ask concern label; `texts` are the user-visible answer
@@ -179,9 +211,9 @@ def disclaimer_for(concern: Optional[str], *texts, language: str = "en") -> Opti
     so the FE can style it as a disclaimer rather than as part of the answer.
     """
     blob = " ".join(str(t) for t in texts if t)
-    if not blob.strip() and not concern:
+    if not blob.strip() and not concern and not question:
         return None
-    dom = _domain(concern, blob)
+    dom = _domain(concern, blob, question)
     if not dom:
         return None
     return _TEXT[dom].get(_lang(language)) or _TEXT[dom]["en"]

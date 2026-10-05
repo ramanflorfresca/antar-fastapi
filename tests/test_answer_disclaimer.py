@@ -93,3 +93,34 @@ def test_disclaimer_never_denies_a_shipped_feature(concern, text):
         assert banned not in low, f"denial-register phrase back in: {banned!r}"
     assert "planetary positions" in low, "name the method, not only what it isn't"
     assert "not a guarantee" in low or "not a diagnosis" in low
+
+
+# [yesno-disclaimer 2026-10-05] Yes/No answers are a short timing line with no herb
+# or court words, and a generic concern — production returned disclaimer=None for
+# "Will my health improve this year?". The QUESTION decides the domain.
+@pytest.mark.parametrize("q,needle", [
+    ("Will my health improve this year?", "not a diagnosis"),
+    ("Am I going to recover from this surgery soon?", "not a diagnosis"),
+    ("Will I win my court case?", "not legal advice"),
+    ("Should I put my savings into crypto this week?", "not financial advice"),
+    ("Will I get pregnant this year?", "clinical answer about conceiving"),
+])
+def test_yesno_domain_comes_from_the_question(q, needle):
+    d = disclaimer_for("general", "The timing is not aligned yet.", "NO", language="en", question=q)
+    assert d and needle in d
+
+
+@pytest.mark.parametrize("q", [
+    "Should I take this job offer?",
+    "Is the operations manager role right for me?",
+    "Will I hear back about the interview?",
+    "Should I start my free trial?",
+    "Can I share my story with my family?",
+])
+def test_ordinary_questions_get_no_disclaimer(q):
+    assert disclaimer_for("general", "The timing is not aligned yet.", language="en", question=q) is None
+
+
+def test_question_cannot_override_a_set_concern_and_es_still_works():
+    assert "not financial advice" in disclaimer_for("money", "x", language="en", question="Will my health improve?")
+    assert disclaimer_for("general", "x", language="es", question="¿Mejorará mi salud?").startswith("Un análisis")
