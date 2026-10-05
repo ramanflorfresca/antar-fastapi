@@ -19,6 +19,7 @@ mirror the node-in-money-house logic already in concern_engines for stability, b
 turn it into actionable sizing advice.
 """
 from __future__ import annotations
+import re
 from typing import Optional, List, Dict, Any
 
 from antar_engine.yogas import (
@@ -133,7 +134,7 @@ def _stability(planets: dict, lagna_sign: str) -> Dict[str, Any]:
 
     if ketu_h in _MONEY_HOUSES:
         return {
-            "grade": "fragile", "node": f"Ketu-{ketu_h}",
+            "grade": "fragile", "node": f"Ketu-{ketu_h}", "lean": "spread",
             "sizing_advice": ("Gains here arrive but tend to DISSOLVE — putting "
                 "everything into one venture is the trap. Cap how much you commit to "
                 "any single venture, take profits out as they come, and never let "
@@ -143,7 +144,7 @@ def _stability(planets: dict, lagna_sign: str) -> Dict[str, Any]:
         }
     if rahu_h == 11:
         return {
-            "grade": "volatile", "node": "Rahu-11",
+            "grade": "volatile", "node": "Rahu-11", "lean": "spread",
             "sizing_advice": ("A large but SWINGY engine — big upside with a pull "
                 "to over-reach. Spread across several ventures and cap how much "
                 "rides on each; running more than one is the chart-fit move, not a "
@@ -153,7 +154,7 @@ def _stability(planets: dict, lagna_sign: str) -> Dict[str, Any]:
         }
     if rahu_h in (2, 8):
         return {
-            "grade": "volatile", "node": f"Rahu-{rahu_h}",
+            "grade": "volatile", "node": f"Rahu-{rahu_h}", "lean": "spread",
             "sizing_advice": ("Money here can inflate then reverse and invites "
                 "over-leverage. Keep debt modest, size positions so a reversal "
                 "can't sink you, and don't mistake a fast run-up for a floor."),
@@ -169,18 +170,44 @@ def _stability(planets: dict, lagna_sign: str) -> Dict[str, Any]:
                 afflicted = True
     if afflicted:
         return {
-            "grade": "moderate", "node": None,
+            "grade": "moderate", "node": None, "lean": "concentrate",
             "sizing_advice": ("Steady rather than explosive, with some drag — grow "
                 "by compounding what works and avoid forcing the pace. Reinvest "
                 "deliberately; don't chase."),
             "drivers": ["a hard planet weighs on a money area — steady, some friction"],
         }
     return {
-        "grade": "stable", "node": None,
+        "grade": "stable", "node": None, "lean": "concentrate",
         "sizing_advice": ("Gains tend to HOLD — you can concentrate on what's "
             "working and let it compound rather than spreading thin."),
         "drivers": ["no destabiliser on the money areas — gains tend to hold"],
     }
+
+
+# [one-lean 2026-10-04] the stability grade IS the answer to "concentrate or
+# diversify?" — said once, in sentence one, and the move carries it out. Live
+# (Raman, Rahu-11): "reputation grows when you run more than one venture" + move
+# "close the nearest deal before spreading attention" = a mixed signal.
+LEAN_DIRECTIVE = {
+    "spread": ("THE ANSWER IS: SPREAD — run more than one venture, with a hard cap on how much "
+               "money and time any single one can take, and bank gains as they land. Say this "
+               "plainly in sentence one. `next` MUST carry it out (e.g. set the cap per venture "
+               "this week, or move gains out of the biggest one). Do NOT tell them to focus on "
+               "one deal first, and never recommend concentrating."),
+    "concentrate": ("THE ANSWER IS: CONCENTRATE — put the main effort and money into what is "
+                    "already working and let it compound; don't spread thin. Say this plainly in "
+                    "sentence one. `next` MUST carry it out (e.g. name the one venture to back "
+                    "and what to pause). Never recommend diversifying."),
+}
+
+_CONC_RX = re.compile(r"(?i)concentr|\bfocus|enfoc|\bfoc[ao]r|all[- ]in|put everything|"
+                      r"all my eggs|ek jagah|one place|un solo|um s[oó]")
+_DIV_RX = re.compile(r"(?i)diversif|\bspread|repartir|distribu|alag alag|several|varios|v[aá]rios")
+
+
+def is_concentrate_vs_diversify(question: str) -> bool:
+    q = question or ""
+    return bool(_CONC_RX.search(q) and _DIV_RX.search(q))
 
 
 def wealth_profile(chart_data: dict, dashas: Optional[dict] = None,
