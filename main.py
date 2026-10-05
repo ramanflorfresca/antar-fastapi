@@ -29073,6 +29073,20 @@ async def ask_endpoint(request: AskRequest):
                         print(f"[ask][wealth] lean guard {_lean_g} on {_ask_concern}")
             except Exception as _lge:
                 print(f"[ask][wealth] lean guard non-fatal: {_lge}")
+            # [partner-lean 2026-10-04] "alone or with a partner?" — one answer from the chart
+            _ask_partner_case = ""
+            try:
+                from antar_engine.partner_lean import (is_alone_or_partner as _iap,
+                                                       partner_case as _pcase, PARTNER_DIRECTIVE as _pdir)
+                if _iap(question):
+                    from antar_engine.concern_engines import _vim_active_lords as _val_p
+                    _ask_partner_case = _pcase(chart_data, get_dashas_for_chart(chart_id) or {},
+                                               {str(x).title() for x in (_val_p(_ask_dashas) or set())})
+                    if _ask_partner_case:
+                        _ask_wealth_block = (_ask_wealth_block + "\n" + _pdir[_ask_partner_case]).strip()
+                        print(f"[ask][partner] {_ask_partner_case}")
+            except Exception as _ple:
+                print(f"[ask][partner] non-fatal: {_ple}")
 
             # ── Consultation path (2026-06-03): a timing/decision question
             #    must get verdict + convergence-derived timing + practices
@@ -30917,6 +30931,17 @@ async def ask_endpoint(request: AskRequest):
                             payload[_f] = _v
             except Exception as _lke:
                 print(f"[ask][es-leak] non-fatal: {_lke}")
+            try:
+                if locals().get("_ask_partner_case") and payload.get("read") \
+                        and not payload.get("needs_clarification"):
+                    from antar_engine.wealth_magnitude import apply_alloc_opener as _aao_p
+                    from antar_engine.partner_lean import PARTNER_OPENER as _pop, PARTNER_RESTATE as _prs
+                    payload["read"] = _aao_p(payload["read"], _ask_partner_case, language,
+                                             str((chart_row.data or {}).get("first_name") or "").strip(),
+                                             openers=_pop, restate=_prs)
+                    print(f"[ask][partner] opener set ({_ask_partner_case})")
+            except Exception as _poe:
+                print(f"[ask][partner] opener non-fatal: {_poe}")
             # [allin-multi 2026-10-04] Python owns sentence one where the narrator's
             # "all in = good" instinct fights the chart (concentrate + 2 ventures,
             # spread + 1). Late, after the voice gates, so nothing rewrites it.
