@@ -65,3 +65,15 @@ def test_opener_drops_the_narrators_echo():
                               "divide. Back whichever of the two is already earning more.", "conc_multi",
                               "en", "Harleen")
     assert r.count("concentrate") == 1 and "Back whichever" in r
+
+
+def test_stranded_preposition_is_not_broken():
+    from antar_engine.daily_prediction_engine import _looks_broken as lb
+    assert not lb("Protect a fixed cash reserve this week that your business cannot draw from, even a small one.")
+    assert lb("Send the deck to.") and lb("Call the, then rest.")
+
+
+def test_hinglish_echo_dropped():
+    r = wm.apply_alloc_opener("Shashi, yahi toh reading ka sabse bada warning hai. Savings ka ek hissa bahar rakho.",
+                              "spread_single", "hinglish", "Shashi")
+    assert "warning" not in r and "Savings ka ek hissa" in r

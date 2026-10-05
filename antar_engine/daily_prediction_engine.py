@@ -1722,8 +1722,13 @@ _BROKEN_PATTERNS = (
     re.compile(r"\b(?<!-)(in|on|at|to|of|the|a|an|for|with|and|or|but|your|his|her|"
                r"their|before|after|by|into|onto|from)\b(?:\s*[—–]\s*|\s+-\s+)"
                r"(?=[a-z]|$)", re.I),
+    # [stranded-prep 2026-10-04] a COMMA after a preposition is ordinary English
+    # ("a reserve your business cannot draw from, even a small one") — flagging it
+    # dropped Shashi's whole YOUR MOVE. Articles/possessives before a comma are still
+    # broken ("the, " / "your, "); prepositions only before a full stop.
+    re.compile(r"\b(?<!-)(the|a|an|your|his|her|their)\s*[,;]", re.I),
     re.compile(r"\b(?<!-)(in|on|at|to|of|the|a|an|for|with|and|or|but|your|his|her|"
-               r"their|before|after|by|into|onto|from)\s*[.,;!?]", re.I),
+               r"their|before|after|by|into|onto|from)\s*[.!?]", re.I),
     re.compile(r"\b(?<!-)(in|on|at|to|of|the|a|an|for|with|and|or|but|your)\s*$", re.I),
     # determiner + word + possessive/determiner with no noun between
     # ("the favorable your", "a strong the")
@@ -1741,11 +1746,11 @@ def _looks_broken(text) -> bool:
         return False
     t = text.strip()
     # dangling function word before dash / punctuation / end
-    for rx in _BROKEN_PATTERNS[:3]:
+    for rx in _BROKEN_PATTERNS[:4]:
         if rx.search(t):
             return True
     # determiner + adjective + determiner (no noun): "the favorable your ..."
-    for m in _BROKEN_PATTERNS[3].finditer(t):
+    for m in _BROKEN_PATTERNS[4].finditer(t):
         mid = m.group(0).split()[1]
         if _ADJ_HINT.search(mid):
             return True
