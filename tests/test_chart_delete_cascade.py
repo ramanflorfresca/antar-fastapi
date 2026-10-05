@@ -50,6 +50,7 @@ def test_tables_that_previously_leaked_are_covered(m):
         assert t in m._CHART_DERIVED_TABLES, f"{t} would leak on chart delete"
 
 
+@pytest.mark.live_db
 def test_every_entry_is_a_real_chart_keyed_deletable_table(m):
     """Three classes of junk were in the list, each failing silently on every
     single delete and filling the response's `partial_cascade` with noise that
@@ -87,6 +88,7 @@ def test_profile_pointer_clear_names_no_phantom_column(m):
     assert '"primary_chart_id", "chart_id"' not in src
 
 
+@pytest.mark.live_db
 def test_profile_pointer_cols_are_real_columns(m):
     if not os.getenv("SUPABASE_URL"):
         pytest.skip("needs Supabase")
@@ -112,7 +114,7 @@ def test_no_duplicates_in_the_list(m):
     assert not dupes, f"duplicated table names: {dupes}"
 
 
-@pytest.mark.skipif(not os.getenv("SUPABASE_URL"), reason="needs Supabase")
+@pytest.mark.live_db
 def test_no_chart_keyed_table_is_missing_from_the_cascade(m):
     """The real guard: ask the SCHEMA which tables carry a chart_id and assert
     the cascade covers them. A new chart-keyed table fails here until it is
