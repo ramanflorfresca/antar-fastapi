@@ -996,6 +996,93 @@ async def _yesno_checkback_job():
           f"(push_configured={push_ok}, email={'on' if email_on else 'off'})")
 
 
+async def _window_open_job():
+    """[saved-decisions 2026-10-05] HOURLY. A decision the user SAVED, whose
+    window has now opened, gets ONE nudge — WhatsApp if they wrote in the last
+    24h (free-form allowed), else push. The due timestamp was computed at save
+    time from their own tz, so this job only has to ask "is it due yet".
+
+    Deliberately simpler than _outcome_checkin_job: no weekly cap and no local
+    hour test, because open_reminder_due_at already encodes the person's ~8 AM
+    and each saved decision can only ever fire once (open_reminder_sent_at).
+    Fail-open per row; sync supabase calls run off the event loop."""
+    from antar_engine import saved_decisions as _sd, push_sender
+    from antar_engine import messaging as _msg
+    import asyncio as _aio_wo
+    now = datetime.now(timezone.utc)
+
+    def _q(fn):
+        return _aio_wo.to_thread(lambda: fn().data or [])
+
+    try:
+        rows = await _q(lambda: supabase.table("saved_decisions")
+                        .select("id,chart_id,question,timing_label,language,"
+                                "window_start,window_end,open_reminder_due_at")
+                        .is_("open_reminder_sent_at", "null")
+                        .is_("archived_at", "null")
+                        .lte("open_reminder_due_at", now.isoformat())
+                        .gte("open_reminder_due_at", (now - timedelta(days=14)).isoformat())
+                        .limit(300).execute())
+    except Exception as e:
+        print(f"[window_open] fetch skipped: {e}")
+        return
+    if not rows:
+        return
+
+    cids = sorted({r["chart_id"] for r in rows})
+    try:
+        charts = {c["id"]: c for c in await _q(lambda: supabase.table("charts")
+                  .select("id,user_id,name").in_("id", cids)
+                  .is_("deleted_at", "null").execute())}
+        toks: dict = {}
+        for t in await _q(lambda: supabase.table("device_tokens")
+                          .select("token,chart_id,platform").in_("chart_id", cids).execute()):
+            if t.get("token"):
+                toks.setdefault(t["chart_id"], []).append(
+                    {"token": t["token"], "platform": t.get("platform")})
+    except Exception as e:
+        print(f"[window_open] context fetch skipped: {e}")
+        return
+
+    stats = {"due": len(rows), "whatsapp": 0, "push": 0, "in_app_only": 0}
+    push_ok = push_sender.is_configured()
+    for r in rows:
+        c = charts.get(r["chart_id"])
+        if not c:
+            continue   # chart deleted since the save; the row dies with it on cascade
+        channel = None
+        try:
+            if c.get("user_id"):
+                links = await _q(lambda: supabase.table("messaging_links").select("*")
+                                 .eq("channel", "whatsapp").eq("user_id", c["user_id"])
+                                 .eq("status", "linked").limit(1).execute())
+                if links:
+                    ctx = _msg.link_context(links[0])
+                    last_in = float(ctx.get("last_in") or 0)
+                    if _msg.wa_window_open(last_in) and not ctx.get("opted_out"):
+                        ok = await _aio_wo.to_thread(
+                            _msg.whatsapp_send, links[0]["channel_user_id"],
+                            _sd.whatsapp_message(r), last_in)
+                        if ok:
+                            channel = "whatsapp"
+            if not channel and push_ok and toks.get(r["chart_id"]):
+                title, body = _sd.push_message(r)
+                sent = await push_sender.send_to_tokens(
+                    supabase, toks[r["chart_id"]], title=title, body=body,
+                    data={"type": "window_open", "route": "/ask",
+                          "decision_id": str(r["id"])})
+                if sent.get("sent"):
+                    channel = "push"
+            channel = channel or "in_app_only"
+            stats[channel] = stats.get(channel, 0) + 1
+            await _aio_wo.to_thread(lambda: supabase.table("saved_decisions").update(
+                {"open_reminder_sent_at": now.isoformat(),
+                 "open_reminder_channel": channel}).eq("id", r["id"]).execute())
+        except Exception as e:
+            print(f"[window_open] {r['id']} skipped (non-fatal): {e}")
+    print(f"[window_open] {stats}")
+
+
 async def _outcome_checkin_job():
     """[outcome-loop-checkins 2026-10-02] HOURLY. Dated Ask claims whose window
     ended (prediction_claims, source ask_explore) get ONE "did it happen?" at the
@@ -1858,6 +1945,8 @@ scheduler.add_job(_ping_checkin_job, "cron", minute=9,
 scheduler.add_job(_yesno_checkback_job, "cron", minute=13,
                   id="yesno_checkback", replace_existing=True)  # hourly; Yes/No "did it happen?" at local ~8 AM
 scheduler.add_job(_wa_alert_job, "cron", minute=25, id="wa_alerts", replace_existing=True)
+scheduler.add_job(_window_open_job, "cron", minute=25,
+                  id="window_open", replace_existing=True)  # hourly; saved decisions whose window just opened
 scheduler.add_job(_outcome_checkin_job, "cron", minute=15,
                   id="outcome_checkin", replace_existing=True)  # hourly; dated Ask claims "did it happen?" at local ~8 AM
 scheduler.add_job(_accuracy_board_job, "cron", hour=3, minute=40,
@@ -6202,6 +6291,144 @@ def outcomes_answer(claim_id: str, body: _OutcomeIn, authorization: str = Header
     if not _oc.record_outcome(supabase, claim_id, body.outcome, body.note, via="app"):
         raise HTTPException(503, "could not save the answer")
     return {"saved": True, "claim_id": claim_id, "outcome": body.outcome}
+
+
+# ── Saved decisions: the user's own list, and the window-OPEN reminder ──
+# [saved-decisions 2026-10-05] prediction_claims is what ANTAR said, recorded
+# silently so the engine can be scored. This is what the USER chose to keep, and
+# it is the half that changes what the app takes in rather than what it puts out.
+class _DecisionIn(BaseModel):
+    chart_id: str
+    question: str
+    verdict: Optional[str] = None
+    timing: Optional[str] = None
+    window_start: Optional[str] = None
+    window_end: Optional[str] = None
+    note: Optional[str] = None
+    language: Optional[str] = "en"
+    claim_id: Optional[str] = None
+    tz_offset: Optional[int] = None          # MINUTES, as the web client sends
+
+
+def _dec_tz_hours(tz_offset) -> float:
+    """The web client sends tz in MINUTES; every scheduling maths here is HOURS.
+    [daily-engine-tz-units] shipped a bug for exactly this reason — convert once,
+    at the edge, and never pass raw minutes further in."""
+    try:
+        return float(tz_offset) / 60.0 if tz_offset is not None else 0.0
+    except (TypeError, ValueError):
+        return 0.0
+
+
+@app.post("/api/v1/decisions")
+def decisions_save(body: _DecisionIn, authorization: str = Header(...)):
+    """Save a decision the user wants to be reminded about when its window opens."""
+    from antar_engine import saved_decisions as _sd
+    user_id = verify_token(authorization)
+    if not _oc_owned_chart(user_id, body.chart_id):
+        raise HTTPException(403, "not your chart")
+    if not (body.question or "").strip():
+        raise HTTPException(400, "question is required")
+    row = _sd.build_row(
+        body.chart_id, body.question,
+        {"verdict": body.verdict, "timing": body.timing,
+         "window_start": body.window_start, "window_end": body.window_end},
+        language=body.language or "en", note=body.note, claim_id=body.claim_id,
+        tz_offset_hours=_dec_tz_hours(body.tz_offset))
+    try:
+        # Re-saving the same question updates the live row rather than making a
+        # second one — the unique index enforces it, this keeps the API kind.
+        existing = (supabase.table("saved_decisions").select("id")
+                    .eq("chart_id", body.chart_id).is_("archived_at", "null")
+                    .ilike("question", (body.question or "").strip())
+                    .limit(1).execute()).data or []
+        if existing:
+            row["updated_at"] = "now()"
+            res = (supabase.table("saved_decisions").update(row)
+                   .eq("id", existing[0]["id"]).execute())
+        else:
+            res = supabase.table("saved_decisions").insert(row).execute()
+        saved = (res.data or [{}])[0]
+    except Exception as e:
+        print(f"[decisions] save failed: {e}")
+        raise HTTPException(503, "could not save the decision")
+    saved["status"] = _sd.status_for(
+        date.fromisoformat(saved["window_start"]) if saved.get("window_start") else None,
+        date.fromisoformat(saved["window_end"]) if saved.get("window_end") else None)
+    return saved
+
+
+@app.get("/api/v1/decisions/{chart_id}")
+def decisions_list(chart_id: str, authorization: str = Header(...),
+                   include_archived: bool = False):
+    """The user's saved decisions, newest first, each with its window status."""
+    from antar_engine import saved_decisions as _sd
+    user_id = verify_token(authorization)
+    if not _oc_owned_chart(user_id, chart_id):
+        raise HTTPException(403, "not your chart")
+    try:
+        q = (supabase.table("saved_decisions").select("*")
+             .eq("chart_id", chart_id).order("created_at", desc=True).limit(100))
+        if not include_archived:
+            q = q.is_("archived_at", "null")
+        rows = q.execute().data or []
+    except Exception as e:
+        print(f"[decisions] list failed: {e}")
+        return {"available": False, "decisions": [], "count": 0}
+    for r in rows:
+        r["status"] = _sd.status_for(
+            date.fromisoformat(r["window_start"]) if r.get("window_start") else None,
+            date.fromisoformat(r["window_end"]) if r.get("window_end") else None)
+    return {"available": True, "decisions": rows, "count": len(rows)}
+
+
+class _DecisionPatch(BaseModel):
+    note: Optional[str] = None
+    archived: Optional[bool] = None
+
+
+@app.patch("/api/v1/decisions/{decision_id}")
+def decisions_update(decision_id: str, body: _DecisionPatch,
+                     authorization: str = Header(...)):
+    """Edit the note, or archive/unarchive."""
+    user_id = verify_token(authorization)
+    try:
+        rows = (supabase.table("saved_decisions").select("chart_id")
+                .eq("id", decision_id).limit(1).execute()).data or []
+    except Exception:
+        rows = []
+    if not rows or not _oc_owned_chart(user_id, rows[0]["chart_id"]):
+        raise HTTPException(404, "decision not found")
+    patch = {"updated_at": "now()"}
+    if body.note is not None:
+        patch["note"] = body.note.strip()[:1000] or None
+    if body.archived is not None:
+        patch["archived_at"] = datetime.now(timezone.utc).isoformat() if body.archived else None
+    try:
+        supabase.table("saved_decisions").update(patch).eq("id", decision_id).execute()
+    except Exception as e:
+        print(f"[decisions] patch failed: {e}")
+        raise HTTPException(503, "could not update the decision")
+    return {"updated": True, "decision_id": decision_id}
+
+
+@app.delete("/api/v1/decisions/{decision_id}")
+def decisions_delete(decision_id: str, authorization: str = Header(...)):
+    """Delete a saved decision outright."""
+    user_id = verify_token(authorization)
+    try:
+        rows = (supabase.table("saved_decisions").select("chart_id")
+                .eq("id", decision_id).limit(1).execute()).data or []
+    except Exception:
+        rows = []
+    if not rows or not _oc_owned_chart(user_id, rows[0]["chart_id"]):
+        raise HTTPException(404, "decision not found")
+    try:
+        supabase.table("saved_decisions").delete().eq("id", decision_id).execute()
+    except Exception as e:
+        print(f"[decisions] delete failed: {e}")
+        raise HTTPException(503, "could not delete the decision")
+    return {"deleted": True, "decision_id": decision_id}
 
 
 @app.get("/api/v1/me/chart-identity")
