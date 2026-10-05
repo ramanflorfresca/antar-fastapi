@@ -21,7 +21,7 @@ def test_gambling_gets_the_window_and_no_game_specific_answer():
 def test_no_is_said_straight_and_replaces_a_contradicting_body():
     out = sp.merge("Your speculative potential is genuinely well-supported right now.",
                    sp.lead("losses")["read"], "losses")
-    assert out.startswith("Your reading doesn't support speculation") and "well-supported" not in out
+    assert out.startswith("The timing doesn't support speculation") and "well-supported" not in out
 
 
 def test_policy_lines_are_the_whole_answer():
@@ -69,8 +69,8 @@ def test_how_to_play_safely_is_a_how_to_not_the_window_again():
     assert not sp.is_risk_howto("When will I gain from the stock market?")
     r = sp.risk_lead("later", "Jun 2027 – Oct 2027")
     assert "hard loss limit" in r["read"] and "Jun 2027 – Oct 2027" in r["read"] and "never borrow" in r["read"]
-    assert "Your reading supports gains" not in r["read"]                 # not the window answer again
-    assert sp.risk_lead("losses")["read"].startswith("Given your reading, the safest way is to not speculate")
+    assert "The timing supports gains" not in r["read"]                 # not the window answer again
+    assert sp.risk_lead("losses")["read"].startswith("Given your timing, the safest way is to not speculate")
     assert "casino" in sp.risk_lead("open", "x", gambling=True)["read"]
     for lang in ("es", "pt", "hinglish"):
         assert sp.risk_lead("later", "x", language=lang)["next"]

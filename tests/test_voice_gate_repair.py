@@ -12,7 +12,7 @@ def test_soft_repair_removes_chart_word_and_passes_the_gate():
          "In your chart, motion itself breaks the freeze.")
     fixed = main._ask_soft_repair(t)
     assert "chart" not in fixed.lower()
-    assert "Your reading shows caution" in fixed and "In your reading, motion" in fixed
+    assert "Your timing shows caution" in fixed and "In your timing, motion" in fixed
     assert not [v for v in validate_narration(fixed, language="en") if "chart" in str(v)]
 
 
@@ -46,7 +46,7 @@ def test_placement_jargon_is_repaired_and_banned():
     from antar_engine.narration_validator import validate_narration
     t = "The reading also shows a straining placement that makes lenders harder to move right now."
     fixed = main._ask_soft_repair(t)
-    assert "placement" not in fixed and "a strain in your reading" in fixed
+    assert "placement" not in fixed and "a strain in your timing" in fixed
     assert any("astro_technical" in str(v) for v in validate_narration("Mars is retrograde in a placement", language="en"))
 
 

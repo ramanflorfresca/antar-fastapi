@@ -23696,20 +23696,52 @@ kaunsi kitne kabhi abhi aayega aayegi jayega jayegi hoga rahega rahegi
 # (first pass + Haiku rewrite), the gate failed closed, and WhatsApp got the canned
 # "The timing genuinely supports your work right now" — a timing verdict on a
 # how-do-I-get-unstuck question. Repair the lexical slip; drop only bad sentences.
+# [appstore-reading-word 2026-10-05] The repair used to swap the banned word
+# "chart" for "reading" — which put "The reading leans in your favour" and
+# "Your reading doesn't support speculation" into the live answer body, on the
+# landing screen, i.e. the exact surface the Guideline 4.3 defence rests on.
+# "reading" is the horoscope register; "timing" is what the product actually
+# does and is already the word the rest of the answer uses.
 _ASK_CHART_FIX = [
     (re.compile(r"\b(your|the|this|my)\s+(?:birth\s+|natal\s+)?charts?\s+(shows?|says|suggests?|points?|indicates?)\b", re.I),
-     lambda m: f"{m.group(1)} reading {m.group(2)}"),
+     lambda m: f"{m.group(1)} timing {m.group(2)}"),
     (re.compile(r"\b(in|from|on)\s+(your|the|this)\s+(?:birth\s+|natal\s+)?charts?\b", re.I),
-     lambda m: f"{m.group(1)} {m.group(2)} reading"),
+     lambda m: f"{m.group(1)} {m.group(2)} timing"),
     (re.compile(r"\b(your|the|this)\s+(?:birth\s+|natal\s+)?charts?\b", re.I),
-     lambda m: f"{m.group(1)} reading"),
+     lambda m: f"{m.group(1)} timing"),
     (re.compile(r"\bastrologically\b", re.I), lambda m: "in your timing"),
-    # "a straining placement that…" → "a strain in your reading that…"
+    # "a straining placement that…" → "a strain in your timing that…"
     (re.compile(r"\b(an?|the)\s+(?:straining|strained|difficult|tense|weak|challenging|hard)\s+placements?\b", re.I),
-     lambda m: ("A" if m.group(1)[0].isupper() else "a") + " strain in your reading"),
+     lambda m: ("A" if m.group(1)[0].isupper() else "a") + " strain in your timing"),
     (re.compile(r"\b(an?|the)\s+(?:strong|supportive|good|favou?rable)\s+placements?\b", re.I),
-     lambda m: ("A" if m.group(1)[0].isupper() else "a") + " strength in your reading"),
+     lambda m: ("A" if m.group(1)[0].isupper() else "a") + " strength in your timing"),
 ]
+
+
+def _ask_attach_disclaimer(payload, concern, language):
+    """[appstore-disclaimer 2026-10-05] Attach the domain disclaimer, in place.
+
+    Health / money / legal / fertility answers must carry their qualifier on the
+    card the user actually reads — the copy existed only in Terms, the WhatsApp
+    legal block and the marketing site, so every /ask answer went out bare.
+    Separate `disclaimer` field, never appended into `read`, so the FE can style
+    it as a disclaimer rather than as part of the answer. Non-fatal by design:
+    a disclaimer failure must never cost the user their answer.
+    """
+    if not isinstance(payload, dict):
+        return payload
+    try:
+        from antar_engine.answer_disclaimer import disclaimer_for as _adz
+        _dz = _adz(concern,
+                   payload.get("read"), payload.get("next"), payload.get("why"),
+                   payload.get("verdict"),
+                   " ".join(str(a) for a in (payload.get("actions") or [])),
+                   language=language)
+        if _dz:
+            payload["disclaimer"] = _dz
+    except Exception as _dze:
+        print(f"[ask][disclaimer] non-fatal: {_dze}")
+    return payload
 
 
 def _ask_soft_repair(text):
@@ -24581,11 +24613,14 @@ def _ask_legal_lead_phrase(lean, jup, lang="en"):
         if lean == "favourable" and jup:
             base += " E há uma influência protetora e afortunada genuinamente do seu lado."
         return base
-    base = {"favourable": "The chart leans in your favour — but the outcome isn't fated; strong preparation is what turns a lean into a result.",
+    base = {"favourable": "The timing leans in your favour — but the outcome isn't fated; strong preparation is what turns a lean into a result.",
             "unfavourable": "This is an uphill position — prepare thoroughly, get good counsel, and stay open to settlement."}.get(
         lean, "This is genuinely contested — the outcome turns on effort, evidence and timing.")
     if lean == "favourable" and jup:
-        base += " And a genuinely protective, fortunate influence is on your side here."
+        # [appstore-legal-tone 2026-10-05] "a protective, fortunate influence is on
+        # your side" is superstitious reassurance about a live court matter. Keep
+        # the supportive read, lose the talisman.
+        base += " Conditions are more supportive than usual for this — use it by preparing early."
     return base
 
 
@@ -30550,7 +30585,13 @@ async def ask_endpoint(request: AskRequest):
                             _nx0 = (payload.get("next") or "").strip()
                             if _nx0 and _nx0[-1] not in ".!?":
                                 _nx0 += "."
-                            _add = f"For your health, in Ayurveda: {_rem}."
+                            # [appstore-health-framing 2026-10-05] Named substances
+                            # went out bare ("For your health, in Ayurveda: brahmi or
+                            # gotu kola, neem…") to someone reporting illness. Frame
+                            # them as traditional practice, not treatment; the
+                            # domain disclaimer on the payload carries the rest.
+                            _add = (f"Traditionally, Ayurveda associates this period with {_rem} — "
+                                    f"supportive practice, not treatment.")
                             payload["next"] = (f"{_nx0} {_add}".strip()) if _nx0 else _add
                             print("[ask][health-remedy] appended deterministic Ayurvedic remedy")
             except Exception as _hrge:
@@ -31121,6 +31162,7 @@ async def ask_endpoint(request: AskRequest):
                               f"{_oc_claim['window_start']}→{_oc_claim['window_end']}")
             except Exception as _oce:
                 print(f"[outcomes] claim skipped (non-fatal): {_oce}")
+            _ask_attach_disclaimer(payload, locals().get("_ask_concern"), language)
             await _ask_persist(supabase, chart_id, question, payload, language,
                                "explore", locals().get("_ask_concern"))
             return payload
@@ -31220,6 +31262,7 @@ async def ask_endpoint(request: AskRequest):
                                        _ask_practice_cta(locals().get("_ask_concern"), language))
                 except Exception:
                     pass
+                _ask_attach_disclaimer(payload, locals().get("_ask_concern"), language)
                 return payload
 
             # 2. NOT LOCKED — cast a fresh chart at the moment of asking.
@@ -31635,6 +31678,7 @@ async def ask_endpoint(request: AskRequest):
                     await asyncio.to_thread(_oc_rec, supabase, _oc_claim)
             except Exception as _oce:
                 print(f"[outcomes] yesno claim skipped (non-fatal): {_oce}")
+            _ask_attach_disclaimer(payload, locals().get("_ask_concern"), language)
             await _ask_persist(supabase, chart_id, question, payload, language,
                                "yesno", locals().get("_ask_concern"))
             return payload
