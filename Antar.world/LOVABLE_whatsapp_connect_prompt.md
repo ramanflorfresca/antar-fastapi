@@ -1,4 +1,4 @@
-# Lovable prompt — Connect WhatsApp (consent screen, onboarding step, Settings, Ask banner)
+# Lovable prompt — Connect WhatsApp (consent screen, onboarding step, login popup, Settings)
 
 Paste the block below into Lovable (Build mode). Backend is live; **run `sql_wa_marketing_consent.sql`
 first** (Lovable SQL) so the offers opt-in can be stored.
@@ -55,22 +55,30 @@ After the chart is created and the first reading shows, ONE optional card: "Get 
 [Connect] [Not now]. Connect opens the consent sheet. It must be skippable; never block onboarding on it.
 Show it once; if skipped, don't show it again in onboarding.
 
-## 4. Existing users
-- Settings → "WhatsApp" row: not linked -> "Connect" (opens the sheet). Linked -> "Connected …<last4>" with
-  three controls:
+## 4. Existing users — login popup
+After sign-in (web, Android, iOS), if GET /api/v1/messaging/whatsapp/status returns available=true and
+linked=false, show the consent sheet as a centred modal titled "Talk to Antar on WhatsApp".
+- On a PHONE the button opens WhatsApp directly (deep_link). On a LAPTOP / desktop it shows the QR code.
+  Never show a QR on a phone — the person can't scan their own screen.
+- Frequency (store in localStorage, and on the user's profile if one exists):
+    at most once every 7 days; never twice in the same session;
+    after the user closes it 3 times, never show it again (Settings → WhatsApp stays available);
+    never show it to a linked user, and never during onboarding (the onboarding card handles new users).
+- Buttons: "Connect WhatsApp" (the sheet's flow) and "Not now" (counts as a close).
+
+## 5. Settings → WhatsApp (everyone)
+- Not linked -> "Connect" (opens the sheet). Linked -> "Connected …<last4>" with three controls:
     Alerts toggle  -> POST /api/v1/messaging/whatsapp/alerts { enabled }
     Offers & news toggle -> POST /api/v1/messaging/whatsapp/marketing { enabled }
     "Disconnect" (confirm) -> POST /api/v1/messaging/whatsapp/unlink
   Toggles reflect status.alerts_opt_in / status.marketing_opt_in; re-fetch status after each change.
-- On the Ask screen, a dismissible one-line banner for users who are NOT linked: "Ask Antar on WhatsApp →"
-  opens the sheet. Show at most once a week; never after they dismiss it twice.
 
 ## Rules
 - Never collect or display the full phone number; only number_last4.
 - Never pre-tick anything. The required box and the two optional toggles are separate controls.
 - Loading/skeleton on status; friendly one-line errors; no raw JSON.
 - data-testid: wa-consent-required, wa-alerts-toggle, wa-offers-toggle, wa-connect, wa-qr, wa-status,
-  wa-disconnect, wa-onboarding-card, wa-ask-banner.
+  wa-disconnect, wa-onboarding-card, wa-login-popup.
 ```
 
 ## Notes for Raman (not part of the prompt)
