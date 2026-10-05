@@ -54,3 +54,33 @@ def test_a_replayed_locked_answer_is_not_a_new_claim():
     p = _explore_payload(); p["locked"] = True
     assert oc.build_claim("chart-1", "q", p, mode="explore", topic="career",
                           language="en", today=date(2026, 10, 5)) is None
+
+
+# ── the check-back SENTENCE, not just the timestamp ───────────────────────
+@pytest.mark.parametrize("lang,expected", [
+    ("en",       "Antar will check back in February."),
+    ("es",       "Antar volverá a preguntarte en febrero."),
+    ("pt",       "O Antar vai voltar a perguntar em fevereiro."),
+    ("hinglish", "Antar aapse February mein dobara poochhega."),
+    ("hi",       "Antar aapse February mein dobara poochhega."),
+])
+def test_checkin_note_speaks_the_language_the_answer_was_written_in(lang, expected):
+    """The FE built this line itself in en/es/pt only, so a Hinglish answer
+    carried an English check-back line underneath it. Language belongs to the
+    side that knows what language the answer is in."""
+    assert oc.checkin_note("2027-02-03T00:00:00+00:00", lang) == expected
+
+
+def test_hinglish_keeps_the_english_month_name():
+    """Romanised Hindi says 'February', not the Devanagari month."""
+    assert "February" in oc.checkin_note("2027-02-03T00:00:00+00:00", "hinglish")
+
+
+def test_an_unknown_language_falls_back_to_english_rather_than_breaking():
+    assert oc.checkin_note("2027-02-03T00:00:00+00:00", "fr").startswith("Antar will check back")
+
+
+@pytest.mark.parametrize("bad", [None, "", "not-a-date", "2027-13-99", 12345])
+def test_no_timestamp_means_no_promise(bad):
+    """The card must never claim a check-back that is not scheduled."""
+    assert oc.checkin_note(bad, "en") is None

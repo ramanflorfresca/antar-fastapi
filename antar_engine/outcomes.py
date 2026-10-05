@@ -143,6 +143,56 @@ def build_claim(chart_id: str, question: str, payload: dict, *, mode: str,
     }
 
 
+# [checkin-note 2026-10-05] The answer card's "Antar will check back in
+# <Month>" line was being built in the FRONTEND from checkin_due_at, in
+# en/es/pt only — so someone who asked in Hinglish got a Hinglish answer with an
+# English check-back line under it. Language belongs to the backend: it is the
+# side that knows what language the answer was written in, and the disclaimer
+# already works this way. The FE renders this string verbatim, same as the
+# disclaimer, and derives nothing.
+_NOTE_MONTHS = {
+    "es": ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio",
+           "agosto", "septiembre", "octubre", "noviembre", "diciembre"],
+    "pt": ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho",
+           "agosto", "setembro", "outubro", "novembro", "dezembro"],
+}
+# en and Hinglish both use the English month name — romanised Hindi says
+# "February", not "फ़रवरी".
+_NOTE_TMPL = {
+    "en": "Antar will check back in {m}.",
+    "es": "Antar volverá a preguntarte en {m}.",
+    "pt": "O Antar vai voltar a perguntar em {m}.",
+    "hi": "Antar aapse {m} mein dobara poochhega.",
+}
+
+
+def _note_lang(language) -> str:
+    l = str(language or "en").strip().lower()
+    if l in ("hi", "hinglish") or l.startswith("hi"):
+        return "hi"
+    b = l.split("_")[0].split("-")[0][:2]
+    return b if b in ("es", "pt") else "en"
+
+
+def checkin_note(due_at, language: str = "en") -> Optional[str]:
+    """"Antar will check back in <Month>." in the answer's own language, or None.
+
+    None whenever there is nothing honest to say — no timestamp, or one that
+    cannot be parsed. The card must never promise a check-back that is not
+    scheduled.
+    """
+    if not due_at:
+        return None
+    try:
+        d = datetime.fromisoformat(str(due_at).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return None
+    lang = _note_lang(language)
+    months = _NOTE_MONTHS.get(lang)
+    month = months[d.month - 1] if months else d.strftime("%B")
+    return _NOTE_TMPL[lang].format(m=month)
+
+
 def _qkey(question: str) -> str:
     import hashlib
     norm = " ".join(re.findall(r"[\w']+", (question or "").lower()))

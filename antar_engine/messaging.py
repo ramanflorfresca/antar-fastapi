@@ -135,6 +135,11 @@ def format_ask_for_telegram(payload: dict, language: str = "en") -> str:
         step = (pc.get("step") or "").strip()
         body = "🧘 " + pc["label"] + (("\n" + step) if step else "")
         lines.append(body)
+    # [tg-disclaimer 2026-10-05] same domain disclaimer the app card and WhatsApp carry;
+    # plain text (Telegram is sent without a parse mode, so no italic markers)
+    dz = p.get("disclaimer")
+    if isinstance(dz, str) and dz.strip():
+        lines.append(re.sub(r"\s+", " ", dz.strip()))
     sq = [q for q in (p.get("suggested_questions") or []) if isinstance(q, str) and q.strip()][:3]
     if sq:
         head = {"es": "También puedes preguntar:", "pt": "Você também pode perguntar:"}.get(
@@ -356,7 +361,8 @@ def whatsapp_send(to_number: str, text: str, last_inbound_ts: Optional[float]) -
     import os
     sid = os.getenv("TWILIO_ACCOUNT_SID")
     token = os.getenv("TWILIO_AUTH_TOKEN")
-    sender = os.getenv("TWILIO_WHATSAPP_FROM")       # e.g. whatsapp:+14155238886
+    from antar_engine import wa_numbers as _wn
+    sender = _wn.effective_sender() or os.getenv("TWILIO_WHATSAPP_FROM")   # pool-aware: the number this user writes to
     to = wa_number(to_number)
     if not (sid and token and sender and to and text):
         print("[whatsapp] send skipped: twilio env or recipient missing")
@@ -497,17 +503,26 @@ def _revoke_whatsapp(sb, number: str = "", user_id: Optional[str] = None,
         return False
 
 
-def make_connect_token(secret: str, number: str, ttl_s: int = 15 * 60) -> str:
-    """Signed, expiring token carrying a Twilio-verified number (Path B link)."""
+def make_connect_token(secret: str, number: str, ttl_s: int = 15 * 60, sender: str = "") -> str:
+    """Signed, expiring token carrying a Twilio-verified number (Path B link) and, when the
+    deployment runs a number pool, the Antar number that person wrote to (so the welcome goes out
+    from the same number — the 24h window belongs to it)."""
+    payload = {"n": wa_number(number), "e": int(time.time()) + ttl_s, "r": secrets.token_hex(4)}
+    if sender:
+        payload["s"] = wa_number(sender)
     body = base64.urlsafe_b64encode(json.dumps(
-        {"n": wa_number(number), "e": int(time.time()) + ttl_s,
-         "r": secrets.token_hex(4)}, separators=(",", ":")).encode()).decode().rstrip("=")
+        payload, separators=(",", ":")).encode()).decode().rstrip("=")
     sig = hmac.new(secret.encode(), body.encode(), hashlib.sha256).hexdigest()[:32]
     return f"{body}.{sig}"
 
 
 def read_connect_token(secret: str, token: str) -> Optional[str]:
     """The number inside a valid, unexpired token, else None."""
+    return (read_connect_token_full(secret, token) or {}).get("number") or None
+
+
+def read_connect_token_full(secret: str, token: str) -> Optional[dict]:
+    """{'number', 'sender'} from a valid, unexpired token, else None."""
     try:
         body, sig = (token or "").rsplit(".", 1)
         good = hmac.new(secret.encode(), body.encode(), hashlib.sha256).hexdigest()[:32]
@@ -516,7 +531,8 @@ def read_connect_token(secret: str, token: str) -> Optional[str]:
         data = json.loads(base64.urlsafe_b64decode(body + "=" * (-len(body) % 4)))
         if int(data.get("e") or 0) < time.time():
             return None
-        return wa_number(data.get("n")) or None
+        n = wa_number(data.get("n"))
+        return {"number": n, "sender": wa_number(data.get("s"))} if n else None
     except Exception:
         return None
 
@@ -1085,7 +1101,8 @@ def whatsapp_send_list(to_number: str, body: str, button: str, items: list,
                        last_inbound_ts: Optional[float]) -> bool:
     """items = [(title, id, description)]. False → caller falls back to text."""
     import os
-    sid, sender, auth = os.getenv("TWILIO_ACCOUNT_SID"), os.getenv("TWILIO_WHATSAPP_FROM"), _twilio_auth()
+    from antar_engine import wa_numbers as _wn
+    sid, sender, auth = os.getenv("TWILIO_ACCOUNT_SID"), (_wn.effective_sender() or os.getenv("TWILIO_WHATSAPP_FROM")), _twilio_auth()
     to = wa_number(to_number)
     items = list(items)[:LIST_MAX_ITEMS]
     if not (sid and sender and auth and to and items and len(body) <= 1024):

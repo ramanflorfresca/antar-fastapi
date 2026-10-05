@@ -123,13 +123,14 @@ def pick(alerts: list, sent: list, today: date) -> Optional[dict]:
 
 def render(alert: dict, lang: str, first_name: str, lord: Optional[str] = None) -> dict:
     """{template, variables, text (free-form, inside 24h), how_q}."""
+    from antar_engine import wa_templates as wt
     l = lang2(lang)
     tpl = SENDABLE[alert["alert_type"]]
     s = _start(alert)
     d = fmt_day(s, l) if s else ""
-    name = (first_name or "").strip() or {"es": "de nuevo", "pt": "de novo"}.get(l, "there")
-    from antar_engine import wa_templates as wt
-    body = wt.TEMPLATES[tpl]["body"][wt.wa_lang(l)]
+    name = (first_name or "").strip() or {"es": "de nuevo", "pt": "de novo"}.get(
+        l, "dost" if wt.wa_lang(lang) == "hinglish" else "there")
+    body = wt.TEMPLATES[tpl]["body"][wt.wa_lang(lang)]
     if tpl == "antar_window_alert_v1":
         variables = {"1": name, "2": _WINDOW_WHAT[l], "3": d}
     else:

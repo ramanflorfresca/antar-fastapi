@@ -5,7 +5,7 @@ from antar_engine import wa_templates as wt, messaging as msg
 
 
 @pytest.mark.parametrize("name", list(wt.TEMPLATES))
-@pytest.mark.parametrize("lang", ["en", "es", "pt_BR"])
+@pytest.mark.parametrize("lang", ["en", "es", "pt_BR", "hinglish"])
 def test_templates_follow_meta_utility_rules(name, lang):
     t = wt.TEMPLATES[name]
     body = t["body"][lang]
@@ -21,12 +21,12 @@ def test_templates_follow_meta_utility_rules(name, lang):
 
 
 def test_checkin_buttons_are_the_typed_numbers():
-    for lang in ("en", "es", "pt_BR"):
+    for lang in ("en", "es", "pt_BR", "hinglish"):
         assert [b for _, b in wt.TEMPLATES["antar_checkin_v1"]["buttons"][lang]] == ["1", "2", "3", "4"]
 
 
 def test_lang_mapping_and_env_key(monkeypatch):
-    assert wt.wa_lang("hinglish") == "en" and wt.wa_lang("pt") == "pt_BR" and wt.wa_lang("es") == "es"
+    assert wt.wa_lang("hinglish") == "hinglish" and wt.wa_lang("fr") == "en" and wt.wa_lang("pt") == "pt_BR" and wt.wa_lang("es") == "es"
     assert wt.env_key("antar_checkin_v1", "es") == "WA_TPL_ANTAR_CHECKIN_V1_ES"
     monkeypatch.delenv("WA_TPL_ANTAR_CHECKIN_V1_EN", raising=False)
     assert wt.template_sid("antar_checkin_v1", "en") is None
@@ -65,3 +65,33 @@ def test_tips_cover_the_never_send_list():
     for lang in ("en", "es", "pt", "hinglish"):
         h = main._wa_text("help", lang)
         assert "*tips*" in h or "*dicas*" in h, lang
+
+
+def test_every_template_covers_every_language_with_same_variables_and_buttons():
+    for name, t in wt.TEMPLATES.items():
+        assert set(t["body"]) == set(wt.LANGS) == set(t["buttons"]), name
+        ids = {tuple(b for _, b in t["buttons"][l]) for l in wt.LANGS}
+        assert len(ids) == 1, (name, ids)                      # same handler ids in every language
+
+
+def test_hinglish_falls_back_to_english_until_approved(monkeypatch):
+    monkeypatch.setenv("WA_TPL_ANTAR_CHECKIN_V1_EN", "HXen")
+    monkeypatch.delenv("WA_TPL_ANTAR_CHECKIN_V1_HINGLISH", raising=False)
+    assert wt.template_sid("antar_checkin_v1", "hinglish") == "HXen"
+    monkeypatch.setenv("WA_TPL_ANTAR_CHECKIN_V1_HINGLISH", "HXhg")
+    assert wt.template_sid("antar_checkin_v1", "hinglish") == "HXhg"
+    assert wt.template_sid("antar_checkin_v1", "es") is None
+
+
+def test_hinglish_is_submitted_under_the_configured_locale(monkeypatch):
+    monkeypatch.delenv("WA_HINGLISH_LOCALE", raising=False)
+    assert wt.content_payload("antar_checkin_v1", "hinglish")["language"] == "en"
+    monkeypatch.setenv("WA_HINGLISH_LOCALE", "hi")
+    assert wt.content_payload("antar_checkin_v1", "hinglish")["language"] == "hi"
+    assert wt.content_payload("antar_checkin_v1", "es")["language"] == "es"
+
+
+def test_policy_buttons_match_the_consent_handler():
+    ids = [b for _, b in wt.TEMPLATES["antar_policy_update_v1"]["buttons"]["en"]]
+    assert ids == ["pol:yes", "pol:no"]
+    assert [msg.parse_policy_reply("x", i) for i in ids] == ["yes", "no"]

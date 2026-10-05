@@ -187,6 +187,12 @@ class _Conv:
             "timing": "March – June 2027", "next": "Update your portfolio this month.",
             "suggested_questions": ["Which role fits me?", "How will money be?", "Should I start my own?"]}
         monkeypatch.setattr(msg, "get_whatsapp_link", lambda sb, n: self.link)
+        # [wa-policy] The data-processing gate added in #198 answers EVERY inbound
+        # message with the policy prompt until the number has accepted the current
+        # wording. These conversations are not about that gate, and the fixture
+        # stubs every other messaging dependency, so stub this one too. Pass
+        # policy="needed" to exercise the gate itself.
+        monkeypatch.setattr(msg, "policy_state", lambda sb, n, l: policy)
         monkeypatch.setattr(msg, "whatsapp_send", lambda n, t, ts: self.sent.append(t) or True)
         monkeypatch.setattr(msg, "save_link_context",
                             lambda sb, l, c: self.saved.append(c) or (l.__setitem__("context", c) if l else None) or True)
@@ -221,8 +227,20 @@ class _Conv:
                                       None, "", choice_id, lat_lon, media))
 
 
-def _link(chart="self-1"):
-    return {"id": 1, "chart_id": chart, "user_id": "u1", "context": {}}
+def _link(chart="self-1", consented=True):
+    """A linked WhatsApp number.
+
+    [wa-consent] carries consent_version by default: the data-processing-policy
+    gate added in #198 answers EVERY inbound message with the policy prompt
+    until the link has accepted the current wording, so without this each of
+    these tests would assert against the prompt instead of the behaviour it is
+    actually about. The gate keeps its own dedicated tests below; pass
+    consented=False to exercise it here.
+    """
+    link = {"id": 1, "chart_id": chart, "user_id": "u1", "context": {}}
+    if consented:
+        link["consent_version"] = msg.WA_CONSENT_VERSION
+    return link
 
 
 def test_unlinked_number_never_reaches_ask(m, monkeypatch):
@@ -1290,3 +1308,67 @@ def test_accepted_default_goes_straight_to_ask(m, monkeypatch):
     cv = _Conv(m, monkeypatch, link=_link())
     cv.run("Will I get married?")
     assert len(cv.asked) == 1
+
+
+# ── the data-processing gate, through a real conversation ──────────────────
+# [wa-policy] _Conv stubs policy_state to "ok" so the other 150+ tests exercise
+# what they are about. These pin the gate itself, so stubbing it elsewhere does
+# not leave it uncovered.
+def test_policy_prompt_comes_before_the_answer_and_nothing_is_asked(m, monkeypatch):
+    cv = _Conv(m, monkeypatch, link=_link(), policy="needed")
+    cv.run("When will I change jobs?")
+    assert cv.asked == [], "no question may reach /ask before the policy is accepted"
+    assert "data processing policy" in cv.sent[0].lower()
+
+
+def test_policy_prompt_comes_before_the_connect_message_for_an_unlinked_number(m, monkeypatch):
+    monkeypatch.delenv("WHATSAPP_CONNECT_URL", raising=False)
+    cv = _Conv(m, monkeypatch, link=None, policy="needed")
+    cv.run("Will I get married?")
+    assert cv.asked == []
+    assert "data processing policy" in cv.sent[0].lower()
+    assert "Connect WhatsApp" not in cv.sent[0]
+
+
+def test_declining_the_policy_ends_it_without_asking(m, monkeypatch):
+    recorded = []
+    monkeypatch.setattr(msg, "record_policy",
+                        lambda sb, n, d, lang="en", link=None: recorded.append(d) or True)
+    cv = _Conv(m, monkeypatch, link=_link(), policy="needed")
+    cv.run("NO")
+    assert recorded == ["no"]
+    assert cv.asked == []
+
+
+def test_accepting_the_policy_is_recorded(m, monkeypatch):
+    recorded = []
+    monkeypatch.setattr(msg, "record_policy",
+                        lambda sb, n, d, lang="en", link=None: recorded.append(d) or True)
+    cv = _Conv(m, monkeypatch, link=_link(), policy="needed")
+    cv.run("ACCEPT")
+    assert recorded == ["yes"]
+
+
+def test_storage_not_set_up_fails_open_rather_than_locking_everyone_out(m, monkeypatch):
+    """policy_state returns 'unknown' when wa_policy_acceptances is missing —
+    the channel must keep working rather than refuse every message."""
+    cv = _Conv(m, monkeypatch, link=_link(), policy="unknown")
+    cv.run("When will I change jobs?")
+    assert len(cv.asked) == 1
+
+
+# [tg-disclaimer 2026-10-05] Telegram's renderer dropped the payload disclaimer too.
+def test_telegram_carries_the_disclaimer_once_before_suggestions():
+    from antar_engine import messaging as m
+    for p in _dz_payloads():
+        p = dict(p, suggested_questions=["What should I watch for?"])
+        text = m.format_ask_for_telegram(p, "en")
+        assert text.count("not a diagnosis") == 1
+        assert "_An analysis" not in text          # plain text — no WhatsApp italics
+        assert text.index("not a diagnosis") < text.index("You could also ask")
+
+
+def test_telegram_without_a_disclaimer_is_unchanged():
+    from antar_engine import messaging as m
+    p = dict(_dz_payloads()[0]); p.pop("disclaimer")
+    assert "planetary positions" not in m.format_ask_for_telegram(p, "en")

@@ -1170,6 +1170,8 @@ async def _outcome_checkin_job():
                 if links:
                     ctx = _msg.link_context(links[0])
                     last_in = float(ctx.get("last_in") or 0)
+                    from antar_engine import wa_numbers as _wn
+                    _wn.use(_wn.sender_for(links[0]["channel_user_id"], ctx, cl.get("language") or ""))
                     if _msg.wa_window_open(last_in) and not ctx.get("opted_out"):
                         text, opts = _oc.whatsapp_checkin(cl)
                         ok = await _aio_oc.to_thread(_msg.whatsapp_send,
@@ -1242,6 +1244,8 @@ async def _wa_alert_job():
             last_in = float(ctx.get("last_in") or 0)
             in_window = _msg.wa_window_open(last_in)
             lang = ctx.get("lang") or (await _aio_wa.to_thread(_wa_saved_lang, cid)) or "en"
+            from antar_engine import wa_numbers as _wn
+            _wn.use(_wn.sender_for(number, ctx, lang))      # [wa-numbers] this person's dedicated number
             name_row = await _aio_wa.to_thread(lambda: supabase.table("charts").select("name")
                                                .eq("id", cid).limit(1).execute().data)
             first = ((name_row or [{}])[0].get("name") or "").split(" ")[0]
@@ -4701,10 +4705,20 @@ class _MsgLinkStart(BaseModel):
     alerts_opt_in: Optional[bool] = False
     # [wa-marketing 2026-10-05] separate, optional, default-off opt-in for offers / news
     marketing_opt_in: Optional[bool] = False
+    # [wa-numbers] ISO country of the person (the app knows it from the phone/locale); picks which of
+    # Antar's WhatsApp numbers the deep link opens. Falls back to the edge's country header.
+    country: Optional[str] = None
+
+
+def _wa_request_country(request: Optional[Request], hint: Optional[str] = None) -> str:
+    c = (hint or "").strip().upper()
+    if not c and request is not None:
+        c = (request.headers.get("cf-ipcountry") or request.headers.get("x-vercel-ip-country") or "").strip().upper()
+    return c if len(c) == 2 and c.isalpha() and c not in ("XX", "T1") else ""
 
 
 @app.post("/api/v1/messaging/link/start")
-def messaging_link_start(req: _MsgLinkStart, authorization: str = Header(...)):
+def messaging_link_start(req: _MsgLinkStart, http_request: Request, authorization: str = Header(...)):
     """Generate a one-time link code + deep link for the user to send to the bot."""
     from antar_engine import messaging as _msg
     user_id = verify_token(authorization)
@@ -4724,7 +4738,9 @@ def messaging_link_start(req: _MsgLinkStart, authorization: str = Header(...)):
         raise HTTPException(503, out.get("reason") or "messaging not set up yet")
     if (req.channel or "") == "whatsapp":
         # [whatsapp] wa.me opens WhatsApp with "LINK <code>" pre-typed; one tap sends it.
-        digits = re.sub(r"\D", "", os.getenv("TWILIO_WHATSAPP_FROM") or "")
+        from antar_engine import wa_numbers as _wn
+        digits = re.sub(r"\D", "", _wn.deep_link_number(_wa_request_country(http_request, req.country),
+                                                         key=str(user_id)) or os.getenv("TWILIO_WHATSAPP_FROM") or "")
         out["deep_link"] = (f"https://wa.me/{digits}?text=LINK%20{out['code']}"
                             if digits else None)
         out["expires_in_minutes"] = _msg.WA_LINK_CODE_MAX_AGE_MIN
@@ -5459,6 +5475,14 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
     # chart's saved language; otherwise the last language used here.
     _saved = await asyncio.to_thread(_wa_saved_lang, (link or {}).get("chart_id")) if link else None
     _fb = _saved or ctx.get("lang") or "en"
+    try:   # [wa-numbers] the number this person last wrote to is who writes back (24h window + proactive sends)
+        from antar_engine import wa_numbers as _wn
+        _cur = _wn.current_sender.get()
+        if link and _cur and ctx.get("sender") != _cur:
+            ctx["sender"] = _cur
+            await asyncio.to_thread(_msg.save_link_context, sb, link, ctx)
+    except Exception as _e:
+        print(f"[wa-numbers] sender not remembered: {_e}")
     lang = _wa_lang(body, _fb) if body else _fb
     if str(choice_id or "").startswith("q:"):
         # [wa-ui 2026-10-04] a tapped suggestion keeps the conversation's language (a Hinglish chat
@@ -5546,7 +5570,8 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
             secret = os.getenv("WHATSAPP_LINK_SECRET")
             base = os.getenv("WHATSAPP_CONNECT_URL")     # e.g. https://antar.world/wa/connect
             if secret and base:
-                tok = _msg.make_connect_token(secret, number)
+                from antar_engine import wa_numbers as _wn
+                tok = _msg.make_connect_token(secret, number, sender=_wn.current_sender.get())
                 how = _wa_text("how_link", lang, url=f"{base}?t={tok}")
             else:
                 how = _wa_text("how_app", lang)
@@ -6102,6 +6127,8 @@ async def messaging_whatsapp_webhook(http_request: Request):
         print(f"[whatsapp] help via TwiML …{number[-4:]}")
         return _Resp(content=f"<Response><Message>{txt}</Message></Response>",
                      media_type="text/xml")
+    from antar_engine import wa_numbers as _wn
+    _wn.use(_msg.wa_number(params.get("To")))   # [wa-numbers] answer from the number they wrote to
     sink = _WaSink(number, now, inline=_wa_inline_on())
     choice = (params.get("ListId") or params.get("ButtonPayload") or "").strip()
     _media = ((params.get("MediaUrl0") or "").strip() or None,
@@ -6134,7 +6161,8 @@ class _WaConnect(BaseModel):
 
 
 @app.get("/api/v1/messaging/whatsapp/status")
-def messaging_whatsapp_status(authorization: str = Header(...)):
+def messaging_whatsapp_status(http_request: Request, country: Optional[str] = None,
+                              authorization: str = Header(...)):
     """Is WhatsApp connected for the signed-in user? Drives the Connect WhatsApp
     button / settings row. `available` is false until the channel is switched on."""
     from antar_engine import messaging as _msg
@@ -6143,7 +6171,16 @@ def messaging_whatsapp_status(authorization: str = Header(...)):
     out["available"] = _wa_on()
     out["consent_version"] = _msg.WA_CONSENT_VERSION
     out["marketing_consent_version"] = _msg.WA_MARKETING_CONSENT_VERSION
-    digits = re.sub(r"\D", "", os.getenv("TWILIO_WHATSAPP_FROM") or "")
+    from antar_engine import wa_numbers as _wn
+    _num = ""
+    try:   # a connected person keeps talking to the number they wrote to; otherwise their country's number
+        _row = (supabase.table("messaging_links").select("context").eq("channel", "whatsapp")
+                .eq("status", "linked").eq("user_id", user_id).limit(1).execute().data or [{}])[0]
+        _num = _wn.sender_for("", _msg.link_context(_row), "") if _msg.link_context(_row).get("sender") else ""
+    except Exception:
+        _num = ""
+    _num = _num or _wn.deep_link_number(_wa_request_country(http_request, country), key=str(user_id))
+    digits = re.sub(r"\D", "", _num or os.getenv("TWILIO_WHATSAPP_FROM") or "")
     out["antar_number"] = ("+" + digits) if digits else None
     if out.get("chart_id"):
         out["chart_name"] = _wa_chart_name(out["chart_id"])
@@ -6212,7 +6249,8 @@ def messaging_whatsapp_connect(req: _WaConnect, authorization: str = Header(...)
     secret = os.getenv("WHATSAPP_LINK_SECRET")
     if not secret:
         raise HTTPException(503, "whatsapp linking not configured")
-    number = _msg.read_connect_token(secret, req.token)
+    _tok = _msg.read_connect_token_full(secret, req.token) or {}
+    number = _tok.get("number")
     if not number:
         raise HTTPException(400, "link expired or invalid — message Antar on WhatsApp again")
     chart_id = req.chart_id or _resolve_primary_chart_id(user_id)
@@ -6233,8 +6271,13 @@ def messaging_whatsapp_connect(req: _WaConnect, authorization: str = Header(...)
     link = _msg.get_whatsapp_link(supabase, number) or {"chart_id": chart_id, "user_id": user_id}
     lang = _wa_saved_lang(chart_id) or (_msg.link_context(link).get("lang")) or "en"
     text, starters = _wa_welcome(link, lang)
+    from antar_engine import wa_numbers as _wn
+    _ctx0 = {"lang": lang}
+    if _tok.get("sender"):
+        _wn.use(_tok["sender"])          # the welcome leaves from the number they wrote to
+        _ctx0["sender"] = _wn.current_sender.get()
     _msg.whatsapp_send(number, text, _time.time() - 15 * 60)
-    _msg.save_link_context(supabase, link, _msg.remember_options({"lang": lang}, "ask", starters))
+    _msg.save_link_context(supabase, link, _msg.remember_options(_ctx0, "ask", starters))
     return {"linked": True, "number_last4": number[-4:], "chart_id": chart_id}
 
 
@@ -17783,6 +17826,9 @@ _CHART_DERIVED_TABLES = (
     "messaging_links",
     # [outcome-loop] predictions; their outcomes go with them (ON DELETE CASCADE)
     "prediction_claims",
+    # [saved-decisions] the user's own saved questions — PII, and the whole point
+    # is that they are the person's, so a deleted chart must take them with it
+    "saved_decisions",
     "nlu_log",                 # [nlu] stores the person's question text
     # the user's own questions — PII, and previously left behind entirely
     "signature_question_log", "intent_classify_log",
@@ -31493,6 +31539,12 @@ async def ask_endpoint(request: AskRequest):
                         # there would be a lie the UI couldn't keep.
                         if _oc_claim.get("source") in _oc.CHECKIN_SOURCES:
                             payload["checkin_due_at"] = _oc_claim.get("checkin_due_at")
+                            # the SENTENCE too, not just the timestamp: the FE was
+                            # building it in en/es/pt, so a Hinglish answer carried
+                            # an English check-back line. Same contract as
+                            # `disclaimer` — backend owns the words.
+                            payload["checkin_note"] = _oc.checkin_note(
+                                _oc_claim.get("checkin_due_at"), language)
             except Exception as _oce:
                 print(f"[outcomes] claim skipped (non-fatal): {_oce}")
             _ask_attach_disclaimer(payload, locals().get("_ask_concern"), language, question)

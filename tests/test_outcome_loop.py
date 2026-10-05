@@ -143,6 +143,10 @@ def test_whatsapp_digit_answers_the_checkin(monkeypatch):
     import main
     from antar_engine import messaging as msg
     link = {"id": 1, "chart_id": "c1", "user_id": "u1",
+            # [wa-policy] the data-processing gate answers every inbound message
+            # with the policy prompt until the link carries the current wording —
+            # without this, "2" never reaches the check-in handler at all
+            "consent_version": msg.WA_CONSENT_VERSION,
             "context": msg.remember_options({}, "outcome", [["k9", "yes"], ["k9", "partly"],
                                                           ["k9", "no"], ["k9", "not_sure"]])}
     sent, recorded = [], []

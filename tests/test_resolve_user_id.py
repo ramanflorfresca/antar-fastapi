@@ -70,7 +70,7 @@ def test_fail_open():
     assert _resolve_user_id("", sb) is None
 
 
-@pytest.mark.skipif(not os.getenv("SUPABASE_URL"), reason="needs Supabase")
+@pytest.mark.live_db
 def test_live_columns_are_real_and_resolve_an_owner():
     """The columns we query must exist (a 42703 is swallowed by fail-open,
     which is exactly how the original bug hid), and a real chart resolves."""
