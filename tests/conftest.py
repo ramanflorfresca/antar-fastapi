@@ -42,3 +42,31 @@ def pytest_collection_modifyitems(config, items):
     for item in items:
         if "live_db" in item.keywords:
             item.add_marker(skip)
+
+
+# ── [wa-consent-hermetic 2026-10-05] never touch the live WhatsApp consent table ──
+# With a real .env that table is the LIVE one, so a test that forgets to stub the consent gate would
+# pass/fail by machine (CI has no creds and only ever saw the lookup fail open). Stub
+# messaging.policy_state / policy_accepted instead (see `_Conv` in test_whatsapp_channel.py).
+
+_GUARDED_TABLES = {"wa_policy_acceptances"}
+
+
+class RealPolicyTableAccess(BaseException):
+    """BaseException so the handler's `except Exception` fail-open can't swallow it."""
+
+
+@pytest.fixture(autouse=True)
+def _no_live_wa_policy_table(monkeypatch):
+    try:
+        from supabase import Client
+    except Exception:       # supabase not importable → nothing real to guard
+        return
+    real_table = Client.table
+
+    def guarded(self, name, *a, **k):
+        if name in _GUARDED_TABLES:
+            raise RealPolicyTableAccess(
+                f"test reached the real Supabase table {name!r}; stub messaging.policy_state/policy_accepted")
+        return real_table(self, name, *a, **k)
+    monkeypatch.setattr(Client, "table", guarded)
