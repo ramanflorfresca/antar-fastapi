@@ -29478,11 +29478,14 @@ async def ask_endpoint(request: AskRequest):
                     from antar_engine.narration_contract import (
                         concern_to_noun_palette as _ask_palette_fn,
                     )
-                    _ask_noun_palette = _ask_palette_fn(_ask_concern, k=5)
+                    from antar_engine.narration_contract import partnered_from_status as _ask_pfs
+                    _ask_noun_palette = _ask_palette_fn(
+                        _ask_concern, k=5,
+                        partnered=_ask_pfs((chart_row.data or {}).get("marital_status")))
                 except Exception as _np_err:
                     print(f"[ask][reflective] noun-palette load failed (non-fatal): {_np_err}")
                     _ask_noun_palette = ["savings", "your home", "a contract",
-                                         "an authority figure", "your partner"]
+                                         "an authority figure", "your work"]
                 # [ask-spec 2026-06-09] reflective FIXED FACTS — compute the
                 # intraday hora boundary so the model can name a HARD CLOCK
                 # instead of soft 'late morning'. Falls back to soft only if

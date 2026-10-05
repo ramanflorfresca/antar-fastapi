@@ -143,8 +143,9 @@ HOUSE_NOUNS: Dict[int, List[str]] = {
     # actually surfaces (verified live) PLUS contract-derived
     # synonyms.
     # [no-appearance 2026-10-04] "appearance" was a REQUIRED noun on general/choice
-    # reads → "which direction fits your appearance in the market" (Harleen).
-    1:  ["reputation", "how you come across", "your name", "identity",
+    # reads → "which direction fits your appearance in the market" (Harleen); a NOUN is
+    # required ("how you come across" became "Your how you come across is strong").
+    1:  ["reputation", "presence", "your name", "identity",
          "your body", "yourself", "first impression"],
     2:  ["savings", "income", "family money", "family wealth",
          "close family", "your voice", "spoken words", "your words",
@@ -673,7 +674,29 @@ _CONCERN_TO_DOMAIN: Dict[str, str] = {
 }
 
 
-def concern_to_noun_palette(concern: str, k: int = 5) -> List[str]:
+# [palette-partner 2026-10-04] the palette is REQUIRED vocabulary ("use at least 2"),
+# so "partner"/"spouse" on a divorced or single reader's money question invites
+# "talk it through with your partner". Personal-partner nouns only when the reader
+# has one (marital_status) — or, status unknown, on a love question.
+_PERSONAL_PARTNER_NOUNS = {"partner", "spouse", "your partner"}
+_PARTNERED_STATUSES = {"married", "in_relationship", "in_a_relationship", "partnered",
+                       "dating", "engaged"}
+_UNPARTNERED_STATUSES = {"single", "divorced", "separated", "widowed", "never_married",
+                         "unmarried"}
+
+
+def partnered_from_status(marital_status) -> Optional[bool]:
+    """True / False from charts.marital_status; None when unknown."""
+    m = str(marital_status or "").lower().strip()
+    if m in _PARTNERED_STATUSES:
+        return True
+    if m in _UNPARTNERED_STATUSES:
+        return False
+    return None
+
+
+def concern_to_noun_palette(concern: str, k: int = 5,
+                            partnered: Optional[bool] = None) -> List[str]:
     """Map a /ask concern label to up to `k` concrete house-nouns.
 
     This is the noun palette fed to the /ask reflective-mode prompt:
@@ -691,6 +714,7 @@ def concern_to_noun_palette(concern: str, k: int = 5) -> List[str]:
     """
     domain = _CONCERN_TO_DOMAIN.get((concern or "general").lower(), "general")
     houses = DOMAIN_HOUSES.get(domain, DOMAIN_HOUSES["general"])
+    _drop_partner = partnered is False or (partnered is None and domain != "love")
     # Round-robin across the activated houses so a multi-house domain
     # like "love" (7,5,4) draws one noun from EACH before doubling up
     # on house 7 — otherwise we'd get all of house 7's nouns (partner,
@@ -706,7 +730,7 @@ def concern_to_noun_palette(concern: str, k: int = 5) -> List[str]:
                 continue
             noun = lst[col]
             low = noun.lower()
-            if low in seen:
+            if low in seen or (_drop_partner and low in _PERSONAL_PARTNER_NOUNS):
                 continue
             palette.append(noun)
             seen.add(low)
