@@ -1399,7 +1399,7 @@ def predictions_to_context_block(predictions: dict, chart_data: dict, concern: s
                      f"(significators {', '.join(_vf.get('karakas') or [])})")
         for _e in (_vf.get("evidence") or [])[:6]:
             lines.append(f"  - {_e}")
-        if _vf.get("verdict") == "against the grain":
+        if _vf.get("verdict") in ("a poor fit", "against the grain"):
             lines.append(
                 "  RULE: say so honestly. Name the kind of work this chart IS "
                 "built for rather than only cheerleading the current one."

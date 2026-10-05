@@ -47,6 +47,9 @@ _JARGON = {
     (r"\b([\w-]+)(?:'s|’s) grain\b", lambda m: f"{m.group(1)}'s natural pattern"),
     # leftover forms the prompt no longer asks for, but the model still produces now and then
     (r"\b([\w-]+)(?:'s|’s) (?:strongest |natural |own |real )?grain\b", lambda m: f"{m.group(1)}'s natural fit"),
+    (r"\bruns? with (that|this|the|your|their) grain\b", lambda m: f"fits {m.group(1)}" if m.group(1) in ("that", "this") else "fits"),
+    (r"\bruns? against (that|this|the|your|their) grain\b", lambda m: f"cuts against {m.group(1)}" if m.group(1) in ("that", "this") else "cuts against it"),
+    (r"\b(that|this) grain\b", lambda m: f"{m.group(1)} natural fit"),
     (r"\b(with|against|along) the grain\b", lambda m: f"{m.group(1)} the natural fit"),
     (r"\byour (natural )?grain\b", "your natural strengths"),
     (r"\b(strongest |natural )?grain\b(?=\s*(?:—|-|,|which|that|is|exactly|and))", "natural fit"),
@@ -97,7 +100,16 @@ _PICK_ONE = re.compile(
     r"(service|client|venture|product|stream|source|customer|deal|business)\b|"
     r"\bput (more|most|all) of your (time|effort|focus|energy|week) (there|on (it|that)|into (it|that))\b|"
     r"\bchas(e|ing) (new )?ventures\b|\bnaye ventures chase\b|\bpick the one (active )?(work stream|stream|track)\b|"
-    r"\b(presence|focus) double kar")
+    r"\b(presence|focus) double kar|"
+    # [spread-profession] "unfocused, that same drive scatters into too many directions", "pick your focus and
+    # commit to it" — a profession answer must not tell a SPREAD reader to narrow (EN/ES/PT/Hinglish)
+    r"\bscatter(s|ed|ing)?\b|\btoo many directions\b|\bpick your focus\b|\bcommit to (it|one|that)\b|"
+    r"\bunfocused\b|\bwithout focus\b|\bone clear (direction|lane|focus)\b|\bover three\b|"
+    r"\bdispersa\w*|\bdemasiadas direcciones\b|\belige tu enfoque\b|\bespalha\w*\b|\bbikhar\w*|"
+    r"\bel[ií]ge (el|la) (pr[oó]xim\w*|siguiente) (proyecto|negocio|emprendimiento)\b|"
+    r"\bel[ií]ge\s+(un|una|el|la)\s+(?:\w+\s+){0,2}(?:[áa]rea|campo|l[ií]nea|cliente|proyecto|negocio|emprendimiento|servicio)\b|"
+    r"\bescolha\s+(um|uma|o|a)\s+(?:\w+\s+){0,2}(?:[áa]rea|campo|linha|cliente|projeto|neg[oó]cio|servi[cç]o)\b|"
+    r"\bescolha (o|a) (pr[oó]xim\w*|seguinte) (projeto|neg[oó]cio)\b")
 
 _ROLE_MOVE = {
     "en": "Write down the kind of work where people come to you for your judgment, and give it more of your week.",
@@ -128,7 +140,7 @@ _FALLBACK_NEXT = {
               "es": "Desde esta semana, pasa una parte fija de cada pago — por ejemplo el 10% — a una cuenta de ahorro aparte.",
               "pt": "A partir desta semana, mova uma parte fixa de cada pagamento — por exemplo 10% — para uma conta poupança separada.",
               "hi": "Is hafte se har payment ka ek fixed hissa — jaise 10% — ek alag savings account mein daaliye."},
-    "work": {"en": "Block one hour this week for the single task that moves your work forward most, and do it first.",
+    "work": {"en": "Block one hour this week for the task that moves your work forward most, and do it first.",
              "es": "Reserva una hora esta semana para la tarea que más hace avanzar tu trabajo, y hazla primero.",
              "pt": "Reserve uma hora esta semana para a tarefa que mais faz seu trabalho avançar, e faça-a primeiro.",
              "hi": "Is hafte ek ghanta us ek kaam ke liye rakhiye jo aapke kaam ko sabse aage badhata hai, aur pehle wahi kijiye."},
@@ -141,6 +153,31 @@ _FALLBACK_NEXT = {
                "pt": "Escolha um hábito diário desta resposta e mantenha-o pelos próximos sete dias.",
                "hi": "Is jawab se ek roz ki aadat chuniye aur agle saat din usse nibhaiye."},
 }
+# money: a second move for when the answer itself says money is tight ("10% of every payment" reads
+# tone-deaf next to "outflow is running ahead of income"), and so a move is never repeated
+_MONEY_CUT = {"en": "Write down this month's three biggest outflows and cut or pause one of them this week.",
+              "es": "Anota las tres salidas de dinero más grandes de este mes y recorta o pausa una esta semana.",
+              "pt": "Anote as três maiores saídas de dinheiro deste mês e corte ou pause uma esta semana.",
+              "hi": "Is mahine ke teen sabse bade kharche likhiye aur is hafte unmein se ek kam ya band kijiye."}
+_MONEY_TIGHT = re.compile(r"(?i)outflow|\bleak|pressure on (your )?savings|running ahead|\btight\b|squeez|overhead|"
+                          r"salidas|gastos|presi[oó]n en (el )?ahorro|sa[ií]das|kharch|dabav")
+
+
+def _norm_move(x) -> str:
+    return re.sub(r"\W+", " ", (x or "").lower()).strip()
+
+
+def _pick_fallback(grp: str, lang: str, read: str, prev_moves) -> str:
+    opts = [_FALLBACK_NEXT[grp][lang]]
+    if grp == "money":
+        opts = ([_MONEY_CUT[lang], opts[0]] if _MONEY_TIGHT.search(read or "") else [opts[0], _MONEY_CUT[lang]])
+    prev = {_norm_move(p) for p in (prev_moves or []) if p}
+    for o in opts:
+        if _norm_move(o) not in prev:
+            return o
+    return opts[0]
+
+
 _CONCERN_GROUP = {
     "finance": "money", "wealth": "money", "loan": "money", "loss": "money", "funding": "money",
     "speculation": "money", "property": "money",
@@ -214,7 +251,8 @@ _SUPPORT_BOLD = re.compile(r"(?i)\b(strongly )?(supports?|backs|favou?rs|green-?
 
 
 def polish_answer(payload: dict, language: str = "en", typed_question: str = "",
-                  concern: str = "general", chart_lean: str = "", thread_text: str = "") -> dict:
+                  concern: str = "general", chart_lean: str = "", thread_text: str = "",
+                  prev_moves=()) -> dict:
     try:
         if not isinstance(payload, dict) or payload.get("needs_clarification"):
             return payload
@@ -285,6 +323,12 @@ def polish_answer(payload: dict, language: str = "en", typed_question: str = "",
         if isinstance(nx, str) and nx.strip() and _FRAGMENT.match(nx.strip()):
             print(f"[ask][polish] fragment move dropped: {nx[:60]!r}")
             payload["next"] = None
+        # the same move twice in one conversation — the narrator is told not to, but still does
+        nx_now = payload.get("next")
+        if (isinstance(nx_now, str) and nx_now.strip() and prev_moves
+                and _norm_move(nx_now) in {_norm_move(p) for p in prev_moves if p}):
+            print("[ask][polish] repeated move → alternate")
+            payload["next"] = None
         # never ship without a move
         if not (isinstance(payload.get("next"), str) and payload["next"].strip()):
             grp = _CONCERN_GROUP.get((concern or "general").lower(), "work")
@@ -296,7 +340,7 @@ def polish_answer(payload: dict, language: str = "en", typed_question: str = "",
                     grp = "money"
             except Exception:
                 pass
-            payload["next"] = _FALLBACK_NEXT[grp][lang]
+            payload["next"] = _pick_fallback(grp, lang, payload.get("read") or "", prev_moves)
             print(f"[ask][polish] fallback move ({grp})")
     except Exception as e:
         print(f"[ask][polish] non-fatal: {e}")

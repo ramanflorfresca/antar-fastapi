@@ -254,9 +254,12 @@ def named_count(question: str) -> int:
 # only the concentrate question: Raman's profession answer said "one clear mandate
 # beats three parallel bets… go deep on one venture, not wide" right after "spread".
 LEAN_CONSISTENCY = {
-    "spread": ("MONEY-LEAN GUARD: this reader's money reading says SPREAD across ventures with caps. "
-               "Never tell them to pick one venture, cut ventures, or go deep on one instead of wide. "
-               "Focus advice is about their ROLE or skill lane (what kind of work), not the number of ventures."),
+    "spread": ("MONEY-LEAN GUARD: this reader's money reading says SPREAD YOUR RISK — meaning a reserve outside "
+               "their work plus a cap on what any one thing can draw from them. Never tell them to pick one venture, "
+               "cut ventures, or go deep on one instead of wide — AND never praise or recommend running several "
+               "ventures or income streams, or assume how many they run ('working across multiple ventures is the "
+               "right instinct' contradicted 'the key is not more ventures' one turn later). Focus advice is about "
+               "their ROLE or skill lane (what kind of work), never the number of things."),
     "concentrate": ("MONEY-LEAN GUARD: this reader's money reading says CONCENTRATE on what is working. "
                     "Never tell them to add ventures, start a second line, or diversify."),
 }
@@ -318,6 +321,21 @@ ALLOC_OPENER = {
         "hi": "{n}reading kehti hai alag alag rakho — ek hi venture mein sab kuch hona hi yahan risk hai.",
     },
 }
+# [spread-profession 2026-10-05] the concentrate-or-diversify VERDICT sentence, owned by Python like the all-in
+# one. The model's own wording varied run to run ("spread across more than one venture" / "keep a reserve
+# outside your ventures" / "diversifica — no concentres…") and later turns then contradicted whichever it chose.
+ALLOC_OPENER["cvd_spread"] = {
+    "en": "{n}spread your risk — keep part of what you earn in a reserve outside your ventures, and cap what any one of them can take.",
+    "es": "{n}reparte el riesgo — guarda una parte de lo que ganas en una reserva fuera de tus emprendimientos y ponle tope a lo que cada uno puede tomar.",
+    "pt": "{n}espalhe o risco — guarde parte do que ganha numa reserva fora dos seus empreendimentos e limite o que cada um pode tomar.",
+    "hi": "{n}risk baanto — apni kamai ka ek hissa venture ke bahar ek reserve mein rakho, aur har venture ke liye limit tay karo.",
+}
+ALLOC_OPENER["cvd_concentrate"] = {
+    "en": "{n}concentrate — put your main effort and money behind what is already working, and cap or pause the rest.",
+    "es": "{n}concéntrate — pon tu esfuerzo y tu dinero principales en lo que ya funciona, y limita o pausa el resto.",
+    "pt": "{n}concentre-se — ponha seu esforço e dinheiro principais no que já funciona, e limite ou pause o resto.",
+    "hi": "{n}ek jagah focus karo — apna mukhya effort aur paisa jo pehle se kaam kar raha hai usme lagao, baaki ko limit ya pause karo.",
+}
 _AFFIRM_RX = re.compile(r"(?i)(right call|strongest move|exactly|\bfits?\b|solid pairing|good call|"
                         r"\bbacks?\b|\bsupports?\b|the right place|flags|acierto|encaja|correcto|"
                         r"\bcerto\b|combina|respalda|apoia|sahi (hai|faisla))")
@@ -338,6 +356,11 @@ _RESTATE_RX = {
                                 r"\b[uú]nic[oa]\b|un solo|um s[oó]|concentra|"
                                 r"\byahi( toh)?\b|sabse bada (warning|risk)"),
 }
+
+_RESTATE_RX["cvd_spread"] = re.compile(r"(?i)\bspread\b|diversif|repart|reparte|espalh|alag alag|baanto|don'?t put everything|"
+                                       r"no (concentres|pongas) todo|ek hi jagah sab kuch mat")
+_RESTATE_RX["cvd_concentrate"] = re.compile(r"(?i)\bconcentrat|go deep|back (the one|what)|concentr[ae]|ek jagah focus|put your main effort")
+
 
 
 def apply_alloc_opener(read: str, case: str, language: str = "en", name: str = "",

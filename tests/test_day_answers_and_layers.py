@@ -94,3 +94,73 @@ def test_emergency_fund_is_not_funding_and_pick_one_direction_is_caught():
     r = {"read": "a. Your next step is raising funding from investors. c.", "next": "Call two investors."}
     ap.polish_answer(r, "en", "How is my money looking right now?", "finance", "")
     assert "investors" not in r["read"] and "investors" not in (r["next"] or "")   # genuine unasked funding still dropped
+
+
+def test_profession_answer_cannot_tell_a_spread_reader_to_narrow():
+    cases = [("Raman, startup founder fits you. You have a pull toward leading; unfocused, that same drive scatters into too many "
+              "directions at once. Operations-heavy work is uphill.", "Write down the kind of work where people come to you."),
+             ("Shashi, you are built for research and public roles. Without focus, that same drive pulls you in too many "
+              "directions, so pick your focus and commit to it. After 2028 analytical work fits.", "Keep it up.")]
+    for r, n in cases:
+        p = {"read": r, "next": n}
+        ap.polish_answer(p, "en", "Which profession fits me best?", "career", "spread")
+        assert not any(w in p["read"].lower() for w in ("scatter", "too many directions", "pick your focus", "commit to it"))
+    q = {"read": "a. Unfocused drive scatters. c.", "next": "Do it."}
+    ap.polish_answer(q, "en", "Which profession fits me best?", "career", "concentrate")
+    assert "scatters" in q["read"]                      # concentrate charts are untouched
+    es = {"read": "a. b. c.", "next": "Elige el próximo proyecto por su modo: asesoría o red."}
+    ap.polish_answer(es, "es", "¿Qué profesión encaja mejor conmigo?", "career", "spread")
+    assert "Elige el próximo proyecto" not in es["next"]
+
+
+def test_career_fit_prompt_and_labels_do_not_say_scatter_or_grain():
+    import inspect, main
+    from antar_engine import subject_promise as sp
+    src = inspect.getsource(main)
+    assert "scatters into over-reach when unfocused" not in src and "KIND OF WORK, NOT HOW MANY" in src
+    assert "against the grain" not in inspect.getsource(sp)
+
+
+def test_lean_guard_forbids_praising_several_ventures_too():
+    from antar_engine import wealth_magnitude as wm
+    g = wm.LEAN_CONSISTENCY["spread"].lower()
+    assert "never praise or recommend running several" in g and "reserve outside" in g
+
+
+def test_money_fallback_varies_with_the_answer_and_never_repeats():
+    tight = {"read": "Outflow is running ahead of what comes in. Savings feel pressured. Keep costs lean.", "next": None}
+    ap.polish_answer(tight, "en", "How is my money looking right now?", "finance", "")
+    assert "outflows" in tight["next"]
+    easy = {"read": "Income is well supported. Gains are active. Keep going.", "next": None}
+    ap.polish_answer(easy, "en", "How is my money looking right now?", "finance", "")
+    assert "10%" in easy["next"]
+    again = {"read": "Income is well supported. Gains are active. Keep going.", "next": None}
+    ap.polish_answer(again, "en", "How is my money looking right now?", "finance", "", prev_moves=[easy["next"]])
+    assert "10%" not in again["next"]
+    rep = {"read": "a. b. c.", "next": "Name your biggest cash drain this week and cut it."}
+    ap.polish_answer(rep, "en", "q", "finance", "", prev_moves=["Name your biggest cash drain this week and cut it."])
+    assert rep["next"] != "Name your biggest cash drain this week and cut it."
+
+
+def test_concentrate_or_diversify_verdict_sentence_is_pythons():
+    from antar_engine import wealth_magnitude as wm
+    r = wm.apply_alloc_opener("Raman, spread across more than one venture — don't put everything on one. Your earning power is "
+                              "real. Cap each one.", "cvd_spread", "en", "Raman")
+    assert r.startswith("Raman, spread your risk — keep part of what you earn in a reserve outside your ventures")
+    assert "more than one venture" not in r and "Your earning power is real." in r
+    es = wm.apply_alloc_opener("Jaime, diversifica — no concentres todo en un solo emprendimiento. Tus ingresos tienen espacio. "
+                               "Guarda una parte.", "cvd_spread", "es", "Jaime")
+    assert es.startswith("Jaime, reparte el riesgo") and "diversifica" not in es
+    c = wm.apply_alloc_opener("Harleen, concentrate — put your main effort into what works. Your reputation builds. Pause the rest.",
+                              "cvd_concentrate", "en", "Harleen")
+    assert c.startswith("Harleen, concentrate — put your main effort and money behind what is already working")
+
+
+def test_more_spanish_pick_one_forms_and_that_grain():
+    for t in ("Elige un área concreta — asesoría, formación o análisis.", "Elige el próximo cliente o proyecto y ciérralo primero."):
+        p = {"read": "a. b. c.", "next": t}
+        ap.polish_answer(p, "es", "¿Qué profesión encaja mejor conmigo?", "career", "spread")
+        assert p["next"] != t, t
+    assert ap.plain_words("Your work as a founder already runs with that grain.", "en") == "Your work as a founder already fits that."
+    import inspect, main
+    assert "TIMING GRAIN" not in inspect.getsource(main)

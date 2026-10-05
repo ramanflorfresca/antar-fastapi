@@ -101,7 +101,8 @@ def test_b4_receivables_backing_and_wider_pick_one():
     p = {"read": "Income is supported. The reading shows pressure on savings. Collect what you're already owed first.",
          "next": "Name the single oldest unpaid amount owed to you and chase it this week."}
     ap.polish_answer(p, "en", "How is my money looking right now?", "finance", "")
-    assert "owed" not in p["read"] and "owed" not in p["next"] and "10%" in p["next"]
+    assert "owed" not in p["read"] and "owed" not in p["next"]
+    assert "10%" in p["next"] or "outflows" in p["next"]   # a money move: the answer says savings are pressured → outflow cut
     q = {"read": "a. b. You're owed money from March.", "next": "Chase what you're owed."}
     ap.polish_answer(q, "en", "A client owes me money from March — what's owed to me?", "finance", "")
     assert "owed" in q["next"]
