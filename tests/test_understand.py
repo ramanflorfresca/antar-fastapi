@@ -906,3 +906,27 @@ def test_kids_next_replaces_mentor_step():
     n = "Call your mentor or a trusted elder this week and talk through what support looks like."
     assert "doctor" in u.kids_next(n, "children_conception", "Why is my pregnancy so hard?", "en")
     assert u.kids_next(n, "career_job", "x", "en") == n
+
+
+# ── audit round 19 ────────────────────────────────────────────────────────────
+def test_relationship_next_replaces_money_steps():
+    n = "Apne savings ko pehle protect karo — ek stable income base banao."
+    assert "rishta" in u.relationship_next(n, "marriage", "Kya is saal meri shaadi hogi?", "hinglish")
+    b = "This week, name one concrete thing in your business that needs steadying."
+    assert "partnership" in u.relationship_next(b, "existing_relationship", "When will my marriage improve?", "en")
+    ok = "Tell one trusted friend what you want from your next relationship."
+    assert u.relationship_next(ok, "marriage", "Will I marry?", "en") == ok
+    assert u.relationship_next(n, "marriage", "Will money problems hurt my marriage?", "en") == n
+
+
+def test_drop_asker_health_on_parent_health_questions():
+    t = "Your father needs a check-up. Health issues are active on your end though. Book it today."
+    out = u.drop_asker_health(t, "health_other", "When will my father's health improve?")
+    assert "your end" not in out and "check-up" in out
+
+
+def test_credit_related_terms_and_later_years():
+    t = "Review your case documents. Check the credit-related terms carefully. Bring questions to your lawyer."
+    assert "credit" not in u.drop_asserted_loans(t, "Kya mera case safal hoga?", "legal_case")
+    assert u.explicit_area("Could my later years get better this year?") == "income_money"
+    assert u.is_retirement_q("How will my later life look?")

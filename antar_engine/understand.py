@@ -263,7 +263,8 @@ _EXPLICIT_TOPICS = (
     (re.compile(r"(?i)\b(casamento|matrimonio|shaadi|marriage|wedding|boda)\b"), "marriage"),
     (re.compile(r"(?i)\b(exam|examen|prova|pariksha|study|estudo|estudio)\b"), "education_exam"),
     (re.compile(r"(?i)\b(abroad|exterior|extranjero|videsh)\b"), "foreign_travel_visa"),
-    (re.compile(r"(?i)\b(retire\w*|retirement|pension|jubilaci[oó]n|aposentadoria|budhapa|vejez|velhice)\b"),
+    (re.compile(r"(?i)\b(retire\w*|retirement|pension|jubilaci[oó]n|aposentadoria|budhapa|vejez|velhice|"
+                r"later (years|life)|old age|[uú]ltimos años|anos finais|terceira idade)\b"),
      "income_money"),
 )
 
@@ -963,7 +964,8 @@ _ASSERTED_LOAN = re.compile(
     r"\btermos d[eo] empr[eé]stimo|\bempr[eé]stimo ou (capital|pagamento)|\bnão (um )?empr[eé]stimo|"
     r"\bpr[eé]stamo o (capital|pago)|\bcapital externo\b|"
     # [audit r10] any loan wording, EN / ES / PT, when nobody raised money
-    r"\bloans?\b|\bempr[eé]stimos?\b|\bpr[eé]stamos?\b)")
+    r"\bloans?\b|\bempr[eé]stimos?\b|\bpr[eé]stamos?\b|\bcredit[- ]related\b|\bcredit terms\b|"
+    r"\bt[eé]rminos de cr[eé]dito\b|\btermos de cr[eé]dito\b)")
 _LOAN_CLAUSE = re.compile(
     r"(?i)(?:\s*(?:,|\band\b|\be\b|\by\b|\bo\b|\bou\b)\s+)?(?:(?:any|quaisquer|cualquier(?:a)?)\s+)?"
     r"(?:(?:terms?|termos?|t[eé]rminos?)\s+(?:of|de|do)\s+)?(?:the\s+|o\s+|el\s+)?"
@@ -1219,7 +1221,7 @@ def drop_other_people_claims(text, area: str = "", question: str = ""):
 
 
 _RETIRE_Q = re.compile(r"(?i)\b(retire\w*|pension|jubilaci[oó]n|jubilarme|aposentadoria|aposentar\w*|old age|"
-                       r"vejez|velhice|budhapa)\b")
+                       r"vejez|velhice|budhapa|later (years|life)|terceira idade)\b")
 
 
 def is_retirement_q(question: str) -> bool:
@@ -1254,7 +1256,8 @@ def strip_system_terms(text, language: str = "en"):
     return re.sub(r"\b(o|a|el|la) (propósito de vida)", r"\1 \2", out)
 
 
-_INVENTED_LEGAL = re.compile(r"(?i)\b(cau[cç][aã]o|fian[cç]a|bail|bond posted|garant[ií]a judicial)\b")
+_INVENTED_LEGAL = re.compile(r"(?i)\b(cau[cç][aã]o|fian[cç]a|bail|bond posted|garant[ií]a judicial|"
+                             r"credit[- ]related terms)\b")
 
 
 def drop_invented_legal(text, question: str = ""):
@@ -1406,6 +1409,48 @@ def next_floor(nxt, language: str = "en"):
     if isinstance(nxt, str) and len(re.findall(r"\w+", nxt)) < 6:
         return _NEXT_FLOOR.get(language if language in ("es", "pt", "hinglish") else "en")
     return nxt
+
+
+# ── round 19 ─────────────────────────────────────────────────────────────────
+_REL_NEXT = {
+    "en": "This week, write down what a good partnership looks like for you now — and share it with one person you trust.",
+    "es": "Esta semana, escribe cómo se ve para ti una buena relación ahora — y compártelo con una persona de confianza.",
+    "pt": "Esta semana, escreva como é uma boa relação para você agora — e compartilhe com uma pessoa de confiança.",
+    "hinglish": "Is hafte likho ki aapke liye ab ek achha rishta kaisa dikhta hai — aur kisi ek bharosemand insaan se share karo.",
+}
+_REL_NEXT_AREAS = frozenset({"marriage", "new_romance", "existing_relationship", "reunion_ex", "separation"})
+
+
+def relationship_next(nxt, area: str = "", question: str = "", language: str = "en"):
+    """[audit r19] A love / marriage next step about savings, income or the business ('Apne savings ko pehle
+    protect karo' after 'Kya is saal meri shaadi hogi?') is replaced — it is one sentence, so the sentence
+    filter cannot trim it."""
+    if not isinstance(nxt, str) or area not in _REL_NEXT_AREAS:
+        return nxt
+    if (_BIZ_PRESSURE.search(question or "") or _FIN_WORDS.search(question or "")
+            or re.search(r"(?i)\b(money|income|finances?|financial|dinero|dinheiro|paisa|business)\b", question or "")):
+        return nxt
+    if _BIZ_PRESSURE.search(nxt) or _BUSINESS_NEXT.search(nxt) or re.search(
+            r"(?i)\b(income|salary|savings|ingresos?|renda|ahorros?|poupan[cç]a|kamai|paisa)\b", nxt):
+        return _REL_NEXT.get(language if language in ("es", "pt", "hinglish") else "en")
+    return nxt
+
+
+_OWN_HEALTH = re.compile(
+    r"(?i)\b(health (issues|problems|concerns)|sehat (ki )?(problem|issues?))\b[^.!?]{0,40}"
+    r"\b(your end|your own|for you|on you|aapki|aapke)\b"
+    r"|\b(your|aapki|tu|tua|sua) (own )?(health|sa[uú]de|salud|sehat) (is|issues|problems|est[aá]|hai)\b")
+
+
+def drop_asker_health(text, area: str = "", question: str = ""):
+    """[audit r19] A question about someone ELSE's health must not state the asker has health problems
+    ('Health issues are active on your end though')."""
+    if not isinstance(text, str) or area != "health_other":
+        return text
+    if re.search(r"(?i)\b(my|mi|meu|minha|meri|mera) (own )?(health|salud|sa[uú]de|sehat)\b", question or ""):
+        return text
+    kept = [x for x in _sentences(text) if not _OWN_HEALTH.search(x)]
+    return _keep(kept, text)
 
 
 def parse_model_json(raw) -> Optional[dict]:
