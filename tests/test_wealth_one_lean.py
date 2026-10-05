@@ -21,3 +21,15 @@ def test_every_grade_has_one_lean():
     assert leans == ["spread", "spread", "concentrate"]
     for lean, text in wm.LEAN_DIRECTIVE.items():
         assert "sentence one" in text and "`next` MUST" in text
+
+
+def test_allocation_statement_detector():
+    yes = ["I am 100% all in on Tezops AI and Antar", "I'm all in", "Going all-in on Antar",
+           "Everything is in my startup", "I put all my savings into real estate",
+           "Voy con todo en mi negocio", "Tudo no meu negócio", "Sab kuch Antar mein lagaya hai"]
+    no = ["Is it all in my head?", "Is it all in the timing?", "How is my money?",
+          "When will funding come?"]
+    assert all(wm.is_allocation_statement(q) for q in yes)
+    assert not any(wm.is_allocation_statement(q) for q in no)
+    assert "already fits" in wm.ALLOCATION_DIRECTIVE["spread"]
+    assert "Never tell them to pick one" in wm.ALLOCATION_DIRECTIVE["spread"]
