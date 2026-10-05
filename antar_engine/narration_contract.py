@@ -680,6 +680,8 @@ _CONCERN_TO_DOMAIN: Dict[str, str] = {
 # "talk it through with your partner". Personal-partner nouns only when the reader
 # has one (marital_status) — or, status unknown, on a love question.
 _PERSONAL_PARTNER_NOUNS = {"partner", "spouse", "your partner"}
+# no parents/siblings: naming "your mother" made answers assert things about people we know nothing about
+_FAMILY_NOUNS = ["your home", "close family", "what you say at home", "the people at home", "closeness"]
 _ASSUMPTIVE_NOUNS = {"other people's money", "others' money", "inheritance", "windfall", "secret",
                      "insurance", "high-risk bet", "hidden gains", "higher-risk gains", "loan",
                      "loan or credit line", "credit decision", "credit line", "debt", "debts"}
@@ -720,6 +722,11 @@ def concern_to_noun_palette(concern: str, k: int = 5,
         ['boss', 'authority figure', 'senior']
     """
     domain = _CONCERN_TO_DOMAIN.get((concern or "general").lower(), "general")
+    if domain == "family":
+        # [family-answers 2026-10-05] houses 4/2/3/9 also mean property, savings and family money —
+        # with "name at least one" those became "property decisions" and "money conversations with
+        # family" in 39% of family answers (1% before the family topic existed). Home-life words only.
+        return list(_FAMILY_NOUNS)[:k]
     houses = DOMAIN_HOUSES.get(domain, DOMAIN_HOUSES["general"])
     _drop_partner = partnered is False or (partnered is None and domain != "love")
     # [audit-r1 2026-10-04] personal-life nouns only on personal questions — forced into a

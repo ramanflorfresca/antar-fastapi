@@ -22,9 +22,21 @@ _FRAGMENT = re.compile(
 
 # ── R2: internal vocabulary → everyday words ──
 _JARGON = {
+    "hi": [
+        (r"\b(jo )?(main )?trigger( jo)?( chahiye)?\s*[—-]?\s*woh abhi bana nahi hai", "sahi mauka abhi nahi aaya hai"),
+        (r"\b(main )?trigger abhi (bana )?nahi (bana )?hai", "sahi mauka abhi nahi aaya hai"),
+    ],
     "en": [
-        (r"\b(an? )?(exceptional|large|solid|modest|big|strong)?,? ?(work-it )?wealth engine\b",
-         lambda m: f"{m.group(1) or ''}{(m.group(2) + ' ') if m.group(2) else ''}earning power"),
+        # [family-answers 2026-10-05] internal event-engine labels echoed to the reader
+        (r"\bthe trigger (that|which) (turns|converts|makes)[^.—;]*?(hasn'?t|has not|isn'?t|is not|hasn’t)\s+(formed|fired|clicked|arrived|come|here|happened)( yet)?",
+         "the right moment hasn't come yet"),
+        (r"\bthe trigger (hasn'?t|has not|isn'?t|is not|hasn’t|isn’t)[^.—;,]{0,25}?(in place|there|here|ready|set|formed|fired|clicked|arrived|come)( yet)?",
+         "the right moment hasn't come yet"),
+        (r"\bthe trigger (forms?|comes?|arrives?)\b", "the right moment comes"),
+        (r"\bthe board (shows|says|reads|suggests)\b", lambda m: f"the reading {m.group(1)}"),
+        # keep the space before the phrase ("Your wealth engine" must not become "Yourearning power")
+        (r"(?:(?<=\s)|^)(an? )?((?:exceptional|large|solid|modest|big|strong),? )?(work-it )?wealth engine\b",
+         lambda m: ((m.group(1) or "") + m.group(2) + "earning power") if m.group(2) else "earning power"),
         (r"\byour (natural )?grain runs (strongest|best) (with|in|through)\b", "you do best in"),
         (r"\b(runs|goes|works) (with|against) (your|the|their) (natural )?grain\b",
          lambda m: f"{m.group(1)} {m.group(2)} your natural strengths"),
@@ -38,12 +50,18 @@ _JARGON = {
         (r"\bdissolves\b", "slips away"),
     ],
     "es": [
+        # [family-answers 2026-10-05] internal event-engine labels echoed to the reader
+        (r"\bel detonador que (convierte|transforma|hace)[^.—;]*", "el momento justo"),
+        (r"\bel detonador\b", "el momento justo"),
+        (r"\bel tablero (muestra|dice|indica|sugiere)\b", lambda m: f"la lectura {m.group(1)}"),
         (r"\bmotor de (riqueza|ganancias)\b", "capacidad de generar ingresos"),
         (r"\btienden a disolverse\b", "tienden a esfumarse"),
         (r"\bse disuelven\b", "se esfuman"),
         (r"\bdisolverse\b", "esfumarse"),
     ],
     "pt": [
+        (r"\bo (tabuleiro|painel) (mostra|diz|indica|sugere)\b", lambda m: f"a leitura {m.group(2)}"),
+        (r"\bo gatilho que (converte|transforma|faz)[^.—;]*", "o momento certo"),
         (r"\bmotor de (riqueza|ganhos)\b", "capacidade de gerar renda"),
         (r"\btendem a se dissolver\b", "tendem a escapar"),
         (r"\bse dissolvem\b", "escapam"),
@@ -116,14 +134,42 @@ _CONCERN_GROUP = {
     "speculation": "money", "property": "money",
     "career": "work", "business": "work", "startup": "work", "sales": "work", "education": "work",
     "love": "people", "marriage": "people", "divorce": "people", "family": "people",
-    "children": "people", "reconciliation": "people",
+    "children": "people", "reconciliation": "people", "family": "people",
     "health": "health", "spiritual": "health",
 }
+
+
+# an internal astrology term ("the ruler of your home is weak", "ghar ka ruler") — drop the sentence
+_INTERNAL_TERM = re.compile(r"(?i)\b(ruler|lord of the|house lord|karaka|dasha|nakshatra)\b")
+
+# ── family / home-life answers ([family-answers 2026-10-05]) ──
+FAMILY_GUARD = ("FAMILY LIFE — this is about peace and closeness at home with the people they live with "
+                "or are close to. Do NOT bring up property, real estate, buying or selling a home, deals, "
+                "money, finances, savings or the business unless the question did. Do not assume who is "
+                "in their household. Never write the internal words 'trigger', 'board', 'promise'.")
+_FAM_SWAP = [
+    (re.compile(r"(?i)\b(home and property|property and home|home or property|home/property|home and real estate)\b"), "home"),
+    (re.compile(r"(?i)\b(the )?(hogar y (la )?propiedad|casa y propiedad|propiedad y hogar)\b"), "el hogar"),
+    (re.compile(r"(?i)\b(casa e propriedade|lar e propriedade|propriedade e casa)\b"), "a casa"),
+    (re.compile(r"(?i)\b(property|home)\s+(ya|aur)\s+(home|property)\b"), "ghar"),
+]
+_FAM_OFFTOPIC = re.compile(
+    r"(?i)\b(property|real estate|propiedad|inmueble|bienes ra[ií]ces|im[oó]vel|shared finances|family money|"
+    r"money conversations?|financial|finances|savings|cushion|finanzas( familiares)?|ahorros?|colch[oó]n|dinero|"
+    r"poupan[cç]a|finan[cç]as|dinheiro|paisa|property se|property ke)\b")
 
 
 def _lang(language: str) -> str:
     l = (language or "en").lower()
     return "hi" if l in ("hi", "hinglish") else (l[:2] if l[:2] in ("en", "es", "pt") else "en")
+
+
+def _keepcase(rep):
+    """Replacement that keeps a sentence-initial capital ("The board shows" → "The reading shows")."""
+    def sub(m):
+        r = rep(m) if callable(rep) else m.expand(rep)
+        return (r[:1].upper() + r[1:]) if (m.group(0)[:1].isupper() and r) else r
+    return sub
 
 
 def plain_words(text, language: str = "en"):
@@ -133,7 +179,7 @@ def plain_words(text, language: str = "en"):
     # pure internal terms are replaced there
     extra = [r for r in _JARGON["en"] if "wealth" in r[0] or "grain" in r[0]] if _lang(language) == "hi" else []
     for rx, rep in _JARGON.get(_lang(language), []) + extra:
-        text = re.sub(rx, rep, text, flags=re.I)
+        text = re.sub(rx, _keepcase(rep), text, flags=re.I)
     return text
 
 
@@ -165,6 +211,25 @@ def polish_answer(payload: dict, language: str = "en", typed_question: str = "",
                 nx2, _ = _drop_sentences(nx, _PICK_ONE, keep_min=1)
                 payload["next"] = nx2 if (nx2 != nx and nx2.strip()) else _ROLE_MOVE[lang]
                 print(f"[ask][polish] spread chart: pick-one move replaced")
+        if not _INTERNAL_TERM.search(own):
+            payload["read"], d_i = _drop_sentences(payload.get("read"), _INTERNAL_TERM, keep_min=2)
+            if d_i:
+                print("[ask][polish] internal-term sentence dropped")
+        # family / home life: no property or money talk nobody raised
+        if (concern or "") == "family":
+            for rx, rep in _FAM_SWAP:
+                for f in ("read", "next"):
+                    if isinstance(payload.get(f), str):
+                        payload[f] = rx.sub(rep, payload[f])
+            if not _FAM_OFFTOPIC.search(own):
+                payload["read"], d_f = _drop_sentences(payload.get("read"), _FAM_OFFTOPIC, keep_min=2)
+                nx = payload.get("next")
+                if isinstance(nx, str) and _FAM_OFFTOPIC.search(nx):
+                    nx2, _ = _drop_sentences(nx, _FAM_OFFTOPIC, keep_min=1)
+                    payload["next"] = nx2 if (nx2 != nx and nx2.strip()) else None
+                    print("[ask][polish] family: off-topic move replaced")
+                if d_f:
+                    print("[ask][polish] family: off-topic sentence dropped")
         # receivables / debts nobody mentioned
         if not _OWED.search(own):
             payload["read"], d0 = _drop_sentences(payload.get("read"), _OWED, keep_min=2)
@@ -193,6 +258,8 @@ def polish_answer(payload: dict, language: str = "en", typed_question: str = "",
         # never ship without a move
         if not (isinstance(payload.get("next"), str) and payload["next"].strip()):
             grp = _CONCERN_GROUP.get((concern or "general").lower(), "work")
+            if (concern or "") == "family":
+                grp = "people"
             try:   # "I'm 100% all in on X" is a money-placement statement whatever the concern
                 from antar_engine.wealth_magnitude import is_allocation_statement as _ias
                 if _ias(typed_question):

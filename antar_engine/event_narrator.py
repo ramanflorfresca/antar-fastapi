@@ -306,11 +306,11 @@ def _select_window(verdict: str, board: dict) -> Optional[dict]:
 # ── narrator prompt (KN Rao reading sequence, bound to pinned facts) ─────────
 
 _VERDICT_FRAMING = {
-    "supported":            "YES — supported and triggered this year.",
-    "supported_likely":     "LEANS YES — supported, trigger forming (Moon-frame only).",
-    "promised_building":    "NOT YET — the potential is real but the trigger has not formed.",
-    "promised_not_this_year": "NOT THIS YEAR — the potential exists but this year's gate is closed.",
-    "weak_noise":           "NO STRONG SIGNAL — a passing trigger with no underlying promise.",
+    "supported":            "YES — supported, and the timing is here this year.",
+    "supported_likely":     "LEANS YES — supported, and the timing is coming together (Moon-frame only).",
+    "promised_building":    "NOT YET — the potential is real but the right moment has not arrived.",
+    "promised_not_this_year": "NOT THIS YEAR — the potential exists but this year's timing is not open.",
+    "weak_noise":           "NO STRONG SIGNAL — a passing moment with no real foundation behind it.",
     "not_supported":        "NOT SUPPORTED — this is a building/preparation phase.",
 }
 
@@ -426,7 +426,7 @@ def build_reading_sequence_prompt(board: dict, verdict: dict,
     lines.append("OPENING SENTENCE (Python prepends this verbatim; do NOT repeat it): "
                  f"{_opening_sentence_for(verdict, gen)}")
     lines.append("YOUR JOB — REASON OVER VERIFIED FACTS. You are NOT rewording "
-                 "the verdict. You ARE an astrologer reading the whole board "
+                 "the verdict. You ARE an astrologer reading all the facts "
                  "below, connecting the dasha lord, the chara cross-check, the "
                  "divisional confirm, the yoga state, the double transit, and the "
                  "varshphal gate into ONE direct, integrated read. Every claim "
@@ -472,9 +472,8 @@ def build_reading_sequence_prompt(board: dict, verdict: dict,
     lines.append(f"4. YOGAS: {', '.join(y.get('name','') for y in yp) if yp else 'none firing'}.")
 
     dtb = board.get("double_transit") or {}
-    lines.append(f"5. DOUBLE TRANSIT (the trigger): {dtb.get('classical_verdict')} "
-                 f"(mode: {v.get('dt_mode')}). This is what turns 'promised' into "
-                 "'happening'.")
+    lines.append(f"5. TIMING SIGNAL (is this the moment): {dtb.get('classical_verdict')} "
+                 f"(mode: {v.get('dt_mode')}). This is what decides whether it can happen now.")
 
     varsh = board.get("varshphal") or {}
     lines.append(f"6. YEAR GATE (varshphal): {'OPEN' if varsh.get('gate_open') else 'CLOSED'}"
@@ -493,8 +492,8 @@ def build_reading_sequence_prompt(board: dict, verdict: dict,
                      "actionable. No hedging.")
     else:
         lines.append("OUTPUT TONE — CARRY THE USER: never a bare 'no'. Name what "
-                     "is missing (the trigger / the year gate), give the next "
-                     "opening if the board has one, and ONE concrete preparation "
+                     "is missing (the right moment / this year's timing), give the next "
+                     "opening if the reading has one, and ONE concrete preparation "
                      "step for the building phase. Patient, not deflating.")
 
     # window discipline (mirrors ask_consultation.consultation_prompt_block v2)
@@ -502,6 +501,17 @@ def build_reading_sequence_prompt(board: dict, verdict: dict,
                  "end of the year'), never narrow to specific days, never count "
                  "days remaining, never use scarcity pressure. If the window is "
                  "open now, advise calm, concrete use of it.")
+    # [family-answers 2026-10-05] these are INTERNAL labels; the model copied them into answers
+    # ("the trigger that turns 'better' into 'actually better' hasn't formed", "the board shows",
+    # "el detonador que convierte la promesa en realidad") — ~18% of all Ask answers.
+    lines.append("NEVER WRITE these internal words in the answer: trigger, promise (as a noun), "
+                 "board, detonator, fires/fired, gate, layers. Say it the way a friend would: "
+                 "'the right moment hasn't come yet', 'the setup is there', 'the reading shows'.")
+    if (gen or {}).get("event") == "family":
+        lines.append("FAMILY LIFE — this is about peace and closeness at home with the people "
+                     "they live with or are close to. Do NOT bring up property, real estate, "
+                     "buying or selling a home, deals, money, finances or the business unless "
+                     "the question did. Do not assume who is in their household.")
     lines.append("LANGUAGE: respect the language parameter. Use everyday, "
                  "experiential language — NO planet names, house numbers, signs, "
                  "or Sanskrit terms in the answer (the energy-translation layer "

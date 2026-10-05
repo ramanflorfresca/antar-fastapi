@@ -29171,6 +29171,14 @@ async def ask_endpoint(request: AskRequest):
                         print(f"[ask][wealth] lean guard {_lean_g} on {_ask_concern}")
             except Exception as _lge:
                 print(f"[ask][wealth] lean guard non-fatal: {_lge}")
+            # [family-answers 2026-10-05] the reflective path gets the same family guard the event
+            # narrator carries (property / money / "who lives at home" are not assumed)
+            try:
+                if (locals().get("_ask_concern") or "") == "family":
+                    from antar_engine.answer_polish import FAMILY_GUARD as _fam_guard
+                    _ask_wealth_block = (_ask_wealth_block + "\n" + _fam_guard).strip()
+            except Exception as _fge:
+                print(f"[ask][family] guard non-fatal: {_fge}")
             # [partner-lean 2026-10-04] "alone or with a partner?" — one answer from the chart
             _ask_partner_case = ""
             try:

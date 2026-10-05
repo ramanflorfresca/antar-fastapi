@@ -197,6 +197,20 @@ def turn_checks(p: dict, q: str, lang: str, persona: dict, profile: dict, chart_
     if chart_lean == "concentrate" and _hits(_SPREAD, f"{read} {nxt}") and not _hits(_CONC, sents[0] if sents else ""):
         out.append("LEAN_CONTRADICTION")
     low_q = q.lower()
+    # internal event-engine vocabulary echoed to the reader (the audit's #1 odd-phrase source):
+    # "the trigger that turns X into Y hasn't formed", "the board shows", "el detonador"
+    if re.search(r"(?i)\bthe trigger (that|which|for|has|hasn|isn|is|forms?|fires?)\b|\bthe board\b|\bdetonador\b|"
+                 r"\bel tablero\b|\bo tabuleiro\b|\bturns? ['\"]?(promise|possible|building)\b|\bpromise into\b|"
+                 r"\bpromessa em\b|\bpromesa en\b|\btrigger (nahi|abhi)\b|\bmain trigger\b|\b(jo|the) ruler\b|\bhouse lord\b", f"{read} {nxt}"):
+        out.append("JARGON_LEAK")
+    # a family/home-life answer that drifts into property or money nobody raised
+    if re.search(r"(?i)\b(family|familia|famil[ií]a|ghar|home|casa|hogar|lar|parivaar)\b", low_q) and \
+            not re.search(r"(?i)\b(property|real estate|propiedad|propriedade|money|paisa|dinero|dinheiro|savings|ahorros|"
+                          r"finances?|finanzas|buy|compr)\b", low_q):
+        if re.search(r"(?i)\b(property|real estate|propiedad|inmueble|im[oó]vel|bienes ra[ií]ces|"
+                     r"savings|ahorros?|poupan[cç]a|shared finances|finanzas familiares|family money|"
+                     r"money conversations|financial)\b", f"{read} {nxt}"):
+            out.append("FAMILY_OFFTOPIC")
     # an invented clock ("before 14:02 today", "act before 2 PM") in an answer to a question that
     # never asked about the day or acting now — [right-now 2026-10-05]
     if re.search(r"(?i)\b\d{1,2}:\d{2}\b|\b\d{1,2}\s?(am|pm)\b", f"{read} {nxt}"):
