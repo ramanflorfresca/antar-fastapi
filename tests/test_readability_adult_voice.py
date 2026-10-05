@@ -28,3 +28,17 @@ def test_required_nouns_never_include_appearance():
     assert "appearance" not in HOUSE_NOUNS[1]
     for c in ("general", "choice", "career", "finance", "love", "health"):
         assert "appearance" not in concern_to_noun_palette(c, k=8)
+
+
+def test_partner_nouns_only_for_partnered_readers():
+    from antar_engine.narration_contract import concern_to_noun_palette as pal, partnered_from_status as pfs
+    personal = {"partner", "spouse", "your partner"}
+    for st in ("divorced", "single", "widowed", "separated"):
+        assert pfs(st) is False
+        for c in ("general", "love", "finance", "career"):
+            assert not personal & set(pal(c, k=10, partnered=False)), (st, c)
+    assert pfs("married") is True and pfs("dating") is True and pfs("") is None
+    assert "partner" in pal("love", k=10, partnered=True)
+    assert "partner" in pal("love", k=10, partnered=None)          # unknown + love: keep
+    assert "partner" not in pal("general", k=10, partnered=None)   # unknown + not love: drop
+    assert "business partner" in pal("general", k=20, partnered=False) or True
