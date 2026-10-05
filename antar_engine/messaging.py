@@ -135,6 +135,11 @@ def format_ask_for_telegram(payload: dict, language: str = "en") -> str:
         step = (pc.get("step") or "").strip()
         body = "🧘 " + pc["label"] + (("\n" + step) if step else "")
         lines.append(body)
+    # [tg-disclaimer 2026-10-05] same domain disclaimer the app card and WhatsApp carry;
+    # plain text (Telegram is sent without a parse mode, so no italic markers)
+    dz = p.get("disclaimer")
+    if isinstance(dz, str) and dz.strip():
+        lines.append(re.sub(r"\s+", " ", dz.strip()))
     sq = [q for q in (p.get("suggested_questions") or []) if isinstance(q, str) and q.strip()][:3]
     if sq:
         head = {"es": "También puedes preguntar:", "pt": "Você também pode perguntar:"}.get(
