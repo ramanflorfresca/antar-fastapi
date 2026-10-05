@@ -142,7 +142,9 @@ HOUSE_NOUNS: Dict[int, List[str]] = {
     # Listed nouns are the ones house_significations.resolve_signal
     # actually surfaces (verified live) PLUS contract-derived
     # synonyms.
-    1:  ["reputation", "appearance", "your name", "identity",
+    # [no-appearance 2026-10-04] "appearance" was a REQUIRED noun on general/choice
+    # reads → "which direction fits your appearance in the market" (Harleen).
+    1:  ["reputation", "how you come across", "your name", "identity",
          "your body", "yourself", "first impression"],
     2:  ["savings", "income", "family money", "family wealth",
          "close family", "your voice", "spoken words", "your words",
