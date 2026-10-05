@@ -24497,7 +24497,13 @@ async def _ask_to_hinglish(text):
         return None
 
 
-async def _ask_localize(payload, language, fields, chart_id=None):
+# a weekday name in the QUESTION ("Is Friday good for the meeting?", "¿Qué día de esta semana…?")
+_ASK_DAYNAME_Q = re.compile(
+    r"(?i)\b(mon|tues?|wed(nes)?|thu(rs)?|fri|sat(ur)?|sun)(day)?\b|\b(lunes|martes|mi[eé]rcoles|jueves|viernes|"
+    r"s[aá]bado|domingo|segunda|ter[cç]a|quarta|quinta|sexta|s[aá]bado|domingo)\b")
+
+
+async def _ask_localize(payload, language, fields, chart_id=None, keep_days=False):
     """
     Translate at response time from the English source.
       1. apply_user_facing_strips  -> rule 12 (no Sanskrit / planet / score jargon)
@@ -24508,7 +24514,13 @@ async def _ask_localize(payload, language, fields, chart_id=None):
     for _f in fields:
         _val = payload.get(_f)
         if isinstance(_val, str) and _val:
-            _ftype = "timing" if _f == "timing" else "plain"
+            # [day-answers 2026-10-05] 'plain' runs _strip_day_names, which DELETES bare weekday names —
+            # but for "Which day this week is best?" the weekday IS the answer. Under 'plain' the model's
+            # "but Monday carries the least strain" / "for Monday, and keep Tuesday light" became "but
+            # carries…" / "for, and keep light" (9 of 18 runs), then a second AI step guessed at repairs.
+            # 'timing' keeps weekdays and still strips planets, Vedic jargon and raw scores (the weekly
+            # briefing fixed the same bug on 2026-09-23).
+            _ftype = "timing" if (_f == "timing" or keep_days) else "plain"
             payload[_f] = apply_user_facing_strips(_val, language=lang, field_type=_ftype)
     if lang in ("es", "pt"):
         try:
@@ -25980,8 +25992,11 @@ def _ask_deeper_reasoning(chart_record: dict, dashas: dict, concern: str) -> str
                     if _tail:
                         lines.append(
                             "- A deeper pattern is active in this very period: "
-                            + _tail + ". Steady, grounded choices tend to work "
-                            "better than bold new bets while this runs.")
+                            + _tail + ". Use this ONLY to explain friction or pacing (one clear "
+                            "step at a time). It is context, never a verdict: do NOT use it to "
+                            "warn against a move the reading otherwise supports, and do NOT "
+                            "write 'steady, grounded' or 'bold bets' (conversation audit: that "
+                            "sentence contradicted the main answer, across turns).")
                         _shown += 1
     except Exception:
         pass
@@ -27588,7 +27603,11 @@ async def ask_endpoint(request: AskRequest):
             # role is already known in this turn or a recent one. Load the thread
             # once here and reuse it below (concern inherit + LLM context).
             _ask_thread = _ask_recent_thread(chart_id)
-            if not _ask_detect_crisis(question) and _ask_needs_role_clarify(question, _ask_thread):
+            # [day-answers 2026-10-05] the follow-up rewriter turned "Which day this week is best for me?"
+            # into "…best for me to push forward with new deals or big decisions?" (it pulls words from the
+            # previous turn) and the deal-role check then asked "are you the broker, equity or buyer?" on a
+            # DAY question. The role question is about what they typed.
+            if not _ask_detect_crisis(question) and _ask_needs_role_clarify(_ask_typed_q, _ask_thread):
                 _role_payload = _ask_role_clarify_payload(language)
                 print("[ask][role-clarify] deal role ambiguous — asking role")
                 try:
@@ -27900,7 +27919,7 @@ async def ask_endpoint(request: AskRequest):
                                 f"CURRENT WORK — the reader told us what they do now: "
                                 f"\"{_known_role}\". ANCHOR the answer to this: say plainly "
                                 "whether the line they're already in runs WITH or AGAINST "
-                                "their chart's grain (judge it by its MODE — advisory/"
+                                "their natural fit (judge it by its MODE — advisory/"
                                 "analytical/creative/scale/network vs hands-on/operations/"
                                 "perishable/thin-margin — not its label), THEN point them to "
                                 "where they'd do best. Speak to their real situation, not a "
@@ -27920,10 +27939,10 @@ async def ask_endpoint(request: AskRequest):
                                if _car.get("leadership_level") else "")
                             + "ANSWER AS THREE HONEST TIERS (the reader explicitly wants to know "
                             "where they THRIVE vs STRUGGLE):\n"
-                            f"1) STRONG FIT — the chart's grain runs WITH these, this is where "
+                            f"1) STRONG FIT — their natural fit runs WITH these, this is where "
                             f"they can genuinely excel: {_top}.\n"
                             f"2) WORKABLE — fine but not standout: {_mid}.\n"
-                            "3) AGAINST THE GRAIN — a line of work far from the fields above (very "
+                            "3) AGAINST THEIR NATURAL FIT — a line of work far from the fields above (very "
                             "different in nature — e.g. hands-on operations/hospitality for an "
                             "advisory-analytical chart) is a LOW-FIT, uphill path where repeated "
                             "effort tends to under-return; name this honestly IF they've asked "
@@ -27931,7 +27950,7 @@ async def ask_endpoint(request: AskRequest):
                             "If the reader NAMED a specific line of work, judge it by which tier its "
                             "NATURE matches (advisory/analytical, creative, leadership, operations, "
                             "hands-on, service) — say plainly whether it runs with or against their "
-                            "grain. HARD HONESTY: this grades FIT (does the chart support this line), "
+                            "natural fit. HARD HONESTY: this grades FIT (does the chart support this line), "
                             "NOT a guarantee of success or failure — a strong-fit line still needs "
                             "execution, and a low-fit line CAN work with enough will; but a low-fit "
                             "line fought again and again is real signal, not bad luck. Close with one "
@@ -27949,13 +27968,13 @@ async def ask_endpoint(request: AskRequest):
                             "reach, advisory, analytical, creative, information/software — then a "
                             "venture whose success hinges on PERISHABLE / OPERATIONS-HEAVY / "
                             "THIN-MARGIN / daily-logistics work (food, flowers, restaurants, retail, "
-                            "hospitality, physical inventory) runs AGAINST their grain — EVEN when "
+                            "hospitality, physical inventory) runs AGAINST their natural fit — EVEN when "
                             "it's wrapped in 'tech'; the software layer does NOT remove the "
                             "perishable-operations drag. Flag such a line as uphill/low-fit.\n"
                             "- An asset-light SCALE/NETWORK/SOFTWARE play (a marketplace, a fintech "
-                            "or SaaS tool, a network product) runs WITH a scale grain — supported.\n"
+                            "or SaaS tool, a network product) fits a scale-and-network profile — supported.\n"
                             "- If instead their ranked fields ARE operations/management/hands-on, "
-                            "the reverse holds. Frame as fit (grain), never a success guarantee; the "
+                            "the reverse holds. Frame it as fit, never a success guarantee (never write the word 'grain'); the "
                             "point is the MODE the venture demands vs the mode the chart supports.")
                     # [dasha-timed timeline] the 'at what time' axis — chapters by
                     # mahadasha, read through the dasha lord's D-10 placement. This
@@ -29384,9 +29403,12 @@ async def ask_endpoint(request: AskRequest):
                                 f"{_tfw['label']} ({_wfmt(_tfw['start'])} to {_wfmt(_tfw['end'])}). Name the "
                                 f"specific favorable date(s) listed below and the day to avoid — every date "
                                 f"falls INSIDE that window. NEVER name a date, month, or year OUTSIDE this "
-                                f"window, and never jump to far-future years. If no day is strongly clear, "
-                                f"say so honestly and offer to widen the search. End with a short scoped "
-                                f"follow-up. Keep it plain — no house numbers, no Sanskrit.\n"
+                                f"window, and never jump to far-future years. ALWAYS name the listed day "
+                                f"in your FIRST sentence as the answer — even when it is only the "
+                                f"least-strained one — and put the honesty ('no day is strongly clear') in "
+                                f"the SECOND sentence. Never answer 'it's hard to pick a day'. Name the "
+                                f"weekday and date together ('Monday 5 Oct'). End on the read. "
+                                f"Keep it plain — no house numbers, no Sanskrit.\n"
                                 + "\n".join(_wlines)
                             )
                             _ask_tf_windowscan = True
@@ -31241,7 +31263,10 @@ async def ask_endpoint(request: AskRequest):
             payload = await _ask_localize(payload, language, [
                 "read", "next", "timing", "actions", "practices",
                 "convergence", "what", "why",
-            ], chart_id)
+            ], chart_id,
+                keep_days=bool(locals().get("_ask_tf_dayscope") or locals().get("_ask_tf_windowscan")
+                               or _ASK_DAYNAME_Q.search(question or "")
+                               or _ASK_DAYNAME_Q.search(locals().get("_ask_typed_q") or "")))
             # [ask-timeframe] the window-scan timing chip is a deterministic date —
             # localize it directly (no LLM) so the translator can't paraphrase a
             # lone value into prose ("sua energia de identidade… 15 nov").

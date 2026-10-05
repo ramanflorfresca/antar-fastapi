@@ -97,7 +97,7 @@ CHAINS = {
 
 # ── checks (each tagged with a CLASS) ──
 _MONTHS = r"(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|ene|abr|ago|dic|fev|mai|set|out|dez)\w*"
-_FUND = re.compile(r"(?i)\b(fund(ing|raise)?|raise (capital|money|funds)|investors?|backers?|"
+_FUND = re.compile(r"(?i)\b((?<!emergency )(?<!rainy-day )(?<!savings )(?<!reserve )fund(ing|raise)?|raise (capital|money|funds)|investors?|backers?|"
                    r"financiaci[oó]n|financiamiento|financiamento|captar|inversionistas?)\b")
 _PARTNER_WORDS = re.compile(r"(?i)\b(your (partner|spouse|wife|husband)|tu pareja|tu (esposa|esposo)|"
                             r"seu parceiro|sua parceira|apne (partner|pati|patni))\b")
@@ -197,11 +197,20 @@ def turn_checks(p: dict, q: str, lang: str, persona: dict, profile: dict, chart_
     if chart_lean == "concentrate" and _hits(_SPREAD, f"{read} {nxt}") and not _hits(_CONC, sents[0] if sents else ""):
         out.append("LEAN_CONTRADICTION")
     low_q = q.lower()
+    # a sentence with a word deleted by a filter: "for, and keep light", "but carries the least",
+    # a lowercase sentence start after a full stop, a leading "(today)", "Keep 's moves"
+    _txt = f"{read} {nxt}"
+    # ("pay for, and…", "agree to, or promise" are normal English — only the MOVE can lose its object)
+    if (re.search(r"[.!?]\s+[a-z]{2,}\b", _txt) and not re.search(r"(?i)\b(e\.g|i\.e|vs|approx|etc|a\.m|p\.m)\.", _txt)
+            or re.search(r"(?i)^(schedule|plan|book|save|reserve|set|use|do|send|make)\b[^.]{0,70}\b(for|until|by|before|on|to)\s*[,.](\s|$)", nxt)
+            or re.search(r"^\s*\((today|hoy|hoje)\)", read) or re.search(r"\b[Kk]eep\s+'s\b", _txt)
+            or re.search(r"\bbut (carries|is|has|sits|stands)\b", read)):
+        out.append("SENTENCE_BROKEN")
     # internal event-engine vocabulary echoed to the reader (the audit's #1 odd-phrase source):
     # "the trigger that turns X into Y hasn't formed", "the board shows", "el detonador"
     if re.search(r"(?i)\bthe trigger (that|which|for|has|hasn|isn|is|forms?|fires?)\b|\bthe board\b|\bdetonador\b|"
                  r"\bel tablero\b|\bo tabuleiro\b|\bturns? ['\"]?(promise|possible|building)\b|\bpromise into\b|"
-                 r"\bpromessa em\b|\bpromesa en\b|\btrigger (nahi|abhi)\b|\bmain trigger\b|\b(jo|the) ruler\b|\bhouse lord\b", f"{read} {nxt}"):
+                 r"\bpromessa em\b|\bpromesa en\b|\btrigger (nahi|abhi)\b|\bmain trigger\b|\b(jo|the) ruler\b|\bhouse lord\b|\bgrain\b", f"{read} {nxt}"):
         out.append("JARGON_LEAK")
     # a family/home-life answer that drifts into property or money nobody raised
     if re.search(r"(?i)\b(family|familia|famil[ií]a|ghar|home|casa|hogar|lar|parivaar)\b", low_q) and \
@@ -421,6 +430,17 @@ def report(convs: list, stamp: str) -> str:
                 add(cls, f"{c['persona']} · {c['chain']} · rep {c['rep']} · {str(x)[:200]}")
     for f in repeat_flips(convs):
         add(f"REPEAT_FLIP_{f['field'].upper()}", f"{f['persona']} · {f['chain']} · “{f['q']}” → {f['values']}")
+    # conversation-level: the same conversation both backs bold moves and warns against them
+    _sup = re.compile(r"(?i)\b(strongly )?(supports?|backs|favou?rs|green-?lights?) (bold|big|dramatic|a big|a bold)\b|"
+                      r"\bwindow for a big move is open\b")
+    _cau = re.compile(r"(?i)\bsteady,? grounded\b|\b(over|than|rather than) (bold|dramatic|big) (pivots?|bets?|moves?|decisions?)\b|"
+                      r"\bbold (new )?(bets?|pivots?)\b")
+    for c in convs:
+        mt = [t for t in c["turns"] if t.get("tap") is None and "read" in t]
+        a = [t for t in mt if _sup.search(t["read"] + " " + t["next"])]
+        b = [t for t in mt if _cau.search(t["read"] + " " + t["next"])]
+        if a and b:
+            add("LAYER_CONFLICT", f"{c['persona']} · {c['chain']} · rep {c['rep']} · “{a[0]['q'][:40]}” backs bold moves, “{b[0]['q'][:40]}” warns against them")
     scores = [c["judge"].get("score") for c in convs if isinstance((c.get("judge") or {}).get("score"), (int, float))]
     _ign = classes.pop("JUDGE_UNVERIFIED (ignored)", [])
     order = sorted(classes.items(), key=lambda kv: -len(kv[1]))
