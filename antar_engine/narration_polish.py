@@ -193,16 +193,52 @@ def scrub_capitalization(data: dict) -> dict:
 # the last gate before the user sees the text.
 # ─────────────────────────────────────────────────────────────────────
 
-# Matches '51%', '51 %', '39%'. Used to strip whole clauses that
-# include any percentage figure (we never expose raw scores).
+# Matches '51%', '51 %', '39%'. NOT used to strip clauses — see
+# [pct-narrow 2026-10-05] below; a bare % is ordinary advice.
 _PCT_RE = re.compile(r"\b\d{1,3}\s?%")
 
 # Match a sentence (or fragment between commas / em-dashes) that
 # contains a banned internal-metric token. We strip the entire
 # fragment because partial paraphrase from a regex is worse than
 # silent deletion.
-_INTERNAL_TOKENS = [
-    r"\d{1,3}\s?%",
+# [pct-narrow 2026-10-05] A bare percentage is NOT an internal metric.
+# The old token `\d{1,3}\s?%` dropped every fragment holding any '%', so
+# "Move 10% of every payment … — treat it as untouchable." lost its whole
+# first clause and "Call one client — ask for 20% upfront." lost its
+# second. Real advice uses percentages (a share of payments, a discount,
+# an upfront deposit). Only a percentage/decimal tied to metric vocabulary
+# (confidence, probability, likelihood, score, strength, signal …) or a
+# reading verb ("sits at 51%") is a leak.
+_METRIC_NOUN = (
+    r"(?:confidence|confident|certainty|certain|probability|probable|"
+    r"likelihood|likely|chances?|odds|score[sd]?|scoring|strength|"
+    r"signal|activation|alignment|accuracy|compatibility|match)"
+)
+_NUM = r"\d{1,3}(?:\.\d+)?\s?%"
+_METRIC_PCT_TOKENS = [
+    # '72% confidence', '72 % likely', '60% chance', '80% match'
+    rf"\b{_NUM}\s+(?:of\s+)?{_METRIC_NOUN}\b",
+    # 'confidence of 72%', 'probability: 60%', 'score is 72%',
+    # 'signal strength sits at 51%'  (metric noun within a few words)
+    rf"\b{_METRIC_NOUN}\b(?:\s+\w+){{0,3}}?\s*[:=]?\s*(?:of|at|is|=)?\s*{_NUM}",
+    # 'sits at 51%', 'stands at 72%', 'reads 64%'
+    rf"\b(?:sits?|sitting|stands?|standing|reads?|reading|runs?\s+at|peaks?|"
+    rf"registers?|measures?|rates?|rated)\s+(?:at\s+)?{_NUM}",
+    # 'score 0.8', 'score of 0.82', 'confidence 0.7' — raw decimal scores
+    r"\b(?:score|confidence|probability|strength)\s*(?:of|is|=|:)?\s*[01]?\.\d+\b",
+]
+_METRIC_PCT_RE = re.compile("|".join(_METRIC_PCT_TOKENS), re.IGNORECASE)
+
+# Inline metric tags that can be cut WITHOUT losing the clause they
+# annotate: "Ask for the raise (72% confidence)." / "Pitch on Tuesday,
+# with 70% confidence." → keep the instruction, drop only the tag.
+_INLINE_METRIC_RE = re.compile(
+    r"\s*\((?=[^()]*(?:" + "|".join(_METRIC_PCT_TOKENS) + r"))[^()]*\)"
+    rf"|,?\s+(?:with|at)\s+(?:an?\s+)?{_NUM}\s+(?:of\s+)?{_METRIC_NOUN}(?:\s+level)?\b",
+    re.IGNORECASE,
+)
+
+_INTERNAL_TOKENS = _METRIC_PCT_TOKENS + [
     r"\blive\s+signal\b",
     r"\bblueprint(?:\s+floor)?\b",
     r"\bsignal\s+floor\b",
@@ -248,6 +284,13 @@ def strip_internal_metrics(text: str) -> str:
         return text
     if not _INTERNAL_ANY.search(text):
         return text
+    # [pct-narrow 2026-10-05] cut inline metric tags first so the
+    # instruction they annotate survives the fragment pass below.
+    text = _INLINE_METRIC_RE.sub("", text)
+    if not _INTERNAL_ANY.search(text):
+        out = re.sub(r"\s{2,}", " ", text).strip()
+        out = re.sub(r"\s+([,.;!?])", r"\1", out)
+        return out
 
     parts = _FRAG_SPLIT.split(text)
     keep: list = []
@@ -276,6 +319,10 @@ def strip_internal_metrics(text: str) -> str:
     # Ensure the result still ends with terminal punctuation.
     if out and out[-1] not in ".!?":
         out += "."
+    # A dropped leading fragment can leave a lowercase start
+    # ("The probability is 64% — go ahead." → "go ahead.").
+    if out and out[0].islower():
+        out = out[0].upper() + out[1:]
     # [narration-integrity 2026-07-04] never ship a mangled fragment —
     # if the joins above left broken grammar, annihilate; every caller
     # already handles "" (flag -> fallback / field skipped).
