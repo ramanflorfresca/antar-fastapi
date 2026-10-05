@@ -31496,6 +31496,12 @@ async def ask_endpoint(request: AskRequest):
                         # there would be a lie the UI couldn't keep.
                         if _oc_claim.get("source") in _oc.CHECKIN_SOURCES:
                             payload["checkin_due_at"] = _oc_claim.get("checkin_due_at")
+                            # the SENTENCE too, not just the timestamp: the FE was
+                            # building it in en/es/pt, so a Hinglish answer carried
+                            # an English check-back line. Same contract as
+                            # `disclaimer` — backend owns the words.
+                            payload["checkin_note"] = _oc.checkin_note(
+                                _oc_claim.get("checkin_due_at"), language)
             except Exception as _oce:
                 print(f"[outcomes] claim skipped (non-fatal): {_oce}")
             _ask_attach_disclaimer(payload, locals().get("_ask_concern"), language, question)
