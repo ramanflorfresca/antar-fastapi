@@ -30320,6 +30320,7 @@ async def ask_endpoint(request: AskRequest):
             except Exception:
                 pass
             # [readability 2026-06-10] scrub -> simplify -> scrub.
+            _pre_rb_next = payload.get("next")   # [keep-move] fallback if the rewrite fails the gate
             try:
                 from antar_engine.readability import simplify_payload_fields as _rb_simplify
                 await _rb_simplify(payload, ["read", "next"], language=language,
@@ -30403,8 +30404,17 @@ async def ask_endpoint(request: AskRequest):
                         payload["read"] = " ".join(_fc2).strip()
                         print("[ask][voice-gate] post-readability read fail-closed")
                 if _nx_dirty:
-                    payload["next"] = None
-                    print("[ask][voice-gate] post-readability next dropped")
+                    # [keep-move 2026-10-04] the readability REWRITE failed the gate — fall
+                    # back to the pre-rewrite move (already through the voice gate) instead of
+                    # dropping YOUR MOVE (Harleen's all-in answer lost its move entirely)
+                    _pre_nx = _ask_soft_repair(locals().get("_pre_rb_next"))
+                    if (isinstance(_pre_nx, str) and _pre_nx.strip() and _pre_nx != _nx
+                            and not _vnf(_ask_voice_text(_pre_nx, question), language="en")):
+                        payload["next"] = _pre_nx
+                        print("[ask][voice-gate] post-readability next restored to pre-rewrite")
+                    else:
+                        payload["next"] = None
+                        print("[ask][voice-gate] post-readability next dropped")
             except Exception as _vfe:
                 print(f"[ask][voice-gate] final-check non-fatal: {_vfe}")
             # [KP A5 shadow 2026-06-23] additive KP verdict — gate + mode

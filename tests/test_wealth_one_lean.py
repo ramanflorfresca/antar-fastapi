@@ -58,3 +58,10 @@ def test_raise_chip_words_cover_languages():
     assert not any("funding" in f["q"].lower() or "raise" in f["q"].lower() for f in fus)
     es = main._ask_followups_rich("business", "Estoy con todo", "es", avoid_extra=main._FU_RAISE_WORDS)
     assert not any("financiación" in f["q"].lower() for f in es)
+
+
+def test_opener_drops_the_narrators_echo():
+    r = wm.apply_alloc_opener("Harleen, the split itself is the risk — the reading says concentrate, not "
+                              "divide. Back whichever of the two is already earning more.", "conc_multi",
+                              "en", "Harleen")
+    assert r.count("concentrate") == 1 and "Back whichever" in r

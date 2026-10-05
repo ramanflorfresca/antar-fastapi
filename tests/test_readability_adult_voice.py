@@ -42,3 +42,19 @@ def test_partner_nouns_only_for_partnered_readers():
     assert "partner" in pal("love", k=10, partnered=None)          # unknown + love: keep
     assert "partner" not in pal("general", k=10, partnered=None)   # unknown + not love: drop
     assert "business partner" in pal("general", k=20, partnered=False) or True
+
+
+def test_truncating_rewrite_is_rejected(monkeypatch):
+    import asyncio
+    long = ("Choose which one of bookkeeping or consulting gets your primary client-acquisition push "
+            "this month, and set a clear and firm cap on the number of hours you give the other one.")
+    class _R:
+        content = [type("C", (), {"text": "Decide which one — bookkeeping or consulting."})()]
+    class _M:
+        async def create(self, **k): return _R()
+    monkeypatch.setattr(rb, "_enabled", lambda: True)
+    monkeypatch.setattr(rb, "_get_client", lambda: type("Cl", (), {"messages": _M()})())
+    monkeypatch.setattr(rb, "readability_score", lambda t: {"avg_sentence_words": 40.0,
+        "longest_sentence_words": 40, "long_word_ratio": 0.0, "too_complex": True})
+    out = asyncio.run(rb.maybe_simplify(long, "en", "test"))
+    assert out["text"] == long and not out["simplified"]

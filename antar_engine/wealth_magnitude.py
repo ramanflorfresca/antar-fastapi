@@ -299,6 +299,16 @@ _AFFIRM_RX = re.compile(r"(?i)(right call|strongest move|exactly|\bfits?\b|solid
                         r"\bcerto\b|combina|respalda|apoia|sahi (hai|faisla))")
 
 
+# [alloc-restate 2026-10-04] the narrator often opens with its own copy of the
+# verdict ("The split itself is the risk — the reading says concentrate, not divide")
+# right under Python's sentence one — drop that echo too.
+_NEVER = re.compile(r"(?!x)x")
+_RESTATE_RX = {
+    "conc_multi": re.compile(r"(?i)\bsplit\b|concentrat|\bdivid|divisi[oó]n|divis[aã]o|ek jagah"),
+    "spread_single": re.compile(r"(?i)\bspread\b|one venture|concentration|repartir|espalhar|alag alag"),
+}
+
+
 def apply_alloc_opener(read: str, case: str, language: str = "en", name: str = "") -> str:
     """Prepend Python's sentence one for the contested cases; drop an affirming opener."""
     tmpl = (ALLOC_OPENER.get(case) or {})
@@ -309,7 +319,8 @@ def apply_alloc_opener(read: str, case: str, language: str = "en", name: str = "
     op = op[0].upper() + op[1:]
     for _ in range(2):   # the narrator's own verdict sentence(s) at the top
         sents = re.split(r"(?<=[.!?])\s+", read.strip(), maxsplit=1)
-        if len(sents) > 1 and len(sents[0]) <= 160 and _AFFIRM_RX.search(sents[0]):
+        if len(sents) > 1 and len(sents[0]) <= 160 and (
+                _AFFIRM_RX.search(sents[0]) or _RESTATE_RX.get(case, _NEVER).search(sents[0])):
             read = sents[1]
         else:
             break
