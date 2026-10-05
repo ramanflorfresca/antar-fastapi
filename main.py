@@ -29170,6 +29170,15 @@ async def ask_endpoint(request: AskRequest):
                                                   if _ask_conv.get("convergence_met") else None)
                                                  or _ask_conv.get("next_window_label")
                                                  or _ask_conv.get("window_label") or "").strip()
+                                    # [dasha-diff-future 2026-10-04] a NOT-YET answer can't name a
+                                    # window that has already started (Raman, Oct 4: "Not yet — next
+                                    # money window Oct 2026") — keep the EE window then.
+                                    _cw_ym = _ask_ym_tokens(_conv_win)
+                                    _now_ym = (datetime.now(timezone.utc).year, datetime.now(timezone.utc).month)
+                                    if _cw_ym and _cw_ym[0] <= _now_ym:
+                                        print(f"[ask][dasha-diff] skipped: convergence {_conv_win!r} "
+                                              f"is not in the future — keeping EE {_ee_timing!r}")
+                                        _conv_win = ""
                                     if _conv_win and _conv_win.lower() != (_ee_timing or "").strip().lower():
                                         print(f"[ask][dasha-diff] promised_building: "
                                               f"EE window {_ee_timing!r} -> convergence {_conv_win!r}")
