@@ -52,7 +52,14 @@ _JARGON = {
 
 # ── R4: "pick one / double down" on a SPREAD chart ──
 _PICK_ONE = re.compile(
-    r"(?i)\b(pick|choose|select) (just |only )?(the |one |a single )?(one )?(venture|business|project|option|"
+    # [audit-b4] adjectives may sit between "one" and the noun ("pick the one client-facing or
+    # investigative project"), and ES/PT/Hinglish forms
+    r"(?i)\b(pick|choose|select|el[ií]ge|elige|escolha|chuno|chuniye|pick karo)\b[^.!?]{0,12}\b(one|un|una|um|uma|ek)\b"
+    r"[^.!?]{0,40}\b(venture|business|project|option|company|idea|role|lane|track|area|field|stream|campo|pieza|"
+    r"proyecto|negocio|emprendimiento|projeto|neg[oó]cio|kaam|cheez)s?\b|\bone clear (leadership )?(role|mandate|lane|focus|venture)\b|"
+    r"\b(el[ií]ge|escolha|pick|choose)\s+(el|la|o|a|the)\s+(campo|[aá]rea|proyecto|projeto|negocio|neg[oó]cio|"
+    r"emprendimiento|field|lane|track|project)\b|\blleva esa pieza al frente\b|"
+    r"\b(pick|choose|select) (just |only )?(the |one |a single )?(one )?(venture|business|project|option|"
     r"company|idea)\b|\bdouble down (on|there)\b|\bgo deep on one\b|\bput your (full|whole) (weight|effort)"
     r" behind (one|it)\b|\bel[ií]ge (un|una) (solo |sola )?(negocio|proyecto|emprendimiento|empresa|opci[oó]n|"
     r"servicio)\b|\bescolha (um|uma) (s[oó] )?(neg[oó]cio|projeto|empresa|op[cç][aã]o)\b|"
@@ -70,10 +77,20 @@ _ROLE_MOVE = {
 }
 
 # ── funding brought in unasked ──
-_FUND = re.compile(r"(?i)\b(fund(ing|raise|raising)?|raise (capital|money|funds|a round)|investors?|backers?|"
+_FUND = re.compile(r"(?i)\b(fund(ing|raise|raising)?|raise (capital|money|funds|a round)|investors?|backers?|backing|"
+                   r"outside (money|capital|resources|funding)|other people'?s money|shared money|"
                    r"financiaci[oó]n|financiamiento|financiamento|captar (capital|recursos|inversi[oó]n)|"
                    r"inversionistas?|investidor(es)?)\b")
 _FUND_OK_CONCERNS = {"funding", "business", "startup"}
+
+# ── receivables / debts nobody mentioned ([audit-b4]) ──
+_OWED = re.compile(
+    r"(?i)\b(owes? me|owed to me|owe me|me deben|me devem|mujhe .{0,20}dena hai|owed to you|you'?re (already )?owed|what you'?re owed|overdue (payments?|invoices?)|unpaid (amounts?|invoices?)|"
+    r"outstanding (payments?|invoices?|receivables)|receivables?|collect (what|the money|payments?|on)|"
+    r"your debts?|the debt|loan pressure|work-and-debt|"
+    r"te deben|lo que te deben|pagos pendientes|cobrar lo que|cuentas por cobrar|tus deudas|"
+    r"te devem|o que te devem|pagamentos (pendentes|atrasados)|suas d[ií]vidas|"
+    r"paisa (already )?aana chahiye tha|udhaar wapas|overdue payment|baaki paisa)\b")
 
 # ── never ship without a move ──
 _FALLBACK_NEXT = {
@@ -148,6 +165,16 @@ def polish_answer(payload: dict, language: str = "en", typed_question: str = "",
                 nx2, _ = _drop_sentences(nx, _PICK_ONE, keep_min=1)
                 payload["next"] = nx2 if (nx2 != nx and nx2.strip()) else _ROLE_MOVE[lang]
                 print(f"[ask][polish] spread chart: pick-one move replaced")
+        # receivables / debts nobody mentioned
+        if not _OWED.search(own):
+            payload["read"], d0 = _drop_sentences(payload.get("read"), _OWED, keep_min=2)
+            nx = payload.get("next")
+            if isinstance(nx, str) and _OWED.search(nx):
+                nx2, _ = _drop_sentences(nx, _OWED, keep_min=1)
+                payload["next"] = nx2 if (nx2 != nx and nx2.strip()) else None
+                print("[ask][polish] assumed-receivable move replaced")
+            if d0:
+                print("[ask][polish] assumed-receivable sentence dropped")
         # unasked funding talk
         if (concern or "") not in _FUND_OK_CONCERNS and not _FUND.search(own):
             payload["read"], d1 = _drop_sentences(payload.get("read"), _FUND, keep_min=2)

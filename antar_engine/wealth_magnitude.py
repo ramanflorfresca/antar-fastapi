@@ -191,17 +191,19 @@ def _stability(planets: dict, lagna_sign: str) -> Dict[str, Any]:
 LEAN_DIRECTIVE = {
     # [audit-r3 2026-10-04] SPREAD = "no single thing holds everything", NOT "run more
     # ventures" — the latter made every later cap/reserve answer read as a walk-back.
-    "spread": ("THE ANSWER IS: SPREAD YOUR RISK — don't let any single venture or asset hold "
-               "everything you have: cap what each one can take from you, keep a reserve outside "
-               "them, and move part of every gain into savings as it comes in. Say this plainly in sentence one (you may add "
-               "that a second line can help, but never say they MUST run more ventures). `next` "
-               "MUST carry it out with a concrete rule — an amount or share (e.g. 'move 10% of every "
-               "payment into a separate savings account') and when. Do NOT tell them to focus on one "
-               "deal first, and never recommend concentrating."),
-    "concentrate": ("THE ANSWER IS: CONCENTRATE — put the main effort and money into what is "
-                    "already working and let it compound; don't spread thin. Say this plainly in "
-                    "sentence one. `next` MUST carry it out concretely (name what to back and "
-                    "what to pause, and for how long). Never recommend diversifying."),
+    # [audit-b4] one definition everywhere: spreading risk = a reserve OUTSIDE the ventures +
+    # a cap on each — NOT "more ventures" (later turns kept contradicting that reading).
+    "spread": ("THE ANSWER IS: SPREAD YOUR RISK — keep part of what you earn OUTSIDE your ventures "
+               "(a reserve none of them can touch) and cap what any one venture can draw from you. "
+               "Say this plainly in sentence one. Do NOT tell them to start more ventures or add income "
+               "streams — the spread is the reserve outside, not more things to run. `next` MUST carry it "
+               "out with a concrete rule — a share of every payment (e.g. 10%) into a separate savings "
+               "account, and when. Never recommend concentrating or focusing on one deal."),
+    "concentrate": ("THE ANSWER IS: CONCENTRATE — put the main effort and money into the ONE thing "
+                    "that is already working and let it compound; anything else gets capped or paused. "
+                    "Say this plainly in sentence one, including that 'anything else is capped or paused'. "
+                    "`next` MUST carry it out concretely (name what to back and what to pause, and for how "
+                    "long). Never recommend diversifying."),
 }
 
 _CONC_RX = re.compile(r"(?i)concentr|\bfocus|enfoc|\bfoc[ao]r|all[- ]in|put everything|"
@@ -275,9 +277,9 @@ def allocation_directive(lean: str, question: str) -> str:
             "The answer is SPREAD YOUR RISK and they are all in on ONE thing — that is the "
             "concentration the reading warns about. Connect it to the earlier answer out loud: "
             "spreading doesn't mean leaving it — it means it can't hold everything they have. "
-            "The fix: a cap on what it can take, a reserve outside it, and over time a second "
-            "line. `next` = the reserve step with an amount or share, plus one small first step "
-            "toward a second line."))
+            "The fix: a cap on what it can take and a reserve outside it (that is what spreading "
+            "risk means — not starting more ventures). `next` = the reserve step with an amount or "
+            "share and when."))
     if lean == "concentrate":
         return head + (
             "The answer is CONCENTRATE and they named TWO OR MORE ventures. Say plainly that the "
@@ -321,6 +323,10 @@ _AFFIRM_RX = re.compile(r"(?i)(right call|strongest move|exactly|\bfits?\b|solid
                         r"\bcerto\b|combina|respalda|apoia|sahi (hai|faisla))")
 
 
+_STOP = {"the", "and", "you", "your", "for", "not", "now", "but", "this", "that", "with", "here",
+         "says", "reading", "lectura", "leitura", "dice", "diz", "kehti", "hai", "que", "por", "para",
+         "los", "las", "una", "uno", "del", "com", "uma", "the", "are", "has", "have", "isn't", "don't"}
+
 # [alloc-restate 2026-10-04] the narrator often opens with its own copy of the
 # verdict ("The split itself is the risk — the reading says concentrate, not divide")
 # right under Python's sentence one — drop that echo too.
@@ -355,6 +361,17 @@ def apply_alloc_opener(read: str, case: str, language: str = "en", name: str = "
         if i == 1 and len(re.split(r"(?<=[.!?])\s+", sents[1].strip())) < 3:
             break
         read = sents[1]
+    # [audit-b4] the narrator's next sentence mostly re-says Python's opener in other words
+    # ("…bring in help by contract, not as a partner. Keep it yours for now.") — drop it
+    def _cw(x):
+        return {w for w in re.findall(r"[a-zà-ÿ']{3,}", (x or "").lower())} - _STOP
+    _opw = _cw(op)
+    sents = re.split(r"(?<=[.!?])\s+", read.strip(), maxsplit=1)
+    if len(sents) > 1 and _opw:
+        _s0 = _cw(sents[0])
+        if (_s0 and len(_s0 & _opw) >= 0.6 * len(_s0)
+                and len(re.split(r"(?<=[.!?])\s+", sents[1].strip())) >= 2):   # never thin it out
+            read = sents[1]
     # the rest may still open with the name — drop a duplicate "Name, " lead
     if name:
         read = re.sub(rf"^{re.escape(name)},\s*", "", read.strip())
@@ -364,11 +381,12 @@ def apply_alloc_opener(read: str, case: str, language: str = "en", name: str = "
 
 ALLOCATION_DIRECTIVE = {
     "spread": ("THEY JUST TOLD YOU HOW THEIR MONEY/TIME IS PLACED. Apply the SAME answer — SPREAD "
-               "YOUR RISK — to exactly what they said; do not re-decide. With two or more ventures, "
-               "say plainly: two ventures covers part of it — the missing part is a cap on each and "
-               "a reserve outside both (don't call it 'already the spread'). Never tell them to pick "
-               "one venture or that the reading favours focus. `next` = the most each venture can "
-               "draw from them and what share of every payment goes straight to savings."),
+               "YOUR RISK = a reserve outside the ventures + a cap on each — to exactly what they said; "
+               "do not re-decide. With two or more ventures say plainly: running two doesn't change it — "
+               "both are still inside your business, so the reserve outside them is what's missing. Never "
+               "say the two ventures ARE the spread, never tell them to pick one or to add more. `next` = "
+               "the most each venture can draw from them and what share of every payment goes straight "
+               "to savings."),
     "concentrate": ("THEY JUST TOLD YOU HOW THEIR MONEY/TIME IS PLACED. Apply the SAME answer — "
                     "CONCENTRATE — to exactly what they said; do not re-decide. All in on ONE thing "
                     "that is working fits; split across several means back the strongest and pause "

@@ -28,3 +28,10 @@ def test_thin_guard_keeps_content():
     r = wm.apply_alloc_opener("Jaime, un solo negocio es el riesgo. Concentrar todo es el riesgo. Protege un fondo.",
                               "spread_single", "es", "Jaime")
     assert "Protege un fondo" in r and "Concentrar todo" in r   # second drop skipped: <3 would remain
+
+
+def test_paraphrased_echo_after_opener_dropped():
+    r = wm.apply_alloc_opener("Shashi, keep it yours for now. Get help by contract or hire, not by giving away "
+                              "equity. Your public presence is a strength. Hire one person this month.",
+                              "partner_solo", "en", "Shashi", openers=pl.PARTNER_OPENER, restate=pl.PARTNER_RESTATE)
+    assert r.count("yours for now") == 1 and "Hire one person" in r

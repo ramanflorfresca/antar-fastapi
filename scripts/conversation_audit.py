@@ -126,8 +126,11 @@ def turn_checks(p: dict, q: str, lang: str, persona: dict, profile: dict, chart_
     sents = [s for s in _SENT.split(read) if s.strip()]
     if len(sents) < 3 and len(read) < 220:
         out.append("THIN_READ")
-    if len(sents) >= 2 and _lean_of(sents[0]) and _lean_of(sents[0]) == _lean_of(sents[1]):
-        out.append("OPENER_ECHO")
+    if len(sents) >= 2:   # echo = sentence two mostly re-says sentence one (not just the same lean)
+        _w = lambda x: {w for w in re.findall(r"[a-zà-ÿ']{4,}", x.lower())}
+        a, b = _w(sents[0]), _w(sents[1])
+        if b and len(a & b) >= 0.6 * len(b):
+            out.append("OPENER_ECHO")
     tm = (p.get("timing") or "").strip()
     if tm:
         tyears = set(re.findall(r"20\d\d", tm))
