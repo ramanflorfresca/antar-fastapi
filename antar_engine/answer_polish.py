@@ -41,7 +41,15 @@ _JARGON = {
         (r"\b(runs|goes|works) (with|against) (your|the|their) (natural )?grain\b",
          lambda m: f"{m.group(1)} {m.group(2)} your natural strengths"),
         (r"\b(on|off)-grain( for you)?\b", lambda m: "a natural fit for you" if m.group(1).lower() == "on" else "not a natural fit for you"),
-        (r"\byour (natural )?grain\b", "your natural strengths"),
+        # [layers 2026-10-05] "runs with your timing's grain" / "against the grain of your timing"
+    (r"\b(with|against) (your|the|their|its) ([\w -]{0,20}?)(?:'s|’s) grain\b", lambda m: f"{m.group(1)} {m.group(2)} {m.group(3)}".strip()),
+    (r"\b(with|against) the grain of (your|the|their) ([\w -]{0,20}?)\b(?=[.,;—])", lambda m: f"{m.group(1)} {m.group(2)} {m.group(3)}".strip()),
+    (r"\b([\w-]+)(?:'s|’s) grain\b", lambda m: f"{m.group(1)}'s natural pattern"),
+    # leftover forms the prompt no longer asks for, but the model still produces now and then
+    (r"\b([\w-]+)(?:'s|’s) (?:strongest |natural |own |real )?grain\b", lambda m: f"{m.group(1)}'s natural fit"),
+    (r"\b(with|against|along) the grain\b", lambda m: f"{m.group(1)} the natural fit"),
+    (r"\byour (natural )?grain\b", "your natural strengths"),
+    (r"\b(strongest |natural )?grain\b(?=\s*(?:—|-|,|which|that|is|exactly|and))", "natural fit"),
         (r"\bwealth capacity\b", "earning power"),
         (r"\bbank (your )?gains as they land\b", "move part of every gain into savings as it comes in"),
         (r"\bswings hard\b", "rises and falls sharply"),
@@ -73,7 +81,7 @@ _PICK_ONE = re.compile(
     # [audit-b4] adjectives may sit between "one" and the noun ("pick the one client-facing or
     # investigative project"), and ES/PT/Hinglish forms
     r"(?i)\b(pick|choose|select|el[ií]ge|elige|escolha|chuno|chuniye|pick karo)\b[^.!?]{0,12}\b(one|un|una|um|uma|ek)\b"
-    r"[^.!?]{0,40}\b(venture|business|project|option|company|idea|role|lane|track|area|field|stream|campo|pieza|"
+    r"[^.!?]{0,40}\b(venture|business|project|option|company|idea|role|lane|track|area|field|stream|direction|path|priority|campo|pieza|"
     r"proyecto|negocio|emprendimiento|projeto|neg[oó]cio|kaam|cheez)s?\b|\bone clear (leadership )?(role|mandate|lane|focus|venture)\b|"
     r"\b(el[ií]ge|escolha|pick|choose)\s+(el|la|o|a|the)\s+(campo|[aá]rea|proyecto|projeto|negocio|neg[oó]cio|"
     r"emprendimiento|field|lane|track|project)\b|\blleva esa pieza al frente\b|"
@@ -84,6 +92,10 @@ _PICK_ONE = re.compile(
     r"\bek (hi )?(project|venture|option|business) (choose|chuno|chuniye|chun)|\bdouble down kar|"
     # [audit-b3] the career "drive scatters" framing on a spread chart
     r"\bone clear (mandate|lane|focus|venture)\b|\bhalf-built (ventures|projects)\b|"
+    # [layers] "Identify your single highest-paying service or client and put more of your time there"
+    r"\b(identify|find|name|choose|pick) (your |the )?(single|one|top|best|highest|most)[- ][\w -]{0,30}"
+    r"(service|client|venture|product|stream|source|customer|deal|business)\b|"
+    r"\bput (more|most|all) of your (time|effort|focus|energy|week) (there|on (it|that)|into (it|that))\b|"
     r"\bchas(e|ing) (new )?ventures\b|\bnaye ventures chase\b|\bpick the one (active )?(work stream|stream|track)\b|"
     r"\b(presence|focus) double kar")
 
@@ -95,7 +107,7 @@ _ROLE_MOVE = {
 }
 
 # ── funding brought in unasked ──
-_FUND = re.compile(r"(?i)\b(fund(ing|raise|raising)?|raise (capital|money|funds|a round)|investors?|backers?|backing|"
+_FUND = re.compile(r"(?i)\b((?<!emergency )(?<!rainy-day )(?<!rainy day )(?<!savings )(?<!reserve )(?<!sinking )fund(ing|raise|raising)?|raise (capital|money|funds|a round)|investors?|backers?|backing|"
                    r"outside (money|capital|resources|funding)|other people'?s money|shared money|"
                    r"financiaci[oó]n|financiamiento|financiamento|captar (capital|recursos|inversi[oó]n)|"
                    r"inversionistas?|investidor(es)?)\b")
@@ -194,6 +206,13 @@ def _drop_sentences(text, rx, keep_min: int = 1):
     return " ".join(kept), True
 
 
+# a caution against bold moves, or the opposite, in an answer whose verdict says otherwise
+_CAUTION_BOLD = re.compile(r"(?i)\bsteady,? grounded\b|\b(over|than|not|rather than) (bold|dramatic|big) (pivots?|bets?|moves?|decisions?)\b|"
+                           r"\bbold (new )?(bets?|pivots?)\b|\bavoid (bold|big) (moves?|decisions?)\b|"
+                           r"\bestable y (firme|tranquilo)\b.{0,30}\bque (los )?(cambios|movimientos) bruscos\b")
+_SUPPORT_BOLD = re.compile(r"(?i)\b(strongly )?(supports?|backs|favou?rs|green-?lights?) (bold|big|dramatic|a big|a bold)\b")
+
+
 def polish_answer(payload: dict, language: str = "en", typed_question: str = "",
                   concern: str = "general", chart_lean: str = "", thread_text: str = "") -> dict:
     try:
@@ -240,6 +259,17 @@ def polish_answer(payload: dict, language: str = "en", typed_question: str = "",
                 print("[ask][polish] assumed-receivable move replaced")
             if d0:
                 print("[ask][polish] assumed-receivable sentence dropped")
+        # a YES / open-window answer must not also warn against moving ("steady, grounded over bold
+        # pivots"), and a NOT-YET answer must not also "strongly support bold decisions"
+        v = str(payload.get("verdict") or "").upper()
+        if v in ("YES", "LIKELY") and not _CAUTION_BOLD.search(own):
+            payload["read"], d_c = _drop_sentences(payload.get("read"), _CAUTION_BOLD, keep_min=2)
+            if d_c:
+                print("[ask][polish] caution-against-a-YES sentence dropped")
+        elif v in ("NOT_YET", "NO"):
+            payload["read"], d_s = _drop_sentences(payload.get("read"), _SUPPORT_BOLD, keep_min=2)
+            if d_s:
+                print("[ask][polish] bold-support-on-a-NOT-YET sentence dropped")
         # unasked funding talk
         if (concern or "") not in _FUND_OK_CONCERNS and not _FUND.search(own):
             payload["read"], d1 = _drop_sentences(payload.get("read"), _FUND, keep_min=2)
