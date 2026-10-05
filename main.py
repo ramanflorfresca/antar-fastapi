@@ -27960,10 +27960,20 @@ async def ask_endpoint(request: AskRequest):
                             "timing verdict; timing is secondary here, the FIT is the answer.\n"
                             f"RANKED CAREER FIELDS: {_fields}\n"
                             + (f"LEADERSHIP DRIVE: {_car.get('leadership_frame') or _car.get('leadership_level')} "
-                               "— this is a PULL toward leading, NOT proof it fits or succeeds; say so plainly, "
-                               "and note the same drive scatters into over-reach when unfocused. Frame as drive, "
-                               "not a verdict.\n"
+                               "— this is a PULL toward leading, NOT proof it fits or succeeds; say so plainly. "
+                               "Frame as drive, not a verdict.\n"
                                if _car.get("leadership_level") else "")
+                            # [spread-profession 2026-10-05] was "…and note the same drive scatters into
+                            # over-reach when unfocused" — in 5 of 8 spread-chart money conversations the
+                            # profession answer then said "scatters into too many directions" / "pick your
+                            # focus and commit to it" right after "spread your risk, keep a reserve outside
+                            # your ventures" (and Jaime: "Elige el próximo proyecto"). A profession answer is
+                            # about WHAT KIND of work fits; how many things they run is answered elsewhere.
+                            + "KIND OF WORK, NOT HOW MANY: speak only about the KIND of work and role that fits "
+                            "(their strengths, the mode that suits them). NEVER tell them to focus, narrow down, "
+                            "pick one direction, commit to one thing, or that they are scattered or "
+                            "unfocused — how many things they should run is a separate question already "
+                            "answered, and this answer must not contradict it.\n"
                             + "ANSWER AS THREE HONEST TIERS (the reader explicitly wants to know "
                             "where they THRIVE vs STRUGGLE):\n"
                             f"1) STRONG FIT — their natural fit runs WITH these, this is where "
@@ -29512,7 +29522,7 @@ async def ask_endpoint(request: AskRequest):
                         pass
                 if not _tg_near:
                     _ask_layers_block += (
-                        "\n\nTIMING GRAIN — the user did NOT ask about a specific day or a "
+                        "\n\nTIMING DETAIL — the user did NOT ask about a specific day or a "
                         "near-term window. Give any timing as months, seasons or years (e.g. "
                         "'around late 2026', 'through spring 2027') — NEVER a specific calendar "
                         "date like '1 Oct' or 'Thu 5 Oct'. Day-level precision belongs on the "
@@ -31429,7 +31439,8 @@ async def ask_endpoint(request: AskRequest):
                 _polish(payload, language=language, typed_question=_ask_typed_q,
                         concern=locals().get("_ask_concern") or "general",
                         chart_lean=locals().get("_ask_chart_lean") or "",
-                        thread_text=" ".join(str(t.get("q") or "") for t in (locals().get("_ask_thread") or [])))
+                        thread_text=" ".join(str(t.get("q") or "") for t in (locals().get("_ask_thread") or [])),
+                        prev_moves=[t.get("m") for t in (locals().get("_ask_thread") or [])])
             except Exception as _pole:
                 print(f"[ask][polish] non-fatal: {_pole}")
             # [es-leak 2026-10-04] English business words left in a Spanish/Portuguese answer
@@ -31462,6 +31473,21 @@ async def ask_endpoint(request: AskRequest):
             # [allin-multi 2026-10-04] Python owns sentence one where the narrator's
             # "all in = good" instinct fights the chart (concentrate + 2 ventures,
             # spread + 1). Late, after the voice gates, so nothing rewrites it.
+            try:
+                # [spread-profession 2026-10-05] the concentrate-or-diversify verdict sentence is Python's too
+                if (not locals().get("_ask_alloc_case") and payload.get("read")
+                        and not payload.get("needs_clarification")):
+                    from antar_engine.wealth_magnitude import (
+                        is_concentrate_vs_diversify as _icvd, apply_alloc_opener as _aao_c)
+                    _cl = locals().get("_ask_chart_lean")
+                    if _icvd(_ask_typed_q) and _cl in ("spread", "concentrate"):
+                        _nr = _aao_c(payload["read"], "cvd_" + _cl, language,
+                                     str((chart_row.data or {}).get("first_name") or "").strip())
+                        if _nr != payload["read"]:
+                            print(f"[ask][alloc] concentrate-or-diversify verdict set ({_cl})")
+                            payload["read"] = _nr
+            except Exception as _cve:
+                print(f"[ask][alloc] cvd opener non-fatal: {_cve}")
             try:
                 if locals().get("_ask_alloc_case") and payload.get("read") \
                         and not payload.get("needs_clarification"):

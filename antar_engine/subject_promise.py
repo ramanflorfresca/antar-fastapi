@@ -545,7 +545,7 @@ def vocational_fit(chart_data: dict, karakas: Optional[List[str]],
     else:
         rel = score
     verdict = ("well suited" if rel >= 0.75 else "workable" if rel >= -0.4
-               else "against the grain")
+               else "a poor fit")   # [spread-profession] the old label was printed into the prompt and quoted verbatim by the model
     return {"available": True, "verdict": verdict,
             "score": round(rel, 2), "raw": round(score, 2),
             "normalized": bool(base),

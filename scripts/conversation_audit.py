@@ -103,11 +103,12 @@ _PARTNER_WORDS = re.compile(r"(?i)\b(your (partner|spouse|wife|husband)|tu parej
                             r"seu parceiro|sua parceira|apne (partner|pati|patni))\b")
 _UNPARTNERED = {"single", "divorced", "separated", "widowed", "never_married", "unmarried"}
 _EN_LEAK = re.compile(r"(?i)\b(venture|ventures|savings|cushion|cash flow|the reading|your move)\b")
-_SPREAD = re.compile(r"(?i)\b(spread|diversif\w*|repart\w*|alag alag|second (income|line|stream)|"
+_SPREAD = re.compile(r"(?i)\b(spread (your )?risk|spread the risk|spread (across|what|your money)|diversif\w*|repart\w*|reparte el riesgo|"
+                     r"espalhe o risco|risk baanto|alag alag|second (income|line|stream)|"
                      r"segunda fuente|ya es diversificaci)")
 _CONC = re.compile(r"(?i)\b(concentrate( everything| on one)?|concentra(r|te)? (todo|en un)|go deep on one|"
                    r"pick (the )?one (venture|deal|business)|focus on one (venture|deal|business)|"
-                   r"double down on one|el[ií]ge un (solo )?(negocio|emprendimiento)|ek hi (venture|jagah))")
+                   r"double down on one|el[ií]ge un (solo )?(negocio|emprendimiento)|ek hi (venture|jagah) (mein )?(lagao|lagana|choose|chuno|chuniye))")
 _PARTNER_YES = re.compile(r"(?i)(backs (bringing in )?the right partner|respalda (sumar )?al socio|"
                           r"apoia (trazer )?o s[oó]cio|sahi partner)")
 _PARTNER_NO = re.compile(r"(?i)(keep it yours|lo mantengas tuyo|manter isso seu|apne paas rakho|"
@@ -305,7 +306,9 @@ async def ask(persona, q, thread):
     r = await main.ask_endpoint(main.AskRequest(question=q, chart_id=persona["chart"], mode="explore",
                                                 language=persona["lang"], tz_offset=persona["tz"]))
     r = r if isinstance(r, dict) else json.loads(getattr(r, "body", b"{}") or b"{}")
-    thread.append({"q": q, "a": (r.get("read") or "")[:600], "domain": r.get("domain") or "", "m": ""})
+    # [audit-fidelity 2026-10-05] production threads carry the move ("m" = action_item) and the narrator is
+    # told not to repeat it; the harness recorded "" so repeated moves in the audit were an artifact
+    thread.append({"q": q, "a": (r.get("read") or "")[:600], "domain": r.get("domain") or "", "m": (r.get("next") or "")[:300]})
     return r
 
 
@@ -441,6 +444,27 @@ def report(convs: list, stamp: str) -> str:
         b = [t for t in mt if _cau.search(t["read"] + " " + t["next"])]
         if a and b:
             add("LAYER_CONFLICT", f"{c['persona']} · {c['chain']} · rep {c['rep']} · “{a[0]['q'][:40]}” backs bold moves, “{b[0]['q'][:40]}” warns against them")
+    # conversation-level: a "spread your risk" answer followed by an answer that tells the same reader to
+    # focus / narrow / commit to one direction ("unfocused, that same drive scatters", "pick your focus")
+    _spr = re.compile(r"(?i)\bspread (your )?risk\b|\bspread the risk\b|\bdiversif|\brepart|\balag alag rakho|\bkeep a (slice|reserve|fixed)\b")
+    _foc = re.compile(r"(?i)\bscatter(s|ed|ing)?\b|\btoo many directions\b|\bpick your focus\b|\bcommit to (it|one|that)\b|"
+                      r"\bunfocused\b|\bwithout focus\b|\bone clear (direction|lane|focus)\b|\bover three\b|\bdispersa|"
+                      r"\bdemasiadas direcciones\b|\belige (el|la) (pr[oó]xim|siguiente)\w* (proyecto|negocio)\b|\bbikhar|\bek hi (kaam|direction)\b")
+    for c in convs:
+        mt = [t for t in c["turns"] if t.get("tap") is None and "read" in t]
+        sp = [t for t in mt if _spr.search(t["read"] + " " + t["next"])]
+        fo = [t for t in mt if re.search(r"(?i)profession|profesi|profiss|fits? me best|encaja|profession mere", t["q"]) and _foc.search(t["read"] + " " + t["next"])]
+        if sp and fo:
+            add("SPREAD_FOCUS_CLASH", f"{c['persona']} · {c['chain']} · rep {c['rep']} · “{sp[0]['q'][:36]}” says spread, “{fo[0]['q'][:36]}” says focus/scatter")
+    # conversation-level: the same move given twice in one conversation
+    _norm_m = lambda x: re.sub(r"[^a-z0-9áéíóúñ]+", " ", (x or "").lower()).strip()
+    for c in convs:
+        seen = {}
+        for t in [t for t in c["turns"] if t.get("tap") is None and t.get("next")]:
+            k = _norm_m(t["next"])[:70]
+            if k and k in seen:
+                add("REPEATED_MOVE", f"{c['persona']} · {c['chain']} · rep {c['rep']} · “{t['q'][:34]}” repeats the move from “{seen[k][:34]}”: {t['next'][:90]}")
+            seen.setdefault(k, t["q"])
     scores = [c["judge"].get("score") for c in convs if isinstance((c.get("judge") or {}).get("score"), (int, float))]
     _ign = classes.pop("JUDGE_UNVERIFIED (ignored)", [])
     order = sorted(classes.items(), key=lambda kv: -len(kv[1]))
