@@ -20,7 +20,7 @@ from antar_engine.answer_disclaimer import disclaimer_for
 ])
 def test_health_answers_get_a_medical_disclaimer(concern, text):
     d = disclaimer_for(concern, text, language="en")
-    assert d and "Not medical advice" in d
+    assert d and "not a diagnosis" in d
 
 
 @pytest.mark.parametrize("concern,text", [
@@ -30,27 +30,27 @@ def test_health_answers_get_a_medical_disclaimer(concern, text):
 ])
 def test_money_answers_get_a_financial_disclaimer(concern, text):
     d = disclaimer_for(concern, text, language="en")
-    assert d and "Not financial advice" in d
+    assert d and "not financial advice" in d
 
 
 def test_legal_answer_disclaims_outcome_prediction():
     d = disclaimer_for("legal", "The timing leans in your favour on this matter.",
                        language="en")
-    assert d and "Not legal advice" in d and "not a prediction" in d
+    assert d and "not legal advice" in d and "not a guarantee of any result" in d
 
 
 def test_fertility_answer_gets_a_medical_disclaimer():
     d = disclaimer_for(None, "Yes - family window is open now; conceiving is supported.",
                        language="en")
-    assert d and "Not medical advice" in d
+    assert d and "not a diagnosis" in d
 
 
 @pytest.mark.parametrize("lang,needle", [
-    ("en", "Not medical advice"),
-    ("es", "No es consejo médico"),
-    ("pt", "Não é orientação médica"),
-    ("hi", "medical advice nahi hai"),
-    ("hinglish", "medical advice nahi hai"),
+    ("en", "not a diagnosis"),
+    ("es", "no es un diagnóstico"),
+    ("pt", "não é diagnóstico"),
+    ("hi", "diagnosis nahi"),
+    ("hinglish", "diagnosis nahi"),
 ])
 def test_disclaimer_speaks_the_answers_language(lang, needle):
     """English-only keyword logic is a silent bug — es/pt/Hinglish users would
@@ -71,3 +71,25 @@ def test_neutral_answers_get_no_disclaimer(text):
 def test_never_raises_on_junk_input():
     assert disclaimer_for(None, None, language=None) is None
     assert disclaimer_for("", "", language="zz") is None
+
+
+@pytest.mark.parametrize("concern,text", [
+    ("health", "Not yet — next health window Dec 2026."),
+    ("legal",  "The timing leans in your favour on this matter."),
+    ("money",  "The timing doesn't support speculation."),
+    (None,     "Yes - family window is open now; conceiving is supported."),
+])
+def test_disclaimer_never_denies_a_shipped_feature(concern, text):
+    """[disclaimer-honest-register] The first cut said "Antar reads timing, not
+    your body" and "not a prediction of any outcome" — both false. Antar DOES
+    read health from the chart and DOES return a dated yes/no on a legal
+    question, so a disclaimer written in the denial register contradicts the
+    answer printed directly above it. Bound the authority, never the feature."""
+    d = disclaimer_for(concern, text, language="en")
+    assert d
+    low = d.lower()
+    for banned in ("reads timing, not", "not a prediction", "does not predict",
+                   "not fertility", "timing only", "reading"):
+        assert banned not in low, f"denial-register phrase back in: {banned!r}"
+    assert "planetary positions" in low, "name the method, not only what it isn't"
+    assert "not a guarantee" in low or "not a diagnosis" in low

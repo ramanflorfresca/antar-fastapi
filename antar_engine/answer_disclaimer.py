@@ -80,46 +80,75 @@ _CONCERN_MAP = {
     "family": "fertility",
 }
 
+# [disclaimer-honest-register 2026-10-05] The first cut wrote these in the
+# DENIAL register — "Antar reads timing, not your body", "not a prediction of
+# any outcome" — and every one of them contradicted the answer printed directly
+# above it. Antar DOES read health from the chart (constitution, care, remedies)
+# and DOES return a yes/no with a dated window on a legal question. A disclaimer
+# that denies a shipped feature is worse than none: the reader sees the
+# contradiction, and it is the same "we are not what we are" posture that the
+# App Store metadata was just rewritten to drop.
+#
+# The honest boundary is not "we don't predict". It is:
+#   this is a CHART reading, not professional advice, and not a guarantee.
+# Own the prediction; bound the authority; name who to go to.
+# [disclaimer-honest-register 2026-10-05] Two rewrites, both worth recording.
+#
+# 1. The first cut used the DENIAL register — "Antar reads timing, not your
+#    body", "not a prediction of any outcome" — and each line contradicted the
+#    answer printed directly above it. Antar DOES read health from the chart
+#    (constitution, care, remedies) and DOES return a yes/no with a dated
+#    window on a legal question. A disclaimer that denies a shipped feature is
+#    worse than none.
+# 2. The second cut said "a chart reading" — but "reading" is precisely the
+#    horoscope-register word stripped out of answer bodies the same day
+#    (_ASK_CHART_FIX). Naming the mechanic as computation instead of divination
+#    is both more accurate and consistent with the store positioning
+#    ("computed, not generated").
+#
+# Settled form: name the method (planetary positions + timing), bound the
+# authority (not professional advice, not a guarantee), name who to go to.
+# Own the prediction. Never deny the feature.
 _TEXT = {
     "health": {
-        "en": "Not medical advice. Antar reads timing, not your body — talk to a "
-              "doctor before starting or stopping anything, especially if symptoms persist.",
-        "es": "No es consejo médico. Antar lee el momento, no tu cuerpo — consulta a un "
-              "médico antes de empezar o dejar cualquier cosa, sobre todo si los síntomas continúan.",
-        "pt": "Não é orientação médica. O Antar lê o momento, não o seu corpo — fale com um "
-              "médico antes de começar ou parar qualquer coisa, principalmente se os sintomas persistirem.",
-        "hi": "Yeh medical advice nahi hai. Antar timing padhta hai, aapka shareer nahi — kuch bhi "
-              "shuru ya band karne se pehle doctor se baat karein, khaas kar agar takleef bani hui hai.",
+        "en": "An analysis of your planetary positions and timing — not a diagnosis, and not a "
+              "guarantee. See a doctor about symptoms, and before you start or stop anything.",
+        "es": "Un análisis de tus posiciones planetarias y su momento — no es un diagnóstico ni una "
+              "garantía. Consulta a un médico ante cualquier síntoma, y antes de empezar o dejar algo.",
+        "pt": "Uma análise das suas posições planetárias e do momento — não é diagnóstico nem "
+              "garantia. Procure um médico diante de sintomas, e antes de começar ou parar algo.",
+        "hi": "Yeh aapke grahon ki sthiti aur timing ka vishleshan hai — diagnosis nahi, aur guarantee "
+              "bhi nahi. Takleef ho to doctor se milein, aur kuch shuru ya band karne se pehle bhi.",
     },
     "money": {
-        "en": "Not financial advice. This is timing, not a forecast of returns — never "
-              "commit money you cannot afford to lose, and take professional advice before you do.",
-        "es": "No es asesoramiento financiero. Esto es momento, no una previsión de rendimientos — "
-              "nunca comprometas dinero que no puedas permitirte perder, y consulta a un profesional antes.",
-        "pt": "Não é consultoria financeira. Isto é momento, não previsão de retorno — nunca "
-              "comprometa dinheiro que você não pode perder, e busque orientação profissional antes.",
-        "hi": "Yeh financial advice nahi hai. Yeh timing hai, return ka anumaan nahi — utna paisa "
-              "kabhi na lagayein jo aap kho nahi sakte, aur pehle kisi professional se salah lein.",
+        "en": "An analysis of your planetary positions and timing — not financial advice, and not a "
+              "guarantee of returns. Never risk money you can't afford to lose.",
+        "es": "Un análisis de tus posiciones planetarias y su momento — no es asesoramiento financiero "
+              "ni una garantía de rendimiento. Nunca arriesgues dinero que no puedas perder.",
+        "pt": "Uma análise das suas posições planetárias e do momento — não é consultoria financeira "
+              "nem garantia de retorno. Nunca arrisque dinheiro que você não pode perder.",
+        "hi": "Yeh aapke grahon ki sthiti aur timing ka vishleshan hai — financial advice nahi, aur "
+              "munafe ki guarantee bhi nahi. Utna paisa kabhi na lagayein jo aap kho nahi sakte.",
     },
     "legal": {
-        "en": "Not legal advice, and not a prediction of any outcome. Antar reads timing only — "
-              "your lawyer decides strategy.",
-        "es": "No es asesoramiento legal ni una predicción del resultado. Antar solo lee el momento — "
-              "la estrategia la decide tu abogado.",
-        "pt": "Não é orientação jurídica nem previsão de resultado. O Antar lê apenas o momento — "
-              "a estratégia é do seu advogado.",
-        "hi": "Yeh legal advice nahi hai, aur na hi kisi nateeje ki bhavishyavani. Antar sirf timing "
-              "padhta hai — strategy aapke vakeel ki hai.",
+        "en": "An analysis of your planetary positions and timing — not legal advice, and not a "
+              "guarantee of any result. Your lawyer runs the case.",
+        "es": "Un análisis de tus posiciones planetarias y su momento — no es asesoramiento legal ni "
+              "una garantía de resultado. Tu abogado lleva el caso.",
+        "pt": "Uma análise das suas posições planetárias e do momento — não é orientação jurídica nem "
+              "garantia de resultado. Quem conduz o caso é o seu advogado.",
+        "hi": "Yeh aapke grahon ki sthiti aur timing ka vishleshan hai — legal advice nahi, aur kisi "
+              "nateeje ki guarantee bhi nahi. Case aapke vakeel ka hai.",
     },
     "fertility": {
-        "en": "Not medical advice. Antar reads timing, not fertility — a doctor is the only "
-              "place to get an answer about conceiving.",
-        "es": "No es consejo médico. Antar lee el momento, no la fertilidad — solo un médico "
-              "puede responder sobre la concepción.",
-        "pt": "Não é orientação médica. O Antar lê o momento, não a fertilidade — só um médico "
-              "pode responder sobre concepção.",
-        "hi": "Yeh medical advice nahi hai. Antar timing padhta hai, fertility nahi — garbhdharan "
-              "ke baare mein jawab sirf doctor hi de sakta hai.",
+        "en": "An analysis of your planetary positions and timing — not a diagnosis, and not a "
+              "guarantee. Only a doctor can give you a clinical answer about conceiving.",
+        "es": "Un análisis de tus posiciones planetarias y su momento — no es un diagnóstico ni una "
+              "garantía. Solo un médico puede darte una respuesta clínica sobre la concepción.",
+        "pt": "Uma análise das suas posições planetárias e do momento — não é diagnóstico nem "
+              "garantia. Só um médico pode dar uma resposta clínica sobre concepção.",
+        "hi": "Yeh aapke grahon ki sthiti aur timing ka vishleshan hai — diagnosis nahi, aur guarantee "
+              "bhi nahi. Garbhdharan ka clinical jawab sirf doctor hi de sakta hai.",
     },
 }
 
