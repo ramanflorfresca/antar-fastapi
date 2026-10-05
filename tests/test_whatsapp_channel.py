@@ -123,7 +123,6 @@ def m(monkeypatch):
     monkeypatch.setenv("TWILIO_WEBHOOK_URL", "https://api.example.com/api/v1/messaging/whatsapp/webhook")
     monkeypatch.setenv("WHATSAPP_ENABLED", "true")
     main._WA_SEEN.clear()
-    monkeypatch.setattr(msg, "policy_state", lambda sb, n, link: "ok")
     return main
 
 
@@ -176,11 +175,6 @@ class _Conv:
     def __init__(self, m, monkeypatch, link=None, charts=None, primary="self-1", answer=None,
                  delay=0.0, policy="ok"):
         self.sent, self.asked, self.saved = [], [], []
-        self.policy, self.policy_recorded = policy, []
-        # hermetic consent gate: never the live wa_policy_acceptances table
-        monkeypatch.setattr(msg, "policy_state", lambda sb, n, link: self.policy)
-        monkeypatch.setattr(msg, "record_policy",
-                            lambda sb, n, d, lang="en", link=None: self.policy_recorded.append(d) or True)
         self.link = link
         self.answer = answer if answer is not None else {
             "read": "Hold until spring. The stronger move opens in March.",
@@ -1280,34 +1274,6 @@ def test_wa_disclaimer_survives_the_compact_budget():
     p["read"] = " ".join(["The timing shows a long careful sentence about recovery and rest."] * 12)
     text, _ = m.format_ask_whatsapp_v2(p, "en", compact=True)
     assert "not a diagnosis" in text
-
-
-# ─── consent gate (stubbed — never the live table) ─────────────────
-
-def test_not_accepted_number_gets_the_policy_prompt_first(m, monkeypatch):
-    cv = _Conv(m, monkeypatch, link=_link(), policy="needed")
-    cv.run("Will I get married?")
-    assert cv.asked == [] and cv.policy_recorded == []
-    assert any("Data processing policy" in t for t in cv.sent + [b for b, *_ in cv.lists])
-
-
-def test_accepting_in_chat_is_recorded_and_unlocks_a_linked_number(m, monkeypatch):
-    cv = _Conv(m, monkeypatch, link=_link(), policy="needed")
-    cv.run("ACCEPT")
-    assert cv.policy_recorded == ["yes"] and cv.asked == []
-    assert len(cv.sent) == 1
-
-
-def test_declining_is_recorded_and_nothing_is_asked(m, monkeypatch):
-    cv = _Conv(m, monkeypatch, link=_link(), policy="needed")
-    cv.run("NO")
-    assert cv.policy_recorded == ["no"] and cv.asked == []
-
-
-def test_accepted_default_goes_straight_to_ask(m, monkeypatch):
-    cv = _Conv(m, monkeypatch, link=_link())
-    cv.run("Will I get married?")
-    assert len(cv.asked) == 1
 
 
 # ── the data-processing gate, through a real conversation ──────────────────

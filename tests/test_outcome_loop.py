@@ -151,7 +151,6 @@ def test_whatsapp_digit_answers_the_checkin(monkeypatch):
                                                           ["k9", "no"], ["k9", "not_sure"]])}
     sent, recorded = [], []
     monkeypatch.setattr(msg, "get_whatsapp_link", lambda sb, n: link)
-    monkeypatch.setattr(msg, "policy_state", lambda sb, n, l: "ok")     # hermetic consent gate
     monkeypatch.setattr(msg, "whatsapp_send", lambda n, t, ts: sent.append(t) or True)
     monkeypatch.setattr(msg, "save_link_context", lambda sb, l, c: l.__setitem__("context", c) or True)
     monkeypatch.setattr(main, "_resolve_primary_chart_id", lambda uid: "c1")
