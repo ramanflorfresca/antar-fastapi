@@ -87,6 +87,14 @@ def demo_chart_id(supabase, *, force: bool = False) -> Optional[str]:
     return val
 
 
+def is_demo_chart(chart_id) -> bool:
+    """True if chart_id is the configured demo chart. Reads the cache only (no I/O): the
+    guard middleware refreshes it on every request that mentions the demo chart, so by the
+    time a handler asks, the value is current."""
+    cid = _CACHE.get("id")
+    return bool(cid) and str(chart_id or "").strip().lower() == str(cid).strip().lower()
+
+
 def route_allowed(method: str, path: str) -> bool:
     m = (method or "").upper()
     if m in _ALWAYS_OK_METHODS:
