@@ -30014,7 +30014,16 @@ async def ask_endpoint(request: AskRequest):
             # [audit r18] a question about a parent / family bond gets no window verdict ("Aún no — próxima
             # ventana de asociación" for "¿Cuándo mejorará mi relación con mi padre?")
             try:
-                if _ask_conv and (locals().get("_ask_u") or {}).get("area") in ("family", "health_other"):
+                _ms_v = str((chart_row.data or {}).get("marital_status") or "").lower()
+                _area_v = (locals().get("_ask_u") or {}).get("area")
+                # [audit r20] a divorced / single reader asking about "my marriage" gets no new-union window
+                # verdict ("Aún no — próxima ventana de asociación nov 2027") — it isn't the question asked
+                if _ask_conv and (_area_v in ("family", "health_other") or (
+                        _area_v in ("existing_relationship", "marriage") and _ms_v in (
+                            "divorced", "separated", "widowed", "single")
+                        and not re.search(
+                            r"(?i)\b(remarry|re-?marry|new (partner|relationship|marriage)|again|de novo|otra vez|"
+                            r"de nuevo|dobara|phir se)\b", question or ""))):
                     _ask_conv["suppress_verdict"] = True
                     _ask_conv["verdict_phrase"] = ""
                     print(f"[ask][family] window verdict suppressed for {chart_id[:8]}")

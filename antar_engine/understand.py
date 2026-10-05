@@ -877,7 +877,8 @@ _MONEY_TOPIC_AREAS = frozenset({
     "income_money", "debt_owed_money", "speculation_betting", "property", "business_partnership",
     "partnership_ending", "daily_timing", "general"})
 _BIZ_PRESSURE = re.compile(
-    r"(?i)\b(business(es)?|loans?|debts?|savings?|cash ?flow|money pressure|financial (stress|pressure|strain)|"
+    r"(?i)\b(business(es)?|loans?|debts?|savings?|cash ?flow|money|financial (stress|pressure|strain|commitments?)|"
+    r"estr[eé]s financiero|presi[oó]n financiera|estresse financeiro|press[aã]o financeira|paise ki (tension|tangi)|"
     r"negocio|neg[oó]cio|pr[eé]stamos?|empr[eé]stimos?|deudas?|d[ií]vidas?|ahorros?|poupan[cç]a|"
     r"dinero|dinheiro|karz|udhaar|paisa|paise|dhandha|vyapar)\b")
 
@@ -955,7 +956,7 @@ _NEW_PARTNER_TALK = re.compile(
     r"(nueva|futura|pr[oó]xima) (pareja|relaci[oó]n|asociaci[oó]n)|(nova|futura|pr[oó]xima) (parceria|relaci[oó]n|rela[cç][aã]o)|"
     r"(naya|nayi|nai|future) (partner|partnership|rishta)|naye (partner|rishte)|"
     r"(novo|nuevo|new|naya) (v[ií]nculo|bond|relacionamento|bandhan)|promessa de um novo|"
-    r"promise of a new)\b")
+    r"promise of a new|nueva uni[oó]n|nova uni[aã]o|new union|promesa de una nueva)\b")
 
 # loans / outside capital / credit asserted as part of the person's situation
 _ASSERTED_LOAN = re.compile(
@@ -1373,7 +1374,13 @@ def drop_far_years(text, question: str = "", horizon: int = 5):
 _MALE_PREG = re.compile(
     r"(?i)\b(carrying (a|this|the) pregnancy|carrying a baby|carrying something precious|carrying (this|a|the) (child|baby)|you are pregnant|you're pregnant|your pregnancy is|"
     r"est[aá]s embarazad[oa]|tu embarazo est[aá]|voc[eê] est[aá] gr[aá]vid[oa]|sua gravidez est[aá]|"
-    r"aap pregnant hain)\b")
+    r"aap pregnant hain|esto es una noticia grande|isso [eé] uma grande not[ií]cia|this is big news|"
+    r"congratulations on the pregnancy)\b")
+_MALE_PREG_NEXT = (
+    (re.compile(r"(?i)\b(sobre|about|a respeito d[ao]) (tu|your|sua|seu) (embarazo|pregnancy|gravidez)\b"),
+     {"es": "sobre el embarazo en tu familia", "en": "about the pregnancy in your family",
+      "pt": "sobre a gravidez na sua família"}),
+)
 _MIDWIFE = ((re.compile(r"(?i)\b(your )?midwife or (your )?doctor\b"), "a doctor"),
             (re.compile(r"(?i)\b(your )?doctor or (a |your )?midwife\b"), "a doctor"),
             (re.compile(r"(?i)\bmidwife\b"), "doctor"),
@@ -1389,6 +1396,9 @@ def male_pregnancy_guard(text, area: str = "", gender: str = ""):
         return text
     kept = [x for x in _sentences(text) if not _MALE_PREG.search(x)]
     out = _keep(kept, text)
+    for rx, reps in _MALE_PREG_NEXT:
+        out = rx.sub(lambda m: reps["es"] if m.group(2).lower() == "tu" else
+                     (reps["pt"] if m.group(2).lower() in ("sua", "seu") else reps["en"]), out)
     for rx, rep in _MIDWIFE:
         out = rx.sub(rep, out)
     return out
