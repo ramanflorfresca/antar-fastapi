@@ -324,21 +324,27 @@ _RESTATE_RX = {
 }
 
 
-def apply_alloc_opener(read: str, case: str, language: str = "en", name: str = "") -> str:
+def apply_alloc_opener(read: str, case: str, language: str = "en", name: str = "",
+                       openers: dict = None, restate: dict = None) -> str:
     """Prepend Python's sentence one for the contested cases; drop an affirming opener."""
-    tmpl = (ALLOC_OPENER.get(case) or {})
+    openers = ALLOC_OPENER if openers is None else openers
+    restate = _RESTATE_RX if restate is None else restate
+    tmpl = (openers.get(case) or {})
     if not tmpl or not isinstance(read, str):
         return read
     lang = "hi" if (language or "en").lower() in ("hi", "hinglish") else (language or "en").lower()[:2]
     op = (tmpl.get(lang) or tmpl["en"]).format(n=(f"{name}, " if name else ""))
     op = op[0].upper() + op[1:]
-    for _ in range(2):   # the narrator's own verdict sentence(s) at the top
+    for i in range(2):   # the narrator's own verdict sentence(s) at the top
         sents = re.split(r"(?<=[.!?])\s+", read.strip(), maxsplit=1)
-        if len(sents) > 1 and len(sents[0]) <= 160 and (
-                _AFFIRM_RX.search(sents[0]) or _RESTATE_RX.get(case, _NEVER).search(sents[0])):
-            read = sents[1]
-        else:
+        if not (len(sents) > 1 and len(sents[0]) <= 160 and (
+                _AFFIRM_RX.search(sents[0]) or restate.get(case, _NEVER).search(sents[0]))):
             break
+        # [thin-guard 2026-10-04] a second drop only when ≥3 sentences would remain
+        # (Jaime's answer shrank to "…es positivo. Solo un fondo separado puede protegerte.")
+        if i == 1 and len(re.split(r"(?<=[.!?])\s+", sents[1].strip())) < 3:
+            break
+        read = sents[1]
     # the rest may still open with the name — drop a duplicate "Name, " lead
     if name:
         read = re.sub(rf"^{re.escape(name)},\s*", "", read.strip())
