@@ -6,7 +6,7 @@ def test_jargon_to_plain_words():
     t = ap.plain_words("Your wealth engine is large but swings hard, and gains tend to dissolve. "
                        "Your grain runs strongest with research.", "en")
     assert "wealth engine" not in t and "earning power" in t and "grain" not in t
-    assert "rises and falls sharply" in t and "slip away" in t and "you do best in research" in t
+    assert "rises and falls sharply" in t and "slip away" in t and "you do best in research" in t.lower()
     assert "esfuman" in ap.plain_words("Las ganancias se disuelven rápido.", "es")
 
 

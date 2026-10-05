@@ -284,5 +284,5 @@ def test_narrator_prompt_reads_kn_rao_order():
     p = build_reading_sequence_prompt(b, compute_event_verdict(b))
     for marker in ("1. RUNNING PERIOD", "2. CHARA CROSS-CHECK",
                    "3. DIVISIONAL CONFIRM", "4. YOGAS",
-                   "5. DOUBLE TRANSIT", "6. YEAR GATE"):
+                   "5. TIMING SIGNAL", "6. YEAR GATE"):
         assert marker in p
