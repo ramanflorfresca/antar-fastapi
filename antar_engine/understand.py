@@ -263,6 +263,8 @@ _EXPLICIT_TOPICS = (
     (re.compile(r"(?i)\b(casamento|matrimonio|shaadi|marriage|wedding|boda)\b"), "marriage"),
     (re.compile(r"(?i)\b(exam|examen|prova|pariksha|study|estudo|estudio)\b"), "education_exam"),
     (re.compile(r"(?i)\b(abroad|exterior|extranjero|videsh)\b"), "foreign_travel_visa"),
+    (re.compile(r"(?i)\b(retire\w*|retirement|pension|jubilaci[oó]n|aposentadoria|budhapa|vejez|velhice)\b"),
+     "income_money"),
 )
 
 
@@ -1046,7 +1048,9 @@ _KIDS_OFFTOPIC = re.compile(
     r"el lado de tu padre|o lado do seu pai|your (child|baby) (is |are )?(arriving|coming|on the way)|"
     r"tu (hijo|bebé) (est[aá] )?(llegando|por llegar)|seu (filho|bebê) (est[aá] )?chegando)\b"
     r"|\b(fam[ií]lia|familia|lado|side)\b[^.!?]{0,25}\b(pai|padre|father)\b"
-    r"|\bperspectiv\w+ (do|de|of) (seu|tu|your) (filho|hijo|child)\b")
+    r"|\bperspectiv\w+ (do|de|of) (seu|tu|your) (filho|hijo|child)\b"
+    r"|\b(father|papa|pita|dad)('s)? (ki taraf|ka side|side|influence|area)\b|\b(father|papa)\s+ki\s+taraf\b"
+    r"|\byour father'?s\b")
 _PARENT_Q = re.compile(r"(?i)\b(father|dad|papa|pap[aá]|padre|pai|mother|mom|madre|m[aã]e)\b")
 
 
@@ -1299,6 +1303,26 @@ def pregnancy_in_progress(question: str) -> bool:
     """'my pregnancy' — a pregnancy that EXISTS. A conception-window verdict ('Provável — janela familiar …')
     answers a different question ('when will I conceive?') and asserts a window nobody asked about."""
     return bool(_PREG_NOW.search(question or ""))
+
+
+_BOSS = (
+    (re.compile(r"(?i)\byour (boss|manager|employer)\b"), "your key clients"),
+    (re.compile(r"(?i)\b(seu|o seu|teu) (chefe|patr[aã]o|gerente)\b"), "seus clientes principais"),
+    (re.compile(r"(?i)\b(tu|su) (jefe|patr[oó]n|gerente)\b"), "tus clientes clave"),
+    (re.compile(r"(?i)\b(aapka|aapke|tumhara) (boss|manager)\b"), "aapke main clients"),
+)
+
+
+def no_boss(text, question: str = ""):
+    """[audit r17] A self-employed reader has no boss ('seu chefe' reached a founder). The narrator rule
+    exists; this enforces it in every language unless the question itself names a boss."""
+    if not isinstance(text, str) or not text.strip():
+        return text
+    if re.search(r"(?i)\b(boss|manager|employer|chefe|jefe|patr[aã]o|patr[oó]n)\b", question or ""):
+        return text
+    for rx, rep in _BOSS:
+        text = rx.sub(lambda m, r=rep: (r[0].upper() + r[1:]) if m.group(0)[0].isupper() else r, text)
+    return text
 
 
 def parse_model_json(raw) -> Optional[dict]:

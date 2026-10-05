@@ -843,3 +843,37 @@ def test_connector_openers_count_as_dangling():
     t = "A separação pesa agora. Porém, o período pede cuidado. Fale com alguém de confiança."
     out = u.drop_off_topic_pressure("Seu negócio tem pressão. " + t.split(". ", 1)[1], "separation", "Vale a pena mudar meu separação?")
     assert not out.lstrip().startswith("Porém")
+
+
+# ── audit round 17 ────────────────────────────────────────────────────────────
+def test_window_started_helper():
+    import main
+    from datetime import date
+    t = date(2026, 10, 5)
+    assert main._ask_window_started("Oct 2026", t) and main._ask_window_started("Sep 2026 – Nov 2026", t)
+    assert not main._ask_window_started("Nov 2026 – Jan 2027", t) and not main._ask_window_started("", t)
+
+
+def test_retirement_word_locks_the_money_topic():
+    assert u.explicit_area("Mera retirement kab theek hoga?") == "income_money"
+
+
+def test_kids_guard_drops_hinglish_and_english_fathers_side():
+    t = "Conditions are mixed. Aapke father ki taraf se jo long-view support hai, woh stable hai. Doctor se baat karo."
+    assert "father" not in u.kids_offtopic(t, "children_wellbeing", "Mera bachcha mujhe kahan le jayega?", "hinglish")
+    e = "Mixed season. Your father's influence and the long view look supported. See your doctor."
+    assert "father" not in u.kids_offtopic(e, "children_conception", "How is my pregnancy looking?", "en")
+
+
+def test_no_boss_for_the_self_employed():
+    assert "chefe" not in u.no_boss("Revise o que seu chefe ou clientes precisam.", "Como está meu primeiro emprego?")
+    assert u.no_boss("Your boss sees it.", "Should I tell my boss?") == "Your boss sees it."
+    assert "key clients" in u.no_boss("Your boss sees it.", "How is work?")
+
+
+def test_voice_gate_allows_literal_house_on_home_questions():
+    import main
+    t = "Your new house needs steady care this year."
+    assert "house" not in main._ask_voice_text(t, "O que devo fazer com meu casa nova?")
+    assert main._ask_voice_text("The seventh house is active.", "What about my new house?") == "The seventh house is active."
+    assert main._ask_voice_text(t, "How is my career?") == t
