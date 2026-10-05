@@ -26044,6 +26044,34 @@ def _ask_is_day_overview(question: str) -> bool:
     return bool(q) and len(q) <= 60 and bool(_DAY_OVERVIEW.search(q)) and not _DAY_DOMAIN.search(q)
 
 
+_HOME_Q_RX = re.compile(r"(?i)\b(house|home|flat|apartment|casa|hogar|lar|ghar|makaan|im[oó]vel|propiedad|"
+                        r"propriedade|property|residence)\b")
+_ASTRO_HOUSE_RX = re.compile(r"(?i)\b(\d+(st|nd|rd|th)|first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|"
+                             r"tenth|eleventh|twelfth)\s+houses?\b|\bhouses?\s+(of|lord|ruler)\b|\bhouses\b")
+
+
+def _ask_voice_text(text: str, question: str) -> str:
+    """[audit r17] What the voice gate should check. On a question about their HOME, the literal word
+    'house' is the house they live in, not an astrological house — it must not fail the answer."""
+    if isinstance(text, str) and _HOME_Q_RX.search(question or "") and not _ASTRO_HOUSE_RX.search(text):
+        return re.sub(r"(?i)\bhouse\b", "home", text)
+    return text
+
+
+_MON = {m: i for i, m in enumerate(["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov",
+                                     "dec"], 1)}
+
+
+def _ask_window_started(label: str, today=None) -> bool:
+    """True when a window label's first month ('Oct 2026', 'Nov 2026 – Jan 2027') has already begun."""
+    from datetime import date as _d
+    m = re.search(r"(?i)\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(20\d\d)\b", label or "")
+    if not m:
+        return False
+    start = _d(int(m.group(2)), _MON[m.group(1).lower()], 1)
+    return start <= (today or _d.today())
+
+
 def _ask_followups_rich(concern: str, question: str, language: str = "en",
                         answered_when: bool = False) -> list:
     """[{q, lane, title}] — next questions chosen by intent lane (antar_engine.ask_followups):
@@ -29170,6 +29198,14 @@ async def ask_endpoint(request: AskRequest):
                                                   if _ask_conv.get("convergence_met") else None)
                                                  or _ask_conv.get("next_window_label")
                                                  or _ask_conv.get("window_label") or "").strip()
+                                    # [audit r17] "Not yet — next domestic move window Oct 2026" in Oct 2026:
+                                    # a NOT_YET verdict must point at a window that has not started yet
+                                    if (_conv_win and str(_ee.get("client_verdict") or "").upper() == "NOT_YET"
+                                            and _ask_window_started(_conv_win)
+                                            and not _ask_window_started(_ee_timing or "")):
+                                        print(f"[ask][dasha-diff] kept EE window {_ee_timing!r}: convergence "
+                                              f"{_conv_win!r} has already started (verdict NOT_YET)")
+                                        _conv_win = ""
                                     if _conv_win and _conv_win.lower() != (_ee_timing or "").strip().lower():
                                         print(f"[ask][dasha-diff] promised_building: "
                                               f"EE window {_ee_timing!r} -> convergence {_conv_win!r}")
@@ -29909,11 +29945,14 @@ async def ask_endpoint(request: AskRequest):
             # deterministic verdict + window + clean action.
             try:
                 from antar_engine.narration_validator import validate_narration as _vng
+                # [audit r17] on a question about their HOME, "house" is the house they live in, not an
+                # astrological house: "O que devo fazer com meu casa nova?" kept tripping house_reference
+                # and fell closed to "Melhor período: jun 2027 – set 2028." — no reading at all.
                 def _ask_voice_vios(*_txts):
                     _out = []
                     for _tx in _txts:
                         if isinstance(_tx, str) and _tx.strip():
-                            _out += _vng(_tx, language="en")
+                            _out += _vng(_ask_voice_text(_tx, question), language="en")
                     return _out
                 def _ask_finish_regen(_r, _n):
                     # Re-apply the same deterministic finishing the first pass used:
@@ -30262,13 +30301,13 @@ async def ask_endpoint(request: AskRequest):
                 from antar_engine.narration_validator import validate_narration as _vnf
                 _rd = _ask_soft_repair(payload.get("read")); _nx = _ask_soft_repair(payload.get("next"))
                 payload["read"], payload["next"] = _rd, _nx
-                _rd_dirty = isinstance(_rd, str) and bool(_rd) and bool(_vnf(_rd, language="en"))
+                _rd_dirty = isinstance(_rd, str) and bool(_rd) and bool(_vnf(_ask_voice_text(_rd, question), language="en"))
                 if _rd_dirty:
-                    _kept2 = _ask_keep_clean_sentences(_rd, lambda t: _vnf(t, language="en"))
+                    _kept2 = _ask_keep_clean_sentences(_rd, lambda t: _vnf(_ask_voice_text(t, question), language="en"))
                     if _kept2:
                         payload["read"], _rd_dirty = _kept2, False
                         print("[ask][voice-gate] post-readability kept the clean sentences")
-                _nx_dirty = isinstance(_nx, str) and bool(_nx) and bool(_vnf(_nx, language="en"))
+                _nx_dirty = isinstance(_nx, str) and bool(_nx) and bool(_vnf(_ask_voice_text(_nx, question), language="en"))
                 if _rd_dirty:
                     _fc2 = []
                     _vp2 = ""
@@ -30698,6 +30737,13 @@ async def ask_endpoint(request: AskRequest):
                         payload[_rf] = _und3.separation_assumes_home(payload.get(_rf), question)
                 for _rf in ("read", "next"):
                     payload[_rf] = _und3.drop_other_people_claims(payload.get(_rf), _au3.get("area") or "", question)
+                try:
+                    from antar_engine.life_context import resolve_life_facts as _rlf_boss
+                    if (_rlf_boss(chart_row.data) or {}).get("employed") is False:
+                        for _rf in ("read", "next"):
+                            payload[_rf] = _und3.no_boss(payload.get(_rf), question)
+                except Exception:
+                    pass
                 if _au3.get("area") in ("children_wellbeing", "children_conception"):
                     for _rf in ("read", "next"):
                         payload[_rf] = _und3.kids_offtopic(payload.get(_rf), _au3.get("area") or "", question, language)
