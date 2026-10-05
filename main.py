@@ -26229,9 +26229,11 @@ def _ask_repair_next(next_txt):
     if _cut and _cut.start() > 15:
         t = t[:_cut.start()].rstrip(" ,;—–-") + "."
     try:
-        from antar_engine.daily_prediction_engine import _looks_broken as _lb
+        from antar_engine.daily_prediction_engine import _looks_broken as _lb, _PHRASAL_END as _pe
+        _phrasal_end = lambda _s: bool(_pe.search(_s))
     except Exception:
         _lb = lambda _s: False
+        _phrasal_end = lambda _s: False
 
     def _words(s):
         return len(_re_crisis.findall(r"\w+", s or ""))
@@ -26258,8 +26260,9 @@ def _ask_repair_next(next_txt):
             tail = segs[-1].strip().rstrip(".!?").strip()
             if _words(tail) < 3:
                 return True
-        # ends on a dangling preposition/conjunction (object was truncated)
-        if _last_word(s.rstrip(".!?,;: ")) in _DANGLE:
+        # ends on a dangling preposition/conjunction (object was truncated) — unless it's a
+        # phrasal verb ("who to look for.", "someone you can rely on.") [phrasal-end 2026-10-04]
+        if _last_word(s.rstrip(".!?,;: ")) in _DANGLE and not _phrasal_end(s.rstrip() + ("" if s.rstrip()[-1:] in ".!?" else ".")):
             return True
         return False
 
@@ -26960,6 +26963,7 @@ async def ask_endpoint(request: AskRequest):
 
     chart_id = (request.chart_id or "").strip()
     question = (request.question or "").strip()
+    _ask_typed_q = question   # [audit 2026-10-04] what they TYPED (follow-ups get rewritten below)
     mode     = (request.mode or "explore").strip().lower()
     language = _ask_norm_lang(request.language)
 
@@ -27986,6 +27990,7 @@ async def ask_endpoint(request: AskRequest):
             _ask_wealth_block = ""
             _wealth_fired = False
             _ask_alloc_case = ""
+            _ask_chart_lean = ""
             try:
                 # [wealth-unify 2026-09-23] Stand down when the wealth-power block
                 # already fired — it now carries the magnitude+stability+sizing in one
@@ -27993,7 +27998,7 @@ async def ask_endpoint(request: AskRequest):
                 # still leads for pure sizing/which-venture questions that _is_wealth_q
                 # (rich/wealthy/how-big) did NOT catch (e.g. "spread or go all in?").
                 from antar_engine.wealth_magnitude import is_allocation_statement as _is_alloc
-                _alloc_stmt = _is_alloc(question)
+                _alloc_stmt = _is_alloc(_ask_typed_q)
                 if ((_is_wealth_magnitude_q(question) or _alloc_stmt)
                         and not locals().get("_ask_wealth_text")):
                     _wealth_fired = True
@@ -28027,14 +28032,15 @@ async def ask_endpoint(request: AskRequest):
                             "discipline, then that boundary. NEVER name a planet, house, or sign.")
                         from antar_engine.wealth_magnitude import (
                             LEAN_DIRECTIVE as _wlean, is_concentrate_vs_diversify as _is_cvd)
-                        if _is_cvd(question) and _s.get("lean") in _wlean:
+                        _ask_chart_lean = _s.get("lean") or ""
+                        if _is_cvd(_ask_typed_q) and _s.get("lean") in _wlean:
                             _ask_wealth_block += "\n" + _wlean[_s["lean"]]
                             print(f"[ask][wealth] concentrate-vs-diversify lean={_s['lean']} ({_s['grade']})")
-                        if _alloc_stmt and not _is_cvd(question) and _s.get("lean"):
+                        if _alloc_stmt and not _is_cvd(_ask_typed_q) and _s.get("lean"):
                             from antar_engine.wealth_magnitude import allocation_directive as _wad
-                            _ask_wealth_block += "\n" + _wad(_s["lean"], question)
+                            _ask_wealth_block += "\n" + _wad(_s["lean"], _ask_typed_q)
                             from antar_engine.wealth_magnitude import allocation_case as _wac
-                            _ask_alloc_case = _wac(_s["lean"], question)
+                            _ask_alloc_case = _wac(_s["lean"], _ask_typed_q)
                             print(f"[ask][wealth] allocation statement lean={_s['lean']} ({_s['grade']})")
             except Exception as _wpe:
                 logger.warning(f"[ask] wealth-engine skipped (non-fatal): {_wpe}")
@@ -28408,7 +28414,13 @@ async def ask_endpoint(request: AskRequest):
                     print(f"[ask][compare] options={_ask_u.get('options')} for {chart_id[:8]}")
                 try:
                     from antar_engine import understand as _und
-                    _ask_life_block = ((_ask_life_block or "") + _und.guardrails_block()).strip()
+                    _ask_life_block = ((_ask_life_block or "") + _und.guardrails_block()
+                                       + "\n\nREADING, NOT FACT (audit-r5): money/work conditions are what the "
+                                       "reading shows — say 'the reading shows pressure on savings', never "
+                                       "'your savings are under pressure'. Never mention a loan, debt, runway, "
+                                       "a partner, a client or an authority figure as something they HAVE unless "
+                                       "they told you. Internal notes like 'wealth engine', 'grain', 'swingy' "
+                                       "are never quoted — say it in everyday words.").strip()
                 except Exception:
                     pass
                 # [audit r9] why-questions need a reason; child questions answer about children
@@ -29068,6 +29080,8 @@ async def ask_endpoint(request: AskRequest):
                     _wp_g = _wpf_g(chart_data, get_dashas_for_chart(chart_id) or {},
                                    {"lagna_sign": chart_row.data.get("lagna_sign")})
                     _lean_g = ((_wp_g or {}).get("stability") or {}).get("lean")
+                    if _wp_g.get("available") and _lean_g:
+                        _ask_chart_lean = _lean_g
                     if _wp_g.get("available") and _lean_g in _wlc:
                         _ask_wealth_block = (_ask_wealth_block + "\n" + _wlc[_lean_g]).strip()
                         print(f"[ask][wealth] lean guard {_lean_g} on {_ask_concern}")
@@ -29078,7 +29092,7 @@ async def ask_endpoint(request: AskRequest):
             try:
                 from antar_engine.partner_lean import (is_alone_or_partner as _iap,
                                                        partner_case as _pcase, PARTNER_DIRECTIVE as _pdir)
-                if _iap(question):
+                if _iap(_ask_typed_q):
                     from antar_engine.concern_engines import _vim_active_lords as _val_p
                     _ask_partner_case = _pcase(chart_data, get_dashas_for_chart(chart_id) or {},
                                                {str(x).title() for x in (_val_p(_ask_dashas) or set())})
@@ -29744,7 +29758,12 @@ async def ask_endpoint(request: AskRequest):
                     "Reply with STRICT JSON only: "
                     '{"read": "...", "next": "..."}. '
                     "\n\n"
-                    "REQUIRED NOUNS (use AT LEAST 2 of these in your `read`, name them directly):\n"
+                    # [audit-r1 2026-10-04] was "REQUIRED NOUNS (use AT LEAST 2)" — forced
+                    # nouns drove ~50 odd phrases ("reputation and presence", "your appearance in
+                    # the market") and assumptions ("an authority figure or big client")
+                    "CONCRETE WORDS — name at least ONE concrete thing from this list or from their "
+                    "own message, ONLY where it fits naturally. Never stack them ('reputation and "
+                    "presence'), and never use one to assume a fact about their life:\n"
                     f"  {_ask_noun_csv}\n"
                     "\n"
                     + _opening_block +
@@ -30919,6 +30938,17 @@ async def ask_endpoint(request: AskRequest):
                     payload["next"] = _ask_md(payload["next"])
             except Exception:
                 pass
+            # [audit 2026-10-04] one final deterministic pass, every Ask answer:
+            # jargon → plain words, no "pick one venture" on a spread chart, no unasked
+            # funding talk, and never ship without a move.
+            try:
+                from antar_engine.answer_polish import polish_answer as _polish
+                _polish(payload, language=language, typed_question=_ask_typed_q,
+                        concern=locals().get("_ask_concern") or "general",
+                        chart_lean=locals().get("_ask_chart_lean") or "",
+                        thread_text=" ".join(str(t.get("q") or "") for t in (locals().get("_ask_thread") or [])))
+            except Exception as _pole:
+                print(f"[ask][polish] non-fatal: {_pole}")
             # [es-leak 2026-10-04] English business words left in a Spanish/Portuguese answer
             # (Jaime: "tu venture actual") — swap the known leaks for the local word
             try:

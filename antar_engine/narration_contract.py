@@ -145,7 +145,7 @@ HOUSE_NOUNS: Dict[int, List[str]] = {
     # [no-appearance 2026-10-04] "appearance" was a REQUIRED noun on general/choice
     # reads → "which direction fits your appearance in the market" (Harleen); a NOUN is
     # required ("how you come across" became "Your how you come across is strong").
-    1:  ["reputation", "presence", "your name", "identity",
+    1:  ["reputation", "your name", "identity",
          "your body", "yourself", "first impression"],
     2:  ["savings", "income", "family money", "family wealth",
          "close family", "your voice", "spoken words", "your words",
@@ -679,6 +679,9 @@ _CONCERN_TO_DOMAIN: Dict[str, str] = {
 # "talk it through with your partner". Personal-partner nouns only when the reader
 # has one (marital_status) — or, status unknown, on a love question.
 _PERSONAL_PARTNER_NOUNS = {"partner", "spouse", "your partner"}
+_PERSONAL_LIFE_NOUNS = {"partner", "spouse", "your partner", "your home", "your mother", "your father",
+                        "your body", "yourself", "where you live", "home or property", "close family",
+                        "family money", "family wealth", "child", "children", "romance"}
 _PARTNERED_STATUSES = {"married", "in_relationship", "in_a_relationship", "partnered",
                        "dating", "engaged"}
 _UNPARTNERED_STATUSES = {"single", "divorced", "separated", "widowed", "never_married",
@@ -715,6 +718,9 @@ def concern_to_noun_palette(concern: str, k: int = 5,
     domain = _CONCERN_TO_DOMAIN.get((concern or "general").lower(), "general")
     houses = DOMAIN_HOUSES.get(domain, DOMAIN_HOUSES["general"])
     _drop_partner = partnered is False or (partnered is None and domain != "love")
+    # [audit-r1 2026-10-04] personal-life nouns only on personal questions — forced into a
+    # money/work read they became assumptions ("your partner can hold the home front")
+    _personal_ok = domain in ("love", "family", "property", "health")
     # Round-robin across the activated houses so a multi-house domain
     # like "love" (7,5,4) draws one noun from EACH before doubling up
     # on house 7 — otherwise we'd get all of house 7's nouns (partner,
@@ -731,6 +737,8 @@ def concern_to_noun_palette(concern: str, k: int = 5,
             noun = lst[col]
             low = noun.lower()
             if low in seen or (_drop_partner and low in _PERSONAL_PARTNER_NOUNS):
+                continue
+            if not _personal_ok and low in _PERSONAL_LIFE_NOUNS:
                 continue
             palette.append(noun)
             seen.add(low)

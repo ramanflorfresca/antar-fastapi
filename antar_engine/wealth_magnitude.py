@@ -145,10 +145,10 @@ def _stability(planets: dict, lagna_sign: str) -> Dict[str, Any]:
     if rahu_h == 11:
         return {
             "grade": "volatile", "node": "Rahu-11", "lean": "spread",
-            "sizing_advice": ("A large but SWINGY engine — big upside with a pull "
-                "to over-reach. Spread across several ventures and cap how much "
+            "sizing_advice": ("Big earning power that rises and falls a lot — the "
+                "temptation is to stretch too far. Cap how much any one venture can take "
                 "rides on each; running more than one is the chart-fit move, not a "
-                "distraction. Bank gains rather than rolling them all forward."),
+                "distraction. Move part of every gain into savings instead of putting it all back in."),
             "drivers": ["the node of amplification sits in the gains area (11th) — "
                         "large but volatile"],
         }
@@ -189,15 +189,19 @@ def _stability(planets: dict, lagna_sign: str) -> Dict[str, Any]:
 # (Raman, Rahu-11): "reputation grows when you run more than one venture" + move
 # "close the nearest deal before spreading attention" = a mixed signal.
 LEAN_DIRECTIVE = {
-    "spread": ("THE ANSWER IS: SPREAD — run more than one venture, with a hard cap on how much "
-               "money and time any single one can take, and bank gains as they land. Say this "
-               "plainly in sentence one. `next` MUST carry it out (e.g. set the cap per venture "
-               "this week, or move gains out of the biggest one). Do NOT tell them to focus on "
-               "one deal first, and never recommend concentrating."),
+    # [audit-r3 2026-10-04] SPREAD = "no single thing holds everything", NOT "run more
+    # ventures" — the latter made every later cap/reserve answer read as a walk-back.
+    "spread": ("THE ANSWER IS: SPREAD YOUR RISK — don't let any single venture or asset hold "
+               "everything you have: cap what each one can take from you, keep a reserve outside "
+               "them, and move part of every gain into savings as it comes in. Say this plainly in sentence one (you may add "
+               "that a second line can help, but never say they MUST run more ventures). `next` "
+               "MUST carry it out with a concrete rule — an amount or share (e.g. 'move 10% of every "
+               "payment into a separate savings account') and when. Do NOT tell them to focus on one "
+               "deal first, and never recommend concentrating."),
     "concentrate": ("THE ANSWER IS: CONCENTRATE — put the main effort and money into what is "
                     "already working and let it compound; don't spread thin. Say this plainly in "
-                    "sentence one. `next` MUST carry it out (e.g. name the one venture to back "
-                    "and what to pause). Never recommend diversifying."),
+                    "sentence one. `next` MUST carry it out concretely (name what to back and "
+                    "what to pause, and for how long). Never recommend diversifying."),
 }
 
 _CONC_RX = re.compile(r"(?i)concentr|\bfocus|enfoc|\bfoc[ao]r|all[- ]in|put everything|"
@@ -263,13 +267,17 @@ def allocation_directive(lean: str, question: str) -> str:
     multi = named_count(question) >= 2
     head = ("THEY JUST TOLD YOU HOW THEIR MONEY/TIME IS PLACED. Apply the chart's answer to "
             "exactly what they said; do not re-decide, and don't bring up raising money, "
-            "investors or funding unless they did. ")
+            "investors or funding unless they did. Start from their reality (they ARE all in) and "
+            "say what to do now. Make `next` concrete: an amount or share and where it goes "
+            "(e.g. '10% of every payment into a separate savings account'), and when. ")
     if lean == "spread":
         return head + (ALLOCATION_DIRECTIVE["spread"] if multi else (
-            "The answer is SPREAD WITH CAPS and they are all in on ONE thing — that is the "
-            "concentration the reading warns about. Don't tell them to quit it: say plainly "
-            "that one venture holding everything is the risk, and the fix is a cap on what it "
-            "can take plus a second line or money set aside. `next` = that step."))
+            "The answer is SPREAD YOUR RISK and they are all in on ONE thing — that is the "
+            "concentration the reading warns about. Connect it to the earlier answer out loud: "
+            "spreading doesn't mean leaving it — it means it can't hold everything they have. "
+            "The fix: a cap on what it can take, a reserve outside it, and over time a second "
+            "line. `next` = the reserve step with an amount or share, plus one small first step "
+            "toward a second line."))
     if lean == "concentrate":
         return head + (
             "The answer is CONCENTRATE and they named TWO OR MORE ventures. Say plainly that the "
@@ -354,11 +362,11 @@ def apply_alloc_opener(read: str, case: str, language: str = "en", name: str = "
 
 ALLOCATION_DIRECTIVE = {
     "spread": ("THEY JUST TOLD YOU HOW THEIR MONEY/TIME IS PLACED. Apply the SAME answer — SPREAD "
-               "WITH CAPS — to exactly what they said; do not re-decide. If they run two or more "
-               "ventures, say plainly that this already fits (it IS spreading); the risk is the "
-               "all-in part — nothing capped and nothing set aside. Never tell them to pick one "
-               "venture or that the reading favours focus. `next` = set the most each venture can "
-               "draw from them and what share of any gain goes straight to savings."),
+               "YOUR RISK — to exactly what they said; do not re-decide. With two or more ventures, "
+               "say plainly: two ventures covers part of it — the missing part is a cap on each and "
+               "a reserve outside both (don't call it 'already the spread'). Never tell them to pick "
+               "one venture or that the reading favours focus. `next` = the most each venture can "
+               "draw from them and what share of every payment goes straight to savings."),
     "concentrate": ("THEY JUST TOLD YOU HOW THEIR MONEY/TIME IS PLACED. Apply the SAME answer — "
                     "CONCENTRATE — to exactly what they said; do not re-decide. All in on ONE thing "
                     "that is working fits; split across several means back the strongest and pause "
