@@ -1070,6 +1070,25 @@ _KIDS_FLOOR = {
 }
 
 
+_KIDS_NEXT = {
+    "en": "This week, talk it through with a doctor and with the people closest to this — one honest, practical conversation.",
+    "es": "Esta semana, háblalo con un médico y con las personas más cercanas a esto — una conversación honesta y práctica.",
+    "pt": "Esta semana, converse com um médico e com as pessoas mais próximas disso — uma conversa honesta e prática.",
+    "hinglish": "Is hafte doctor se aur is baat se jude sabse kareebi logon se ek seedhi, practical baat karo.",
+}
+
+
+def kids_next(nxt, area: str = "", question: str = "", language: str = "en"):
+    """A child / pregnancy next step that points at a mentor or an elder is replaced (it can't be trimmed:
+    it's one sentence)."""
+    if not isinstance(nxt, str) or area not in ("children_wellbeing", "children_conception") \
+            or _PARENT_Q.search(question or ""):
+        return nxt
+    if _KIDS_OFFTOPIC.search(nxt) or _KIDS_OLDER_HELP.search(nxt) or re.search(r"(?i)\b(trusted elder|mentor)\b", nxt):
+        return _KIDS_NEXT.get(language if language in ("es", "pt", "hinglish") else "en")
+    return nxt
+
+
 def kids_offtopic(text, area: str = "", question: str = "", language: str = "en"):
     """[audit r10/r13] Pregnancy / child answers drift to mentors, 'your father's side', an asserted
     arriving child, a congratulation nobody asked for. Those sentences go (never emptying the text);
@@ -1323,6 +1342,70 @@ def no_boss(text, question: str = ""):
     for rx, rep in _BOSS:
         text = rx.sub(lambda m, r=rep: (r[0].upper() + r[1:]) if m.group(0)[0].isupper() else r, text)
     return text
+
+
+# ── round 18 ─────────────────────────────────────────────────────────────────
+def drop_far_years(text, question: str = "", horizon: int = 5):
+    """[audit r18] 'quieter for partnership, 2044 tak' — the end of a decades-long life period leaked into a
+    this-year question and read as absurd. A year more than `horizon` years out is cut (with its preposition)
+    unless the person asked about that far ahead."""
+    if not isinstance(text, str) or not text.strip():
+        return text
+    from datetime import date as _d
+    limit = _d.today().year + horizon
+    if any(int(y) > limit for y in re.findall(r"\b(20\d\d)\b", question or "")):
+        return text
+
+    def _far(m):
+        return int(m.group("y")) > limit
+
+    rx = re.compile(r"(?i)(?:,\s*|\s+)(?:(?:until|till|through|into|to|by|hasta(?: el)?|até|ate)\s+)?(?:the\s+)?"
+                    r"(?:early\s+|mid-?\s*|late\s+)?(?P<y>20\d\d)s?(?:\s+tak)?\b")
+    out = rx.sub(lambda m: "" if _far(m) else m.group(0), text)
+    out = re.sub(r"\s+([.,;!?])", r"\1", out)
+    out = re.sub(r"\(\s*\)", "", out)
+    return re.sub(r"\s{2,}", " ", out).strip()
+
+
+_MALE_PREG = re.compile(
+    r"(?i)\b(carrying (a|this|the) pregnancy|carrying a baby|carrying something precious|carrying (this|a|the) (child|baby)|you are pregnant|you're pregnant|your pregnancy is|"
+    r"est[aá]s embarazad[oa]|tu embarazo est[aá]|voc[eê] est[aá] gr[aá]vid[oa]|sua gravidez est[aá]|"
+    r"aap pregnant hain)\b")
+_MIDWIFE = ((re.compile(r"(?i)\b(your )?midwife or (your )?doctor\b"), "a doctor"),
+            (re.compile(r"(?i)\b(your )?doctor or (a |your )?midwife\b"), "a doctor"),
+            (re.compile(r"(?i)\bmidwife\b"), "doctor"),
+            (re.compile(r"(?i)\bparteir[ao]\b"), "médico"),
+            (re.compile(r"(?i)\bpartera\b"), "médico"))
+
+
+def male_pregnancy_guard(text, area: str = "", gender: str = ""):
+    """A man asking about 'my pregnancy' is asking about a pregnancy in his family — never assert that HE is
+    carrying it (live: 'Carrying a pregnancy solo…'), and the practical step is a doctor, not a midwife."""
+    if (not isinstance(text, str) or area != "children_conception"
+            or (gender or "").strip().lower() not in ("male", "m", "man")):
+        return text
+    kept = [x for x in _sentences(text) if not _MALE_PREG.search(x)]
+    out = _keep(kept, text)
+    for rx, rep in _MIDWIFE:
+        out = rx.sub(rep, out)
+    return out
+
+
+_NEXT_FLOOR = {
+    "en": "This week, write down the one outcome you want here and the first concrete step toward it.",
+    "es": "Esta semana, escribe el único resultado que quieres aquí y el primer paso concreto hacia él.",
+    "pt": "Esta semana, escreva o único resultado que você quer aqui e o primeiro passo concreto até ele.",
+    "hinglish": "Is hafte likho ki aapko yahan kaunsa ek result chahiye aur uski taraf pehla concrete kadam kya hai.",
+}
+
+
+def next_floor(nxt, language: str = "en"):
+    """[audit r18] A next step cut down to a fragment ('Mantenha isso prático, não romântico.') is no step."""
+    if nxt is None or (isinstance(nxt, str) and not nxt.strip()):
+        return nxt
+    if isinstance(nxt, str) and len(re.findall(r"\w+", nxt)) < 6:
+        return _NEXT_FLOOR.get(language if language in ("es", "pt", "hinglish") else "en")
+    return nxt
 
 
 def parse_model_json(raw) -> Optional[dict]:

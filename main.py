@@ -27194,7 +27194,7 @@ async def ask_endpoint(request: AskRequest):
                             "marital_status, children_status, career_stage, health_status, financial_status, "
                             "profession, life_work, life_relationship, life_kids, "
                             "language, needs_lang_prompt, locale_variant, "
-                            "birth_time, timezone_offset") \
+                            "birth_time, timezone_offset, gender") \
                     .eq("id", chart_id).single().execute()
             except Exception as _nfe:
                 if "PGRST116" in str(_nfe) or "0 rows" in str(_nfe):
@@ -29925,6 +29925,15 @@ async def ask_endpoint(request: AskRequest):
                     print(f"[ask][separation] verdict chip + lead phrase suppressed for {chart_id[:8]}")
             except Exception as _sve:
                 print(f"[ask][separation] verdict skip failed: {_sve}")
+            # [audit r18] a question about a parent / family bond gets no window verdict ("Aún no — próxima
+            # ventana de asociación" for "¿Cuándo mejorará mi relación con mi padre?")
+            try:
+                if _ask_conv and (locals().get("_ask_u") or {}).get("area") in ("family", "health_other"):
+                    _ask_conv["suppress_verdict"] = True
+                    _ask_conv["verdict_phrase"] = ""
+                    print(f"[ask][family] window verdict suppressed for {chart_id[:8]}")
+            except Exception:
+                pass
             try:
                 from antar_engine import understand as _undpg
                 if _ask_conv and (locals().get("_ask_u") or {}).get("area") in ("children_conception", "children_wellbeing") \
@@ -30769,6 +30778,12 @@ async def ask_endpoint(request: AskRequest):
                 if _au3.get("area") in ("children_wellbeing", "children_conception"):
                     for _rf in ("read", "next"):
                         payload[_rf] = _und3.kids_offtopic(payload.get(_rf), _au3.get("area") or "", question, language)
+                for _rf in ("read", "next"):
+                    payload[_rf] = _und3.male_pregnancy_guard(
+                        _und3.drop_far_years(payload.get(_rf), question), _au3.get("area") or "",
+                        str((chart_row.data or {}).get("gender") or ""))
+                payload["next"] = _und3.next_floor(
+                    _und3.kids_next(payload.get("next"), _au3.get("area") or "", question, language), language)
                 payload["read"] = _und3.relationship_floor(payload.get("read"), _au3, language)
                 payload["read"], payload["next"] = _und3.education_floor(
                     payload.get("read"), payload.get("next"), _au3, question, language)

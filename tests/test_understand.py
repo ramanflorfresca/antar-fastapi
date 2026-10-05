@@ -877,3 +877,32 @@ def test_voice_gate_allows_literal_house_on_home_questions():
     assert "house" not in main._ask_voice_text(t, "O que devo fazer com meu casa nova?")
     assert main._ask_voice_text("The seventh house is active.", "What about my new house?") == "The seventh house is active."
     assert main._ask_voice_text(t, "How is my career?") == t
+
+
+# ── audit round 18 ────────────────────────────────────────────────────────────
+def test_far_years_are_cut_unless_asked():
+    out = u.drop_far_years("Is saal chances kam hain; yeh period partnership ke liye quieter hai, 2044 tak.", "Kya is saal meri shaadi hogi?")
+    assert "2044" not in out and out.endswith("quieter hai.")
+    assert "2040s" not in u.drop_far_years("This chapter runs through the early 2040s for ventures.", "How is my career?")
+    assert "2027" in u.drop_far_years("The window opens Jun 2027.", "When?")
+    assert "2044" in u.drop_far_years("By 2044 you retire.", "Will I retire by 2044?")
+
+
+def test_male_pregnancy_guard():
+    t = "Carrying a pregnancy solo takes courage. The season is mixed. Call your midwife or doctor today."
+    out = u.male_pregnancy_guard(t, "children_conception", "male")
+    assert "Carrying" not in out and "midwife" not in out and "doctor" in out
+    assert u.male_pregnancy_guard(t, "children_conception", "female") == t
+
+
+def test_next_floor_replaces_fragments():
+    assert "write down" in u.next_floor("Keep it practical.", "en")
+    assert "escreva" in u.next_floor("Mantenha isso prático, não romântico.", "pt")
+    long = "Call your father this week and say the one thing you have been holding back."
+    assert u.next_floor(long, "en") == long and u.next_floor(None, "en") is None
+
+
+def test_kids_next_replaces_mentor_step():
+    n = "Call your mentor or a trusted elder this week and talk through what support looks like."
+    assert "doctor" in u.kids_next(n, "children_conception", "Why is my pregnancy so hard?", "en")
+    assert u.kids_next(n, "career_job", "x", "en") == n
