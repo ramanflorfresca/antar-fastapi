@@ -44,7 +44,7 @@ def create_pending_link(sb, chart_id: str, user_id: Optional[str],
     }
     row.update(extra or {})
     try:
-        sb.table("messaging_links").insert(row).execute()
+        _insert_link_row(sb, row)
         return {"available": True, "code": code, "channel": channel}
     except Exception as e:
         if _table_missing(e):
@@ -169,6 +169,50 @@ WA_LINK_CODE_MAX_AGE_MIN = 15
 WA_CONSENT_VERSION = "wa-2026-10-02"
 
 
+# [wa-marketing 2026-10-05] Offers / news on WhatsApp are a SEPARATE, optional, unticked opt-in (Meta
+# WhatsApp Business policy + TCPA / DPDP / LGPD / GDPR): never implied by linking or by the Terms box.
+WA_MARKETING_CONSENT_VERSION = "wa-mkt-2026-10-05"
+# optional columns (sql_wa_marketing_consent.sql); a write that carries them retries without them if the
+# columns don't exist yet — linking must never fail because marketing consent can't be recorded
+OPTIONAL_LINK_COLS = ("marketing_opt_in", "marketing_opt_in_at", "marketing_consent_version",
+                      "alerts_opt_in", "alerts_opt_in_at")
+
+
+def marketing_row(opt_in: bool) -> dict:
+    """Columns recording the separate offers/news opt-in (off unless explicitly ticked)."""
+    on = bool(opt_in)
+    return {"marketing_opt_in": on,
+            "marketing_opt_in_at": datetime.now(timezone.utc).isoformat() if on else None,
+            "marketing_consent_version": WA_MARKETING_CONSENT_VERSION if on else None}
+
+
+def alerts_row(opt_in: bool) -> dict:
+    on = bool(opt_in)
+    return {"alerts_opt_in": on, "alerts_opt_in_at": datetime.now(timezone.utc).isoformat() if on else None}
+
+
+def _insert_link_row(sb, row: dict):
+    """Insert a messaging_links row; on an unknown optional column, retry without the optional columns."""
+    try:
+        return sb.table("messaging_links").insert(row).execute()
+    except Exception as e:
+        # a missing COLUMN names it ("Could not find the 'marketing_opt_in' column…" / "column … does not
+        # exist"); a missing TABLE does not — only the former is retried
+        msg_ = str(e)
+        if not any(k in row and k in msg_ for k in OPTIONAL_LINK_COLS):
+            raise
+        print(f"[messaging] optional consent columns missing — linking without them: {e}")
+        return sb.table("messaging_links").insert(
+            {k: v for k, v in row.items() if k not in OPTIONAL_LINK_COLS}).execute()
+
+
+def can_send_marketing(link: Optional[dict]) -> bool:
+    """Only a linked number that explicitly opted in to offers, under the current marketing wording."""
+    l = link or {}
+    return (l.get("status") == "linked" and l.get("marketing_opt_in") is True
+            and l.get("marketing_consent_version") == WA_MARKETING_CONSENT_VERSION)
+
+
 def consent_row(source: str) -> dict:
     """Columns recording the user's WhatsApp opt-in + Terms/Privacy acceptance."""
     return {"consent_at": datetime.now(timezone.utc).isoformat(),
@@ -284,6 +328,10 @@ def parse_wa_command(text: str) -> tuple:
     if low in ("stop alerts", "alerts off", "no alerts", "parar alertas", "sin alertas",
                "sem alertas", "alerts band", "alert band"):
         return ("alerts_off", "")
+    if low in ("stop offers", "stop promos", "stop promotions", "no offers", "no promos", "stop marketing",
+               "parar ofertas", "sin ofertas", "sin promociones", "sem ofertas", "parar promoções",
+               "parar promocoes", "offers band", "offer band", "promotion band"):
+        return ("marketing_off", "")
     return ("", "")
 
 
@@ -343,7 +391,7 @@ def link_whatsapp_direct(sb, chart_id: str, user_id: Optional[str], number: str,
             "linked_at": datetime.now(timezone.utc).isoformat(),
         }
         row.update(consent)
-        sb.table("messaging_links").insert(row).execute()
+        _insert_link_row(sb, row)
         return True
     except Exception as e:
         print(f"[whatsapp] direct link failed: {e}")
@@ -423,7 +471,8 @@ def whatsapp_status(sb, user_id: str) -> dict:
     r = rows[0]
     return {"linked": True, "number_last4": (r.get("channel_user_id") or "")[-4:],
             "chart_id": r.get("chart_id"), "linked_at": r.get("linked_at"),
-            "alerts_opt_in": bool(r.get("alerts_opt_in"))}
+            "alerts_opt_in": bool(r.get("alerts_opt_in")),
+            "marketing_opt_in": can_send_marketing(r)}
 
 
 # ── WhatsApp conversation layer (UX spec 2026-10-02) ──
