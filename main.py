@@ -27948,7 +27948,10 @@ async def ask_endpoint(request: AskRequest):
                 # voice, so a second block here would just duplicate it. This block
                 # still leads for pure sizing/which-venture questions that _is_wealth_q
                 # (rich/wealthy/how-big) did NOT catch (e.g. "spread or go all in?").
-                if _is_wealth_magnitude_q(question) and not locals().get("_ask_wealth_text"):
+                from antar_engine.wealth_magnitude import is_allocation_statement as _is_alloc
+                _alloc_stmt = _is_alloc(question)
+                if ((_is_wealth_magnitude_q(question) or _alloc_stmt)
+                        and not locals().get("_ask_wealth_text")):
                     _wealth_fired = True
                     from antar_engine.wealth_magnitude import wealth_profile as _wpf
                     _wp = _wpf(chart_data, get_dashas_for_chart(chart_id) or {},
@@ -27981,6 +27984,10 @@ async def ask_endpoint(request: AskRequest):
                         if _is_cvd(question) and _s.get("lean") in _wlean:
                             _ask_wealth_block += "\n" + _wlean[_s["lean"]]
                             print(f"[ask][wealth] concentrate-vs-diversify lean={_s['lean']} ({_s['grade']})")
+                        if _alloc_stmt and not _is_cvd(question) and _s.get("lean"):
+                            from antar_engine.wealth_magnitude import ALLOCATION_DIRECTIVE as _wad
+                            _ask_wealth_block += "\n" + _wad.get(_s["lean"], "")
+                            print(f"[ask][wealth] allocation statement lean={_s['lean']} ({_s['grade']})")
             except Exception as _wpe:
                 logger.warning(f"[ask] wealth-engine skipped (non-fatal): {_wpe}")
 

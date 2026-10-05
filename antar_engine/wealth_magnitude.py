@@ -210,6 +210,36 @@ def is_concentrate_vs_diversify(question: str) -> bool:
     return bool(_CONC_RX.search(q) and _DIV_RX.search(q))
 
 
+# [allin-keeps-lean 2026-10-04] "I am 100% all in on Tezops AI and Antar" (a reply to
+# the concentrate-or-diversify answer) skipped the wealth layer, so the SAME chart got
+# "the reading supports it" one run and "pick one, the reading favours focus" the next.
+# A statement of how their money/time is placed gets the same lean, applied to it.
+_ALLOC_RX = re.compile(
+    r"(?i)\b(i'?m|i am|went|go|going|gone|been|be)\s+(100\s?%\s+)?all[- ]in\b|\ball[- ]in\s+(on|with|for)\b|"
+    r"\b100\s?%|\bhundred percent\b|\beverything (is |i have )?(in|into|on)\b|"
+    r"\ball (of )?my (money|savings|time|capital|energy)\b|\bput (it )?all\b|"
+    r"\btodo (mi dinero |mi tiempo )?(en|a)\b|\bvoy con todo\b|\btudo (em|no|na)\b|"
+    r"\bsab kuch\b|\bpoora (paisa|time)\b")
+
+
+def is_allocation_statement(question: str) -> bool:
+    return bool(_ALLOC_RX.search(question or ""))
+
+
+ALLOCATION_DIRECTIVE = {
+    "spread": ("THEY JUST TOLD YOU HOW THEIR MONEY/TIME IS PLACED. Apply the SAME answer — SPREAD "
+               "WITH CAPS — to exactly what they said; do not re-decide. If they run two or more "
+               "ventures, say plainly that this already fits (it IS spreading); the risk is the "
+               "all-in part — nothing capped and nothing set aside. Never tell them to pick one "
+               "venture or that the reading favours focus. `next` = set the most each venture can "
+               "draw from them and what share of any gain goes straight to savings."),
+    "concentrate": ("THEY JUST TOLD YOU HOW THEIR MONEY/TIME IS PLACED. Apply the SAME answer — "
+                    "CONCENTRATE — to exactly what they said; do not re-decide. All in on ONE thing "
+                    "that is working fits; split across several means back the strongest and pause "
+                    "the rest. `next` = the concrete step that does that."),
+}
+
+
 def wealth_profile(chart_data: dict, dashas: Optional[dict] = None,
                    chart_record: Optional[dict] = None) -> dict:
     """Native wealth read: {magnitude, stability, headline, summary, guard}.
