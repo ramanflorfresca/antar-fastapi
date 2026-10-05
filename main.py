@@ -5825,7 +5825,21 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
                 if payload.get("needs_clarification"):
                     payload["suggested_questions"] = _WA_AREA_Q.get(lang, _WA_AREA_Q["en"])[:3]
                 else:
-                    payload["suggested_questions"] = _ask_followups("general", question, lang)[:3]
+                    # [wa-yesno-topic 2026-10-04] a Yes/No reading carries no follow-ups of its own; they
+                    # must follow the QUESTION's topic ("Will my partnership break?" was offered money +
+                    # career next steps). Model reading first (memoised), then the keyword routers.
+                    _fc = ""
+                    try:
+                        from antar_engine import understand as _und_fc
+                        _u_fc = await asyncio.wait_for(_nlu_read(question, cid, lang), timeout=3)
+                        _fc = _und_fc.concern(_u_fc) or ""
+                    except Exception:
+                        _fc = ""
+                    if not _fc or _fc == "general":
+                        _fc = _ask_concern_route(question) or _detect_concern(question) or "general"
+                    _rich = _ask_followups_rich(_fc, question, lang)[:3]
+                    payload["suggested_questions"] = [f["q"] for f in _rich]
+                    payload["suggested_followups"] = _rich
         except Exception:
             pass
         text, fus = _msg.format_ask_whatsapp_v2(payload, lang, header=header, asked=question,

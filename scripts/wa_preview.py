@@ -17,6 +17,7 @@ SCENARIOS = {
     "ask": ["Should I take the funding offer this year?", "@pick:1"],
     "numbered": ["When is my next strong money window?", "1"],
     "yesno": ["yes or no: will the deal close this month?", "1", "17"],
+    "choice": ["Will my partnership break?", "@pick:1", "88", "@pick:1"],
     "detailed": ["yes or no: will the deal close this month?", "2"],
     "spec": ["Is today a good day to trade crypto?", "@pick:1"],
     "es": ["¿Cómo va mi dinero este mes?", "@pick:1"],
