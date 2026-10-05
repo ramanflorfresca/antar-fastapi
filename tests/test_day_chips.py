@@ -1,3 +1,4 @@
+import pytest
 """'How is my day today' gets day chips, not career chips (owner screenshot 2026-10-03)."""
 from dotenv import load_dotenv
 load_dotenv()
@@ -28,6 +29,7 @@ def test_day_chips_replace_career_chips_even_with_inherited_concern():
     assert "How is tomorrow looking?" not in main._ask_followups("career", "How is tomorrow looking?", "en")
 
 
+@pytest.mark.live_db   # hits /ask against a real chart id — needs the row to exist
 def test_day_overview_never_inherits_the_previous_topic(monkeypatch):
     import asyncio
     async def nop(*a, **k): return None

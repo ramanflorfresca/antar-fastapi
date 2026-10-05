@@ -17783,6 +17783,9 @@ _CHART_DERIVED_TABLES = (
     "messaging_links",
     # [outcome-loop] predictions; their outcomes go with them (ON DELETE CASCADE)
     "prediction_claims",
+    # [saved-decisions] the user's own saved questions — PII, and the whole point
+    # is that they are the person's, so a deleted chart must take them with it
+    "saved_decisions",
     "nlu_log",                 # [nlu] stores the person's question text
     # the user's own questions — PII, and previously left behind entirely
     "signature_question_log", "intent_classify_log",
