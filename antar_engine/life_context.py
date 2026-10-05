@@ -320,8 +320,13 @@ _CAREER_FRAMING = {
                         "NOT corporate-ladder advancement.",
     "job":              "They hold a job / are in employment. Frame career around "
                         "advancement, performance, and leadership within a role.",
-    "running_business": "They are running a business that is not yet stable. "
-                        "Money/career reads weight entrepreneurial framing "
+    # [founder-stability 2026-10-05] owner: was "a business that is not yet stable" — an assumption
+    # applied to EVERY founder, which the narrator then stated as fact ("your business is unstable",
+    # "el negocio aún no está estable") in money / debt / retirement answers. Stability is what the
+    # reading shows, never a given.
+    "running_business": "They run their own business. Do NOT assume or state that it is unstable, "
+                        "struggling or 'still finding its footing' — speak to stability only as what "
+                        "the reading shows. Money/career reads weight entrepreneurial framing "
                         "(8th/11th/7th); FUNDING is a first-class domain. Frame "
                         "around runway, customers, and capital — not salary.",
     "in_transition":    "They are between roles / in transition. Frame career "

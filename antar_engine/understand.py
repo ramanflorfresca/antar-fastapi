@@ -1465,6 +1465,26 @@ def drop_asker_health(text, area: str = "", question: str = ""):
     return _keep(kept, text)
 
 
+# [founder-stability 2026-10-05] the deterministic backstop for the rule above
+_UNSTABLE_BIZ = re.compile(
+    r"(?i)\b(your |the |aapka |seu |tu |o |el )?(business|startup|venture|company|negocio|neg[oó]cio|empresa|"
+    r"kaarobaar|dhandha)\b[^.!?]{0,30}\b(is |isn'?t |is not |hasn'?t |ainda |aún |abhi )?"
+    r"(not (yet )?stable|unstable|isn'?t (yet )?stable|still finding its (footing|feet|way)|not stable yet|"
+    r"no est[aá] estable|a[uú]n no est[aá] estable|inestable|n[aã]o est[aá] est[aá]vel|inst[aá]vel|"
+    r"ainda est[aá] encontrando seu caminho|stable nahi|unstable hai)"
+    r"|\b(unstable|inestable|inst[aá]vel) (business|negocio|neg[oó]cio|startup|empresa)\b")
+
+
+def drop_unstable_business(text, question: str = ""):
+    """Drop sentences that state the reader's business is unstable, unless they said so."""
+    if not isinstance(text, str) or not text.strip():
+        return text
+    if re.search(r"(?i)\b(unstable|inestable|inst[aá]vel|not stable|struggling|failing|stable nahi)\b", question or ""):
+        return text
+    kept = [x for x in _sentences(text) if not _UNSTABLE_BIZ.search(x)]
+    return _keep(kept, text)
+
+
 def parse_model_json(raw) -> Optional[dict]:
     """[audit r9] The answer JSON from model text. The model sometimes writes a JSON object, then
     'Wait — let me correct that:' and a second one (live: the whole mess reached the user as text).

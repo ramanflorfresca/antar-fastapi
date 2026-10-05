@@ -953,3 +953,24 @@ def test_new_union_wording_dropped_for_existing_relationship():
     t = "La promesa de una nueva unión es real. Escribe lo que necesitas de verdad."
     out = u.drop_off_topic_pressure(t, "existing_relationship", "¿Cuándo mejorará mi matrimonio?")
     assert "unión" not in out and "Escribe" in out
+
+
+# ── founder stability (2026-10-05) ────────────────────────────────────────────
+def test_running_business_framing_no_longer_asserts_instability():
+    from antar_engine import life_context as lc
+    f = lc._CAREER_FRAMING["running_business"] if hasattr(lc, "_CAREER_FRAMING") else ""
+    assert "not yet stable" not in f
+
+
+def test_unstable_business_sentences_dropped_unless_said():
+    t = ("Raman, carrying debt while your business is not yet stable is hard. "
+         "The reading shows pressure on savings. Call your lender about the schedule.")
+    out = u.drop_unstable_business(t, "Why is my debt so hard?")
+    assert "not yet stable" not in out and "lender" in out
+    for s, bad in (("Raman, cargar con deuda cuando el negocio aún no está estable es agotador. Llama al banco.", "estable"),
+                   ("Ek unstable business ke saath planning mushkil hai. Pehle monthly number likho.", "unstable"),
+                   ("Envelhecer enquanto seu negócio ainda está encontrando seu caminho pesa. Liste suas rendas.",
+                    "encontrando")):
+        assert bad not in u.drop_unstable_business(s, "x")
+    said = "Your business is unstable, so protect cash."
+    assert u.drop_unstable_business(said, "My business is unstable — what now?") == said
