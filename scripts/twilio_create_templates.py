@@ -39,6 +39,12 @@ def main():
     h = None if dry else _auth()
     have = {} if dry else _existing(h)
     for name, t in wt.TEMPLATES.items():
+        # MARKETING (offers & news) is a separate, paid Meta category and a separate owner decision:
+        # it is only created/submitted when asked for explicitly.
+        if t["category"] == "MARKETING" and "--with-marketing" not in sys.argv:
+            if not dry:
+                print(f"skipped (marketing)  {name}   — pass --with-marketing to submit")
+            continue
         for lang in wt.LANGS:
             p = wt.content_payload(name, lang)
             env = wt.env_key(name, lang)

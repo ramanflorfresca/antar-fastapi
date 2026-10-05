@@ -182,6 +182,153 @@ _NEW = {
     },
 }
 TEMPLATES.update(_NEW)
+
+# ── Offers & news (MARKETING category) ─────────────────────────────────────────
+# [wa-offers-news 2026-10-05] What the app's "Offers & news" switch actually sends. Rules:
+#   * sent ONLY to a linked number whose row opted in under the CURRENT marketing wording
+#     (messaging.can_send_marketing — send() enforces it; this module cannot bypass it);
+#   * MARKETING is a separate, paid Meta category: never dressed up as UTILITY, and the opt-out
+#     ("Reply STOP OFFERS") is IN the body, plus a Stop-offers button (handled as `stop offers`);
+#   * owner rule (2026-10-03): WhatsApp carries NO prices and NO payments. Offer text is therefore
+#     checked by marketing_text_ok() — a price, discount or "buy/upgrade" wording is refused;
+#   * no hype, no emoji, no urgency pressure; one idea per message; the 2nd button is "Ask Antar"
+#     (the existing `own` choice: it invites a free-text question, no quota burned).
+_MARKETING = {
+    # product news — a real, shipped thing, one line. {{2}}=headline, {{3}}=one plain sentence.
+    "antar_news_v1": {
+        "category": "MARKETING",
+        "variables": {"1": "Harleen", "2": "save a decision and Antar watches its window",
+                      "3": "Tell Antar what you are deciding and it will message you when the timing opens."},
+        "body": {
+            "en": "Hi {{1}}, new in Antar: {{2}}. {{3}} Reply STOP OFFERS any time to stop news and offers.",
+            "es": "Hola {{1}}, novedad en Antar: {{2}}. {{3}} Responde PARAR OFERTAS cuando quieras para dejar de recibir novedades y ofertas.",
+            "pt_BR": "Oi {{1}}, novidade no Antar: {{2}}. {{3}} Responda PARAR OFERTAS quando quiser para deixar de receber novidades e ofertas.",
+            "hinglish": "Namaste {{1}}, Antar mein naya: {{2}}. {{3}} News aur offers band karne ke liye kabhi bhi STOP OFFERS likh dijiye.",
+        },
+        "buttons": {
+            "en": [("Ask Antar", "own"), ("Stop offers", "mkt_stop")],
+            "es": [("Preguntar a Antar", "own"), ("Parar ofertas", "mkt_stop")],
+            "pt_BR": [("Perguntar ao Antar", "own"), ("Parar ofertas", "mkt_stop")],
+            "hinglish": [("Antar se poochho", "own"), ("Offers band", "mkt_stop")],
+        },
+    },
+    # an offer the OWNER writes at send time (no prices — see marketing_text_ok).
+    # {{2}}=the offer in one sentence, {{3}}=until when.
+    "antar_offer_v1": {
+        "category": "MARKETING",
+        "variables": {"1": "Harleen", "2": "an extra week of daily alerts", "3": "Oct 31"},
+        "body": {
+            "en": "Hi {{1}}, a note for Antar members: {{2}}. Open until {{3}}. Reply STOP OFFERS any time to stop these messages.",
+            "es": "Hola {{1}}, un aviso para miembros de Antar: {{2}}. Disponible hasta el {{3}}. Responde PARAR OFERTAS cuando quieras para dejar de recibir estos mensajes.",
+            "pt_BR": "Oi {{1}}, um aviso para membros do Antar: {{2}}. Disponível até {{3}}. Responda PARAR OFERTAS quando quiser para deixar de receber estas mensagens.",
+            "hinglish": "Namaste {{1}}, Antar members ke liye ek suchna: {{2}}. {{3}} tak khula hai. Yeh messages band karne ke liye kabhi bhi STOP OFFERS likh dijiye.",
+        },
+        "buttons": {
+            "en": [("Ask Antar", "own"), ("Stop offers", "mkt_stop")],
+            "es": [("Preguntar a Antar", "own"), ("Parar ofertas", "mkt_stop")],
+            "pt_BR": [("Perguntar ao Antar", "own"), ("Parar ofertas", "mkt_stop")],
+            "hinglish": [("Antar se poochho", "own"), ("Offers band", "mkt_stop")],
+        },
+    },
+}
+TEMPLATES.update(_MARKETING)
+
+# The news catalogue: ONLY things that are live in the product today (verified in the 5 Oct
+# production bundle / API). Add an item here only when it ships — never announce a plan.
+NEWS_ITEMS = {
+    "decisions": {
+        "en": ("save a decision and Antar watches its window",
+               "Tell Antar what you are deciding and it will message you when the timing opens."),
+        "es": ("guarda una decisión y Antar vigila su ventana",
+               "Cuéntale a Antar qué estás decidiendo y te avisará cuando se abra el momento."),
+        "pt_BR": ("salve uma decisão e o Antar acompanha a janela dela",
+                  "Conte ao Antar o que você está decidindo e ele avisa quando o momento abrir."),
+        "hinglish": ("ek decision save kijiye aur Antar uski window par nazar rakhta hai",
+                     "Antar ko batayiye aap kya decide kar rahe hain, timing khulte hi woh aapko batayega."),
+    },
+    "daily_wisdom": {
+        "en": ("a daily verse chosen for your season",
+               "Open Practice each day for a short passage matched to where you are right now."),
+        "es": ("un verso diario elegido para tu momento",
+               "Abre Práctica cada día para leer un pasaje corto acorde a tu momento actual."),
+        "pt_BR": ("um verso diário escolhido para a sua fase",
+                  "Abra Prática todos os dias para ler uma passagem curta ligada ao seu momento."),
+        "hinglish": ("aapke daur ke hisaab se roz ek shlok",
+                     "Roz Practice kholiye aur apne abhi ke samay se jodi ek chhoti panktiyan padhiye."),
+    },
+    "people_timing": {
+        "en": ("see how your days line up with someone close to you",
+               "Add a partner, co-founder or parent and compare the timing between you."),
+        "es": ("mira cómo se alinean tus días con alguien cercano",
+               "Añade a tu pareja, socio o a un familiar y compara el momento entre ustedes."),
+        "pt_BR": ("veja como seus dias se alinham com alguém próximo",
+                  "Adicione seu parceiro, sócio ou um familiar e compare o momento entre vocês."),
+        "hinglish": ("dekhiye aapke din kisi apne ke saath kaise milte hain",
+                     "Partner, co-founder ya parent ko jodiye aur dono ki timing compare kijiye."),
+    },
+    "places": {
+        "en": ("where on Earth your timing works best",
+               "Pick what you are focused on in Places and see the cities that suit it."),
+        "es": ("dónde en el mundo tu momento funciona mejor",
+               "Elige en Lugares lo que te importa y mira las ciudades que le van bien."),
+        "pt_BR": ("onde no mundo o seu momento funciona melhor",
+                  "Escolha em Lugares o que importa para você e veja as cidades que combinam."),
+        "hinglish": ("duniya mein kahan aapki timing sabse achhi chalti hai",
+                     "Places mein apna focus chuniye aur dekhiye kaun se shehar aapke liye theek hain."),
+    },
+}
+
+# Owner rule: no prices / payments on WhatsApp. Refuse anything that reads like one.
+import re as _re
+_PRICEY = _re.compile(
+    r"(?i)[$€£₹]|\b\d+\s*%|\b(usd|inr|eur|gbp|rs\.?|rupees?|dollars?|euros?|pesos?|reais)\b|"
+    r"\b(discount|coupon|promo ?code|voucher|sale|deal|cheap|price|pricing|pay|paid|buy|purchase|"
+    r"upgrade|subscribe|subscription|plan|premium|checkout|offer ends|limited time|hurry|last chance|"
+    r"descuento|cup[oó]n|precio|comprar|pagar|suscri\w+|desconto|pre[cç]o|comprar|assinar|assinatura|"
+    r"chhoot|kharid\w*|paise|daam)\b")
+
+
+def marketing_text_ok(text: str) -> bool:
+    """False for price / discount / purchase / pressure wording — WhatsApp never carries those."""
+    return not _PRICEY.search(text or "")
+
+
+def build_marketing(kind: str, name: str, lang: str, *, item: Optional[str] = None,
+                    offer: Optional[str] = None, until: Optional[str] = None) -> Optional[tuple]:
+    """(template_name, variables) for an Offers & news message, or None when it must not be sent
+    (unknown kind/item, empty fields, or offer text that reads like a price). Sending still goes
+    through send(), which re-checks the recipient's opt-in."""
+    wl = wa_lang(lang)
+    first = " ".join(str(name or "").split()).split(" ")[0] or ("there" if wl == "en" else "")
+    first = first or {"es": "hola", "pt_BR": "olá", "hinglish": "dost"}.get(wl, "there")
+    if kind == "news":
+        entry = NEWS_ITEMS.get(item or "")
+        if not entry:
+            return None
+        head, line = entry[wl]
+        if not (marketing_text_ok(head) and marketing_text_ok(line)):
+            return None
+        return "antar_news_v1", {"1": first, "2": head, "3": line}
+    if kind == "offer":
+        text = " ".join(str(offer or "").split()).rstrip(".")
+        when = " ".join(str(until or "").split())
+        if not text or not when or not marketing_text_ok(text):
+            return None
+        return "antar_offer_v1", {"1": first, "2": text, "3": when}
+    return None
+
+
+def send_marketing(link: dict, to_number: str, kind: str, lang: str, **kw) -> bool:
+    """Build + send one Offers & news message. False (and nothing sent) if the recipient has not opted
+    in under the current wording, the template isn't approved yet, or the text fails the no-prices rule."""
+    from antar_engine.messaging import can_send_marketing
+    if not can_send_marketing(link):
+        return False
+    built = build_marketing(kind, (link or {}).get("display_name") or kw.pop("name", ""), lang, **kw)
+    if not built:
+        return False
+    name, variables = built
+    return send(to_number, name, lang, variables, link=link)
 for _n, (_b, _btn) in _HINGLISH.items():
     TEMPLATES[_n]["body"]["hinglish"] = _b
     TEMPLATES[_n]["buttons"]["hinglish"] = _btn
