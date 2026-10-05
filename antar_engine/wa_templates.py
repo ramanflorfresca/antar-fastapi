@@ -151,9 +151,16 @@ def _clean_var(v, limit: int = 120) -> str:
     return (s[: limit - 1] + "…") if len(s) > limit else s
 
 
-def send(to_number: str, name: str, lang: str, variables: dict) -> bool:
+def send(to_number: str, name: str, lang: str, variables: dict, link: Optional[dict] = None) -> bool:
     """Send an approved template (works outside the 24h window). False when the
-    template isn't approved/configured or Twilio refuses — caller falls back."""
+    template isn't approved/configured or Twilio refuses — caller falls back.
+    [wa-marketing] A MARKETING-category template is sent ONLY with the recipient's link row and only if
+    that row explicitly opted in to offers (messaging.can_send_marketing)."""
+    if str((TEMPLATES.get(name) or {}).get("category") or "").upper() == "MARKETING":
+        from antar_engine.messaging import can_send_marketing
+        if not can_send_marketing(link):
+            print(f"[wa-templates] marketing template {name!r} blocked: no offers opt-in")
+            return False
     from antar_engine.messaging import wa_number, _twilio_auth, _TWILIO_MSG_API
     content_sid = template_sid(name, lang)
     acct, sender, auth = os.getenv("TWILIO_ACCOUNT_SID"), os.getenv("TWILIO_WHATSAPP_FROM"), _twilio_auth()

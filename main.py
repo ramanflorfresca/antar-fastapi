@@ -4610,6 +4610,8 @@ class _MsgLinkStart(BaseModel):
     # [whatsapp-consent] separate, optional opt-in for event alerts (v2 templates).
     # Never implied by linking; default off.
     alerts_opt_in: Optional[bool] = False
+    # [wa-marketing 2026-10-05] separate, optional, default-off opt-in for offers / news
+    marketing_opt_in: Optional[bool] = False
 
 
 @app.post("/api/v1/messaging/link/start")
@@ -4626,7 +4628,8 @@ def messaging_link_start(req: _MsgLinkStart, authorization: str = Header(...)):
             raise HTTPException(400, {"error": "consent_required",
                                       "consent_version": _msg.WA_CONSENT_VERSION})
         extra = _msg.consent_row("app")
-        extra["alerts_opt_in"] = bool(req.alerts_opt_in)
+        extra.update(_msg.alerts_row(bool(req.alerts_opt_in)))
+        extra.update(_msg.marketing_row(bool(req.marketing_opt_in)))
     out = _msg.create_pending_link(supabase, chart_id, user_id, req.channel or "telegram", extra)
     if not out.get("available"):
         raise HTTPException(503, out.get("reason") or "messaging not set up yet")
@@ -4763,10 +4766,10 @@ _WA_L = {
                  "es": "Listo — este número quedó desconectado de Antar. Puedes reconectarlo desde la app.",
                  "pt": "Pronto — este número foi desconectado do Antar. Reconecte quando quiser pelo app.",
                  "hinglish": "Ho gaya — yeh number Antar se disconnect ho gaya. App se kabhi bhi dobara connect kar sakte hain."},
-    "help":     {"en": "Ask me any question about your life, timing or a decision — I read it from your chart.\n\n*switch* — choose whose chart I read\n*yes or no:* your question — a straight yes-or-no reading\n*1–3* — pick a suggested question\n*tips* — how to get the best answers (and what never to send)\n*STOP* — disconnect this number",
-                 "es": "Hazme cualquier pregunta sobre tu vida, tus tiempos o una decisión — la leo desde tu carta.\n\n*cambiar* — elige qué carta leo\n*sí o no:* tu pregunta — una respuesta directa de sí o no\n*1–3* — elige una pregunta sugerida\n*tips* — cómo obtener las mejores respuestas (y qué nunca enviar)\n*STOP* — desconecta este número",
-                 "pt": "Faça qualquer pergunta sobre sua vida, seus tempos ou uma decisão — eu leio pelo seu mapa.\n\n*trocar* — escolha qual mapa eu leio\n*sim ou não:* sua pergunta — uma resposta direta de sim ou não\n*1–3* — escolha uma pergunta sugerida\n*dicas* — como ter as melhores respostas e o que nunca enviar\n*STOP* — desconecta este número",
-                 "hinglish": "Zindagi, timing ya kisi decision ke baare mein koi bhi sawaal poochiye — main aapke chart se padhta hoon.\n\n*switch* — kiska chart padhun, chuniye\n*prashna:* aapka sawaal — seedha haan/na jawab\n*1–3* — suggested sawaal chuniye\n*tips* — best jawab kaise paayein, aur kya kabhi na bhejein\n*STOP* — yeh number disconnect kijiye"},
+    "help":     {"en": "Ask me any question about your life, timing or a decision — I read it from your chart.\n\n*switch* — choose whose chart I read\n*yes or no:* your question — a straight yes-or-no reading\n*1–3* — pick a suggested question\n*tips* — how to get the best answers (and what never to send)\n*stop alerts* / *stop offers* — turn those off\n*STOP* — disconnect this number",
+                 "es": "Hazme cualquier pregunta sobre tu vida, tus tiempos o una decisión — la leo desde tu carta.\n\n*cambiar* — elige qué carta leo\n*sí o no:* tu pregunta — una respuesta directa de sí o no\n*1–3* — elige una pregunta sugerida\n*tips* — cómo obtener las mejores respuestas (y qué nunca enviar)\n*parar alertas* / *parar ofertas* — desactívalos\n*STOP* — desconecta este número",
+                 "pt": "Faça qualquer pergunta sobre sua vida, seus tempos ou uma decisão — eu leio pelo seu mapa.\n\n*trocar* — escolha qual mapa eu leio\n*sim ou não:* sua pergunta — uma resposta direta de sim ou não\n*1–3* — escolha uma pergunta sugerida\n*dicas* — como ter as melhores respostas e o que nunca enviar\n*parar alertas* / *parar ofertas* — desactívalos\n*STOP* — desconecta este número",
+                 "hinglish": "Zindagi, timing ya kisi decision ke baare mein koi bhi sawaal poochiye — main aapke chart se padhta hoon.\n\n*switch* — kiska chart padhun, chuniye\n*prashna:* aapka sawaal — seedha haan/na jawab\n*1–3* — suggested sawaal chuniye\n*tips* — best jawab kaise paayein, aur kya kabhi na bhejein\n*stop alerts* / *stop offers* — band kijiye\n*STOP* — yeh number disconnect kijiye"},
     "failed":   {"en": "Something went wrong reading your chart — please ask again in a moment.",
                  "es": "Algo salió mal al leer tu carta — vuelve a preguntar en un momento.",
                  "pt": "Algo deu errado ao ler seu mapa — pergunte novamente em instantes.",
@@ -4828,6 +4831,10 @@ _WA_L = {
                    "pt": "_Uma resposta de sim ou não precisa de uma área clara da vida (trabalho, dinheiro, um relacionamento, uma mudança…) — aqui vai a leitura completa._",
                    "hinglish": "_Haan/na jawab ke liye zindagi ka ek saaf area chahiye (kaam, paisa, rishta, shift…) — yeh poori reading hai._"},
     # [wa-templates 2026-10-03] alert / answer-ready buttons
+    "marketing_off": {"en": "Done — no more offers or news from Antar on WhatsApp. Your answers and any alerts you chose stay on.",
+                      "es": "Listo — no más ofertas ni novedades de Antar por WhatsApp. Tus respuestas y las alertas que elegiste siguen activas.",
+                      "pt": "Pronto — sem mais ofertas ou novidades da Antar no WhatsApp. Suas respostas e os alertas que você escolheu continuam.",
+                      "hinglish": "Ho gaya — WhatsApp par Antar se ab offers ya news nahi aayenge. Aapke jawab aur chune hue alerts chalte rahenge."},
     "alerts_off": {"en": "Done — no more alerts on WhatsApp. You can still ask me anything here, and turn alerts back on in the app (Settings → WhatsApp).",
                    "es": "Listo — no más alertas por WhatsApp. Puedes seguir preguntándome lo que quieras aquí, y reactivarlas en la app (Ajustes → WhatsApp).",
                    "pt": "Pronto — sem mais alertas no WhatsApp. Você ainda pode me perguntar o que quiser aqui, e reativar no app (Ajustes → WhatsApp).",
@@ -5440,6 +5447,14 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
             # [followup-flows] "✍️ Ask your own" — invite free text; no Ask, no quota
             send(_wa_text("own_q", lang))
             return
+        if cmd == "marketing_off":
+            try:
+                await asyncio.to_thread(lambda: sb.table("messaging_links").update(
+                    _msg.marketing_row(False)).eq("id", link["id"]).execute())
+            except Exception as _me:
+                print(f"[whatsapp] offers off failed …{number[-4:]}: {_me}")
+            send(_wa_text("marketing_off", lang))
+            return
         if choice_id == "alert_stop" or cmd == "alerts_off":
             try:
                 await asyncio.to_thread(lambda: sb.table("messaging_links").update(
@@ -5989,6 +6004,8 @@ class _WaConnect(BaseModel):
     chart_id: Optional[str] = None
     consent_accepted: Optional[bool] = None
     consent_version: Optional[str] = None
+    alerts_opt_in: Optional[bool] = False        # [wa-marketing] same one-screen choices as link/start
+    marketing_opt_in: Optional[bool] = False
 
 
 @app.get("/api/v1/messaging/whatsapp/status")
@@ -6000,6 +6017,7 @@ def messaging_whatsapp_status(authorization: str = Header(...)):
     out = _msg.whatsapp_status(supabase, user_id)
     out["available"] = _wa_on()
     out["consent_version"] = _msg.WA_CONSENT_VERSION
+    out["marketing_consent_version"] = _msg.WA_MARKETING_CONSENT_VERSION
     digits = re.sub(r"\D", "", os.getenv("TWILIO_WHATSAPP_FROM") or "")
     out["antar_number"] = ("+" + digits) if digits else None
     if out.get("chart_id"):
@@ -6026,6 +6044,26 @@ def messaging_whatsapp_alerts(req: _WaAlerts, authorization: str = Header(...)):
         print(f"[whatsapp] alerts toggle failed: {e}")
         raise HTTPException(503, "alerts not available yet")
     return {"alerts_opt_in": bool(req.enabled)}
+
+
+class _WaMarketing(BaseModel):
+    enabled: bool
+
+
+@app.post("/api/v1/messaging/whatsapp/marketing")
+def messaging_whatsapp_marketing(req: _WaMarketing, authorization: str = Header(...)):
+    """[wa-marketing 2026-10-05] Turn offers / news on WhatsApp on or off for the signed-in user's active
+    link. Separate from Ask and from alerts; turning it on records when and under which wording."""
+    from antar_engine import messaging as _msg
+    user_id = verify_token(authorization)
+    try:
+        (supabase.table("messaging_links").update(_msg.marketing_row(bool(req.enabled)))
+         .eq("channel", "whatsapp").eq("user_id", user_id).eq("status", "linked").execute())
+    except Exception as e:
+        print(f"[whatsapp] marketing toggle failed: {e}")
+        raise HTTPException(503, "offers opt-in not available yet")
+    return {"marketing_opt_in": bool(req.enabled),
+            "marketing_consent_version": _msg.WA_MARKETING_CONSENT_VERSION if req.enabled else None}
 
 
 @app.post("/api/v1/messaging/whatsapp/unlink")
@@ -6060,8 +6098,10 @@ def messaging_whatsapp_connect(req: _WaConnect, authorization: str = Header(...)
                .eq("user_id", user_id).limit(1).execute()).data
         if not own:
             raise HTTPException(403, "not your chart")
-    if not _msg.link_whatsapp_direct(supabase, chart_id, user_id, number,
-                                     consent=_msg.consent_row("wa_signin")):
+    _consent = _msg.consent_row("wa_signin")
+    _consent.update(_msg.alerts_row(bool(req.alerts_opt_in)))
+    _consent.update(_msg.marketing_row(bool(req.marketing_opt_in)))
+    if not _msg.link_whatsapp_direct(supabase, chart_id, user_id, number, consent=_consent):
         raise HTTPException(503, "messaging storage not set up yet")
     # The token is ≤15 min old and was issued in reply to the user's message,
     # so we are still inside the 24h window.
