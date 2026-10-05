@@ -27534,13 +27534,22 @@ async def ask_endpoint(request: AskRequest):
     try:
         _ask_bypass_raw = (os.environ.get("ASK_DEBUG_BYPASS_CHART_IDS") or "").strip()
         _ask_bypass_set = {x.strip() for x in _ask_bypass_raw.split(",") if x.strip()}
+        # [demo-mode] the shared public demo chart is never quota-walled: every visitor would
+        # share ONE free-tier allowance (1/day once _ASK_FREE_LAUNCH ends) and all but the first
+        # would get "You've used today's Ask" instead of an answer. DemoGuard rate-limits per IP.
+        from antar_engine.demo_mode import is_demo_chart as _is_demo_chart
         _ask_bypass_cap = (_ASK_FREE_LAUNCH or (chart_id in _ask_bypass_set)
-                           or bool(_ASK_ADMIN_BYPASS.get()))
+                           or bool(_ASK_ADMIN_BYPASS.get()) or _is_demo_chart(chart_id))
         if _ask_bypass_cap:
             print(f"[ask-debug-bypass] chart_id={chart_id[:8]} — cap + increment skipped"
                   + (" (free-launch)" if _ASK_FREE_LAUNCH else ""))
     except Exception:
         _ask_bypass_cap = _ASK_FREE_LAUNCH or bool(_ASK_ADMIN_BYPASS.get())
+        try:
+            from antar_engine.demo_mode import is_demo_chart as _is_demo_chart
+            _ask_bypass_cap = _ask_bypass_cap or _is_demo_chart(chart_id)
+        except Exception:
+            pass
     # [final-launch] any active Ask subscription => unlimited (SKU-rename-proof)
     # [ask-debug-bypass 2026-06-07] _ask_bypass_cap allowlists dev/test charts
     if _ask_tier not in _PAID_TIERS and not _ent_unlim(chart_id, supabase) and not _ask_bypass_cap:

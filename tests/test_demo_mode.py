@@ -175,3 +175,16 @@ def test_demo_chart_info_endpoint_is_public_and_minimal():
     # (value depends on live config; the shape is what the front end relies on)
     if out is not None:
         assert set(out) <= {"available", "chart_id", "display_name", "read_only", "ask_per_day"}
+
+
+def test_demo_chart_is_exempt_from_the_free_tier_ask_quota():
+    """Every visitor shares ONE chart; once _ASK_FREE_LAUNCH ends a free chart gets 1 Ask/day,
+    so all but the first visitor would see 'You've used today's Ask' instead of an answer."""
+    dm._CACHE.update(id=DEMO, at=1e18)
+    assert dm.is_demo_chart(DEMO) and dm.is_demo_chart(DEMO.upper())
+    assert not dm.is_demo_chart(OTHER) and not dm.is_demo_chart(None)
+    dm._CACHE.update(id=None, at=0.0)
+    assert not dm.is_demo_chart(DEMO)               # nothing configured → nobody is exempt
+    import inspect, main
+    src = inspect.getsource(main.ask_endpoint)
+    assert "is_demo_chart" in src and "_ask_bypass_cap" in src.split("is_demo_chart", 1)[1][:600]
