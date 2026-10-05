@@ -1212,6 +1212,18 @@ async def _outcome_checkin_job():
     print(f"[outcome_checkin] @{now.hour:02d}:xx UTC — {stats} (push_configured={push_ok})")
 
 
+async def _demo_reset_job():
+    """[demo-mode] Nightly: wipe what the public demo chart created and restore its profile."""
+    try:
+        from antar_engine.demo_mode import reset_demo
+        res = await asyncio.to_thread(reset_demo, supabase)
+        if res.get("chart_id"):
+            print(f"[demo] reset chart={res['chart_id'][:8]} tables={len(res['cleared'])} "
+                  f"restored={res['restored']} errors={len(res['errors'])}")
+    except Exception as _e:
+        print(f"[demo] reset job non-fatal: {_e}")
+
+
 async def _wa_alert_job():
     """[wa-alert-senders 2026-10-03] HOURLY :25. For each linked WhatsApp number
     with alerts ON: (1) at ~9 AM their time, at most one calm life alert a week
@@ -1949,6 +1961,7 @@ scheduler.add_job(_ping_checkin_job, "cron", minute=9,
 scheduler.add_job(_yesno_checkback_job, "cron", minute=13,
                   id="yesno_checkback", replace_existing=True)  # hourly; Yes/No "did it happen?" at local ~8 AM
 scheduler.add_job(_wa_alert_job, "cron", minute=25, id="wa_alerts", replace_existing=True)
+scheduler.add_job(_demo_reset_job, "cron", hour=4, minute=10, id="demo_reset", replace_existing=True)
 scheduler.add_job(_window_open_job, "cron", minute=25,
                   id="window_open", replace_existing=True)  # hourly; saved decisions whose window just opened
 scheduler.add_job(_outcome_checkin_job, "cron", minute=15,
@@ -2052,6 +2065,11 @@ _ANTAR_CORS_ORIGIN_REGEX = (
     r"localhost(:\d+)?"
     r")$"
 )
+
+# [demo-mode 2026-10-05] added BEFORE CORS so CORS wraps it (its 403/429 carry CORS headers).
+# No-op unless app_config.demo_chart_id is set; only touches requests that mention that chart.
+from antar_engine.demo_mode import DemoGuardMiddleware as _DemoGuardMiddleware
+app.add_middleware(_DemoGuardMiddleware, get_supabase=lambda: supabase)
 
 app.add_middleware(
     CORSMiddleware,
@@ -48142,6 +48160,19 @@ def _support_log_write(row: dict) -> None:
         supabase.table("support_logs").insert(row).execute()
     except Exception as e:
         print(f"[support] log write skipped (non-fatal): {e!r}")
+
+
+@app.get("/api/v1/demo/chart")
+async def demo_chart_info():
+    """[demo-mode] Public: which chart the "Try the demo" button opens, if any.
+    {available:false} until scripts/seed_demo_chart.py has run — the front end then
+    hides the button. Never returns anything but the id and a display name."""
+    from antar_engine.demo_mode import demo_chart_id
+    cid = await asyncio.to_thread(demo_chart_id, supabase)
+    if not cid:
+        return {"available": False}
+    return {"available": True, "chart_id": cid, "display_name": "Alex",
+            "read_only": True, "ask_per_day": 15}
 
 
 @app.post("/api/v1/support")
