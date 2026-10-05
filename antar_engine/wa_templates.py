@@ -18,11 +18,14 @@ Rules baked in (Meta utility-template policy + Antar's own):
     blockable) or rejected.
   * Never a variable at the very start or end of the body; no two variables
     side by side; quick-reply titles ≤ 20 chars.
-  * EN / ES / PT-BR. Hinglish readers get English (Meta has no Latin-script
-    Hindi locale; a mismatched language is a rejection reason).
+  * EN / ES / PT-BR / HINGLISH. Meta has no Latin-script Hindi locale, so a Hinglish template is
+    submitted under the locale in env WA_HINGLISH_LOCALE (default "en"); if Meta rejects it (language
+    mismatch) simply leave its ContentSid unset — Hinglish readers then get the English template.
   * Each live template's ContentSid comes from env WA_TPL_<NAME>_<LANG>, e.g.
-    WA_TPL_ANTAR_CHECKIN_V1_ES. Missing env = template not approved yet → the
+    WA_TPL_ANTAR_CHECKIN_V1_ES / ..._HINGLISH. Missing env = template not approved yet → the
     caller falls back (push / in-app). Nothing here can send without approval.
+  * Templates are approved per WhatsApp Business Account, not per number: every sender in the pool
+    (antar_engine/wa_numbers.py) that sits in the same WABA shares these ContentSids.
 """
 from __future__ import annotations
 
@@ -33,7 +36,7 @@ import urllib.parse
 import urllib.request
 from typing import Optional
 
-LANGS = ("en", "es", "pt_BR")
+LANGS = ("en", "es", "pt_BR", "hinglish")
 
 TEMPLATES = {
     "antar_checkin_v1": {
@@ -110,10 +113,85 @@ TEMPLATES = {
 }
 
 
+# ── Hinglish (Roman-script Hindi) + the policy / decision templates ─────────────
+# Added after the table so each language reads as one block; merged in below.
+_HINGLISH = {
+    "antar_checkin_v1": (
+        "Namaste {{1}}, {{2}} ko aapki Antar reading mein likha tha: “{{3}}”. "
+        "Kya yeh hua? Aapka jawab Antar ko aapke liye aur sahi banata hai.",
+        [("Haan", "1"), ("Thoda", "2"), ("Nahi", "3"), ("Abhi pata nahi", "4")]),
+    "antar_window_alert_v1": (
+        "Namaste {{1}}, Antar mein aapne jo alert on kiya tha: {{2}}, jo {{3}} ko khulta hai. "
+        "Iska poora faayda kaise uthayein, jaanna ho to yahin reply kijiye.",
+        [("Kaise use karun?", "alert_how"), ("Alerts band karo", "alert_stop")]),
+    "antar_chapter_alert_v1": (
+        "Namaste {{1}}, Antar mein aapne jo alert on kiya tha: aapki reading ka naya chapter "
+        "{{2}} ko shuru hota hai, aur uska focus {{3}} par hai. Ise achhe se kaise use karein, "
+        "yahin reply karke poochhiye.",
+        [("Kaise use karun?", "alert_how"), ("Alerts band karo", "alert_stop")]),
+    "antar_answer_ready_v1": (
+        "Namaste {{1}}, “{{2}}” ka Antar jawab taiyaar hai. Dekhne ke liye neeche tap kijiye.",
+        [("Mera jawab dikhao", "show_answer")]),
+}
+
+_NEW = {
+    # the consent wording changed (messaging.WA_CONSENT_VERSION) and the person is outside the 24h
+    # window: ask for acceptance so their readings can continue. Buttons = the handler's pol:yes/no.
+    "antar_policy_update_v1": {
+        "category": "UTILITY",
+        "variables": {"1": "Harleen"},
+        "body": {
+            "en": "Hi {{1}}, we updated how Antar handles your data on WhatsApp. To keep your "
+                  "readings coming here, please review and accept the updated data policy.",
+            "es": "Hola {{1}}, actualizamos cómo Antar trata tus datos en WhatsApp. Para seguir "
+                  "recibiendo tus lecturas aquí, revisa y acepta la política de datos actualizada.",
+            "pt_BR": "Oi {{1}}, atualizamos como o Antar trata seus dados no WhatsApp. Para continuar "
+                     "recebendo suas leituras aqui, revise e aceite a política de dados atualizada.",
+            "hinglish": "Namaste {{1}}, humne WhatsApp par aapke data ko Antar kaise sambhalta hai, "
+                        "yeh update kiya hai. Readings yahin milti rahein, iske liye updated data "
+                        "policy dekhkar accept kijiye.",
+        },
+        "buttons": {
+            "en": [("Accept", "pol:yes"), ("Decline", "pol:no")],
+            "es": [("Acepto", "pol:yes"), ("No acepto", "pol:no")],
+            "pt_BR": [("Aceito", "pol:yes"), ("Não aceito", "pol:no")],
+            "hinglish": [("Accept karta hoon", "pol:yes"), ("Accept nahi", "pol:no")],
+        },
+    },
+    # a decision the person saved (feat #207): the window Antar was asked to watch opens.
+    "antar_decision_window_v1": {
+        "category": "UTILITY",
+        "variables": {"1": "Harleen", "2": "changing jobs", "3": "Oct 14"},
+        "body": {
+            "en": "Hi {{1}}, you asked Antar to watch the timing for “{{2}}”. The window you saved "
+                  "opens on {{3}}. Reply here if you want to talk it through.",
+            "es": "Hola {{1}}, le pediste a Antar que vigilara el momento para “{{2}}”. La ventana "
+                  "que guardaste se abre el {{3}}. Responde aquí si quieres comentarlo.",
+            "pt_BR": "Oi {{1}}, você pediu ao Antar para acompanhar o momento de “{{2}}”. A janela "
+                     "que você salvou abre em {{3}}. Responda aqui se quiser conversar sobre isso.",
+            "hinglish": "Namaste {{1}}, aapne Antar se “{{2}}” ke timing par nazar rakhne ko kaha tha. "
+                        "Jo window aapne save ki thi woh {{3}} ko khulti hai. Baat karni ho to yahin "
+                        "reply kijiye.",
+        },
+        "buttons": {
+            "en": [("What should I do?", "alert_how"), ("Stop reminders", "alert_stop")],
+            "es": [("¿Qué hago?", "alert_how"), ("Parar avisos", "alert_stop")],
+            "pt_BR": [("O que eu faço?", "alert_how"), ("Parar avisos", "alert_stop")],
+            "hinglish": [("Main kya karun?", "alert_how"), ("Reminders band", "alert_stop")],
+        },
+    },
+}
+TEMPLATES.update(_NEW)
+for _n, (_b, _btn) in _HINGLISH.items():
+    TEMPLATES[_n]["body"]["hinglish"] = _b
+    TEMPLATES[_n]["buttons"]["hinglish"] = _btn
+
+
 def wa_lang(lang: str) -> str:
-    """Antar language → template language (Hinglish/other → English)."""
+    """Antar language → template language ('en' | 'es' | 'pt_BR' | 'hinglish'; anything else → English)."""
     l = (lang or "en").lower()
-    return "es" if l.startswith("es") else "pt_BR" if l.startswith("pt") else "en"
+    return ("es" if l.startswith("es") else "pt_BR" if l.startswith("pt")
+            else "hinglish" if l.startswith(("hinglish", "hi")) else "en")
 
 
 def env_key(name: str, lang: str) -> str:
@@ -121,9 +199,18 @@ def env_key(name: str, lang: str) -> str:
 
 
 def template_sid(name: str, lang: str) -> Optional[str]:
-    """ContentSid of an APPROVED template, or None (not approved / not set)."""
+    """ContentSid of an APPROVED template, or None (not approved / not set). A Hinglish template that
+    isn't approved falls back to the English one — the person still gets the message."""
     sid = (os.getenv(env_key(name, lang)) or "").strip()
+    if not sid and wa_lang(lang) == "hinglish":
+        sid = (os.getenv(env_key(name, "en")) or "").strip()
     return sid or None
+
+
+def meta_locale(lang: str) -> str:
+    """The language code a template is SUBMITTED under (Hinglish has no Meta locale of its own)."""
+    wl = wa_lang(lang)
+    return (os.getenv("WA_HINGLISH_LOCALE") or "en") if wl == "hinglish" else wl
 
 
 def content_payload(name: str, lang: str) -> dict:
@@ -133,7 +220,7 @@ def content_payload(name: str, lang: str) -> dict:
     body = t["body"][wl]
     return {
         "friendly_name": f"{name}_{wl.lower()}",
-        "language": wl,
+        "language": meta_locale(lang),
         "variables": t["variables"],
         "types": {
             "twilio/quick-reply": {
@@ -163,7 +250,9 @@ def send(to_number: str, name: str, lang: str, variables: dict, link: Optional[d
             return False
     from antar_engine.messaging import wa_number, _twilio_auth, _TWILIO_MSG_API
     content_sid = template_sid(name, lang)
-    acct, sender, auth = os.getenv("TWILIO_ACCOUNT_SID"), os.getenv("TWILIO_WHATSAPP_FROM"), _twilio_auth()
+    from antar_engine import wa_numbers as _wn
+    acct, sender, auth = (os.getenv("TWILIO_ACCOUNT_SID"),
+                          _wn.effective_sender() or os.getenv("TWILIO_WHATSAPP_FROM"), _twilio_auth())
     to = wa_number(to_number)
     if not (content_sid and acct and sender and auth and to):
         return False
