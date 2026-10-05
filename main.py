@@ -26074,7 +26074,7 @@ def _ask_window_started(label: str, today=None) -> bool:
 
 
 def _ask_followups_rich(concern: str, question: str, language: str = "en",
-                        answered_when: bool = False) -> list:
+                        answered_when: bool = False, avoid_extra: tuple = ()) -> list:
     """[{q, lane, title}] — next questions chosen by intent lane (antar_engine.ask_followups):
     skip the lane just asked, agency-first under distress, then one bridge to the
     neighbouring life area."""
@@ -26090,7 +26090,13 @@ def _ask_followups_rich(concern: str, question: str, language: str = "en",
         _ql = (question or "").lower()   # "How is tomorrow?" must not offer "How is tomorrow looking?" back
         avoid = tuple(w for w in ("tomorrow", "week", "mañana", "semana", "amanhã", "amanha", "kal", "hafte")
                       if w in _ql)
-    return _af.pick(bucket, question, language, answered_when=answered_when, avoid_words=avoid)
+    return _af.pick(bucket, question, language, answered_when=answered_when,
+                    avoid_words=tuple(avoid) + tuple(avoid_extra))
+
+
+# [no-raise-chips 2026-10-04] words of a "raise money" follow-up, all languages
+_FU_RAISE_WORDS = ("funding", "raise", "investor", "financiación", "financiacion",
+                   "financiamento", "captar", "inversion", "investimento")
 
 
 def _ask_followups(concern: str, question: str, language: str = "en") -> list:
@@ -27970,6 +27976,7 @@ async def ask_endpoint(request: AskRequest):
             # pick a vertical or predict a specific company (tested + falsified).
             _ask_wealth_block = ""
             _wealth_fired = False
+            _ask_alloc_case = ""
             try:
                 # [wealth-unify 2026-09-23] Stand down when the wealth-power block
                 # already fired — it now carries the magnitude+stability+sizing in one
@@ -28013,8 +28020,10 @@ async def ask_endpoint(request: AskRequest):
                             _ask_wealth_block += "\n" + _wlean[_s["lean"]]
                             print(f"[ask][wealth] concentrate-vs-diversify lean={_s['lean']} ({_s['grade']})")
                         if _alloc_stmt and not _is_cvd(question) and _s.get("lean"):
-                            from antar_engine.wealth_magnitude import ALLOCATION_DIRECTIVE as _wad
-                            _ask_wealth_block += "\n" + _wad.get(_s["lean"], "")
+                            from antar_engine.wealth_magnitude import allocation_directive as _wad
+                            _ask_wealth_block += "\n" + _wad(_s["lean"], question)
+                            from antar_engine.wealth_magnitude import allocation_case as _wac
+                            _ask_alloc_case = _wac(_s["lean"], question)
                             print(f"[ask][wealth] allocation statement lean={_s['lean']} ({_s['grade']})")
             except Exception as _wpe:
                 logger.warning(f"[ask] wealth-engine skipped (non-fatal): {_wpe}")
@@ -28794,7 +28803,13 @@ async def ask_endpoint(request: AskRequest):
             # money/event layers, so the veto could gate them. Here we only append
             # the directive as a LATE, authoritative block the narrator translates.)
             try:
-                if _df and _df.get("directive"):
+                if (_df and _df.get("directive") and _df_align == "supported"
+                        and locals().get("_ask_alloc_case") == "conc_multi"):
+                    # [allin-multi] a "this domain fits you" note read as approval of the
+                    # SPLIT ("together they form one track") — the concentrate answer leads
+                    print(f"[ask][domain-fit] supported note held back — concentrate + "
+                          f"{_df.get('domain')} named alongside another venture")
+                elif _df and _df.get("directive"):
                     _ask_layers_block += _df["directive"]
                     print(f"[ask][domain-fit] {_df.get('domain')}/{_df_align} "
                           f"veto={_df_veto} for {chart_id[:8]}")
@@ -30835,6 +30850,20 @@ async def ask_endpoint(request: AskRequest):
                     payload["next"] = _ask_md(payload["next"])
             except Exception:
                 pass
+            # [allin-multi 2026-10-04] Python owns sentence one where the narrator's
+            # "all in = good" instinct fights the chart (concentrate + 2 ventures,
+            # spread + 1). Late, after the voice gates, so nothing rewrites it.
+            try:
+                if locals().get("_ask_alloc_case") and payload.get("read") \
+                        and not payload.get("needs_clarification"):
+                    from antar_engine.wealth_magnitude import apply_alloc_opener as _aao
+                    _new_read = _aao(payload["read"], _ask_alloc_case, language,
+                                     str((chart_row.data or {}).get("first_name") or "").strip())
+                    if _new_read != payload["read"]:
+                        print(f"[ask][alloc] opener set ({_ask_alloc_case})")
+                        payload["read"] = _new_read
+            except Exception as _aoe:
+                print(f"[ask][alloc] opener non-fatal: {_aoe}")
             # [ask-followups 2026-09-24] Lead the reader on with tappable next
             # questions (FE renders them below YOUR MOVE). Refine the concern with
             # the strongest question-type signals so the chips match the read the
@@ -30857,8 +30886,27 @@ async def ask_endpoint(request: AskRequest):
                 _fu_own = _fu_bucket_of(question)
                 if _fu_own:
                     _fu_concern = _fu_own
+                # [no-raise-chips 2026-10-04] never offer "When is the best time to raise
+                # funding?" where the domain-fit check says raising is the wrong approach
+                # (Andres's real-estate deal) — probe that same check with a raise ask.
+                _fu_avoid = ()
+                try:
+                    if locals().get("_df_veto"):
+                        _fu_avoid = _FU_RAISE_WORDS
+                    elif (locals().get("_df") or {}).get("domain"):
+                        from antar_engine.domain_fit import assess_domain_fit as _adf_fu
+                        from antar_engine.concern_engines import _vim_active_lords as _val_fu
+                        _probe = _adf_fu(chart_data, _ask_dashas, f"{question} — raise funding from investors",
+                                         _ask_concern,
+                                         running_lords={str(x).title() for x in (_val_fu(_ask_dashas) or set())})
+                        if _probe.get("alignment") == "misaligned_approach":
+                            _fu_avoid = _FU_RAISE_WORDS
+                            print(f"[ask][followups] raise chips dropped — {_probe.get('domain')} raise is misaligned")
+                except Exception as _fpe:
+                    print(f"[ask][followups] raise probe non-fatal: {_fpe}")
                 _fur = _ask_followups_rich(_fu_concern, question, language,
-                                           answered_when=bool(payload.get("timing")))
+                                           answered_when=bool(payload.get("timing")),
+                                           avoid_extra=_fu_avoid)
                 if _fur and not payload.get("needs_clarification"):
                     payload["suggested_questions"] = [f["q"] for f in _fur]
                     payload["suggested_followups"] = _fur   # {q, lane, title}: lane-labelled rows
