@@ -7879,6 +7879,17 @@ def _running_md_ad(chart_id: str) -> dict:
     return out
 
 
+def _redirect_crosses_users(src: dict, dst: dict) -> bool:
+    """[people-privacy] True when a merge-redirect would hop between two
+    different non-null owners, or involve a People sub-chart."""
+    su, du = src.get("user_id"), dst.get("user_id")
+    if su and du and su != du:
+        return True
+    if src.get("chart_type") == "compatibility" or dst.get("chart_type") == "compatibility":
+        return True
+    return False
+
+
 @app.get("/api/v1/chart/{chart_id}", response_model=ChartResponse)
 def get_chart(chart_id: str):
     chart_id = _ensure_full_uuid(chart_id)
@@ -7903,7 +7914,9 @@ def get_chart(chart_id: str):
         merged_from = None
         if parent:
             _p = supabase.table("charts").select("*").eq("id", parent).execute()
-            if _p.data and _p.data[0].get("deleted_at") is None:
+            # [people-privacy] never follow the pointer into another user's chart.
+            if (_p.data and _p.data[0].get("deleted_at") is None
+                    and not _redirect_crosses_users(r, _p.data[0])):
                 merged_from, r = chart_id, _p.data[0]
         if merged_from is None:
             raise HTTPException(status_code=404, detail="Chart not found")
@@ -17999,6 +18012,66 @@ def _purge_proxy_cache(chart_id: str) -> int:
 _ACCOUNT_DELETE_TABLES = _CHART_DERIVED_TABLES + _ACCOUNT_ONLY_TABLES
 
 
+def _compat_partner_allowed(chart_id_a: str, chart_id_b: str) -> bool:
+    """[people-privacy] True when chart B may be read as a partner of chart A:
+    B is a People sub-chart whose parent is A (or another chart of A's owner),
+    or B belongs to the same signed-in user / guest session as A. Fails closed."""
+    try:
+        rows = {}
+        for cid in (chart_id_a, chart_id_b):
+            r = supabase.table("charts").select(
+                "id,user_id,guest_session_id,parent_chart_id").eq("id", cid).limit(1).execute()
+            if not r.data:
+                return False
+            rows[cid] = r.data[0]
+        a, b = rows[chart_id_a], rows[chart_id_b]
+        if b.get("parent_chart_id") == chart_id_a:
+            return True
+        if a.get("user_id") and a.get("user_id") == b.get("user_id"):
+            return True
+        if (a.get("guest_session_id") and a.get("guest_session_id") == b.get("guest_session_id")
+                and not b.get("user_id") and not a.get("user_id")):
+            return True
+        if a.get("user_id") and b.get("parent_chart_id") and not b.get("user_id"):
+            pr = supabase.table("charts").select("user_id").eq(
+                "id", b["parent_chart_id"]).limit(1).execute()
+            if pr.data and pr.data[0].get("user_id") == a.get("user_id"):
+                return True
+        return False
+    except Exception as _e:
+        print(f"[people-privacy] partner check failed closed: {_e}")
+        return False
+
+
+def _purge_people_subchart(sub_id: str) -> list:
+    """[people-privacy] Tombstone a People sub-chart (PII columns nulled,
+    deleted_at set), cascade its derived rows. Only real columns are written
+    (see _CHART_PII_COLS). Returns a list of non-fatal errors."""
+    errs = []
+    _tomb = {c: None for c in _CHART_PII_COLS}
+    _tomb["deleted_at"] = datetime.utcnow().isoformat() + "Z"
+    try:
+        supabase.table("charts").update(_tomb).eq("id", sub_id).execute()
+    except Exception as e:
+        errs.append({"table": "charts", "error": str(e)})
+    try:
+        _purge_prashna_followups(sub_id)
+    except Exception as e:
+        errs.append({"table": "prashna_followups", "error": str(e)})
+    for _tbl in _CHART_DERIVED_TABLES:
+        try:
+            _delete_rows_by(_tbl, "chart_id", sub_id)
+        except Exception as e:
+            errs.append({"table": _tbl, "error": str(e)})
+    try:
+        _purge_proxy_cache(sub_id)
+    except Exception:
+        pass
+    return errs
+
+
+
+
 
 @app.delete("/api/v1/account/{chart_id}")
 def delete_account(chart_id: str, authorization: Optional[str] = Header(None)):
@@ -18037,6 +18110,17 @@ def delete_account(chart_id: str, authorization: Optional[str] = Header(None)):
         chart_ids.append(chart_id)
 
     _purge_errors = []
+
+    # [people-privacy] People sub-charts (user_id NULL, parent = one of this
+    # account's charts) hold other people's birth data entered by this user;
+    # they go with the account and cascade like any other chart.
+    try:
+        _subs = supabase.table("charts").select("id").in_("parent_chart_id", chart_ids).execute()
+        _sub_ids = [r["id"] for r in (_subs.data or []) if r.get("id") and r["id"] not in chart_ids]
+    except Exception as _se:
+        _sub_ids = []
+        _purge_errors.append({"table": "charts(people)", "error": str(_se)})
+    chart_ids.extend(_sub_ids)
 
     # 1. Cascade-delete every chart-keyed row.
     for _cid in chart_ids:
@@ -21868,6 +21952,11 @@ async def compatibility_start(request: CompatibilityStartRequest,
     if request.chart_id_b:
         res_b = supabase.table("charts").select("chart_data,birth_date,name").eq("id", request.chart_id_b).execute()
         if not res_b.data:
+            raise HTTPException(404, f"Chart {request.chart_id_b} not found")
+        # [people-privacy] chart_id_b must be the caller's own chart or one of
+        # their People sub-charts; otherwise any known id would expose a
+        # stranger's natal data through the compatibility reading.
+        if not await run_in_threadpool(_compat_partner_allowed, request.chart_id_a, request.chart_id_b):
             raise HTTPException(404, f"Chart {request.chart_id_b} not found")
         chart_b    = res_b.data[0]["chart_data"]
         birth_b    = res_b.data[0].get("birth_date","")
@@ -37135,9 +37224,33 @@ def remove_network_person(chart_id: str, connection_chart_id: str):
                .eq("chart_id_b", connection_chart_id)
                .execute())
         removed = len(res.data or [])
+        # [people-privacy] drop the connection row(s) too, then purge the
+        # sub-chart if nothing else references it.
+        purged = False
+        try:
+            supabase.table("chart_connections").delete() \
+                .eq("chart_id_a", chart_id).eq("chart_id_b", connection_chart_id).execute()
+            sub = supabase.table("charts").select("id,user_id,chart_type,parent_chart_id,deleted_at") \
+                .eq("id", connection_chart_id).limit(1).execute()
+            s0 = (sub.data or [None])[0]
+            if (s0 and s0.get("user_id") is None and s0.get("chart_type") == "compatibility"
+                    and s0.get("parent_chart_id") == chart_id and not s0.get("deleted_at")):
+                still = False
+                for _t in ("compatibility_sessions", "chart_connections"):
+                    for _c in ("chart_id_a", "chart_id_b"):
+                        q = supabase.table(_t).select("id").eq(_c, connection_chart_id).limit(1).execute()
+                        if q.data:
+                            still = True
+                if not still:
+                    _errs = _purge_people_subchart(connection_chart_id)
+                    purged = True
+                    if _errs:
+                        print(f"[network] subchart purge partial: {_errs}")
+        except Exception as _pe:
+            print(f"[network] connection/subchart cleanup failed: {_pe}")
         print(f"[network] remove person cid_a={str(chart_id)[:8]} "
               f"cid_b={str(connection_chart_id)[:8]} sessions_removed={removed}")
-        return {"success": True, "removed_sessions": removed}
+        return {"success": True, "removed_sessions": removed, "subchart_purged": purged}
     except Exception as e:
         print(f"[network] remove person failed cid_a={str(chart_id)[:8]}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
