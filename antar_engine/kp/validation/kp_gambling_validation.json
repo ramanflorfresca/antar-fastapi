@@ -1,0 +1,16 @@
+{
+  "_README": "REAL gambling/speculation validation roster — one row per KNOWN dated session outcome (known_outcome: yes = net WON/+, no = net LOST/-). Owner-reported. Gate (pre-registered) needs >= 20 real cases at >= 70% before KP speculation timing is exposed. Window-level detail (per-sub-lord) is logged separately via kp_moment; this gate scores at the session/date level.",
+  "cases": [
+    {
+      "id": "raman-2026-10-05-baccarat",
+      "birth_date": "1974-11-26",
+      "birth_time": "11:59",
+      "lat": 28.6139,
+      "lon": 77.2090,
+      "tz_offset": 5.5,
+      "outcome_date": "2026-10-05",
+      "known_outcome": "yes",
+      "notes": "Owner-reported. Baccarat, night of 2026-10-05: net POSITIVE. Main run ~23:30 local through ~05:15; a ~21:00-21:45 window took a small loss but walked away net positive overall. Session tz unconfirmed (stored current_timezone America/Bogota; owner lives US). yes = net won."
+    }
+  ]
+}
