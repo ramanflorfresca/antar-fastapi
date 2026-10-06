@@ -21086,7 +21086,14 @@ _FWD_REL_SPEC = {
     # a relationship house (nodes destabilize a bond), but Rahu CAN support a
     # venture. This stops a lone node mahadasha from maxing out a love runway.
     "romantic":        {"pos": [7, 5, 11, 2],  "neg": [6, 8, 12], "good": ["Venus", "Jupiter", "Moon"], "bad": ["Rahu", "Ketu", "Saturn"], "sep": True},
-    "marriage":        {"pos": [7, 2, 4, 11],  "neg": [6, 8, 12], "good": ["Venus", "Jupiter", "Moon"], "bad": ["Rahu", "Ketu", "Saturn"], "sep": True},
+    # spouse: the separation-timing / durability penalties are for romantic +
+    # spouse ONLY (see tests/negative_result_separation_timing.md - the signal is
+    # weak; it is kept small and is NOT widened to any other relationship).
+    "spouse":          {"pos": [7, 2, 5, 11],  "neg": [6, 8, 12], "good": ["Venus", "Jupiter", "Moon"], "bad": ["Rahu", "Ketu", "Saturn"], "sep": True},
+    "parent":          {"pos": [4, 9, 10, 2],  "neg": [6, 8, 12], "good": ["Moon", "Sun", "Jupiter"], "bad": ["Rahu", "Ketu"], "mild_bad": ["Saturn"], "sep": False},
+    "child":           {"pos": [5, 9, 11, 2],  "neg": [6, 8, 12], "good": ["Jupiter", "Moon", "Sun", "Venus"], "bad": ["Rahu", "Ketu"], "sep": False},
+    "sibling":         {"pos": [3, 11, 2, 9],  "neg": [6, 8, 12], "good": ["Mars", "Mercury", "Jupiter"], "bad": [], "sep": False},
+    "advisor":         {"pos": [9, 5, 2, 10],  "neg": [6, 8, 12], "good": ["Jupiter", "Mercury", "Sun"], "bad": [], "sep": False},
     "business":        {"pos": [7, 10, 11, 2], "neg": [6, 8, 12], "good": ["Mercury", "Jupiter", "Sun", "Venus"], "bad": ["Ketu"], "sep": False},
     "cofounder":       {"pos": [7, 10, 11, 3], "neg": [6, 8, 12], "good": ["Mercury", "Mars", "Jupiter", "Sun"], "bad": ["Ketu"], "sep": False},
     "friend":          {"pos": [11, 3, 7, 5],  "neg": [6, 12],    "good": ["Mercury", "Venus", "Moon", "Jupiter"], "bad": ["Ketu"], "sep": False},
@@ -21197,13 +21204,28 @@ def _dasha_lord_maitri(dashas_a, dashas_b):
         return None
 
 
+def _chart_gender(chart_id):
+    """charts.gender for a chart id (None when unset/unreadable). Read on its own
+    so the compat chart queries stay untouched; fail-open -> current behaviour."""
+    if not chart_id:
+        return None
+    try:
+        r = supabase.table("charts").select("gender").eq("id", chart_id).execute()
+        return (r.data[0].get("gender") if r.data else None) or None
+    except Exception as _ge:
+        print(f"[compat] gender lookup non-fatal: {_ge}")
+        return None
+
+
 def _forward_dasha_support(chart_a, dashas_a, chart_b, dashas_b, reason,
                            birth_a="", birth_b="", gender_a=None, gender_b=None,
                            horizon=5):
     try:
         from datetime import date
         from antar_engine.d10_career import _sign_n_from, SIGN_LORD
-        spec = _FWD_REL_SPEC.get((reason or "romantic").lower(), _FWD_REL_SPEC["romantic"])
+        _rk = (reason or "romantic").lower()
+        _rk = "spouse" if _rk == "marriage" else _rk   # legacy key
+        spec = _FWD_REL_SPEC.get(_rk, _FWD_REL_SPEC["romantic"])
         today = date.today()
         ty = today.year
         try:
@@ -21258,6 +21280,8 @@ def _forward_dasha_support(chart_a, dashas_a, chart_b, dashas_b, reason,
                     val += 1
                 if lord in spec.get("bad", ()):
                     val -= 1
+                if lord in spec.get("mild_bad", ()):
+                    val -= 0.5
                 if val > 0:
                     pos += 1
                     for y in range(max(ty, int(s[:4])), min(ty + horizon, int(e[:4])) + 1):
@@ -21927,8 +21951,20 @@ async def compatibility_start(request: CompatibilityStartRequest,
     from antar_engine import compatibility_reasons as _R
     if request.mode and not request.compat_type:
         print(f"[compat] DEPRECATION: 'mode' received ('{request.mode}'); use 'compat_type'.")
-    _v2_reason = _R.normalize_reason(request.compat_type, request.mode,
-                                     default=(request.compatibility_type or "romantic"))
+    # An explicit but unrecognised type is a client error, not "cofounder". The
+    # model default ("cofounder") applies only when NO type field was sent.
+    _explicit = {k: getattr(request, k) for k in ("compat_type", "mode", "compatibility_type")
+                 if k in request.model_fields_set
+                 and getattr(request, k)}
+    if _explicit:
+        _bad = [f"{k}={v!r}" for k, v in _explicit.items() if _R.resolve_reason(v) is None]
+        if _bad:
+            raise HTTPException(422, {"error": "invalid_compat_type",
+                                      "message": f"unknown relationship type ({', '.join(_bad)}); "
+                                                 f"must be one of {list(_R.VALID_REASONS)}"})
+        _v2_reason = _R.resolve_reason(request.compat_type or request.mode or request.compatibility_type)
+    else:
+        _v2_reason = _R.normalize_reason(None, None, default=(request.compatibility_type or "cofounder"))
     _v2_def = _R.REASON_DEFINITIONS[_v2_reason]
     _v2_role = (request.role or request.employee_role or None)
     if _v2_def["needs_role"]:
@@ -21940,10 +21976,11 @@ async def compatibility_start(request: CompatibilityStartRequest,
         _v2_role = None
     _v2_direction = _v2_def["direction"]
 
-    res_a = supabase.table("charts").select("chart_data,birth_date,name").eq("id", request.chart_id_a).execute()
+    res_a = supabase.table("charts").select("chart_data,birth_date,name,gender").eq("id", request.chart_id_a).execute()
     if not res_a.data:
         raise HTTPException(404, f"Chart {request.chart_id_a} not found")
     chart_a  = res_a.data[0]["chart_data"]
+    gender_a = res_a.data[0].get("gender")
     birth_a  = res_a.data[0].get("birth_date","")
     name_a   = request.name_a or (res_a.data[0].get("name","") or "").split()[0] or "Person A"
     dashas_a = get_dashas_for_chart(request.chart_id_a)
@@ -22176,10 +22213,12 @@ async def compatibility_start(request: CompatibilityStartRequest,
     # love) so the lifepath layer reflects whether the FUTURE dashas support THIS
     # relationship — not just that both feel good today.
     try:
+        _gender_b = await asyncio.to_thread(_chart_gender, chart_id_b)
         _fwd = _forward_dasha_support(
             _ca, dashas_a, _cb, dashas_b, _v2_reason,
             birth_a=birth_a,
             birth_b=(birth_b if request.chart_id_b else request.birth_date_b) or "",
+            gender_a=gender_a, gender_b=_gender_b,
         )
         if _fwd.get("available"):
             _dt = _compat_raw.get("dasha_timing") or {}
@@ -22721,8 +22760,24 @@ async def get_compatibility_session(session_id: str, language: str = "en"):
             from antar_engine import compatibility_reasons as _R
             _reason = _R.normalize_reason(s.get("compat_type"), None,
                                           default=s.get("compat_type") or "romantic")
-            _ra = supabase.table("charts").select("chart_data,birth_date").eq("id", _ca_id).execute()
-            _rb = supabase.table("charts").select("chart_data,birth_date").eq("id", _cb_id).execute()
+            _ra = supabase.table("charts").select("chart_data,birth_date,gender").eq("id", _ca_id).execute()
+            _rb = supabase.table("charts").select("chart_data,birth_date,gender").eq("id", _cb_id).execute()
+            # employee / boss-or-manager need their role to read correctly. The
+            # session row has no role column (and adding one needs DDL), but /start
+            # also writes it into chart_connections.score_breakdown for this
+            # session_id — read it back from there. Fail-open (None = old behaviour).
+            _s_role = None
+            if _R.REASON_DEFINITIONS.get(_reason, {}).get("needs_role"):
+                try:
+                    _cr = supabase.table("chart_connections").select("score_breakdown") \
+                        .eq("session_id", session_id).limit(1).execute()
+                    _sb = (_cr.data[0].get("score_breakdown") if _cr.data else None) or {}
+                    if isinstance(_sb, str):
+                        _sb = json.loads(_sb)
+                    _rr = _sb.get("role")
+                    _s_role = _rr if _rr in _R.VALID_ROLES else None
+                except Exception as _rre:
+                    print(f"[compat][session] role lookup non-fatal: {_rre}")
             if _ra.data and _rb.data:
                 _ca = _safe_jsonb(_ra.data[0]["chart_data"])
                 _cb = _safe_jsonb(_rb.data[0]["chart_data"])
@@ -22740,7 +22795,9 @@ async def get_compatibility_session(session_id: str, language: str = "en"):
                 try:
                     _fwd = _forward_dasha_support(_ca, _da, _cb, _db, _reason,
                                                   birth_a=_ra.data[0].get("birth_date", ""),
-                                                  birth_b=_rb.data[0].get("birth_date", ""))
+                                                  birth_b=_rb.data[0].get("birth_date", ""),
+                                                  gender_a=_ra.data[0].get("gender"),
+                                                  gender_b=_rb.data[0].get("gender"))
                     if _fwd.get("available"):
                         _dt = _raw.get("dasha_timing") or {}
                         _dt["score"] = _fwd["score"]
@@ -22761,7 +22818,7 @@ async def get_compatibility_session(session_id: str, language: str = "en"):
                         _raw["d10_synastry"] = _d10
                 except Exception:
                     pass
-                _v2 = _CL.compose_compat_v2(_raw, _ca, _cb, _reason, None,
+                _v2 = _CL.compose_compat_v2(_raw, _ca, _cb, _reason, _s_role,
                                             a_name=s.get("name_a") or "You",
                                             b_name=s.get("name_b") or "Partner",
                                             strip_fn=apply_user_facing_strips)
@@ -22775,6 +22832,7 @@ async def get_compatibility_session(session_id: str, language: str = "en"):
                 out.update({
                     "score": _v2.get("score"), "badge": _v2.get("badge"),
                     "headline": _v2.get("headline"), "summary": _v2.get("summary"),
+                    "role": _s_role,
                     "catalysts": _v2.get("catalysts"), "watch_points": _v2.get("watch_points"),
                     "layers": _v2.get("layers"),
                     "confidence": _v2.get("confidence"), "timing": _v2.get("timing"),
