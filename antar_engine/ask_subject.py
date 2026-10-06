@@ -150,8 +150,17 @@ def _norm_people(people: Any) -> List[Dict[str, Any]]:
             continue
         rel = str(p.get("compat_type") or p.get("relation") or "").strip().lower()
         e = out.setdefault(cid, {"name": name, "chart_id": cid, "relations": set(),
-                                 "compat_types": []})
+                                 "compat_types": [], "aliases": [], "gender": None,
+                                 "details": set()})
         e["relations"] |= _COMPAT_GROUPS.get(rel, set())
+        # [people-links] person_links rows carry aliases, relation_detail and gender
+        for a in (p.get("aliases") or []):
+            if isinstance(a, str) and a.strip() and a not in e["aliases"]:
+                e["aliases"].append(a.strip())
+        if p.get("relation_detail"):
+            e["details"].add(str(p["relation_detail"]).strip().lower())
+        if p.get("gender") and not e["gender"]:
+            e["gender"] = str(p["gender"]).strip().lower()
         if rel and rel not in e["compat_types"]:
             e["compat_types"].append(rel)
     return list(out.values())
@@ -224,35 +233,76 @@ def _find_relations(text: str):
 
 
 def _find_names(text: str, orig: str, people: List[Dict[str, Any]]):
-    """[(person_entry, start, end, full)] for names mentioned in the question."""
+    """[(person_entry, start, end, full)] for names mentioned in the question.
+    Matches the person's name and (people-links) their aliases/nicknames."""
     hits = []
-    orig_f = _fold(orig)
     for p in people:
-        parts = [t for t in re.findall(r"[A-Za-zÀ-ÿ']+", _fold(p["name"]))]
-        if not parts:
-            continue
-        full = " ".join(parts)
-        first = parts[0]
-        # full name (exact folded) first
-        if len(parts) > 1:
-            m = re.search(r"\b" + re.escape(full) + r"\b", text)
-            if m:
-                hits.append((p, m.start(), m.end(), True))
-                continue
-        key = norm_name(first)
-        if not key or len(key) < 2:
-            continue
-        for m in re.finditer(r"[a-z][a-z']*", text):
-            w = re.sub(r"('s|s')$", "", m.group(0))
-            if norm_name(w) != key:
-                continue
-            if first in _COMMON_WORD_NAMES or w in _COMMON_WORD_NAMES:
-                seg = orig[m.start():m.end()]
-                if not seg[:1].isupper() or m.start() == 0:
-                    continue
-            hits.append((p, m.start(), m.start() + len(w), False))
-            break
+        for label in [p["name"]] + list(p.get("aliases") or []):
+            h = _find_label(text, orig, p, label)
+            if h:
+                hits.append(h)
+                break
     return hits
+
+
+def _find_label(text: str, orig: str, p: Dict[str, Any], label: str):
+    parts = [t for t in re.findall(r"[A-Za-zÀ-ÿ']+", _fold(label))]
+    if not parts:
+        return None
+    full = " ".join(parts)
+    first = parts[0]
+    # full name (exact folded) first
+    if len(parts) > 1:
+        m = re.search(r"\b" + re.escape(full) + r"\b", text)
+        if m:
+            return (p, m.start(), m.end(), True)
+    key = norm_name(first)
+    if not key or len(key) < 2:
+        return None
+    for m in re.finditer(r"[a-z][a-z']*", text):
+        w = re.sub(r"('s|s')$", "", m.group(0))
+        if norm_name(w) != key:
+            continue
+        if first in _COMMON_WORD_NAMES or w in _COMMON_WORD_NAMES:
+            seg = orig[m.start():m.end()]
+            if not seg[:1].isupper() or m.start() == 0:
+                continue
+        return (p, m.start(), m.start() + len(w), False)
+    return None
+
+
+# gendered relation word -> gender, so "my son" is not "my kid" when there are 2+ children
+_WORD_GENDER = {}
+for _w in ("son", "husband", "boyfriend", "father", "dad", "papa", "brother", "hijo", "esposo",
+           "marido", "novio", "padre", "pai", "filho", "namorado", "hermano", "irmao", "irmão",
+           "bhai", "beta", "shohar", "pati", "ladka", "bhaiya", "pitaji", "daddy"):
+    _WORD_GENDER[_w] = "male"
+for _w in ("daughter", "wife", "girlfriend", "mother", "mom", "mum", "mama", "mummy", "sister",
+           "hija", "esposa", "novia", "madre", "mae", "mãe", "filha", "namorada", "hermana",
+           "irma", "irmã", "behen", "behan", "beti", "patni", "biwi", "bivi", "ladki", "maa",
+           "mataji", "didi"):
+    _WORD_GENDER[_w] = "female"
+
+
+def _person_gender(p: Dict[str, Any]) -> Optional[str]:
+    from_detail = {"son": "male", "husband": "male", "boyfriend": "male", "father": "male",
+                   "brother": "male", "daughter": "female", "wife": "female",
+                   "girlfriend": "female", "mother": "female", "sister": "female"}
+    for d in p.get("details") or ():
+        if d in from_detail:
+            return from_detail[d]
+    g = (p.get("gender") or "").lower()
+    return g if g in ("male", "female") else None
+
+
+def _narrow_by_word_gender(cands: List[Dict[str, Any]], word: Optional[str]):
+    """2+ candidates + a gendered word ('my son'): drop people known to be the other
+    gender. Unknown-gender people stay (they could be the one)."""
+    g = _WORD_GENDER.get((word or "").lower())
+    if not g or len(cands) < 2:
+        return cands
+    keep = [p for p in cands if _person_gender(p) in (g, None)]
+    return keep or cands
 
 
 def resolve_subject(question: str, asker_chart_id: str = "",
@@ -297,6 +347,7 @@ def resolve_subject(question: str, asker_chart_id: str = "",
             if len(groups) == 1:
                 g = groups[0]
                 cands = [p for p in plist if g in p["relations"]]
+                cands = _narrow_by_word_gender(cands, _hit_word(text, rel_hits))
                 if len(cands) == 1:
                     p = cands[0]
                     return {"subject": "person", "relation": g,
@@ -309,6 +360,11 @@ def resolve_subject(question: str, asker_chart_id: str = "",
         return self_res
     except Exception:
         return self_res
+
+
+def _hit_word(text: str, rel_hits) -> Optional[str]:
+    words = {text[s:e].strip("'-") for _g, s, e in rel_hits}
+    return next(iter(words)) if len(words) == 1 else None
 
 
 def _first_rel(text: str) -> Optional[str]:
