@@ -6006,7 +6006,12 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
         try:
             if not payload.get("suggested_questions"):
                 if payload.get("needs_clarification"):
-                    payload["suggested_questions"] = _WA_AREA_Q.get(lang, _WA_AREA_Q["en"])[:3]
+                    # [ask-subject 2026-10-06] a which-person clarify offers the PEOPLE as the
+                    # tappable reply (the answer stays on the linked asker's chart; no switch)
+                    if payload.get("clarification_fact") == "subject" and payload.get("clarification_chips"):
+                        payload["suggested_questions"] = list(payload["clarification_chips"])[:3]
+                    else:
+                        payload["suggested_questions"] = _WA_AREA_Q.get(lang, _WA_AREA_Q["en"])[:3]
                 else:
                     # [wa-yesno-topic 2026-10-04] a Yes/No reading carries no follow-ups of its own; they
                     # must follow the QUESTION's topic ("Will my partnership break?" was offered money +
@@ -25770,6 +25775,94 @@ def _ask_clarify_payload(language: str = "en") -> dict:
     }
 
 
+def _ask_load_people_sync(chart_id: str) -> list:
+    """The asker's OWN People (chart_connections where chart_id_a == asker)."""
+    rows = (supabase.table("chart_connections")
+            .select("chart_id_b,name_b,compat_type")
+            .eq("chart_id_a", chart_id).order("updated_at", desc=True).limit(60)
+            .execute().data) or []
+    return [r for r in rows if r.get("chart_id_b") and (r.get("name_b") or "").strip()]
+
+
+def _ask_load_person_sync(person_chart_id: str, asker_chart_id: str):
+    """(person chart_data, person dashas, asker chart_data) — blocking; run in a thread."""
+    prow = (supabase.table("charts").select("chart_data,first_name")
+            .eq("id", person_chart_id).single().execute().data) or {}
+    pdash = get_dashas_for_chart(person_chart_id) or {}
+    acd = None
+    try:
+        arow = (supabase.table("charts").select("chart_data")
+                .eq("id", asker_chart_id).single().execute().data) or {}
+        acd = _safe_jsonb(arow.get("chart_data"))
+    except Exception:
+        acd = None
+    return _safe_jsonb(prow.get("chart_data")), pdash, acd
+
+
+async def _ask_subject_gate(question: str, chart_id: str, language: str, tz_offset):
+    """[ask-subject 2026-10-06] Who is this question ABOUT? Returns (None) for the
+    asker themself (the normal pipeline continues untouched) or a finished payload
+    when it is about a saved Person / needs a which-one clarify / the person's chart
+    is missing. Fail-open to self on ANY error, but logged."""
+    import logging
+    _lg = logging.getLogger("antar.ask")
+    try:
+        from antar_engine import ask_subject as _as
+        from antar_engine import ask_subject_person as _asp
+        people = await asyncio.to_thread(_ask_load_people_sync, chart_id)
+        res = _as.resolve_subject(question, chart_id, people)
+        if res.get("subject") == "self":
+            return None
+        print(f"[ask][subject] {res.get('subject')} relation={res.get('relation')} "
+              f"person={(res.get('person') or {}).get('name')} "
+              f"cands={len(res.get('candidates') or [])} missing={res.get('missing')}")
+        if res["subject"] == "ambiguous":
+            return _asp.ambiguous_payload(res, language), False
+        if not res.get("person"):
+            return _asp.missing_payload(res, language), False
+        who = res["person"]
+        name = (who.get("name") or "").strip()
+        # a tapped which-one chip ("Amik Singh") is the ANSWER to our clarify: read the
+        # ORIGINAL question about that person
+        if len(question.split()) <= 4:
+            try:
+                _th = await asyncio.to_thread(_ask_recent_thread, chart_id, 2, 30)
+                if _th and _asp.is_ambiguity_prompt((_th[-1] or {}).get("a")):
+                    question = _th[-1]["q"]
+            except Exception:
+                pass
+        pcd, pdash, acd = await asyncio.to_thread(
+            _ask_load_person_sync, who["chart_id"], chart_id)
+        concern = _ask_concern_route(question) or _detect_concern(question)
+        intent = "timing" if re.search(
+            r"\b(when|cuando|cuándo|quando|kab)\b", question.lower()) else "state"
+        facts = _asp.build_person_facts(name, res.get("relation"), question, concern,
+                                        pcd, pdash, acd, intent)
+        if not facts.get("available"):
+            return _asp.unreadable_payload(name, language), False
+        system = (SYSTEM_PROMPT + "\n\n" + _asp.narrator_block(name, res.get("relation"), language))
+        prompt = (f"QUESTION: {question}\n\nREADING OF {name.upper()}'S CHART "
+                  f"(the only astrology you may use):\n{facts['facts']}\n\n"
+                  f"Answer about {name}.")
+        raw = await asyncio.wait_for(call_llm_claude(
+            prompt=prompt, system_override=system, max_tokens_override=450), timeout=40)
+        raw = raw[0] if isinstance(raw, tuple) else raw
+        read = _asp.guard_read(str(raw or ""), name)
+        if not read:
+            return _asp.unreadable_payload(name, language), False
+        payload = {"mode": "explore", "read": read, "next": None, "locked": False,
+                   "subject": {"name": name, "relation": res.get("relation"),
+                               "chart_available": True}}
+        try:
+            await _ask_persist(supabase, chart_id, question, payload, language, "explore", None)
+        except Exception:
+            pass
+        return payload, True
+    except Exception as e:
+        _lg.warning(f"[ask][subject] gate failed, answering as self: {e}")
+        return None
+
+
 # [ask-role-clarify 2026-09-13] A deal/transaction question whose reading depends
 # on the user's ROLE (broker earning a commission vs equity stake vs buying it
 # themselves) must ask the role first — each maps to a different divisional read
@@ -27754,6 +27847,29 @@ async def ask_endpoint(request: AskRequest):
                 "upgrade_url":     _ent_upgrade_url,
                 "trial_days_left": _tr.get("days_left"),
             })
+
+    # [ask-subject 2026-10-06] WHO is the question about? "when will my son get married"
+    # / "how is Amik doing" must be read from THAT person's chart (the asker's own People
+    # only), never answered from the asker's own marriage/health. Runs before the concern
+    # router, life-fact clarify and relationship engine so none of them fire for the asker.
+    # Crisis wins (care-first path). Kill switch: ASK_SUBJECT_RESOLVER=off.
+    if ((os.getenv("ASK_SUBJECT_RESOLVER") or "on").strip().lower() not in ("0", "off", "false", "no")
+            and not _ask_detect_crisis(question)):
+        _subj = await _ask_subject_gate(question, chart_id, language, request.tz_offset)
+        if _subj:
+            _subj_payload, _subj_counts = _subj
+            if (_subj_counts and _ask_tier not in _PAID_TIERS and not _ask_bypass_cap):
+                try:
+                    _ent_ask_inc(chart_id, supabase, request.tz_offset or 0)
+                except Exception as _sie:
+                    print(f"[ask][subject] usage increment non-fatal: {_sie}")
+            if not _subj_counts:
+                try:
+                    await _ask_persist(supabase, chart_id, question, _subj_payload,
+                                       language, "explore", None)
+                except Exception:
+                    pass
+            return _subj_payload
 
     # ───────────────────────── EXPLORATION ─────────────────────────
     if mode == "explore":
