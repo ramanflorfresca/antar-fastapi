@@ -26,7 +26,7 @@ Two rules stop it destroying real data, both learned from this base:
 Keeper priority: signed-in user > real geocode > has birth_city > protected >
 has activity > most recent.
 """
-import os, math, json
+import os, sys, math, json
 from dotenv import load_dotenv; load_dotenv("/Users/ramandeepsinghchadha/antarai/.env")
 from supabase import create_client
 from collections import defaultdict
@@ -44,12 +44,30 @@ rows,page=[],0
 while True:
     d=(sb.table("charts").select(
         "id,name,first_name,user_id,guest_session_id,birth_date,birth_time,birth_city,"
-        "latitude,longitude,created_at,deleted_at,protected,daily_wow_cache,parent_chart_id"
+        "latitude,longitude,created_at,deleted_at,protected,daily_wow_cache,parent_chart_id,chart_type"
     ).range(page*1000,page*1000+999).execute().data) or []
     rows+=d
     if len(d)<1000: break
     page+=1
-live=[r for r in rows if not r.get("deleted_at")]
+by_id={r["id"]:r for r in rows}
+
+
+def is_people_or_cross_owner(r):
+    """People sub-charts (chart_type='compatibility') are another person's data
+    attached to an owner via parent_chart_id; they are never dedupe candidates.
+    Neither is any row whose parent_chart_id points at a different user's chart."""
+    if r.get("chart_type") == "compatibility":
+        return True
+    par = by_id.get(r.get("parent_chart_id"))
+    if par and r.get("user_id") and par.get("user_id") and par["user_id"] != r["user_id"]:
+        return True
+    if par and par.get("user_id") and not r.get("user_id") and r.get("parent_chart_id"):
+        # an ownerless row hanging off someone's chart is a sub-chart, not a duplicate
+        return True
+    return False
+
+
+live=[r for r in rows if not r.get("deleted_at") and not is_people_or_cross_owner(r)]
 
 g=defaultdict(list)
 for r in live: g[(r["birth_date"], str(r.get("birth_time"))[:5])].append(r)
@@ -121,6 +139,9 @@ for key,keeper,losers in plan[:12]:
 if APPLY:
     for key,keeper,losers in plan:
         for l in losers:
+            ku, lu = keeper.get("user_id"), l.get("user_id")
+            if ku and lu and ku != lu:
+                continue  # never merge across different users
             sb.table("charts").update(
                 {"deleted_at":"now()","parent_chart_id":keeper["id"]}).eq("id",l["id"]).execute()
     print("\napplied. every dropped row keeps parent_chart_id -> its keeper, and is")
