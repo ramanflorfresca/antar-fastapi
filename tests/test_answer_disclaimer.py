@@ -156,3 +156,31 @@ def test_everyday_words_in_a_career_answer_do_not_trigger_a_disclaimer(text):
 def test_genuinely_sensitive_answers_still_get_the_right_disclaimer(text, needle):
     d = disclaimer_for(None, text, language="en")
     assert d and needle in d, text
+
+
+# [disclaimer-false-positive 2026-10-06 #2] production: "How do I make my case to my manager for a
+# promotion?" got the LEGAL disclaimer (the question pattern had a bare "my case"); "go after outside
+# funding for my startup" got none.
+@pytest.mark.parametrize("q", [
+    "How do I make my case to my manager for a promotion?",
+    "Can I make my case at the review?",
+    "Should I ask for a raise this quarter?",
+    "I'm hearing mixed things about the reorg — should I worry?",
+    "Is it time to settle into this role?",
+])
+def test_workplace_questions_with_legal_sounding_words_get_no_disclaimer(q):
+    assert disclaimer_for("general", "Yes — the career window is open now.", "YES", language="en", question=q) is None
+
+
+@pytest.mark.parametrize("q,needle", [
+    ("Will I win my court case?", "not legal advice"),
+    ("Will I win the case?", "not legal advice"),
+    ("Will I lose my lawsuit?", "not legal advice"),
+    ("Should I accept the settlement offer?", "not legal advice"),
+    ("When is a good time to go after outside funding for my startup?", "not financial advice"),
+    ("Should I raise money from investors?", "not financial advice"),
+    ("Should I take a mortgage this year?", "not financial advice"),
+])
+def test_real_legal_and_money_questions_still_get_their_disclaimer(q, needle):
+    d = disclaimer_for("general", "The timing is not aligned yet.", "NO", language="en", question=q)
+    assert d and needle in d, q

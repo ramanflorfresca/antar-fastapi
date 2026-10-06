@@ -174,13 +174,18 @@ _Q_FERTILITY = re.compile(
     r"(?i)conceiv|pregnan|fertil|\bivf\b|miscarr|trying (for|to have) (a )?(baby|child)|"
     r"(have|having) a (baby|child)|embarazo|embarazada|gravidez|gr[aá]vida|garbh")
 _Q_LEGAL = re.compile(
-    r"(?i)lawsuit|\bcourt\b|my case|win the case|lose the case|being sued|\bsuing\b|\bsue\b|"
-    r"litigation|(the|my|a) trial\b|court hearing|hearing date|settlement|the judge|custody|restraining order|arbitration|"
+    r"(?i)lawsuit|\bcourt\b|\b(win|lose|winning|losing)\b[^.?!]{0,12}\bcase\b|"
+    r"my (court|legal|lawsuit) case|being sued|\bsuing\b|\bsue\b|"
+    r"litigation|(the|my|a) trial\b|court hearing|hearing date|legal settlement|"
+    r"settlement (offer|talks|agreement|negotiation)|the judge|custody|restraining order|arbitration|"
     r"legal (case|matter|dispute|battle|trouble|action|fight)|demanda|juicio|processo|tribunal|"
     r"adalat|mukadma")
+# [disclaimer-false-positive 2026-10-06] bare "my case" / "hearing" / "settlement" matched
+# "make my case to my manager"; a funding / mortgage / debt question had no financial signal.
 _Q_MONEY = re.compile(
     r"(?i)invest|\bstocks?\b|share market|shares in|crypto|bitcoin|forex|trading|lottery|lotto|"
-    r"gambl|casino|poker|betting|\bbet\b|wager|mutual fund|\bloan\b|"
+    r"gambl|casino|poker|betting|\bbet\b|wager|mutual fund|\bloan\b|\bfunding\b|fundrais\w+|"
+    r"raise (money|capital|funds)|venture capital|mortgage|borrow\w*|\bdebt\b|"
     r"inversi|invertir|investir|apuesta|aposta|loter")
 
 
