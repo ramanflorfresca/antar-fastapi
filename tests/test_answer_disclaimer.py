@@ -124,3 +124,35 @@ def test_ordinary_questions_get_no_disclaimer(q):
 def test_question_cannot_override_a_set_concern_and_es_still_works():
     assert "not financial advice" in disclaimer_for("money", "x", language="en", question="Will my health improve?")
     assert disclaimer_for("general", "x", language="es", question="¿Mejorará mi salud?").startswith("Un análisis")
+
+
+# [disclaimer-false-positive 2026-10-06] The text sniff ran on answers full of everyday words:
+# production showed "not legal advice … Your lawyer runs the case" under a RAISE answer that said
+# "make your case with clear facts". These pin the false positives shut and the true positives open.
+@pytest.mark.parametrize("text", [
+    "Make your case with clear facts, not just a feeling you deserve more.",
+    "The timing favours a structured, prepared ask — build the case with three specific wins.",
+    "You may be hearing back from them next week; keep a calm tone.",
+    "Your business concept is clear — test it with one customer.",
+    "Invest time in one skill; share your results with your manager.",
+    "Update your portfolio of work and ask the loan officer at your bank nothing yet.",
+    "The verdict is a YES for the career window; counsel your team early.",
+    "A settlement between two priorities is needed this month.",
+])
+def test_everyday_words_in_a_career_answer_do_not_trigger_a_disclaimer(text):
+    assert disclaimer_for("general", text, "YES", language="en") is None
+    assert disclaimer_for(None, text, language="en", question="Should I ask for a raise this quarter?") is None
+
+
+@pytest.mark.parametrize("text,needle", [
+    ("Traditionally, Ayurveda associates this period with brahmi or neem.", "not a diagnosis"),
+    ("The timing doesn't support speculation this month.", "not financial advice"),
+    ("Skip the casino and the lottery; crypto is not supported now.", "not financial advice"),
+    ("The timing supports going after outside funding this month.", "not financial advice"),
+    ("Your lawyer should file before the court date; the lawsuit timing is mixed.", "not legal advice"),
+    ("Yes - family window is open now; conceiving is supported.", "not a diagnosis"),
+    ("Pregnancy planning is supported in this window.", "not a diagnosis"),
+])
+def test_genuinely_sensitive_answers_still_get_the_right_disclaimer(text, needle):
+    d = disclaimer_for(None, text, language="en")
+    assert d and needle in d, text

@@ -53,18 +53,25 @@ _HEALTH_RX = re.compile(
     r"neem|turmeric|amla|dinacharya|ayurveda|sesame[- ]oil|herbs?|"
     r"supplements?|dosha|vata|pitta|kapha)\b", re.IGNORECASE)
 
+# [disclaimer-false-positive 2026-10-06] The TEXT sniff below runs on the ANSWER, which is full of
+# everyday words. Production put "not legal advice … Your lawyer runs the case" on a raise answer
+# because it said "make your case with clear facts"; the same hazard sat in "hearing back",
+# "concept", "invest time", "share your results", "portfolio of work", "loan officer".
+# So the sniff keeps only phrases that essentially only occur in the sensitive domain; the
+# QUESTION (and the Ask concern) is the primary signal, and it is not touched.
 _MONEY_RX = re.compile(
-    r"\b(speculat\w+|invest\w+|stocks?|shares?|equit\w+|crypto\w*|trading|"
-    r"loan|funding|mutual\s+funds?|portfolio|betting|lottery|casino)\b",
+    r"\b(speculat\w+|crypto\w*|casino|lottery|betting|gambl\w+|stock\s+market|day\s+trading|"
+    r"mutual\s+funds?|outside\s+funding|raising\s+funding|funding\s+round)\b",
     re.IGNORECASE)
 
 _LEGAL_RX = re.compile(
-    r"\b(court|case|lawsuit|litigation|lawyer|counsel|attorney|settlement|"
-    r"hearing|tribunal|legal\s+matter|verdict)\b", re.IGNORECASE)
+    r"\b(lawsuit|litigation|lawyer|attorney|tribunal|legal\s+(?:matter|case|dispute|action|battle)|"
+    r"court\s+(?:case|date|hearing|battle|order)|in\s+court|being\s+sued|restraining\s+order|custody)\b",
+    re.IGNORECASE)
 
 _FERTILITY_RX = re.compile(
-    r"\b(conceiv\w+|concept\w+|pregnan\w+|fertilit\w+|ivf|baby|"
-    r"trying\s+for\s+a\s+child)\b", re.IGNORECASE)
+    r"\b(conceiv\w+|conception|pregnan\w+|fertilit\w+|ivf|miscarr\w+|trying\s+for\s+a\s+(?:child|baby))\b",
+    re.IGNORECASE)
 
 # Concern labels the Ask engine sets, mapped to a disclaimer domain.
 _CONCERN_MAP = {
