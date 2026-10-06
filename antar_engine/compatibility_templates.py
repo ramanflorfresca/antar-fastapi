@@ -998,3 +998,205 @@ _DETAILS["marriage"] = {
                "temperament. This isn't a verdict against the marriage; karmically intense pairings "
                "are often the most transformative. But it will need conscious work, not hope."),
 }
+
+
+# ── Family, marriage and mentor reasons ────────────────────────────────────
+# spouse / sibling / parent / child / advisor each get their own wording. They
+# previously fell through to the generic line set and the BUSINESS headline
+# ("Two builders...") — wrong for a mother or a husband. Plain, warm, never a
+# prediction of doom. The `chemistry` lines for the family types read as
+# "ease of being together" (the layer carries no weight for them).
+import copy as _copy
+
+# Spouse: the marriage wording above (already authored for "marriage"), registered
+# under the canonical reason so nothing depends on the legacy alias.
+_BASE_LINES["spouse"] = _copy.deepcopy(_NEW_LINES["marriage"]["managerial"])
+_HEADLINES["spouse"] = dict(_HEADLINES["marriage"])
+_DETAILS["spouse"] = dict(_DETAILS["marriage"])
+
+_BASE_LINES["sibling"] = {
+    "soul": {
+        "FLOW":   "You and {b_name} grew up with the same inner compass — you simply understand each other.",
+        "MIXED":  "You and {b_name} share roots and have grown into some different values; that's normal for siblings.",
+        "STRAIN": "You and {b_name} want different things from life — it helps to stop expecting the same choices.",
+    },
+    "chemistry": {
+        "FLOW":   "Being around {b_name} feels easy and familiar.",
+        "MIXED":  "Time with {b_name} is warm, with the old teasing and the old sore spots.",
+        "STRAIN": "The everyday rhythm with {b_name} can rub, even with real love underneath.",
+    },
+    "public": {
+        "FLOW":   "To the rest of the family, you and {b_name} read as a solid pair.",
+        "MIXED":  "How you and {b_name} come across to relatives is mostly steady.",
+        "STRAIN": "The family sees you and {b_name} differently — try not to let others referee.",
+    },
+    "lifepath": {
+        "FLOW":   "Your life seasons and {b_name}'s are supporting each other right now.",
+        "MIXED":  "You and {b_name} are partly in step — some years bring you close, some pull you apart.",
+        "STRAIN": "You and {b_name} are in very different seasons, which colors how you show up for each other.",
+    },
+    "communication": {
+        "FLOW":   "You and {b_name} can say things straight and still be fine afterwards.",
+        "MIXED":  "You and {b_name} talk well when you slow down and leave the old roles at the door.",
+        "STRAIN": "You and {b_name} slip into childhood patterns fast — naming them is half the fix.",
+    },
+    "friction": {
+        "FLOW":   "Little old rivalry sits between you and {b_name}.",
+        "MIXED":  "A touch of rivalry with {b_name} is workable when it's said out loud.",
+        "STRAIN": "An old pattern between you and {b_name} keeps resurfacing — it softens when one of you stops playing the old part.",
+    },
+}
+
+_BASE_LINES["parent"] = {
+    "soul": {
+        "FLOW":   "You and your parent {b_name} hold values in much the same way — the bond rests on shared ground.",
+        "MIXED":  "You and {b_name} share a deep root and hold some values differently — love without needing agreement.",
+        "STRAIN": "{b_name}'s values and yours sit far apart — the bond asks for acceptance more than agreement.",
+    },
+    "chemistry": {
+        "FLOW":   "Being with {b_name} feels familiar and steadying.",
+        "MIXED":  "Time with {b_name} is warm, with the usual generational friction.",
+        "STRAIN": "The day-to-day rhythm with {b_name} can wear on you, even with love underneath.",
+    },
+    "public": {
+        "FLOW":   "To the wider family, you and {b_name} read as close and respectful.",
+        "MIXED":  "How you and {b_name} appear to others is mostly steady.",
+        "STRAIN": "The family sees your bond with {b_name} through its own lens — you don't owe anyone an explanation.",
+    },
+    "lifepath": {
+        "FLOW":   "{b_name}'s life season and yours are supporting each other right now.",
+        "MIXED":  "You and {b_name} are partly in step — some stretches bring you close, some call for patience.",
+        "STRAIN": "You and {b_name} are in very different seasons, so your needs can miss each other for a while.",
+    },
+    "communication": {
+        "FLOW":   "You and {b_name} can speak openly and be heard.",
+        "MIXED":  "You and {b_name} communicate well once you slow down and listen for what's underneath.",
+        "STRAIN": "You and {b_name} fall into old roles — a calmer, shorter conversation often reaches further.",
+    },
+    "friction": {
+        "FLOW":   "Little unspoken tension sits between you and {b_name}.",
+        "MIXED":  "Some tension with {b_name} is manageable with a little patience on both sides.",
+        "STRAIN": "A long-standing tension with {b_name} keeps surfacing — gentle boundaries help more than winning the point.",
+    },
+}
+
+_BASE_LINES["child"] = {
+    "soul": {
+        "FLOW":   "You and your child {b_name} share a natural understanding of what matters.",
+        "MIXED":  "You and {b_name} share a deep bond and hold some things differently — that's how a child becomes themselves.",
+        "STRAIN": "{b_name} is wired differently from you — the work is to see who they are rather than who you pictured.",
+    },
+    "chemistry": {
+        "FLOW":   "Time with {b_name} comes easily and fills you both up.",
+        "MIXED":  "Time with {b_name} is warm, with the usual push and pull of raising someone.",
+        "STRAIN": "The daily rhythm with {b_name} can be tiring — it eases when you meet their pace.",
+    },
+    "public": {
+        "FLOW":   "Others see a warm, trusting bond between you and {b_name}.",
+        "MIXED":  "How you and {b_name} come across to others is mostly steady.",
+        "STRAIN": "{b_name} may show the world a different side than they show you — trust the bond underneath.",
+    },
+    "lifepath": {
+        "FLOW":   "{b_name}'s season and yours are lining up well right now.",
+        "MIXED":  "You and {b_name} are partly in step — some stretches are easy, some ask for patience.",
+        "STRAIN": "You and {b_name} are in very different seasons, so what they need and what you can give may not match yet.",
+    },
+    "communication": {
+        "FLOW":   "{b_name} opens up to you, and you can hear them.",
+        "MIXED":  "You and {b_name} talk well when you ask more and advise less.",
+        "STRAIN": "{b_name} may go quiet when you push — listening first usually opens the door.",
+    },
+    "friction": {
+        "FLOW":   "Little tension sits between you and {b_name}.",
+        "MIXED":  "Some friction with {b_name} is a normal part of growing up and is workable with steadiness.",
+        "STRAIN": "A real friction pattern with {b_name} keeps coming up — firm, warm limits work better than control.",
+    },
+}
+
+_BASE_LINES["advisor"] = {
+    "soul": {
+        "FLOW":   "{b_name} cares about what you care about — their guidance comes from shared values.",
+        "MIXED":  "{b_name} values some different things than you do; take the advice, then check it against your own compass.",
+        "STRAIN": "{b_name}'s sense of what matters differs from yours — weigh their counsel against your own values.",
+    },
+    "chemistry": {
+        "FLOW":   "Conversations with {b_name} feel natural and encouraging.",
+        "MIXED":  "Rapport with {b_name} builds with time.",
+        "STRAIN": "The rapport with {b_name} takes effort — don't mistake that for poor advice.",
+    },
+    "public": {
+        "FLOW":   "{b_name} understands your world and can open doors in it.",
+        "MIXED":  "{b_name} knows part of your world well and part less so — use them where they're strong.",
+        "STRAIN": "{b_name}'s world and yours don't overlap much — treat their advice as a fresh outside view.",
+    },
+    "lifepath": {
+        "FLOW":   "Your timing and {b_name}'s line up — their guidance lands when you're ready for it.",
+        "MIXED":  "Your seasons and {b_name}'s partly overlap — some advice will fit now, some later.",
+        "STRAIN": "You and {b_name} are in different seasons — their advice may suit a stage you're not in yet.",
+    },
+    "communication": {
+        "FLOW":   "You and {b_name} understand each other quickly — their counsel is easy to trust and to use.",
+        "MIXED":  "You and {b_name} communicate well once you say plainly what you need from them.",
+        "STRAIN": "You and {b_name} don't always hear each other the same way — ask them to put the key advice in writing.",
+    },
+    "friction": {
+        "FLOW":   "Little friction sits between you and {b_name} — you can take their honest view without bristling.",
+        "MIXED":  "Some friction with {b_name} is useful — it can sharpen your thinking if you stay open.",
+        "STRAIN": "There's some tension with {b_name} — keep the relationship clear about what it is for.",
+    },
+}
+
+_HEADLINES["sibling"] = {
+    "FLOW":   "An easy, lifelong bond — you've got each other's backs without trying.",
+    "MIXED":  "A real sibling bond with the old edges — warmth wins when you leave the roles behind.",
+    "STRAIN": "A bond across a real gap — it asks you to meet who they are now.",
+}
+_HEADLINES["parent"] = {
+    "FLOW":   "A steady, supportive bond — understanding runs both ways.",
+    "MIXED":  "A loving bond with the usual generational edges — patience carries it.",
+    "STRAIN": "Deep love across a real gap — the bond asks for understanding more than agreement.",
+}
+_HEADLINES["child"] = {
+    "FLOW":   "A close, easy bond — you understand each other's rhythm.",
+    "MIXED":  "A warm bond with the normal push and pull of raising someone — steadiness carries it.",
+    "STRAIN": "A bond that asks you to meet them where they are — firm, warm and patient.",
+}
+_HEADLINES["advisor"] = {
+    "FLOW":   "A guide worth trusting — their counsel fits you and your moment.",
+    "MIXED":  "Useful counsel with some gaps — take the advice and check it against your own sense.",
+    "STRAIN": "A different vantage point — valuable as an outside view, but weigh it carefully.",
+}
+
+_DETAILS["sibling"] = {
+    "FLOW":   "{a_name} and {b_name} share a bond that runs easily — similar instincts and a natural understanding that tends to last through every season of life.",
+    "MIXED":  "{a_name} and {b_name} love each other with the ordinary sibling edges. Leaving the old childhood roles behind and listening to who the other is now makes the bond warmer.",
+    "STRAIN": "{a_name} and {b_name} are quite different people with a lot of history. The bond endures, and it softens when each of you lets the other be who they are now.",
+}
+_DETAILS["parent"] = {
+    "FLOW":   "{a_name} and {b_name} share a steady bond with understanding running both ways. It tends to support you both through the long arc of life.",
+    "MIXED":  "{a_name} and {b_name} love each other with the usual generational edges. A little patience and honest listening carry the bond through the harder stretches.",
+    "STRAIN": "{a_name} and {b_name} love each other across a real gap in values or rhythm. The bond endures; it asks for understanding and kind boundaries more than agreement.",
+}
+_DETAILS["child"] = {
+    "FLOW":   "{a_name} and {b_name} share a close, natural bond. Your rhythms fit, and it is easier than most to be supportive without having to push.",
+    "MIXED":  "{a_name} and {b_name} have a warm bond with the normal tension of raising someone. Asking more than telling, and staying steady, keeps the door open.",
+    "STRAIN": "{a_name} and {b_name} are wired differently, and that can be tiring. The work is to see {b_name} for who they are and offer steady, warm limits rather than control.",
+}
+_DETAILS["advisor"] = {
+    "FLOW":   "Read as a counsel fit, {b_name} should be easy for {a_name} to learn from — their guidance comes from shared values and lands at the right time.",
+    "MIXED":  "Read as a counsel fit, {b_name} can help {a_name} with some clear gaps. Say plainly what you want from them, then check their advice against your own judgment.",
+    "STRAIN": "Read as a counsel fit, {b_name} sees things differently from {a_name}. That can be valuable as an outside view; weigh it carefully and keep the purpose of the relationship clear.",
+}
+
+
+def reasons_with_templates() -> tuple:
+    """Every reason that has its own (non-fallback) headline, detail and a line for
+    every layer and badge. Used by the coverage test."""
+    out = []
+    for r in _HEADLINES:
+        if r not in _DETAILS:
+            continue
+        lines = _BASE_LINES.get(r) or (_NEW_LINES.get(r, {}).get("managerial"))
+        if lines and all(lines.get(layer, {}).get(b) for layer in LAYER_ORDER for b in BADGES):
+            out.append(r)
+    return tuple(out)

@@ -13,10 +13,12 @@ Direction is encoded in the reason (never an exposed switch):
 # ── reason directory ─────────────────────────────────────────────────────────
 REASON_DEFINITIONS = {
     "romantic":        {"label": "Romantic partner",        "needs_role": False, "direction": None},
+    "spouse":          {"label": "My husband or wife",      "needs_role": False, "direction": None},
     "business":        {"label": "Business partner",        "needs_role": False, "direction": None},
     "cofounder":       {"label": "Cofounder",               "needs_role": False, "direction": None},
     "friend":          {"label": "Friend",                  "needs_role": False, "direction": None},
     "family":          {"label": "Family member",           "needs_role": False, "direction": None},
+    "sibling":         {"label": "My brother or sister",    "needs_role": False, "direction": None},
     "parent":          {"label": "My parent",               "needs_role": False, "direction": None},
     "child":           {"label": "My child",                "needs_role": False, "direction": None},
     "advisor":         {"label": "Advisor or mentor",       "needs_role": False, "direction": None},
@@ -44,7 +46,9 @@ REASON_WEIGHTS = {
     "cofounder":       {"soul": 20, "chemistry": 5,  "public": 25, "lifepath": 25, "communication": 15, "friction": 10},
     "business":        {"soul": 10, "chemistry": 5,  "public": 30, "lifepath": 25, "communication": 20, "friction": 10},
     "friend":          {"soul": 25, "chemistry": 5,  "public": 10, "lifepath": 15, "communication": 25, "friction": 20},
+    "spouse":          {"soul": 25, "chemistry": 15, "public": 10, "lifepath": 20, "communication": 15, "friction": 15},
     "family":          {"soul": 30, "chemistry": 0,  "public": 5,  "lifepath": 25, "communication": 20, "friction": 20},
+    "sibling":         {"soul": 25, "chemistry": 0,  "public": 10, "lifepath": 20, "communication": 25, "friction": 20},
     "parent":          {"soul": 30, "chemistry": 0,  "public": 5,  "lifepath": 25, "communication": 25, "friction": 15},
     "child":           {"soul": 30, "chemistry": 0,  "public": 5,  "lifepath": 20, "communication": 20, "friction": 25},
     "advisor":         {"soul": 20, "chemistry": 0,  "public": 25, "lifepath": 10, "communication": 35, "friction": 10},
@@ -74,6 +78,55 @@ V2_LAYER_SOURCES = {
     "communication": [("mercury_compatibility", 0.40), ("graha_maitri", 0.30), ("gana", 0.30)],
     "friction":      [("mutual_6_8", 0.45), ("nadi_dosha", 0.35), ("growth_areas_count", 0.20)],
 }
+
+# ── MARRIAGE-ONLY KUTAS ───────────────────────────────────────────────────
+# Nadi (constitution/progeny), Bhakoot (marital emotional/financial flow) and
+# Yoni (physical compatibility) are classical MARRIAGE-matching factors. They
+# say nothing about a parent, a sibling, a cofounder or a mentor, so they
+# contribute to the score only for these reasons.
+MARRIAGE_KUTA_REASONS = ("romantic", "spouse")
+MARRIAGE_ONLY_SOURCES = ("yoni", "bhakoot", "nadi_dosha")
+# Ashtakoot dimensions (Compatibility.py `dimension` strings) that are
+# marriage-only; growth_areas_count ignores them for every other reason.
+MARRIAGE_ONLY_DIMENSIONS = ("Physical & instinctual harmony",
+                            "Emotional & financial flow",
+                            "Constitutional compatibility")
+
+
+def uses_marriage_kutas(reason: str) -> bool:
+    return reason in MARRIAGE_KUTA_REASONS
+
+
+def _renorm(srcs):
+    tot = sum(w for _, w in srcs) or 1.0
+    return [(n, round(w / tot, 4)) for n, w in srcs]
+
+
+def _gate_sources(srcs):
+    """Drop the marriage-only sources from a layer's source list and renormalise
+    the remaining weights to sum to 1.0 (a layer left with none keeps a neutral
+    stand-in handled by the caller)."""
+    kept = [(n, w) for n, w in srcs if n not in MARRIAGE_ONLY_SOURCES]
+    return _renorm(kept) if kept else kept
+
+
+def sources_for_reason(reason: str) -> dict:
+    """Layer -> [(source, weight)] for a reason, with the marriage-only kutas
+    removed (and Graha Maitri dropped from communication, where it double-counted
+    the soul layer's use of the same number) for every non-marriage reason."""
+    base = V2_LAYER_SOURCES_BY_REASON.get(reason, V2_LAYER_SOURCES)
+    out = {}
+    for layer, srcs in base.items():
+        srcs = list(srcs)
+        if layer == "communication":
+            # Graha Maitri already feeds the soul layer; counting it twice made
+            # one number carry ~25% of the read.
+            srcs = _renorm([(n, w) for n, w in srcs if n != "graha_maitri"])
+        if not uses_marriage_kutas(reason):
+            srcs = _gate_sources(srcs) or srcs
+        out[layer] = srcs
+    return out
+
 
 # ── DIRECTIONAL EXTENSION (employee / boss-or-manager) ────────────────────
 # Asymmetric house-exchange spec per the reason-routing brief. The dominant
@@ -159,23 +212,44 @@ def tier(score: int) -> str:
     return "LOW"
 
 
+_ALIASES = {
+    "boss": "boss-or-manager", "manager": "boss-or-manager",
+    "boss_or_manager": "boss-or-manager", "boss-manager": "boss-or-manager",
+    "relationship": "romantic", "partner": "romantic", "dating": "romantic",
+    "boyfriend": "romantic", "girlfriend": "romantic", "lover": "romantic",
+    # Marriage is its own reading (classical marriage factors apply), not dating.
+    "marriage": "spouse", "married": "spouse", "husband": "spouse",
+    "wife": "spouse", "marriage-partner": "spouse",
+    "co-founder": "cofounder", "co_founder": "cofounder",
+    "mother": "parent", "father": "parent", "mom": "parent", "mum": "parent",
+    "dad": "parent", "parents": "parent", "parent-child": "parent",
+    "son": "child", "daughter": "child", "kid": "child", "kids": "child",
+    "brother": "sibling", "sister": "sibling", "siblings": "sibling",
+    "mentor": "advisor", "adviser": "advisor", "consultant": "advisor",
+    "counsel": "advisor", "counselor": "advisor", "coach": "advisor",
+    "guide": "advisor",
+    "sounding-board": "advisor", "sounding board": "advisor",
+}
+
+
+def resolve_reason(raw):
+    """Strict resolver: the canonical reason for `raw` (alias-tolerant), or None
+    when it is blank or not a known type. Use this at the API boundary so an
+    unrecognised string is rejected instead of silently becoming another type."""
+    key = (raw or "").strip().lower()
+    if not key:
+        return None
+    key = _ALIASES.get(key, key)
+    return key if key in REASON_DEFINITIONS else None
+
+
 def normalize_reason(compat_type=None, mode=None, default="romantic") -> str:
-    """Resolve the effective reason from compat_type (preferred) or legacy mode."""
+    """Resolve the effective reason from compat_type (preferred) or legacy mode.
+
+    Lenient (falls back to `default`) — meant for stored/legacy values being
+    reopened. API input goes through resolve_reason() and is rejected if unknown."""
     raw = (compat_type or mode or default or "").strip().lower()
-    # tolerant aliases
-    aliases = {
-        "boss": "boss-or-manager", "manager": "boss-or-manager",
-        "boss_or_manager": "boss-or-manager", "boss-manager": "boss-or-manager",
-        "relationship": "romantic", "partner": "romantic", "marriage": "romantic",
-        "co-founder": "cofounder", "co_founder": "cofounder",
-        "mother": "parent", "father": "parent", "mom": "parent", "mum": "parent",
-        "dad": "parent", "parents": "parent", "parent-child": "parent",
-        "son": "child", "daughter": "child", "kid": "child", "kids": "child",
-        "mentor": "advisor", "adviser": "advisor", "consultant": "advisor",
-        "counsel": "advisor", "counselor": "advisor", "coach": "advisor",
-        "sounding-board": "advisor", "sounding board": "advisor",
-    }
-    raw = aliases.get(raw, raw)
+    raw = _ALIASES.get(raw, raw)
     return raw if raw in REASON_DEFINITIONS else default
 
 
@@ -193,9 +267,12 @@ _REASON_I18N = {
             "boss-or-manager": "Alguien a quien le reporto",
             "parent": "Mi padre o madre", "child": "Mi hijo o hija",
             "advisor": "Asesor o mentor",
+            "spouse": "Mi esposo o esposa", "sibling": "Mi hermano o hermana",
         },
         "question": {
             "romantic": "¿Cómo somos como pareja?",
+            "spouse": "¿Qué sostiene nuestro matrimonio?",
+            "sibling": "¿Qué sostiene este vínculo con mi hermano o hermana?",
             "advisor": "¿Puedo confiar en su consejo?",
             "cofounder": "¿Deberíamos construir esta empresa juntos?",
             "business": "¿Funcionará esta sociedad?",
@@ -207,11 +284,13 @@ _REASON_I18N = {
             "boss-or-manager": "¿Prosperaré con esta persona como líder?",
         },
         "sublabel": {
-            "romantic": "Pareja, matrimonio, noviazgo",
+            "romantic": "Noviazgo, una relación en construcción",
+            "spouse": "Tu esposo o esposa",
+            "sibling": "Tu hermano o hermana",
             "cofounder": "Sociedad con participación accionaria",
             "business": "Negocio o contrato en general",
             "friend": "No romántica, platónica",
-            "family": "Hermanos, suegros, familia extendida",
+            "family": "Suegros, familia extendida",
             "parent": "Tu madre o padre",
             "child": "Tu hijo o hija",
             "advisor": "Mentor, consejero, asesor de confianza",
@@ -237,9 +316,12 @@ _REASON_I18N = {
             "boss-or-manager": "Alguém a quem eu reporto",
             "parent": "Meu pai ou mãe", "child": "Meu filho ou filha",
             "advisor": "Conselheiro(a) ou mentor(a)",
+            "spouse": "Meu marido ou esposa", "sibling": "Meu irmão ou irmã",
         },
         "question": {
             "romantic": "Como somos como casal?",
+            "spouse": "O que sustenta o nosso casamento?",
+            "sibling": "O que sustenta este vínculo com meu irmão ou irmã?",
             "advisor": "Posso confiar no conselho dele(a)?",
             "cofounder": "Devemos construir esta empresa juntos?",
             "business": "Esta parceria vai funcionar?",
@@ -251,11 +333,13 @@ _REASON_I18N = {
             "boss-or-manager": "Vou prosperar com esta pessoa como líder?",
         },
         "sublabel": {
-            "romantic": "Parceria, casamento, namoro",
+            "romantic": "Namoro, uma relação em construção",
+            "spouse": "Seu marido ou esposa",
+            "sibling": "Seu irmão ou irmã",
             "cofounder": "Sociedade com participação societária",
             "business": "Negócio ou contrato em geral",
             "friend": "Não romântica, platônica",
-            "family": "Irmãos, sogros, família estendida",
+            "family": "Sogros, família estendida",
             "parent": "Seu pai ou mãe",
             "child": "Seu filho ou filha",
             "advisor": "Mentor, conselheiro, assessor de confiança",
@@ -289,11 +373,13 @@ def reasons_directory(language: str = "en") -> dict:
         return (tbl.get(group) or {}).get(key) or fallback
 
     questions = {
-        "romantic":        ("How are we as a couple?",                "Partnership, marriage, dating"),
+        "romantic":        ("How are we as a couple?",                "Dating, a relationship still taking shape"),
+        "spouse":          ("What holds our marriage together?",      "Your husband or wife"),
         "cofounder":       ("Should we build this company together?", "Equity-tied venture partnership"),
         "business":        ("Will this partnership work?",            "Generic business or contractual"),
         "friend":          ("What is our friendship made of?",        "Non-romantic, platonic"),
-        "family":          ("What does this relationship ask of me?", "Siblings, in-laws, extended family"),
+        "family":          ("What does this relationship ask of me?", "In-laws, extended family"),
+        "sibling":         ("What does this bond with my sibling hold?", "Your brother or sister"),
         "parent":          ("What does this bond with my parent hold?", "Your mother or father"),
         "child":           ("What does this bond with my child hold?",  "Your son or daughter"),
         "advisor":         ("Can I trust their counsel?",              "Mentor, advisor, sounding board"),
@@ -315,7 +401,7 @@ def reasons_directory(language: str = "en") -> dict:
         for r in role_dir
     ]
     # Stable display order (employer/report last, per the picker design).
-    order = ["romantic", "cofounder", "business", "advisor", "friend", "family", "parent", "child", "employee", "boss-or-manager"]
+    order = ["romantic", "spouse", "cofounder", "business", "advisor", "friend", "family", "sibling", "parent", "child", "employee", "boss-or-manager"]
     out = []
     for key in order:
         d = REASON_DEFINITIONS[key]

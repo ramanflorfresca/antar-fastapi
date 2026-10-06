@@ -203,7 +203,17 @@ def resolve_source(name: str, engine_result: dict, chart_a: dict, chart_b: dict)
     if name == "nadi_dosha":
         return _nadi_score(engine_result)
     if name == "growth_areas_count":
-        n = len(engine_result.get("growth_areas", []) or [])
+        areas = engine_result.get("growth_areas", []) or []
+        _rsn = engine_result.get("_reason")
+        if _rsn:
+            from antar_engine import compatibility_reasons as _R0
+            if not _R0.uses_marriage_kutas(_rsn):
+                # Nadi/Bhakoot/Yoni gaps are marriage-matching facts; they must not
+                # count as "friction" in a parent/sibling/business/mentor read.
+                areas = [g for g in areas if not (
+                    isinstance(g, dict)
+                    and g.get("dimension") in _R0.MARRIAGE_ONLY_DIMENSIONS)]
+        n = len(areas)
         return float(max(0, 100 - n * 15))
     if name == "house_exchange_their_to_your":
         # Directional dominant term for employee / boss-or-manager.
@@ -469,14 +479,16 @@ def compose_six_layers(compat_raw: dict, chart_a: dict, chart_b: dict,
     role_mods = R.ROLE_MODIFIERS.get(role, {}) if reason in R.ROLE_REQUIRED_REASONS else {}
 
     # Per-reason source map override (asymmetric reasons swap the public layer).
-    sources_by_reason = getattr(R, 'V2_LAYER_SOURCES_BY_REASON', {})
-    sources_map = sources_by_reason.get(reason, R.V2_LAYER_SOURCES)
+    # Marriage-only kutas (Nadi/Bhakoot/Yoni) are gated out for every reason but
+    # romantic/spouse; Graha Maitri no longer double-counts in communication.
+    sources_map = R.sources_for_reason(reason)
+    compat_raw = dict(compat_raw)
+    compat_raw['_reason'] = reason
     # Per-reason layer label override (employee / boss-or-manager).
     label_overrides = getattr(R, 'REASON_LAYER_LABELS', {}).get(reason, {})
     # Make the directional houses spec available to resolve_source.
     _dir_spec = getattr(R, 'DIRECTIONAL_HOUSES', {}).get(reason)
     if _dir_spec:
-        compat_raw = dict(compat_raw)
         compat_raw['_directional_houses'] = _dir_spec
 
     for key in R.LAYER_ORDER:
@@ -495,6 +507,10 @@ def compose_six_layers(compat_raw: dict, chart_a: dict, chart_b: dict,
             "headline": headline,
             "detail": detail,
             "weight_in_this_reason": weights.get(key, 0),
+            # False when this layer carries no weight for the reason (e.g.
+            # chemistry in a parent read): shown for context only, never surfaced
+            # as a catalyst/watch-point and never part of the score.
+            "applicable": weights.get(key, 0) > 0,
             "badges": [],
         })
     return layers
@@ -557,8 +573,12 @@ def compose_compat_v2(compat_raw: dict, chart_a: dict, chart_b: dict,
     ov_badge = R.badge(score)
     headline, summary = TPL.v2_overall(reason, ov_badge, a_name, b_name)
 
-    watch_points = [l["detail"] for l in layers if l["score"] < 50][:3]
-    catalysts = [l["detail"] for l in layers if l["score"] >= 75][:3]
+    # Only layers that actually carry weight for this reason may be surfaced —
+    # a zero-weight layer must not outrank a weighted one in the highlights.
+    _wl = [l for l in layers if (l.get("weight_in_this_reason") or 0) > 0]
+    _wl.sort(key=lambda l: -(l.get("weight_in_this_reason") or 0))
+    watch_points = [l["detail"] for l in _wl if l["score"] < 50][:3]
+    catalysts = [l["detail"] for l in _wl if l["score"] >= 75][:3]
     direction = R.REASON_DEFINITIONS.get(reason, {}).get("direction")
 
     payload = {

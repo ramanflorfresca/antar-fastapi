@@ -103,11 +103,76 @@ YIN_YANG_PAIRS = {
 
 # ── Ashtakoot System (8-point compatibility, 36 total points) ──────────────
 
+def _nak_key(name) -> str:
+    """Lower-case, letters only: 'Purva Bhadrapada' / 'purvabhadrapada' / 'Poorva-Bhadra' compare equal."""
+    import unicodedata
+    t = unicodedata.normalize("NFKD", str(name or ""))
+    return "".join(ch for ch in t.lower() if ch.isalpha() and ord(ch) < 128)
+
+
+# Spelling variants seen across the codebase / chart sources -> canonical name
+# (the spelling used by NAKSHATRAS and every lookup table in this module).
+# chart.py spells Ashvini/Dhanishta; the tables here spell Ashwini/Dhanishtha.
+_NAK_VARIANTS = {
+    "ashvini": "Ashwini", "aswini": "Ashwini", "asvini": "Ashwini",
+    "apabharani": "Bharani",
+    "kritika": "Krittika", "krithika": "Krittika",
+    "mrigasira": "Mrigashira", "mrigashirsha": "Mrigashira",
+    "mrigasirsa": "Mrigashira", "mriga": "Mrigashira",
+    "arudra": "Ardra", "thiruvathirai": "Ardra",
+    "punarpoosam": "Punarvasu",
+    "pushyami": "Pushya", "pusya": "Pushya", "poosam": "Pushya",
+    "aslesha": "Ashlesha", "ashlesa": "Ashlesha", "aayilyam": "Ashlesha",
+    "makha": "Magha",
+    "purvaphalgunee": "Purva Phalguni", "poorvaphalguni": "Purva Phalguni",
+    "pubba": "Purva Phalguni", "purvaphalguna": "Purva Phalguni",
+    "uttaraphalgunee": "Uttara Phalguni", "uttaphalguni": "Uttara Phalguni",
+    "uttaraphalguna": "Uttara Phalguni",
+    "hastha": "Hasta",
+    "chitta": "Chitra",
+    "svati": "Swati", "swathi": "Swati",
+    "visakha": "Vishakha", "vishaka": "Vishakha",
+    "anuradah": "Anuradha", "anooradha": "Anuradha",
+    "jyestha": "Jyeshtha", "jyeshta": "Jyeshtha",
+    "moola": "Mula", "mool": "Mula",
+    "purvashadha": "Purva Ashadha", "poorvashadha": "Purva Ashadha",
+    "purvaashada": "Purva Ashadha", "purvaasadha": "Purva Ashadha",
+    "uttarashadha": "Uttara Ashadha", "uttaraashada": "Uttara Ashadha",
+    "uttaraasadha": "Uttara Ashadha",
+    "sravana": "Shravana", "shravan": "Shravana", "thiruvonam": "Shravana",
+    "dhanishta": "Dhanishtha", "dhanista": "Dhanishtha",
+    "shravishtha": "Dhanishtha", "shravishta": "Dhanishtha",
+    "satabhisha": "Shatabhisha", "shatabisha": "Shatabhisha",
+    "shatataraka": "Shatabhisha", "satabhishak": "Shatabhisha", "shatabhishak": "Shatabhisha",
+    "purvabhadra": "Purva Bhadrapada", "poorvabhadrapada": "Purva Bhadrapada",
+    "purvabhadrapad": "Purva Bhadrapada", "purvaproshthapada": "Purva Bhadrapada",
+    "uttarabhadra": "Uttara Bhadrapada", "uttarabhadrapad": "Uttara Bhadrapada",
+    "uttaraproshthapada": "Uttara Bhadrapada",
+    "revathi": "Revati",
+}
+# every canonical name resolves to itself, whatever spacing/case it arrives in
+_NAK_VARIANTS.update({_nak_key(n): n for n in NAKSHATRAS})
+
+
+def normalize_nakshatra(name):
+    """Canonical nakshatra name (as in NAKSHATRAS), or None when unrecognised /
+    missing. Call this at every lookup boundary so a spelling difference
+    (Ashvini vs Ashwini, Dhanishta vs Dhanishtha) can never make a .get() fall
+    silently to its default."""
+    if not name:
+        return None
+    return _NAK_VARIANTS.get(_nak_key(name))
+
+
+def _moon_nak(chart: dict):
+    """(canonical nakshatra or None, raw value) for a chart's Moon."""
+    raw = ((chart or {}).get("planets") or {}).get("Moon", {}).get("nakshatra")
+    return normalize_nakshatra(raw), raw
+
+
 def _get_nakshatra_index(nakshatra_name: str) -> int:
-    try:
-        return NAKSHATRAS.index(nakshatra_name)
-    except ValueError:
-        return 0
+    canon = normalize_nakshatra(nakshatra_name)
+    return NAKSHATRAS.index(canon) if canon else 0
 
 def _varna_score(chart_a: dict, chart_b: dict) -> dict:
     """Varna — spiritual/psychological compatibility. Max 1 point."""
@@ -184,34 +249,56 @@ def _vashya_score(chart_a: dict, chart_b: dict) -> dict:
         "yin_yang": "Low Vashya doesn't mean low attraction — it means the attraction is more intellectual or karmic than immediate.",
     }
 
-def _tara_score(chart_a: dict, chart_b: dict) -> dict:
-    """Tara — birth star compatibility. Max 3 points."""
-    nak_a = chart_a.get("planets",{}).get("Moon",{}).get("nakshatra","Ashwini")
-    nak_b = chart_b.get("planets",{}).get("Moon",{}).get("nakshatra","Ashwini")
-    idx_a = _get_nakshatra_index(nak_a)
-    idx_b = _get_nakshatra_index(nak_b)
+# Classical Tara (birth-star) cycle, counted from one nakshatra to the other and
+# reduced mod 9. Auspicious: Sampat 2, Kshema 4, Sadhana 6, Mitra 8, Param-mitra 9.
+# Inauspicious: Vipat 3, Pratyak 5, Naidhana 7. Janma 1 is neutral.
+TARA_NAMES = {1: "Janma", 2: "Sampat", 3: "Vipat", 4: "Kshema", 5: "Pratyak",
+              6: "Sadhana", 7: "Naidhana", 8: "Mitra", 9: "Param Mitra"}
+GOOD_TARAS = (2, 4, 6, 8, 9)
+BAD_TARAS = (3, 5, 7)
+NEUTRAL_TARAS = (1,)
 
-    # Count from A's nakshatra to B's
-    count = ((idx_b - idx_a) % 27) + 1
-    tara_num = ((count - 1) % 9) + 1
 
-    # Tara categories
-    GOOD_TARAS = [1, 3, 5, 7]  # Janma, Vipat reduction, Kshema, Mitra, Param Mitra
-    NEUTRAL_TARAS = [2, 6]
-    BAD_TARAS = [4, 8, 9]
+def tara_number(idx_from: int, idx_to: int) -> int:
+    """Tara (1..9) of the star `idx_to` counted from the star `idx_from`."""
+    count = ((idx_to - idx_from) % 27) + 1
+    return ((count - 1) % 9) + 1
 
+
+def _tara_points(tara_num: int) -> float:
+    """Half of the 3-point Tara kuta per direction: 1.5 good, 0.75 Janma, 0 bad."""
     if tara_num in GOOD_TARAS:
-        score = 3
+        return 1.5
+    if tara_num in BAD_TARAS:
+        return 0.0
+    return 0.75
+
+
+def _tara_score(chart_a: dict, chart_b: dict) -> dict:
+    """Tara — birth star compatibility. Max 3 points, BOTH directions counted
+    (A's star to B's, and B's star to A's), 1.5 points each."""
+    nak_a, raw_a = _moon_nak(chart_a)
+    nak_b, raw_b = _moon_nak(chart_b)
+    if not nak_a or not nak_b:
+        # no usable nakshatra: say so (neutral half-score) rather than rate Ashwini-vs-Ashwini
+        return {
+            "name": "Tara", "max": 3, "score": 1.5,
+            "a_value": raw_a or "", "b_value": raw_b or "",
+            "dimension": "Destiny alignment", "match_pct": 50,
+            "tara_label": "Unknown", "tara_number": None, "tara_numbers": None,
+            "narrative_match": "", "narrative_work": "", "yin_yang": "",
+        }
+    idx_a = NAKSHATRAS.index(nak_a)
+    idx_b = NAKSHATRAS.index(nak_b)
+    t_ab = tara_number(idx_a, idx_b)
+    t_ba = tara_number(idx_b, idx_a)
+    score = _tara_points(t_ab) + _tara_points(t_ba)
+    if score >= 2.25:
         label = "Favorable"
-    elif tara_num in NEUTRAL_TARAS:
-        score = 1
+    elif score >= 1.0:
         label = "Neutral"
     else:
-        score = 0
         label = "Challenging"
-
-    TARA_NAMES = {1:"Janma",2:"Sampat",3:"Vipat",4:"Kshema",5:"Pratyak",
-                  6:"Sadhana",7:"Naidhana",8:"Mitra",9:"Param Mitra"}
 
     return {
         "name": "Tara",
@@ -222,9 +309,11 @@ def _tara_score(chart_a: dict, chart_b: dict) -> dict:
         "dimension": "Destiny alignment",
         "match_pct": round(score / 3 * 100),
         "tara_label": label,
-        "tara_number": tara_num,
-        "narrative_match": f"Star alignment supports the relationship's longevity and shared destiny.",
-        "narrative_work": f"The star pattern suggests this relationship requires more conscious navigation. The challenge IS the growth.",
+        "tara_number": t_ab,
+        "tara_numbers": {"a_to_b": t_ab, "b_to_a": t_ba},
+        "tara_names": {"a_to_b": TARA_NAMES[t_ab], "b_to_a": TARA_NAMES[t_ba]},
+        "narrative_match": "Star alignment supports the relationship's longevity and shared destiny.",
+        "narrative_work": "The star pattern suggests this relationship requires more conscious navigation. The challenge IS the growth.",
         "yin_yang": "Challenging Tara often indicates a karmic relationship — one that teaches what comfortable relationships don't.",
     }
 
@@ -273,10 +362,11 @@ def _yoni_score(chart_a: dict, chart_b: dict) -> dict:
         [  2,  2,  3,  0,  1,  2,  3,  2,  2,  2,  2,  3,  2,  4],  # Mongoose
     ]
 
-    nak_a = chart_a.get("planets",{}).get("Moon",{}).get("nakshatra","Ashwini")
-    nak_b = chart_b.get("planets",{}).get("Moon",{}).get("nakshatra","Ashwini")
-    ya = YONI_MAP.get(nak_a, "Horse")
-    yb = YONI_MAP.get(nak_b, "Horse")
+    nak_a, _ = _moon_nak(chart_a)
+    nak_b, _ = _moon_nak(chart_b)
+    # unknown nakshatra -> None (NOT silently "Horse"); scored neutral below
+    ya = YONI_MAP.get(nak_a) if nak_a else None
+    yb = YONI_MAP.get(nak_b) if nak_b else None
 
     try:
         score = _YONI_TABLE[_YONI_ORDER.index(ya)][_YONI_ORDER.index(yb)]
@@ -297,28 +387,43 @@ def _yoni_score(chart_a: dict, chart_b: dict) -> dict:
         "yin_yang": "Opposite Yoni animals often have the most intense chemistry — the friction creates heat.",
     }
 
+def _maitri_points(src: str, dst: str) -> float:
+    """One-directional Graha Maitri points (0-5) of `dst` as seen from `src`."""
+    if src == dst:
+        return 5.0
+    t = PLANET_FRIENDS.get(src, {})
+    if dst in t.get("friends", []):
+        return 4.0
+    if dst in t.get("neutral", []):
+        return 3.0
+    if dst in t.get("enemies", []):
+        return 1.0
+    return 2.0
+
+
 def _graha_maitri_score(chart_a: dict, chart_b: dict) -> dict:
-    """Graha Maitri — mental/psychological compatibility. Max 5 points."""
+    """Graha Maitri — mental/psychological compatibility. Max 5 points.
+
+    Mutual: the friendship is read in BOTH directions (A's Moon-sign lord toward
+    B's, and B's toward A's) and averaged. The table is not symmetric (Moon
+    counts Mercury a friend but Mercury counts Moon an enemy), so a one-way read
+    gave a different answer depending on who was 'person A'."""
     moon_a = chart_a.get("planets",{}).get("Moon",{}).get("sign","Aries")
     moon_b = chart_b.get("planets",{}).get("Moon",{}).get("sign","Aries")
     ruler_a = SIGN_RULER.get(moon_a, "Sun")
     ruler_b = SIGN_RULER.get(moon_b, "Sun")
 
-    if ruler_a == ruler_b:
-        score = 5
+    score = (_maitri_points(ruler_a, ruler_b) + _maitri_points(ruler_b, ruler_a)) / 2.0
+    if score >= 5:
         rel = "Same ruler"
-    elif ruler_b in PLANET_FRIENDS.get(ruler_a, {}).get("friends", []):
-        score = 4
+    elif score >= 3.75:
         rel = "Mutual friends"
-    elif ruler_b in PLANET_FRIENDS.get(ruler_a, {}).get("neutral", []):
-        score = 3
+    elif score >= 2.75:
         rel = "Neutral"
-    elif ruler_b in PLANET_FRIENDS.get(ruler_a, {}).get("enemies", []):
-        score = 1
-        rel = "Enemies"
-    else:
-        score = 2
+    elif score >= 1.75:
         rel = "Mixed"
+    else:
+        rel = "Enemies"
 
     return {
         "name": "Graha Maitri",
@@ -336,10 +441,10 @@ def _graha_maitri_score(chart_a: dict, chart_b: dict) -> dict:
 
 def _gana_score(chart_a: dict, chart_b: dict) -> dict:
     """Gana — temperament compatibility. Max 6 points."""
-    nak_a = chart_a.get("planets",{}).get("Moon",{}).get("nakshatra","Ashwini")
-    nak_b = chart_b.get("planets",{}).get("Moon",{}).get("nakshatra","Ashwini")
-    gana_a = NAKSHATRA_GANA.get(nak_a, "Manav")
-    gana_b = NAKSHATRA_GANA.get(nak_b, "Manav")
+    nak_a, _ = _moon_nak(chart_a)
+    nak_b, _ = _moon_nak(chart_b)
+    gana_a = NAKSHATRA_GANA.get(nak_a, "Manav") if nak_a else "Manav"
+    gana_b = NAKSHATRA_GANA.get(nak_b, "Manav") if nak_b else "Manav"
 
     GANA_SCORES = {
         ("Dev","Dev"):6, ("Manav","Manav"):6, ("Rakshasa","Rakshasa"):6,
@@ -378,18 +483,17 @@ def _bhakoot_score(chart_a: dict, chart_b: dict) -> dict:
     count = ((idx_b - idx_a) % 12) + 1
     reverse = ((idx_a - idx_b) % 12) + 1
 
-    GOOD = [1, 3, 5, 7, 9, 11]
-    BAD = [2, 4, 6, 8, 10, 12]
-
-    if count in GOOD and reverse in GOOD:
-        score = 7
-        label = "Highly compatible"
-    elif count in GOOD or reverse in GOOD:
-        score = 4
-        label = "Moderately compatible"
-    else:
+    # Classical Bhakoot dosha is ONLY the three inauspicious sign relations:
+    # 2/12 (Dwirdwadash), 5/9 (Nava-pancham), 6/8 (Shadashtak). Every other
+    # relation (1/1, 3/11, 4/10, 7/7) scores the full 7. The old code scored
+    # 0 for "any even count", which flagged 4/10 and ordinary pairs as doshas.
+    DOSHA_PAIRS = {(2, 12), (12, 2), (5, 9), (9, 5), (6, 8), (8, 6)}
+    if (count, reverse) in DOSHA_PAIRS:
         score = 0
         label = "Challenging — requires work"
+    else:
+        score = 7
+        label = "Highly compatible"
 
     return {
         "name": "Bhakoot",
@@ -408,10 +512,23 @@ def _bhakoot_score(chart_a: dict, chart_b: dict) -> dict:
 
 def _nadi_score(chart_a: dict, chart_b: dict) -> dict:
     """Nadi — genetic/energetic compatibility. Max 8 points."""
-    nak_a = chart_a.get("planets",{}).get("Moon",{}).get("nakshatra","Ashwini")
-    nak_b = chart_b.get("planets",{}).get("Moon",{}).get("nakshatra","Ashwini")
-    nadi_a = NAKSHATRA_NADI.get(nak_a, "Adi")
-    nadi_b = NAKSHATRA_NADI.get(nak_b, "Madhya")
+    nak_a, _ = _moon_nak(chart_a)
+    nak_b, _ = _moon_nak(chart_b)
+    nadi_a = NAKSHATRA_NADI.get(nak_a) if nak_a else None
+    nadi_b = NAKSHATRA_NADI.get(nak_b) if nak_b else None
+
+    if not nadi_a or not nadi_b:
+        # Unknown nakshatra: no dosha is claimed (and no clean bill either) -
+        # neutral half-score. Previously the two defaults differed (Adi vs
+        # Madhya), so missing data always read as "different Nadi - favorable".
+        return {
+            "name": "Nadi", "max": 8, "score": 4,
+            "a_value": nadi_a or "", "b_value": nadi_b or "",
+            "dimension": "Constitutional compatibility",
+            "label": "Unknown - birth star unavailable",
+            "nadi_dosha": False, "match_pct": 50,
+            "narrative_match": "", "narrative_work": "", "yin_yang": "",
+        }
 
     if nadi_a == nadi_b:
         score = 0
