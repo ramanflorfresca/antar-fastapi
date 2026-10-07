@@ -34254,16 +34254,23 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                         result["highlight"] = (f"Today asks for care around {_say} — "
                                                "protect more than you push.")
                     elif _caution:
-                        # [house-say 2026-10-07] If the lead's PRIMARY signifier house
-                        # didn't fire (the activation came via its risk/secondary
+                        # [house-clarity 2026-10-07] If the lead's PRIMARY signifier
+                        # house didn't fire (activation came via its RISK/secondary
                         # house — e.g. speculation lit only on the 8th, not the 5th),
-                        # the opportunity side isn't actually lit: don't invite
-                        # "take it". `_say` already switched to the fired house's
-                        # phrase upstream (house_says).
-                        if _lead.get("primary_fired") is False:
-                            result["headline"]  = f"Watch for {_say} today — if you act, keep a hard stop."
-                            result["highlight"] = (f"Today's movement in {_say} comes via the risk side — "
-                                                   "don't force an opening; cap any downside.")
+                        # the opportunity side isn't lit: don't invite "take it", and
+                        # don't name an abstract house-theme ("a sudden or shared-money
+                        # turn" reads as jargon). Say the PLAIN, actionable caution.
+                        _risk_side = {
+                            "speculation": (
+                                "Not a day to take a money or speculative risk — hold off, and keep anything you're already in small.",
+                                "The risk side is what's active today, not an opening — don't start a new bet or financial move; protect what you have."),
+                            "travel": (
+                                "Travel and far-off plans can get bumpy today — keep them loose and don't over-commit.",
+                                "The unsettled side of travel and foreign matters is active — pad your schedule; don't force the distant thing."),
+                        }
+                        _rk = _lead.get("key")
+                        if _lead.get("primary_fired") is False and _rk in _risk_side:
+                            result["headline"], result["highlight"] = _risk_side[_rk]
                         else:
                             result["headline"]  = f"Today lights up {_say} — take it, but keep a stop."
                             result["highlight"] = (f"Today's momentum is in {_say} — lean in, "

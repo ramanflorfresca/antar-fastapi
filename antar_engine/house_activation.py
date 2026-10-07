@@ -45,16 +45,11 @@ DOMAIN_SWEEP: List[Dict[str, Any]] = [
     {"key": "money",        "label": "Money & wealth",    "houses": [2, 11],
      "karaka": ["Jupiter", "Venus"], "say": "money and income"},
     {"key": "speculation",  "label": "Risk & speculation", "houses": [5, 8],
-     "karaka": ["Mercury", "Rahu", "Jupiter"], "say": "a venture or creative project",
-     # [house-say 2026-10-07] the 5th is the creative/speculative-GAIN side; the
-     # 8th is the sudden/joint-resources RISK side. If only the 8th fires, say so
-     # — don't narrate an 8th-house transit as a 5th-house "creative venture".
-     "house_says": {8: "a sudden or shared-money turn"}},
+     "karaka": ["Mercury", "Rahu", "Jupiter"], "say": "a venture or creative project"},
     {"key": "home",         "label": "Home & property",   "houses": [4],
      "karaka": ["Moon", "Mars", "Venus"], "say": "home and property"},
     {"key": "travel",       "label": "Travel & foreign",  "houses": [9, 12],
-     "karaka": ["Rahu", "Jupiter"], "say": "a journey or something far from home",
-     "house_says": {12: "a foreign or behind-the-scenes matter"}},
+     "karaka": ["Rahu", "Jupiter"], "say": "a journey or something far from home"},
     {"key": "relationship", "label": "Relationship",      "houses": [7, 5],
      "karaka": ["Venus", "Jupiter"], "say": "a close relationship"},
     {"key": "family",       "label": "Family",            "houses": [4, 9],
@@ -263,21 +258,14 @@ def score_domains(chart_data: dict, dashas: dict, transit_events: list,
         transit_count = len(dom_events)
 
         # [house-say 2026-10-07] Which of the domain's houses actually fired?
-        # The narration must describe the house that ACTIVATED, not the domain's
-        # default (primary) house. speculation {5,8} firing only on the 8th is a
-        # sudden/joint-money RISK, not a 5th-house "creative venture".
+        # Downstream narration uses this: a domain whose PRIMARY signifier house
+        # didn't fire (e.g. speculation {5,8} lit only on the 8th RISK house, not
+        # the 5th opportunity house) must NOT be sold as an opportunity. We expose
+        # the facts here; the plain-language caution is chosen in the composer.
         fired_houses = sorted({e.get("natal_house") for e in dom_events
                                if isinstance(e.get("natal_house"), int)})
         primary_house = houses[0] if houses else None
         primary_fired = (primary_house in fired_houses) if primary_house is not None else None
-        say = dom.get("say") or dom["label"]
-        if (fired_houses and primary_house is not None
-                and primary_house not in fired_houses):
-            _hsays = dom.get("house_says") or {}
-            for _h in fired_houses:
-                if _h in _hsays:
-                    say = _hsays[_h]
-                    break
 
         # --- polarity (opportunity vs risk) ---
         tone = 0.0
@@ -385,7 +373,7 @@ def score_domains(chart_data: dict, dashas: dict, transit_events: list,
 
         results.append({
             "key": dom["key"], "label": dom["label"],
-            "say": say, "houses": houses,
+            "say": dom.get("say") or dom["label"], "houses": houses,
             "fired_houses": fired_houses, "primary_fired": primary_fired,
             "score": round(score, 2), "polarity": polarity, "caution": caution,
             "confidence": confidence, "convergence": convergence,
