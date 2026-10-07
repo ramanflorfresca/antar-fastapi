@@ -18855,6 +18855,21 @@ def _lang_pref_for_user(user_id):
         return None
 
 
+@app.get("/api/v1/languages")
+def public_languages():
+    """The languages the app offers, for the pre-account language step.
+
+    [onboarding-language 2026-10-07] The onboarding language screen runs BEFORE any
+    account exists, but the only list endpoint (/me/language) needs a signed-in user,
+    so every first-time guest got "Couldn't load languages". This is the same list and
+    the same native display names, with no user data: nothing here is personal.
+    """
+    return {
+        "available": SETTINGS_AVAILABLE_LANGS,
+        "labels": {c: _LANG_LABELS[c] for c in SETTINGS_AVAILABLE_LANGS},
+    }
+
+
 @app.get("/api/v1/me/language")
 def settings_language(authorization: Optional[str] = Header(None), chart_id: Optional[str] = None):
     user_id, _ = _st_identity(authorization)
