@@ -2,7 +2,7 @@
 
 Flow (owner, 2026-10-06): **one tap / one scan. No checkboxes in the app.** The app asks the backend for a
 personal connect link; the backend picks Antar's WhatsApp number from the person's country (India → +1 978 213
-1475, everyone else → +1 732 203 5001). On a phone the link opens WhatsApp with "LINK <code>" ready → tap Send.
+1475, everyone else → +1 732 203 5001). On a phone the link opens WhatsApp with "Hi Antar! Connect my account: K7Q2MX" already typed → tap Send.
 On a computer we show the same link as a QR → scan with the phone camera → WhatsApp opens → Send. Antar then asks
 the person to accept Terms + Privacy IN WhatsApp, then asks two optional questions (alerts, offers). Done.
 
@@ -21,7 +21,8 @@ THE CONNECT CARD (one reusable component, used in 3 places below)
   Small line: "WhatsApp will ask you to accept our Terms and Privacy Policy before anything is sent."
   On a PHONE (narrow screen or Capacitor.isNativePlatform()):
      big button "Connect WhatsApp" → call link/start → window.location.href = deep_link.
-     (WhatsApp opens with the code typed; the person taps Send.)
+     (WhatsApp opens a chat with Antar's number with "Hi Antar! Connect my account: K7Q2MX" already typed —
+     the person never types or looks up a number; they just tap Send.)
   On a COMPUTER: call link/start when the card opens and show qr_text as a QR (qrcode.react, 220px, white quiet
      zone) with: "Scan with your phone camera — WhatsApp opens with a message ready. Tap Send." and a small
      "or open https://wa.me/… on your phone" link (the deep_link). Show a 15-minute countdown; "Get a new code"
@@ -33,10 +34,13 @@ PLACE 1 — NEW USERS (onboarding)
   Right after the birth details are saved and the first reading is shown, show the connect card as an onboarding
   step "Stay in touch on WhatsApp" with [Connect WhatsApp] and a quiet "Skip for now". It must be skippable.
 
-PLACE 2 — EXISTING USERS (login popup)
-  After sign-in on web / Android / iOS, if status.available && !status.linked, show the connect card as a modal.
-  At most once every 7 days, never twice in a session, never again after 3 dismissals, never during onboarding,
-  never for linked users. "Not now" closes it (counts as a dismissal).
+PLACE 2 — EXISTING USERS (one-time login popup)
+  After sign-in on web / Android / iOS, read GET /status. Show the connect card as a centred modal ONLY when
+  status.prompt.show === true (the backend decides: once per account, never for connected users).
+  When it appears: POST /api/v1/messaging/whatsapp/prompt {event:"shown"}.
+  "Connect WhatsApp" (button or QR) calls link/start — that records the click automatically.
+  "Not now" / closing it: POST /api/v1/messaging/whatsapp/prompt {event:"dismissed"}.
+  Also keep a localStorage flag so it can't reappear in the same browser even if a call fails.
 
 PLACE 3 — Settings → WhatsApp
   Not linked → the connect card. Linked → "Connected …<number_last4>" + Alerts toggle
