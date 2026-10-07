@@ -140,6 +140,34 @@ def _jaimini_active_houses(dashas: dict, lagna_idx: int, today_iso: str) -> set:
     return out
 
 
+# ── transit-signal de-duplication ─────────────────────────────────────────────
+def _transit_signal_key(e: dict):
+    """[signal-dedup 2026-10-07] Collapse motion SUB-events of the same transit
+    into one signal. A planet's `ingress` into a sign and every `nakshatra_shift`
+    while it sits in that sign/house are markers of the SAME passage — not
+    independent house-hits. Counting each as a separate 'transit event' inflated
+    the score (e.g. the Moon's 2-day passage through the 8th showed as 5 'transits'
+    = ingress + 2 nakshatra shifts + 2 aspects). Presence collapses per
+    (planet, natal_house); aspects stay distinct per (target, aspect kind)."""
+    pl = str(e.get("planet") or "")
+    h = e.get("natal_house")
+    if e.get("event_type") == "aspect":
+        return ("aspect", pl, str(e.get("natal_target") or ""),
+                str(e.get("aspect_kind") or ""), h)
+    return ("presence", pl, h)
+
+
+def _dedup_transit_signals(events: List[dict]) -> List[dict]:
+    """Keep one event per distinct signal (see _transit_signal_key). Stable: the
+    first occurrence wins, so an ingress is kept over the nakshatra sub-shifts."""
+    seen: Dict[Any, dict] = {}
+    for e in (events or []):
+        k = _transit_signal_key(e)
+        if k not in seen:
+            seen[k] = e
+    return list(seen.values())
+
+
 # ── main scorer ──────────────────────────────────────────────────────────────
 def score_domains(chart_data: dict, dashas: dict, transit_events: list,
                   today: Optional[date] = None, daily: bool = False,
@@ -221,7 +249,12 @@ def score_domains(chart_data: dict, dashas: dict, transit_events: list,
         jaimini_active = jaimini_weight >= (0.35 if chara_available else 0.5)
 
         # --- gochar transits over the domain's houses ---
-        dom_events = [e for h in houses for e in ev_by_house.get(h, [])]
+        # [signal-dedup 2026-10-07] Count DISTINCT transit signals, not motion
+        # sub-events: a planet's ingress + its nakshatra-shifts in the same house
+        # are one passage, so the Moon's 2-day run through the 8th counts once
+        # (+ any aspects), not five times.
+        dom_events = _dedup_transit_signals(
+            [e for h in houses for e in ev_by_house.get(h, [])])
         transit_count = len(dom_events)
 
         # --- polarity (opportunity vs risk) ---
