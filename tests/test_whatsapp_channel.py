@@ -343,7 +343,7 @@ def test_hinglish_short_messages(m, monkeypatch):
 
 def test_link_sends_welcome_with_starters(m, monkeypatch):
     cv = _Conv(m, monkeypatch, link=None, charts=[("self-1", "Raman Singh", True), ("mom-1", "Mom", False)])
-    monkeypatch.setattr(msg, "bind_link_whatsapp", lambda sb, code, n: "self-1")
+    monkeypatch.setattr(msg, "bind_link_whatsapp", lambda sb, code, n, consent=None: "self-1")
     cv.link = None
     def after_bind(sb, n):
         return _link()
@@ -352,10 +352,11 @@ def test_link_sends_welcome_with_starters(m, monkeypatch):
     monkeypatch.setattr(sugg, "build_suggested_prompts",
                         lambda cid, sb, language="en": [{"text": "Q1"}, {"text": "Q2"}, {"text": "Q3"}, {"text": "Q4"}])
     orig_bind = msg.bind_link_whatsapp
-    def bind(sb, code, n):
+    def bind(sb, code, n, consent=None):
         cv.link = _link()
         return "self-1"
     monkeypatch.setattr(msg, "bind_link_whatsapp", bind)
+    monkeypatch.setattr(msg, "peek_pending_code", lambda sb, code: {"id": 1, "consent_at": "2026-10-06"})
     cv.run("LINK abc12345")
     w = cv.sent[-1]
     assert "Raman Singh" in w and "1  Q1" in w and "3  Q3" in w and "Q4" not in w
@@ -397,7 +398,8 @@ def test_status_and_unlink_endpoints(m, monkeypatch):
 
 # ─── consent (opt-in + Terms/Privacy) ──────────────────────────────
 
-def test_link_start_requires_current_consent(m, monkeypatch):
+def test_link_start_no_longer_needs_app_consent_but_records_it_when_given(m, monkeypatch):
+    """[wa-qr-consent] the QR comes first; consent is accepted in WhatsApp after the scan."""
     from fastapi.testclient import TestClient
     monkeypatch.setattr(m, "verify_token", lambda a: "user-1")
     monkeypatch.setattr(m, "_resolve_primary_chart_id", lambda uid: "chart-1")
@@ -408,16 +410,51 @@ def test_link_start_requires_current_consent(m, monkeypatch):
     c = TestClient(m.app)
     h = {"Authorization": "Bearer x"}
     r = c.post("/api/v1/messaging/link/start", json={"channel": "whatsapp"}, headers=h)
-    assert r.status_code == 400 and r.json()["detail"]["error"] == "consent_required"
+    assert r.status_code == 200 and not (rows[-1] or {}).get("consent_at")
     r = c.post("/api/v1/messaging/link/start", headers=h, json={
         "channel": "whatsapp", "consent_accepted": True, "consent_version": "old"})
-    assert r.status_code == 400 and rows == []
+    assert r.status_code == 200 and not (rows[-1] or {}).get("consent_at")
     r = c.post("/api/v1/messaging/link/start", headers=h, json={
         "channel": "whatsapp", "consent_accepted": True,
         "consent_version": msg.WA_CONSENT_VERSION})
     assert r.status_code == 200
-    assert rows[0]["consent_version"] == msg.WA_CONSENT_VERSION
-    assert rows[0]["consent_source"] == "app" and rows[0]["consent_at"]
+    assert rows[-1]["consent_version"] == msg.WA_CONSENT_VERSION and rows[-1]["consent_source"] == "app"
+
+
+# ─── QR first, consent in chat ─────────────────────────────────────
+
+def test_qr_scan_without_consent_holds_the_code_and_asks_terms_and_privacy(m, monkeypatch):
+    cv = _Conv(m, monkeypatch, link=None, policy="needed")
+    held, bound = [], []
+    monkeypatch.setattr(msg, "peek_pending_code", lambda sb, code: {"id": 1, "chart_id": "self-1"})
+    monkeypatch.setattr(msg, "hold_code_for_number", lambda sb, code, n: held.append(code) or True)
+    monkeypatch.setattr(msg, "bind_link_whatsapp", lambda *a, **k: bound.append(a) or "self-1")
+    cv.run("LINK abc12345")
+    assert held == ["abc12345"] and bound == [], "never linked before ACCEPT"
+    assert "terms" in cv.sent[-1].lower() and "privacy policy" in cv.sent[-1].lower()
+
+
+def test_accept_after_the_scan_links_with_in_chat_consent_and_offers_optional_alerts(m, monkeypatch):
+    cv = _Conv(m, monkeypatch, link=None, policy="needed")
+    got = {}
+    monkeypatch.setattr(msg, "record_policy", lambda *a, **k: True)
+    monkeypatch.setattr(msg, "held_code_for", lambda sb, n: "abc12345")
+
+    def bind(sb, code, n, consent=None):
+        got["code"], got["consent"] = code, consent
+        cv.link = _link()
+        return "self-1"
+    monkeypatch.setattr(msg, "bind_link_whatsapp", bind)
+    cv.run("ACCEPT")
+    assert got["code"] == "abc12345" and got["consent"]["consent_source"] == "whatsapp"
+    assert got["consent"]["consent_version"] == msg.WA_CONSENT_VERSION
+    assert any("alert" in t.lower() and "optional" in t.lower() for t in cv.sent)
+
+
+def test_optin_reply_parsing():
+    assert msg.parse_optin_reply("Sí") == "yes" and msg.parse_optin_reply("no gracias") == "no"
+    assert msg.parse_optin_reply("x", "opt:offers:yes") == "yes"
+    assert msg.parse_optin_reply("When will I marry?") is None
 
 
 class _FakeQ:
@@ -1294,7 +1331,7 @@ def test_policy_prompt_comes_before_the_answer_and_nothing_is_asked(m, monkeypat
     cv = _Conv(m, monkeypatch, link=_link(), policy="needed")
     cv.run("When will I change jobs?")
     assert cv.asked == [], "no question may reach /ask before the policy is accepted"
-    assert "data processing policy" in cv.sent[0].lower()
+    assert "privacy policy" in cv.sent[0].lower() and "terms" in cv.sent[0].lower()
 
 
 def test_policy_prompt_comes_before_the_connect_message_for_an_unlinked_number(m, monkeypatch):
@@ -1302,7 +1339,7 @@ def test_policy_prompt_comes_before_the_connect_message_for_an_unlinked_number(m
     cv = _Conv(m, monkeypatch, link=None, policy="needed")
     cv.run("Will I get married?")
     assert cv.asked == []
-    assert "data processing policy" in cv.sent[0].lower()
+    assert "privacy policy" in cv.sent[0].lower() and "terms" in cv.sent[0].lower()
     assert "Connect WhatsApp" not in cv.sent[0]
 
 

@@ -172,7 +172,7 @@ WA_WINDOW_SECONDS = 24 * 3600
 WA_LINK_CODE_MAX_AGE_MIN = 15
 # [whatsapp-consent] Bump when the consent wording shown in the app changes; the
 # backend only links a number whose row carries consent to the CURRENT version.
-WA_CONSENT_VERSION = "wa-2026-10-02"
+WA_CONSENT_VERSION = "wa-2026-10-06"
 
 
 # [wa-marketing 2026-10-05] Offers / news on WhatsApp are a SEPARATE, optional, unticked opt-in (Meta
@@ -230,6 +230,21 @@ _POLICY_YES = frozenset({"acepto", "accept", "i accept", "accepted", "aceito", "
                          "de acuerdo", "concordo", "1"})
 _POLICY_NO = frozenset({"no acepto", "no", "não", "nao", "não aceito", "nao aceito", "decline", "i decline",
                         "don't accept", "do not accept", "nahi", "manzoor nahi", "2"})
+
+
+TERMS_URL = os.getenv("WA_TERMS_URL") or "https://antar.world/terms"
+
+
+def parse_optin_reply(body: str, choice_id: str = "") -> Optional[str]:
+    """'yes' / 'no' to an optional alerts / offers question (buttons or typed)."""
+    if choice_id.startswith("opt:"):
+        return choice_id.rsplit(":", 1)[-1] if choice_id.rsplit(":", 1)[-1] in ("yes", "no") else None
+    t = (body or "").strip().lower().strip(" .!¡?¿*")
+    if t in ("yes", "y", "si", "sí", "sim", "haan", "ha", "1", "yes please", "claro", "ok"):
+        return "yes"
+    if t in ("no", "n", "não", "nao", "nahi", "2", "no thanks", "no gracias", "não obrigado", "skip"):
+        return "no"
+    return None
 
 
 def policy_url(lang: str = "en") -> str:
@@ -418,10 +433,13 @@ def parse_wa_command(text: str) -> tuple:
     return ("", "")
 
 
-def bind_link_whatsapp(sb, code: str, number: str) -> Optional[str]:
+def bind_link_whatsapp(sb, code: str, number: str, consent: Optional[dict] = None) -> Optional[str]:
     """Bind a pending in-app code to a WhatsApp number (Path A). Enforces
     uniqueness: the number and the account each keep ONE active whatsapp link —
-    the newest proven link wins, older ones are revoked. Returns chart_id."""
+    the newest proven link wins, older ones are revoked. Returns chart_id.
+    [wa-qr-consent 2026-10-06] Consent is normally given IN CHAT after the QR scan (Terms + Privacy +
+    receiving messages, ACCEPT); pass it as `consent` (consent_row("whatsapp")). A code with no consent —
+    neither recorded in the app nor passed here — is never bound."""
     code = (code or "").strip()
     number = wa_number(number)
     if not code or not number:
@@ -433,7 +451,7 @@ def bind_link_whatsapp(sb, code: str, number: str) -> Optional[str]:
         if not rows:
             return None
         row = rows[0]
-        if not row.get("consent_at"):          # [whatsapp-consent] never link without opt-in
+        if not row.get("consent_at") and not consent:   # [whatsapp-consent] never link without opt-in
             print("[whatsapp] bind refused: pending code has no recorded consent")
             return None
         try:
@@ -446,16 +464,66 @@ def bind_link_whatsapp(sb, code: str, number: str) -> Optional[str]:
         except Exception:
             pass
         _revoke_whatsapp(sb, number=number, user_id=row.get("user_id"), keep_id=row["id"])
-        (sb.table("messaging_links").update({
+        (sb.table("messaging_links").update(dict({
             "channel_user_id": number, "status": "linked", "link_code": None,
             "linked_at": datetime.now(timezone.utc).isoformat(),
-        }).eq("id", row["id"]).execute())
+        }, **(consent or {}))).eq("id", row["id"]).execute())
         return row["chart_id"]
     except Exception as e:
         if _table_missing(e):
             return None
         print(f"[whatsapp] bind_link failed: {e}")
         return None
+
+
+def peek_pending_code(sb, code: str) -> Optional[dict]:
+    """The pending WhatsApp link row for a code, if it exists and hasn't expired (no writes)."""
+    code = (code or "").strip()
+    if not code:
+        return None
+    try:
+        rows = (sb.table("messaging_links").select("*").eq("link_code", code).eq("channel", "whatsapp")
+                .eq("status", "pending").limit(1).execute()).data or []
+    except Exception as e:
+        if not _table_missing(e):
+            print(f"[whatsapp] peek code failed: {e}")
+        return None
+    if not rows:
+        return None
+    try:
+        created = datetime.fromisoformat(str(rows[0].get("created_at")).replace("Z", "+00:00"))
+        if (datetime.now(timezone.utc) - created).total_seconds() / 60 > WA_LINK_CODE_MAX_AGE_MIN:
+            return None
+    except Exception:
+        pass
+    return rows[0]
+
+
+def hold_code_for_number(sb, code: str, number: str) -> bool:
+    """[wa-qr-consent] The QR / code arrived but the number hasn't accepted the policy yet: remember which
+    number sent it (row stays 'pending', so it is NOT linked) until they reply ACCEPT."""
+    row = peek_pending_code(sb, code)
+    if not row:
+        return False
+    try:
+        sb.table("messaging_links").update({"channel_user_id": wa_number(number)}).eq("id", row["id"]).execute()
+        return True
+    except Exception as e:
+        print(f"[whatsapp] hold code failed: {e}")
+        return False
+
+
+def held_code_for(sb, number: str) -> Optional[str]:
+    """The still-valid code this number sent before accepting, if any."""
+    try:
+        rows = (sb.table("messaging_links").select("*").eq("channel", "whatsapp").eq("status", "pending")
+                .eq("channel_user_id", wa_number(number)).order("created_at", desc=True).limit(1)
+                .execute()).data or []
+    except Exception:
+        return None
+    if not rows or not rows[0].get("link_code"):
+        return None
+    return rows[0]["link_code"] if peek_pending_code(sb, rows[0]["link_code"]) else None
 
 
 def link_whatsapp_direct(sb, chart_id: str, user_id: Optional[str], number: str,
