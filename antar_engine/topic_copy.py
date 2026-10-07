@@ -524,3 +524,28 @@ REVEAL_AREA: Dict[str, Dict[int, str]] = {
 def pick(table: Dict[str, dict], lang: str):
     """The language's table, English if the language has none."""
     return table.get(lang) or table["en"]
+
+
+FULL_MONTHS: Dict[str, tuple] = {
+    "en": ("January", "February", "March", "April", "May", "June", "July", "August",
+           "September", "October", "November", "December"),
+    "es": ("enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto",
+           "septiembre", "octubre", "noviembre", "diciembre"),
+    "pt": ("janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto",
+           "setembro", "outubro", "novembro", "dezembro"),
+    "hinglish": ("January", "February", "March", "April", "May", "June", "July", "August",
+                 "September", "October", "November", "December"),
+}
+
+
+def month_year(d: date, lang: str) -> str:
+    m = pick(FULL_MONTHS, lang)[d.month - 1]
+    return f"{m} {d.year}" if lang in ("en", "hinglish") else f"{m} de {d.year}"
+
+
+REVEAL_BIG_FROM_BIRTH: Dict[str, str] = {
+    "en": "You are in a {planet} chapter. It runs until {end}.",
+    "es": "Estás en una etapa de {planet}. Dura hasta {end}.",
+    "pt": "Você está em uma fase de {planet}. Ela vai até {end}.",
+    "hinglish": "Aap {planet} ke daur mein hain. Ye {end} tak chalega.",
+}

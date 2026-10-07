@@ -49836,3 +49836,26 @@ async def get_chart_topic_read(chart_id: str, topic: str, scale: str = "month",
     if out is None:
         raise HTTPException(status_code=404, detail="Chart not found")
     return out
+
+
+@app.get("/api/v1/chart/{chart_id}/reveal-lines")
+async def get_chart_reveal_lines(chart_id: str, language: Optional[str] = None,
+                                 tz_offset: Optional[int] = None):
+    """0–2 plain-words lines for the reveal: the big chapter with real dates, then
+    the stretch inside it by life area (skipped when birth time is unknown).
+    A line whose data is missing is skipped, never filled; failure → {"lines": []}."""
+    def _work():
+        from antar_engine.reveal_lines import reveal_lines
+        ctx, row = _topic_ctx_load(chart_id)
+        if ctx is None:
+            return None
+        return reveal_lines(ctx.chart_data, ctx.dashas, ctx.birth_date, ctx.birth_time_accuracy,
+                            _prac_local_date(tz_offset), _topic_lang(language, row))
+    try:
+        lines = await run_in_threadpool(_work)
+    except Exception as e:
+        print(f"[reveal-lines] failed → empty: {e!r}")
+        return {"lines": []}
+    if lines is None:
+        raise HTTPException(status_code=404, detail="Chart not found")
+    return {"lines": lines}

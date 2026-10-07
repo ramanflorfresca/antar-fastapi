@@ -438,3 +438,71 @@ def test_topic_read_route_validates_and_returns(main_mod, monkeypatch):
         with pytest.raises(HTTPException) as e:
             _run(main_mod.get_chart_topic_read("c1", bad[0], bad[1], "en", None))
         assert e.value.status_code == 422
+
+
+# ── reveal lines ────────────────────────────────────────────────────────────
+_SYSTEM_WORDS = re.compile(r"\b(dasha|dasa|mahadasha|antardasha|jaimini|vimsottari|vimshottari|chara|"
+                           r"malefic|benefic|transit|karaka|lagna|nakshatra|houses?)\b", re.I)
+
+
+def _reveal_dashas():
+    return {
+        "vimsottari": [{"lord_or_sign": "Jupiter", "level": "mahadasha", "start_date": "2024-03-10",
+                        "end_date": "2028-08-20"},
+                       {"lord_or_sign": "Saturn", "level": "mahadasha", "start_date": "2028-08-20",
+                        "end_date": "2047-08-20"}],
+        "jaimini": [{"lord_or_sign": "Capricorn", "level": "mahadasha", "start_date": "2026-01-05",
+                     "end_date": "2027-11-20"}],
+    }
+
+
+def test_reveal_two_lines_with_real_dates():
+    from antar_engine.reveal_lines import reveal_lines
+    cd = {"lagna": {"sign": "Aries", "sign_index": 0}}     # Capricorn = 10th from Aries → work
+    out = reveal_lines(cd, _reveal_dashas(), "1990-10-15", "exact", TODAY, "en")
+    assert out == ["Since March 2024 you are in a Jupiter chapter. It runs until August 2028.",
+                   "A work-focused stretch, from January 2026 to November 2027."]
+
+
+def test_reveal_skips_line_two_without_birth_time_and_never_fills():
+    from antar_engine.reveal_lines import reveal_lines
+    cd = {"lagna": {"sign": "Aries", "sign_index": 0}}
+    out = reveal_lines(cd, _reveal_dashas(), "1990-10-15", "unknown", TODAY, "en")
+    assert len(out) == 1 and "Jupiter" in out[0]
+    assert reveal_lines(cd, {}, "1990-10-15", "exact", TODAY, "en") == []
+    only_j = {"jaimini": _reveal_dashas()["jaimini"]}
+    assert len(reveal_lines(cd, only_j, "1990-10-15", "exact", TODAY, "en")) == 1
+
+
+def test_reveal_first_chapter_does_not_claim_a_start_at_birth():
+    from antar_engine.reveal_lines import reveal_lines
+    d = {"vimsottari": [{"lord_or_sign": "Venus", "level": "mahadasha", "start_date": "1990-10-15",
+                         "end_date": "2027-02-01"}]}
+    out = reveal_lines({"lagna": {"sign": "Aries"}}, d, "1990-10-15", "exact", date(1995, 1, 1), "en")
+    assert out == ["You are in a Venus chapter. It runs until February 2027."]
+
+
+def test_reveal_never_shows_an_ended_chapter_and_has_no_system_words():
+    from antar_engine.reveal_lines import reveal_lines
+    cd = {"lagna": {"sign": "Aries", "sign_index": 0}}
+    assert reveal_lines(cd, _reveal_dashas(), "1990-10-15", "exact", date(2030, 1, 1), "en")[0:1] != []
+    stale = {"vimsottari": [{"lord_or_sign": "Jupiter", "level": "mahadasha",
+                             "start_date": "2010-01-01", "end_date": "2020-01-01"}]}
+    assert reveal_lines(cd, stale, "1990-10-15", "exact", TODAY, "en") == []
+    for lang in LANGS:
+        for line in reveal_lines(cd, _reveal_dashas(), "1990-10-15", "exact", TODAY, lang):
+            assert not _SYSTEM_WORDS.search(line), line
+    es = reveal_lines(cd, _reveal_dashas(), "1990-10-15", "exact", TODAY, "es")
+    assert "Júpiter" in es[0] and "agosto de 2028" in es[0] and "centrado en el trabajo" in es[1]
+    assert reveal_lines(cd, _reveal_dashas(), "1990-10-15", "exact", TODAY, "hi") == \
+        reveal_lines(cd, _reveal_dashas(), "1990-10-15", "exact", TODAY, "en")
+
+
+def test_reveal_route_empty_on_failure_and_404_unknown(main_mod, monkeypatch):
+    def boom(cid): raise RuntimeError("down")
+    monkeypatch.setattr(main_mod, "_topic_ctx_load", boom)
+    assert _run(main_mod.get_chart_reveal_lines("c1", "en", None)) == {"lines": []}
+    monkeypatch.setattr(main_mod, "_topic_ctx_load", lambda cid: (None, None))
+    with pytest.raises(HTTPException) as e:
+        _run(main_mod.get_chart_reveal_lines("c1", "en", None))
+    assert e.value.status_code == 404
