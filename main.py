@@ -49391,6 +49391,81 @@ async def demo_chart_info():
             "read_only": True, "ask_per_day": 15}
 
 
+# [demo-hero 2026-10-07] In-process projection cache so repeated marketing-page
+# hits don't re-run the daily compute. Keyed (chart_id, server-date); the daily
+# engine does its own per-day caching underneath — this just avoids re-projecting.
+_DEMO_TODAY_CACHE: dict = {}
+
+
+def _demo_split_window(s):
+    """'12:32 PM – 1:20 PM' -> {'start': '12:32 PM', 'end': '1:20 PM'} (or None)."""
+    if not isinstance(s, str) or not s.strip():
+        return None
+    for sep in ("–", "—", " - ", "-"):   # en-dash, em-dash, spaced hyphen, hyphen
+        if sep in s:
+            a, _, b = s.partition(sep)
+            a, b = a.strip(), b.strip()
+            if a and b:
+                return {"start": a, "end": b}
+            return None
+    return None
+
+
+@app.get("/api/v1/demo/today")
+async def demo_today_card():
+    """[demo-hero] Public, demo-ONLY: a tiny marketing-safe projection of the
+    seeded demo chart's REAL daily read, for the landing hero's "TODAY" card.
+    No params — only ever serves the demo chart (never any other). Never 500s:
+    on any failure it returns a static honest card with is_real=false, so the
+    hero always renders. The FE labels a real read vs the example off is_real."""
+    import datetime as _dtmod
+    _today_iso = _dtmod.date.today().isoformat()
+    _static = {
+        "available": True, "is_real": False, "date": _today_iso,
+        "line": "A good window to send the message you've been holding.",
+        "act": {"start": "12:18 PM", "end": "1:06 PM"},
+        "avoid": {"start": "2:42 PM", "end": "4:08 PM"},
+    }
+    try:
+        from antar_engine.demo_mode import demo_chart_id
+        cid = await asyncio.to_thread(demo_chart_id, supabase)
+        if not cid:
+            return {"available": False}
+        _ck = (cid, _today_iso)
+        if _ck in _DEMO_TODAY_CACHE:
+            return _DEMO_TODAY_CACHE[_ck]
+        sig = await get_daily_signal_endpoint(chart_id=cid, language="en")
+        if not isinstance(sig, dict) or sig.get("fallback"):
+            return _static
+        tm = sig.get("todays_move") if isinstance(sig.get("todays_move"), dict) else {}
+        act = _demo_split_window(tm.get("best_window"))
+        avoid = _demo_split_window(tm.get("avoid_window"))
+        # Fall back to the structured windows[] list if the strings didn't parse.
+        for w in (sig.get("windows") or []):
+            if not isinstance(w, dict):
+                continue
+            if w.get("kind") == "best" and not act and w.get("start") and w.get("end"):
+                act = {"start": str(w["start"]), "end": str(w["end"])}
+            if w.get("kind") == "avoid" and not avoid and w.get("start") and w.get("end"):
+                avoid = {"start": str(w["start"]), "end": str(w["end"])}
+        line = (sig.get("headline") or "").strip()
+        if not line or not act or not avoid:
+            return _static
+        out = {
+            "available": True, "is_real": True,
+            "date": sig.get("date") or _today_iso,
+            "line": line, "act": act, "avoid": avoid,
+        }
+        _DEMO_TODAY_CACHE[_ck] = out
+        # prune stale-date entries so the cache can't grow unbounded
+        for _k in [k for k in _DEMO_TODAY_CACHE if k[1] != _today_iso]:
+            _DEMO_TODAY_CACHE.pop(_k, None)
+        return out
+    except Exception as _e:
+        print(f"[demo-today] non-fatal, serving static card: {_e!r}")
+        return _static
+
+
 @app.post("/api/v1/support")
 async def support_agent_endpoint(request: SupportRequest, http_request: Request = None):
     import asyncio as _sup_aio
