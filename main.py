@@ -13884,6 +13884,52 @@ def merge_guest_data(
         .eq("id", request.guest_session_id).execute()
     return {"status": "success"}
 
+class ChartClaimRequest(BaseModel):
+    chart_id: str
+    claim_token: str
+
+
+@app.post("/api/v1/chart/claim")
+def claim_guest_chart(request: ChartClaimRequest, authorization: str = Header(...)):
+    """Attach a guest chart (created with no account) to the signed-in user.
+    Needs the claim token `/chart/create` returned — the chart id alone is not
+    proof of ownership. Idempotent for the same user; 409 if another user owns it."""
+    from antar_engine import chart_claim as _cc
+    user_id = verify_token(authorization)
+    if not _cc.claim_token_ok(request.chart_id, request.claim_token):
+        raise HTTPException(403, {"error": "invalid_claim_token"})
+    rows = (supabase.table("charts").select("id,user_id").eq("id", request.chart_id)
+            .is_("deleted_at", "null").limit(1).execute()).data or []
+    if not rows:
+        raise HTTPException(404, {"error": "chart_not_found"})
+    owner = rows[0].get("user_id")
+    if owner == user_id:
+        return {"status": "already_yours", "chart_id": request.chart_id}
+    if owner:
+        raise HTTPException(409, {"error": "chart_already_owned"})
+    # First chart on the account is primary; later ones must not hijack the slot.
+    ctype = "primary"
+    try:
+        mine = (supabase.table("charts").select("id,chart_type").eq("user_id", user_id)
+                .is_("deleted_at", "null").execute()).data or []
+        if any((r.get("chart_type") or "primary") == "primary" for r in mine):
+            ctype = "secondary"
+    except Exception as e:
+        print(f"[chart/claim] existing-primary check skipped: {e}")
+    # Conditional update: only if still unowned (guards a double-claim race).
+    upd = (supabase.table("charts").update({"user_id": user_id, "chart_type": ctype})
+           .eq("id", request.chart_id).is_("user_id", "null").execute())
+    if not (upd.data or []):
+        raise HTTPException(409, {"error": "chart_already_owned"})
+    if ctype == "primary":
+        try:
+            supabase.table("profiles").update({"primary_chart_id": request.chart_id}) \
+                .eq("user_id", user_id).execute()
+        except Exception as e:
+            print(f"[chart/claim] primary_chart_id set skipped: {e}")
+    return {"status": "claimed", "chart_id": request.chart_id, "chart_type": ctype}
+
+
 # ── Private helpers ───────────────────────────────────────────────────────────
 
 def _build_remedies(remedy_objects: list) -> List[RemedyOut]:
@@ -13944,6 +13990,7 @@ class ChartCreateResponse(BaseModel):
     timezone:       str
     message:        str
     signup_intent:  Optional[Dict[str, Any]] = None
+    claim_token:    Optional[str] = None   # guest charts only — see chart_claim.py
 
 CITY_COORDS_LOOKUP = {
     "mumbai":(19.0760,72.8777,"Asia/Kolkata"),
@@ -14663,6 +14710,7 @@ async def create_chart(
 
 async def _create_chart_for_user(request: "ChartCreateRequest", user_id: Optional[str],
                                  http_request: Optional[Request] = None):
+    from antar_engine import chart_claim as _claim_mod
     """The chart-create body. Split from the endpoint so a caller that already knows the user
     (WhatsApp chat onboarding: a phone-only account, no bearer token) runs the SAME code path."""
     from antar_engine import chart as chart_module
@@ -15263,6 +15311,7 @@ async def _create_chart_for_user(request: "ChartCreateRequest", user_id: Optiona
         birth_lat=lat, birth_lng=lng, timezone=timezone,
         message="Chart created successfully",
         signup_intent=_signup_intent,
+        claim_token=(None if user_id else _claim_mod.make_claim_token(chart_id)),
     )
 
 # ══════════════════════════════════════════════════════════════════════════════
