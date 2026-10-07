@@ -27,6 +27,7 @@ from __future__ import annotations
 import asyncio
 import json
 import time
+from datetime import date, timedelta
 from typing import Any, Dict, Optional, Tuple
 
 DEMO_KEY = "demo_chart_id"
@@ -229,6 +230,65 @@ BASELINE_COLS = ("life_work", "life_relationship", "life_kids", "marital_status"
                  "language", "language_preference", "current_city", "current_country")
 
 
+# ── Seeded decisions for the demo ────────────────────────────────────────────
+# [demo-decisions 2026-10-07] saved_decisions is in RESET_TABLES, so the nightly
+# reset wipes whatever the demo created — correct, but it also means the
+# Decisions tab would be empty for every reviewer who opens the demo. An empty
+# tab is worse than a hidden one: it is the app's one non-horoscope feature
+# showing nothing.
+#
+# Windows are computed RELATIVE TO TODAY at seed time, never hardcoded, so the
+# list always shows one of each status (open / upcoming / closed) no matter when
+# it is opened. A hardcoded month would quietly turn the whole list "closed".
+DEMO_DECISIONS = (
+    # (question, verdict, months_from_now_start, months_from_now_end)
+    ("Is this the right time to change jobs?", "YES", 0, 2),
+    ("Should I start the business this year?", "NOT_YET", 4, 7),
+    ("Is this a good month to move cities?", "LIKELY", -3, -1),
+)
+
+
+def _month_window(offset_start: int, offset_end: int, today: Optional[date] = None):
+    """First day of the start month → last day of the end month, offset in months."""
+    t = today or date.today()
+
+    def _shift(n: int) -> date:
+        m = t.month - 1 + n
+        return date(t.year + m // 12, m % 12 + 1, 1)
+
+    start = _shift(offset_start)
+    nxt = _shift(offset_end + 1)
+    return start, nxt - timedelta(days=1)
+
+
+def _label(start: date, end: date) -> str:
+    a, b = start.strftime("%b %Y"), end.strftime("%b %Y")
+    return a if a == b else f"{a} – {b}"
+
+
+def seed_decisions(supabase, chart_id: str, today: Optional[date] = None) -> int:
+    """Insert the demo's saved decisions. Returns how many landed. Never raises."""
+    if not chart_id:
+        return 0
+    rows = []
+    for q, verdict, o1, o2 in DEMO_DECISIONS:
+        start, end = _month_window(o1, o2, today)
+        rows.append({
+            "chart_id": chart_id, "question": q, "verdict": verdict,
+            "timing_label": _label(start, end),
+            "window_start": start.isoformat(), "window_end": end.isoformat(),
+            "language": "en",
+            # no open_reminder_due_at: the demo must never queue a notification
+            "open_reminder_due_at": None,
+        })
+    try:
+        supabase.table("saved_decisions").insert(rows).execute()
+        return len(rows)
+    except Exception as e:
+        print(f"[demo] seed_decisions failed (non-fatal): {str(e)[:120]}")
+        return 0
+
+
 def snapshot_baseline(supabase, chart_id: str) -> dict:
     row = supabase.table("charts").select(",".join(BASELINE_COLS)).eq("id", chart_id).limit(1).execute().data
     base = (row or [{}])[0]
@@ -260,4 +320,10 @@ def reset_demo(supabase) -> dict:
                 out["restored"] = True
     except Exception as e:
         out["errors"].append(f"baseline: {str(e)[:80]}")
+    # saved_decisions was just wiped above; put the demo's own back, with windows
+    # recomputed for today so the tab always shows open / upcoming / closed.
+    try:
+        out["decisions_seeded"] = seed_decisions(supabase, cid)
+    except Exception as e:
+        out["errors"].append(f"decisions: {str(e)[:80]}")
     return out

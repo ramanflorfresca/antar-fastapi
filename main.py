@@ -6875,14 +6875,42 @@ def decisions_save(body: _DecisionIn, authorization: str = Header(...)):
     return saved
 
 
+def _decisions_is_demo(chart_id: str) -> bool:
+    """[demo-decisions 2026-10-07] True only for the configured demo chart.
+
+    The public demo has no session, so GET /decisions used to 422 and the
+    Decisions tab had to be hidden from it — hiding the one feature that
+    distinguishes this product from a horoscope app, from exactly the people
+    who need to see it. The demo chart is read-only (every write already 403s
+    in the guard middleware), so serving ITS list without a token exposes
+    nothing a visitor cannot already see on screen.
+
+    Deliberately narrow: one chart id, compared exactly. Everything else still
+    needs a token AND ownership.
+    """
+    try:
+        from antar_engine.demo_mode import demo_chart_id as _dcid
+        cid = _dcid(supabase)
+        return bool(cid) and str(chart_id or "").strip().lower() == str(cid).strip().lower()
+    except Exception as e:
+        print(f"[decisions] demo check failed, treating as NOT demo: {str(e)[:80]}")
+        return False
+
+
 @app.get("/api/v1/decisions/{chart_id}")
-def decisions_list(chart_id: str, authorization: str = Header(...),
+def decisions_list(chart_id: str, authorization: Optional[str] = Header(None),
                    include_archived: bool = False):
-    """The user's saved decisions, newest first, each with its window status."""
+    """The user's saved decisions, newest first, each with its window status.
+
+    Readable without a token for the demo chart only — see _decisions_is_demo.
+    """
     from antar_engine import saved_decisions as _sd
-    user_id = verify_token(authorization)
-    if not _oc_owned_chart(user_id, chart_id):
-        raise HTTPException(403, "not your chart")
+    if not _decisions_is_demo(chart_id):
+        if not authorization:
+            raise HTTPException(401, "authorization required")
+        user_id = verify_token(authorization)
+        if not _oc_owned_chart(user_id, chart_id):
+            raise HTTPException(403, "not your chart")
     try:
         q = (supabase.table("saved_decisions").select("*")
              .eq("chart_id", chart_id).order("created_at", desc=True).limit(100))
