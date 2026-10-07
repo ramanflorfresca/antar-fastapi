@@ -92,10 +92,11 @@ def activated_planet_for_age(age: int) -> str:
 # ────────────────────────────────────────────────────────────────
 # Domain & trend palettes (different from daily/monthly)
 # ────────────────────────────────────────────────────────────────
-_YEAR_DOMAIN_ORDER = ("career", "business", "love", "health", "family")
+_YEAR_DOMAIN_ORDER = ("career", "business", "wealth", "love", "health", "family")
 _YEAR_DOMAIN_LABEL = {
     "career":   "Career",
     "business": "Business",
+    "wealth":   "Wealth",
     "love":     "Love",
     "health":   "Health",
     "family":   "Family",
@@ -333,6 +334,18 @@ _SECTOR_WORDS = (
     ("communication sector", "business"), ("trade", "business"),
     ("career", "career"), ("work", "career"), ("job", "career"),
     ("profession", "career"), ("authority", "career"),
+    # [yv2-wealth 2026-10-06] finance / speculation / savings — the
+    # 5th/2nd/11th-house axis that had NO arc domain, so the year's
+    # strongest signal for many charts (speculative & joint-money matters)
+    # was unclassifiable and silently dropped at the domain stage. Placed
+    # LAST so an explicit career/business/love/family word still wins when
+    # the text is primarily about one of those. "speculat" catches both
+    # speculation and speculative.
+    ("speculat", "wealth"), ("creative project", "wealth"),
+    ("investment", "wealth"), ("savings", "wealth"),
+    ("joint-money", "wealth"), ("joint money", "wealth"),
+    ("finance", "wealth"), ("financial", "wealth"),
+    ("wealth", "wealth"), ("money", "wealth"),
 )
 
 # Verbs separating the TRANSITING energy (left) from the NATAL/affected
@@ -373,6 +386,21 @@ def _domain_from_event_text(text: str) -> Optional[str]:
     if not isinstance(text, str) or not text.strip():
         return None
     t = text.lower()
+
+    # 0. professional-context override [yv2-profctx 2026-10-06].
+    # "professional relationship / collaboration / colleague / working
+    # partnership" is a WORK signal, but the generic "relationship" sector
+    # word (scanned in step 1) stole it for Love, and the Love natal-promise
+    # gate then dropped it. A "business partner / joint venture / co-founder"
+    # is a Business signal for the same reason. Resolve these explicit
+    # professional senses before the generic relationship->love match.
+    if any(p in t for p in ("business partner", "business partnership",
+                            "joint venture", "co-founder", "cofounder")):
+        return "business"
+    if any(p in t for p in ("professional relationship", "work relationship",
+                            "colleague", "collaboration", "collaborative",
+                            "working partnership", "professional partnership")):
+        return "career"
 
     # 1. explicit sector word
     for word, dom in _SECTOR_WORDS:
@@ -428,9 +456,20 @@ def _month_index_from_label(date_label: str, period_start: _date) -> int:
         except Exception:
             return -1
     delta = (d.year - period_start.year) * 12 + (d.month - period_start.month)
-    # [yv2-polish 2026-06-08] outside the 12-month period -> drop
-    if delta < 0 or delta > 11:
+    # [yv2-yearboundary 2026-10-06] The birthday-anchored year runs from
+    # period_start (e.g. Nov 26 2025) through the same date next year
+    # (Nov 26 2026). The final displayed bucket (index 11) therefore spans
+    # late-<prev month> to late-<birth month> and INCLUDES the return
+    # birthday month. A date labelled with that return month lands at
+    # delta == 12 under plain calendar arithmetic; fold it into the final
+    # bucket rather than dropping it. The old `delta > 11` guard silently
+    # discarded EVERY event in the closing month — which for a Nov-born
+    # chart is exactly where the year's strongest window often sits (e.g.
+    # the Nov speculation-risk peak), leaving the arcs empty.
+    if delta < 0 or delta > 12:
         return -1
+    if delta == 12:
+        delta = 11
     return delta
 
 
@@ -454,6 +493,7 @@ def _humanize_event(raw_event_text: str, polarity: int, domain: str,
         templates = {
             "career":   "A visible step up at work — take the high-stakes role.",
             "business": "A real opening on the venture side — push the move now.",
+            "wealth":   "A real money opening — bank the gain and shore up savings.",
             "love":     "Relationships warm — make the considered, deliberate gesture.",
             "health":   "Energy returns — rebuild the habit you let slip.",
             "family":   "Home life finds its rhythm — invest a deliberate hour.",
@@ -462,6 +502,7 @@ def _humanize_event(raw_event_text: str, polarity: int, domain: str,
         templates = {
             "career":   "A heavier work week — defer the big call, ship execution only.",
             "business": "A contested cost or cash-flow squeeze — keep a cushion.",
+            "wealth":   "Money comes under pressure — protect savings, pass on the unproven bet.",
             "love":     "Tension surfaces in a close relationship — listen more, react less.",
             "health":   "Body asks for rest — pull back from any push.",
             "family":   "A family friction — short check-ins beat long arguments.",
@@ -470,6 +511,7 @@ def _humanize_event(raw_event_text: str, polarity: int, domain: str,
         templates = {
             "career":   "A steady stretch at work — let consistency compound.",
             "business": "A quiet week for the venture — tend the foundation.",
+            "wealth":   "Finances are steady — hold the line, no big swings.",
             "love":     "Relationships are even — small, warm touches are enough.",
             "health":   "Body is steady — keep the routine.",
             "family":   "Family life is quiet — protect the calm.",
@@ -488,6 +530,7 @@ _DOMAIN_TO_NATAL_HOUSES: Dict[str, List[int]] = {
     "love":     [7, 5],           # 7=partner, 5=romance
     "health":   [1, 6],           # 1=body, 6=daily health
     "family":   [4, 2],           # 4=home, 2=family/wealth
+    "wealth":   [2, 11, 5],       # 2=savings, 11=gains, 5=speculation
 }
 
 
