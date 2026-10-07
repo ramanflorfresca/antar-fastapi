@@ -45,7 +45,7 @@ def main():
             if not dry:
                 print(f"skipped (marketing)  {name}   — pass --with-marketing to submit")
             continue
-        for lang in wt.LANGS:
+        for lang in (wt.ALL_LANGS if "--with-hindi" in sys.argv else wt.LANGS):
             p = wt.content_payload(name, lang)
             env = wt.env_key(name, lang)
             if dry:

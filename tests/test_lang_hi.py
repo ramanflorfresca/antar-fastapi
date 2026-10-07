@@ -488,7 +488,9 @@ def test_saved_whatsapp_language_hi_is_devanagari_not_hinglish(monkeypatch):
 
 def test_whatsapp_templates_hindi_goes_to_english_not_hinglish():
     from antar_engine import wa_templates as wt
-    assert wt.wa_lang("hi") == "en"
+    # Devanagari is its own template language now (drafted, unsubmitted): it falls back to the ENGLISH
+    # ContentSid until WA_TPL_<NAME>_HI is configured — never to the Hinglish one.
+    assert wt.wa_lang("hi") == "hi" and wt.wa_lang("hi-IN") == "hi"
     assert wt.wa_lang("hinglish") == "hinglish" and wt.wa_lang("hi-Latn") == "hinglish"
     assert wt.wa_lang("pt-BR") == "pt_BR" and wt.wa_lang("es") == "es"
     assert wt.meta_locale("hinglish") == "en"
