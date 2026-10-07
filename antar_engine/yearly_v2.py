@@ -435,9 +435,31 @@ def _polarity_magnitude_from_event(text: str) -> Tuple[int, float]:
     for tok, (_label, weight) in _ASPECT_TOKENS.items():
         if tok in t:
             return (1 if weight > 0 else -1), abs(weight)
-    if any(k in t for k in ("favorable","opportunity","supportive","auspicious","openings","aligns")):
+    # [yv2-prose-polarity 2026-10-06] The reshaped critical_dates are now
+    # plain prose, not aspect calques, so the old narrow keyword lists read
+    # every recovered event as neutral — which collapsed each one to the bland
+    # "steady" humanize template ("Finances are steady") even when the source
+    # clearly said "comes under pressure, protect your savings, postpone the
+    # high-risk bet". Match the vocabulary the year narrator actually uses.
+    # Strong protective ADVICE is checked first: an event telling the reader to
+    # postpone / protect / guard is a watch event even if it also names upside.
+    _STRONG_NEG = ("postpone", "high-risk", "unproven", "under pressure",
+                   "protect your savings", "protect savings",
+                   "guard what you have", "pass on", "hold off", "say no",
+                   "overextend", "heavy outflow")
+    if any(k in t for k in _STRONG_NEG):
+        return -1, 0.70
+    if any(k in t for k in ("favorable", "opportunity", "supportive",
+                            "auspicious", "openings", "opens up", "opens",
+                            "aligns", "smooths out", "smooth out",
+                            "grace period", "improve", "improves", "pick up",
+                            "picks up", "picking up", "recognition",
+                            "profitable", "benefit", "rewards", "strengthen")):
         return 1, 0.55
-    if any(k in t for k in ("tension","caution","challenge","squeeze","contested","strain","obstacle","retro")):
+    if any(k in t for k in ("tension", "caution", "challenge", "squeeze",
+                            "contested", "strain", "obstacle", "retro",
+                            "pressure", "weak", "loss", "slow", "knock",
+                            "expense", "drain", "careful", "risk", "guard")):
         return -1, 0.55
     return 0, 0.4
 
