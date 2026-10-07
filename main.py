@@ -5709,6 +5709,7 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
                      media: Optional[tuple] = None):
     """Background worker for one inbound WhatsApp message. Never raises."""
     from antar_engine import messaging as _msg
+    from antar_engine import wa_login as _wl
     from starlette.responses import Response as _StarResp
     sb = supabase
     link = await asyncio.to_thread(_msg.get_whatsapp_link, sb, number)
@@ -5842,6 +5843,17 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
                     return
                 # accepted, not linked yet → fall through to how to connect
 
+        _lcode = _wl.parse_login(body) if body else None
+        if _lcode:
+            # [wa-scan-login] "Hi Antar! Sign me in: CODE" → sign in the browser that showed the QR
+            lang = _fb      # the message is a code, not prose: never let the detector guess a language from it
+            _acct = link if (link and link.get("user_id")) else None
+            if not _acct:
+                send(_wl.text("no_account", lang))
+                return
+            ok = await asyncio.to_thread(_wl.approve, sb, _lcode, number, _acct.get("user_id"))
+            send(_wl.text("ok" if ok else "bad", lang))
+            return
         if not link and _pol == "ok" and _wa_onboard_on():
             # [wa-onboarding] a stranger who accepted the policy in chat: collect birth details here
             _ob = await _wa_onboard_turn(number, body, choice_id or "", lat_lon, lang, send, send_choices)
@@ -6552,6 +6564,67 @@ def messaging_whatsapp_status(http_request: Request, country: Optional[str] = No
     if out.get("chart_id"):
         out["chart_name"] = _wa_chart_name(out["chart_id"])
     return out
+
+
+_WA_LOGIN_RATE: dict = {}
+
+
+class _WaLoginPoll(BaseModel):
+    code: str
+    browser_token: str
+
+
+@app.post("/api/v1/auth/whatsapp/start")
+def auth_whatsapp_start(http_request: Request, country: Optional[str] = None):
+    """[wa-scan-login] Start "Continue with WhatsApp": a 2-minute code + the wa.me deep link / QR text.
+    Public (the person isn't signed in yet); rate-limited per IP. The returned `browser_token` is the secret
+    that only this browser may poll with."""
+    from antar_engine import messaging as _msg, wa_login as _wl, wa_numbers as _wn
+    if not _wa_on():
+        raise HTTPException(503, "whatsapp sign-in is not enabled")
+    ip = (http_request.headers.get("x-forwarded-for") or (http_request.client.host if http_request.client else "") or "").split(",")[0].strip()
+    now = _time.time()
+    hits = [t for t in _WA_LOGIN_RATE.get(ip, []) if now - t < 600]
+    if len(hits) >= 10:
+        raise HTTPException(429, "too many sign-in attempts — wait a few minutes")
+    _WA_LOGIN_RATE[ip] = hits + [now]
+    out = _wl.issue(supabase)
+    if not out:
+        raise HTTPException(503, "whatsapp sign-in storage not set up yet")
+    _cc = _wa_request_country(http_request, country)
+    digits = re.sub(r"\D", "", _wn.deep_link_number(_cc, key=out["code"]) or os.getenv("TWILIO_WHATSAPP_FROM") or "")
+    import urllib.parse as _up
+    out["prefilled_text"] = _wl.sign_in_text(out["code"])
+    out["deep_link"] = f"https://wa.me/{digits}?text={_up.quote(out['prefilled_text'])}" if digits else None
+    out["qr_text"] = out["deep_link"]
+    out["antar_number"] = ("+" + digits) if digits else None
+    out["country"] = _cc or None
+    return out
+
+
+@app.post("/api/v1/auth/whatsapp/poll")
+def auth_whatsapp_poll(req: _WaLoginPoll):
+    """[wa-scan-login] The browser polls (every ~2s) until the person taps Send in WhatsApp. On approval, returns a
+    one-time `token_hash` the Supabase client redeems with auth.verifyOtp({token_hash, type}) — a real session for
+    the account that owns the number. Returned once; a wrong browser_token looks the same as an expired code."""
+    from antar_engine import wa_login as _wl
+    r = _wl.poll(supabase, req.code, req.browser_token)
+    if r.get("status") != "approved":
+        return {"status": r.get("status", "expired")}
+    try:
+        _u = supabase.auth.admin.get_user_by_id(r["user_id"])
+        email = getattr(getattr(_u, "user", None), "email", None)
+        if not email:
+            raise RuntimeError("account has no email to mint a session for")
+        _lk = supabase.auth.admin.generate_link({"type": "magiclink", "email": email})
+        _props = getattr(_lk, "properties", None)
+        token_hash = getattr(_props, "hashed_token", None) or (_props or {}).get("hashed_token")
+        if not token_hash:
+            raise RuntimeError("no token hash from generate_link")
+    except Exception as e:
+        print(f"[wa-login] session mint failed: {e}")
+        raise HTTPException(503, "could not start your session — try again")
+    return {"status": "approved", "token_hash": token_hash, "type": "magiclink"}
 
 
 class _WaAlerts(BaseModel):
