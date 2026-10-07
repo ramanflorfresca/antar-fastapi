@@ -128,6 +128,7 @@ def _band(dom: dict) -> str:
     # it as the protect/risk line, not "a venture tempts". Keeps the day_map line
     # consistent with the headline ("don't take the risk today").
     if (pol == "opportunity" and dom.get("primary_fired") is False
+            and (caution or tone < -0.1)
             and any(h in _DUSTHANAS for h in (dom.get("fired_houses") or []))):
         return "protect"
     if pol == "risk":
@@ -152,12 +153,19 @@ def _compose(cell: dict, with_move: bool) -> str:
 
 
 def _row(dom: dict, key: str, with_move: bool) -> dict:
-    cell = _LINES[key].get(_band(dom)) or _LINES[key].get("quiet")
+    band = _band(dom)
+    cell = _LINES[key].get(band) or _LINES[key].get("quiet")
+    # [house-aware 2026-10-07] tone must follow the BAND, so the card doesn't
+    # colour a protect line ("sit this one out") green: a row downgraded to
+    # protect reads as risk, not its raw opportunity polarity.
+    tone = ("risk" if band == "protect"
+            else "neutral" if band == "quiet"
+            else (dom.get("polarity") or "neutral"))
     return {
         "key":   key,
         "label": FRIENDLY_LABEL.get(key, (dom.get("label") or key).title()),
         "line":  _compose(cell, with_move=with_move),
-        "tone":  dom.get("polarity") or "neutral",
+        "tone":  tone,
     }
 
 
