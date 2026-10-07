@@ -822,7 +822,7 @@ def test_the_observed_money_case_is_not_upcoming_when_today_is_already_open():
     read = T.read_topic(ctx, "money", T.best_fit_scale(ctx, "money", TODAY), TODAY, "en")
     assert read["tone"] == "open" and _primary(read)["start"] == "2026-10-07"
     money = {r["key"]: r for r in T.rank_topics(ctx, TODAY, "en")}["money"]
-    assert money["status"] == "active" and money["tag"] == "active now" and money["tone"] == "open"
+    assert (money["status"], money["tag"], money["tone"]) == ("steady", "open this week", "open")
 
 
 def _stub(monkeypatch, reads, opening=None):
@@ -857,18 +857,14 @@ def test_window_within_two_days_gets_near_term_words_then_a_month_after(monkeypa
     assert (row["status"], row["tag"]) == ("upcoming", "take care from Oct")
 
 
-def test_promoted_running_windows_obey_the_active_cap_and_relative_cut(monkeypatch):
+def test_running_windows_never_enter_active_and_keep_rank_order(monkeypatch):
+    """`active` stays the 30-day set (cap + relative cut untouched); a window running
+    today on any other tile is steady with near-term words."""
     w = {"start": TODAY.isoformat(), "end": TODAY.isoformat()}
     _stub(monkeypatch, {k: ("open", {"best_window": w, "watch_window": None}) for k in T.TOPIC_KEYS})
-    monkeypatch.setattr(T, "_near_score", lambda c, k, t, s: {"money": 6.0, "career": 5.0, "love": 4.6,
-                                                              "health": 4.4, "business": 3.6}.get(k, 3.5))
     rows = {r["key"]: r for r in T.rank_topics(_synth(), TODAY, "en")}
-    active = [k for k, r in rows.items() if r["status"] == "active"]
-    assert 1 <= len(active) <= T.ACTIVE_CAP and rows["money"]["status"] == "active"
-    assert all(rows[k]["tag"] == "open this week" and rows[k]["status"] == "steady"
-               for k in rows if k not in active)
-    order = [r["status"] for r in sorted(rows.values(), key=lambda r: r["rank"])]
-    assert order == sorted(order, key=["active", "upcoming", "steady", "quiet"].index)
+    assert all(r["status"] == "steady" and r["tag"] == "open this week" for r in rows.values())
+    assert sorted(r["rank"] for r in rows.values()) == list(range(1, 8))
 
 
 def _tag_is(lang, tag, name):

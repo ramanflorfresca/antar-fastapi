@@ -353,8 +353,8 @@ def rank_topics(ctx: TopicContext, today: date, language: str = "en") -> List[di
     """[{key,label,status,tag,tone,rank}], most active first. Never raises.
 
     Status, tag and tone all come from the read the tile opens (best_fit_scale):
-    a window running today (or starting within NEAR_DAYS) is never "upcoming",
-    and "window opens {mon}" names the month of that read's own window."""
+    a window running today (or starting within NEAR_DAYS) is never "upcoming"
+    (it reads "open/take care this week"; "active" stays the 30-day set), and "window opens {mon}" names the month of that read's own window."""
     lang = C.serve_language(language)
     try:
         now = _now_assessments(ctx, today)
@@ -367,22 +367,14 @@ def rank_topics(ctx: TopicContext, today: date, language: str = "en") -> List[di
             win = _tile_window(tone, read)
             if k not in keep and not now[k]["lit"] and win and win[0] <= today + timedelta(days=NEAR_DAYS):
                 near[k] = (win, _near_score(ctx, k, today, now[k]["score"]))
-        # a window running TODAY may join "active" under the same cap and relative cut
-        promoted = set()
-        top = max([now[k]["score"] for k in keep] + [v[1] for v in near.values()] or [0.0])
-        for k in sorted(near, key=lambda k: (-near[k][1], TOPIC_KEYS.index(k))):
-            win, sc = near[k]
-            if win[0] <= today and len(keep) + len(promoted) < ACTIVE_CAP and (
-                    sc >= STRONG_MIN or sc >= REL_FRAC * top):
-                promoted.add(k)
         rows = []
         for i, k in enumerate(TOPIC_KEYS):
             a = now[k]
             tone, read = tiles[k]
-            if k in keep or k in promoted:
+            if k in keep:
                 status = "active"
                 tag = C.TAG[lang]["care" if tone == "care" else "active"]
-                order = (0, -(near[k][1] if k in promoted else a["score"]), i)
+                order = (0, -a["score"], i)
             elif a["lit"]:
                 # really lit, but not among the chart's strongest: steady, not "now"
                 status, tag = "steady", _calm_tag(lang, tone)
