@@ -57,6 +57,13 @@ PLANET_NATURE_PLAIN = {
 
 POWERFUL_HOUSES = {9, 10, 11}   # planet here = strong positive month
 DIFFICULT_HOUSES = {6, 8, 12}   # planet here = challenging month
+# [masik-upachaya 2026-10-07] The 6th is a dusthana BUT also an upachaya: a
+# MALEFIC there GAINS (it overcomes the 6th's enemies/debt/disease), so it must
+# NOT be counted "under pressure". Only the 8th/12th stay difficult for malefics;
+# benefics in the 6th are still strained. This is house + planet-nature, not house
+# alone — the same precision lesson as the daily scorer (house membership must not
+# sign risk by itself). The 8th/12th are not upachayas, so they're unaffected.
+_MASIK_MALEFICS = {"Sun", "Mars", "Saturn", "Rahu", "Ketu"}
 
 
 def _months_since_birthday(birth_date: str, ref: date | None = None) -> int:
@@ -145,7 +152,8 @@ def calculate_masik_phal(birth_date: str, planets: dict) -> dict:
         }
         if house in POWERFUL_HOUSES:
             strong_planets.append(entry)
-        elif house in DIFFICULT_HOUSES:
+        elif house in DIFFICULT_HOUSES and not (house == 6 and planet in _MASIK_MALEFICS):
+            # a malefic in the 6th (upachaya) is NOT weak — see _MASIK_MALEFICS note
             weak_planets.append(entry)
         else:
             neutral_planets.append(entry)

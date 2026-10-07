@@ -401,7 +401,9 @@ def build_year_month_bands(chart_data: dict, birth_date: str,
                  for p, h in natal_houses.items()}
 
     try:
-        from antar_engine.lal_kitab_masik import POWERFUL_HOUSES, DIFFICULT_HOUSES
+        from antar_engine.lal_kitab_masik import (
+            POWERFUL_HOUSES, DIFFICULT_HOUSES, _MASIK_MALEFICS,
+        )
         from antar_engine.monthly_deepdive import _compute_energy_level
     except Exception:
         return []
@@ -420,11 +422,14 @@ def build_year_month_bands(chart_data: dict, birth_date: str,
         # Masik Phal for month-offset i: advance every planet i houses from varshphal
         # (Month 0 = birthday month = varshphal; the exact rule calculate_masik_phal uses).
         strong = weak = 0
-        for h in varshphal.values():
+        for planet, h in varshphal.items():
             mh = ((h - 1 + i) % 12) + 1
             if mh in POWERFUL_HOUSES:
                 strong += 1
-            elif mh in DIFFICULT_HOUSES:
+            # [masik-upachaya 2026-10-07] parity with calculate_masik_phal: a
+            # malefic in the 6th (upachaya) is NOT weak — don't desync the year
+            # bar from the Month tab.
+            elif mh in DIFFICULT_HOUSES and not (mh == 6 and planet in _MASIK_MALEFICS):
                 weak += 1
         energy = _compute_energy_level(strong, weak)
         band = _band_for(energy, strong - weak)
