@@ -4745,12 +4745,14 @@ def messaging_link_start(req: _MsgLinkStart, http_request: Request, authorizatio
         raise HTTPException(400, "no chart to link")
     extra = None
     if (req.channel or "") == "whatsapp":
-        if not (req.consent_accepted is True and req.consent_version == _msg.WA_CONSENT_VERSION):
-            raise HTTPException(400, {"error": "consent_required",
-                                      "consent_version": _msg.WA_CONSENT_VERSION})
-        extra = _msg.consent_row("app")
-        extra.update(_msg.alerts_row(bool(req.alerts_opt_in)))
-        extra.update(_msg.marketing_row(bool(req.marketing_opt_in)))
+        # [wa-qr-consent 2026-10-06] owner: the QR comes FIRST; Terms + Privacy + receiving messages are
+        # accepted IN WhatsApp right after the scan (ACCEPT), then alerts / offers are offered there as
+        # separate yes/no questions. Consent sent from the app (older UI) is still recorded if current.
+        extra = {}
+        if req.consent_accepted is True and req.consent_version == _msg.WA_CONSENT_VERSION:
+            extra = _msg.consent_row("app")
+            extra.update(_msg.alerts_row(bool(req.alerts_opt_in)))
+            extra.update(_msg.marketing_row(bool(req.marketing_opt_in)))
     out = _msg.create_pending_link(supabase, chart_id, user_id, req.channel or "telegram", extra)
     if not out.get("available"):
         raise HTTPException(503, out.get("reason") or "messaging not set up yet")
@@ -4954,10 +4956,24 @@ _WA_L = {
                    "pt": "_Uma resposta de sim ou não precisa de uma área clara da vida (trabalho, dinheiro, um relacionamento, uma mudança…) — aqui vai a leitura completa._",
                    "hinglish": "_Haan/na jawab ke liye zindagi ka ek saaf area chahiye (kaam, paisa, rishta, shift…) — yeh poori reading hai._"},
     # [wa-templates 2026-10-03] alert / answer-ready buttons
-    "policy_prompt": {"en": "*Data processing policy*\nTo continue, please accept our data processing policy.\n{url}\n\nReply *ACCEPT* to continue, or *NO* if you don't accept.",
-                      "es": "*Política de tratamiento de datos*\nPara continuar, acepta nuestra política de tratamiento de datos.\n{url}\n\nResponde *ACEPTO* para continuar, o *NO* si no la aceptas.",
-                      "pt": "*Política de tratamento de dados*\nPara continuar, aceite nossa política de tratamento de dados.\n{url}\n\nResponda *ACEITO* para continuar, ou *NÃO* se não aceitar.",
-                      "hinglish": "*Data processing policy*\nAage badhne ke liye hamari data processing policy accept kijiye.\n{url}\n\nAage badhne ke liye *ACCEPT* likhiye, ya *NO* agar aap accept nahi karte."},
+    "policy_prompt": {"en": "*Antar on WhatsApp*\nTo continue, please accept our Terms ({terms}) and Privacy Policy ({url}), and agree to receive your answers and check-ins from Antar on WhatsApp.\n\nReply *ACCEPT* to continue, or *NO* if you don't accept. You can send *STOP* anytime.",
+                      "es": "*Antar en WhatsApp*\nPara continuar, acepta nuestros Términos ({terms}) y nuestra Política de tratamiento de datos ({url}), y autoriza recibir tus respuestas y seguimientos de Antar por WhatsApp.\n\nResponde *ACEPTO* para continuar, o *NO* si no aceptas. Puedes enviar *STOP* cuando quieras.",
+                      "pt": "*Antar no WhatsApp*\nPara continuar, aceite nossos Termos ({terms}) e nossa Política de tratamento de dados ({url}), e autorize receber suas respostas e acompanhamentos da Antar pelo WhatsApp.\n\nResponda *ACEITO* para continuar, ou *NÃO* se não aceitar. Você pode enviar *STOP* a qualquer momento.",
+                      "hinglish": "*Antar on WhatsApp*\nAage badhne ke liye hamare Terms ({terms}) aur Privacy Policy ({url}) accept kijiye, aur WhatsApp par Antar se apne jawab aur check-ins lene ki ijazat dijiye.\n\n*ACCEPT* likhiye, ya *NO* agar aap accept nahi karte. Kabhi bhi *STOP* bhej sakte hain."},
+    "optin_alerts": {"en": "Optional: would you like an alert when a strong window opens for you?",
+                     "es": "Opcional: ¿quieres una alerta cuando se abra una ventana fuerte para ti?",
+                     "pt": "Opcional: quer um alerta quando uma janela forte se abrir para você?",
+                     "hinglish": "Optional: kya aap chahte hain ki aapke liye strong window khulne par alert aaye?"},
+    "optin_offers": {"en": "Optional: would you like occasional offers and news from Antar on WhatsApp?",
+                     "es": "Opcional: ¿quieres recibir ofertas y novedades ocasionales de Antar por WhatsApp?",
+                     "pt": "Opcional: quer receber ofertas e novidades ocasionais da Antar pelo WhatsApp?",
+                     "hinglish": "Optional: kya aap WhatsApp par Antar se kabhi-kabhi offers aur news chahte hain?"},
+    "optin_done": {"en": "Saved. You can change this anytime — send 'stop alerts' or 'stop offers', or use Settings → WhatsApp.",
+                   "es": "Guardado. Puedes cambiarlo cuando quieras — envía 'parar alertas' o 'parar ofertas', o usa Ajustes → WhatsApp.",
+                   "pt": "Salvo. Você pode mudar quando quiser — envie 'parar alertas' ou 'parar ofertas', ou use Ajustes → WhatsApp.",
+                   "hinglish": "Save ho gaya. Kabhi bhi badal sakte hain — 'stop alerts' ya 'stop offers' bhejiye, ya Settings → WhatsApp."},
+    "opt_yes": {"en": "Yes", "es": "Sí", "pt": "Sim", "hinglish": "Haan"},
+    "opt_no": {"en": "No thanks", "es": "No, gracias", "pt": "Não, obrigado", "hinglish": "Nahi, shukriya"},
     "policy_ok": {"en": "Thank you — accepted. Ask me anything about your life, timing or a decision.",
                   "es": "Gracias — aceptado. Pregúntame lo que quieras sobre tu vida, tus tiempos o una decisión.",
                   "pt": "Obrigado — aceito. Pergunte o que quiser sobre sua vida, seus tempos ou uma decisão.",
@@ -5532,6 +5548,27 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
         rows = [(titles.get(q) or _af.lane_title(q, lang), "q:" + q, q) for q in qs]
         return rows + [_af.own_row(lang)] if rows else rows
 
+    async def _wa_finish_link(code, consent, ask_optins):
+        """Bind the code, greet, and (consent given in chat) offer alerts / offers as separate questions."""
+        cid = await asyncio.to_thread(_msg.bind_link_whatsapp, sb, code, number, consent)
+        if not cid:
+            send(_wa_text("bad_code", lang))
+            return None
+        lk = await asyncio.to_thread(_msg.get_whatsapp_link, sb, number) or {"chart_id": cid}
+        text, starters = await asyncio.to_thread(_wa_welcome, lk, lang)
+        send_choices(text, "btn_choose", _q_items(starters))
+        c = _msg.remember_options({}, "ask", starters)
+        if ask_optins:
+            c["optin_step"] = "alerts"
+            send_choices(_wa_text("optin_alerts", lang), "btn_answer",
+                         [(_wa_text("opt_yes", lang), "opt:alerts:yes", ""),
+                          (_wa_text("opt_no", lang), "opt:alerts:no", "")])
+        try:
+            _msg.save_link_context(sb, lk, dict(c, lang=lang, last_in=int(inbound_ts)))
+        except Exception:
+            pass
+        return cid
+
     def _save(c):
         c = dict(c)
         c["lang"] = lang
@@ -5546,16 +5583,22 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
             if len(bad) >= 5:
                 send(_wa_text("too_many", lang))
                 return
-            cid = await asyncio.to_thread(_msg.bind_link_whatsapp, sb, arg, number)
-            if not cid:
+            _row = await asyncio.to_thread(_msg.peek_pending_code, sb, arg)
+            if not _row:
                 _WA_BAD_CODES[number] = bad + [now]
                 send(_wa_text("bad_code", lang))
                 return
             _WA_BAD_CODES.pop(number, None)
-            link = await asyncio.to_thread(_msg.get_whatsapp_link, sb, number) or {"chart_id": cid}
-            text, starters = await asyncio.to_thread(_wa_welcome, link, lang)
-            send_choices(text, "btn_choose", _q_items(starters))
-            _save(_msg.remember_options({}, "ask", starters))
+            _pol0 = await asyncio.to_thread(_msg.policy_state, sb, number, None)
+            if not _row.get("consent_at") and _pol0 != "ok":
+                # [wa-qr-consent] scanned, not accepted yet: hold the code and ask for Terms + Privacy here
+                await asyncio.to_thread(_msg.hold_code_for_number, sb, arg, number)
+                send_choices(_wa_text("policy_prompt", lang, url=_msg.policy_url(lang), terms=_msg.TERMS_URL),
+                             "btn_answer", [(_wa_text("opt_accept", lang), "pol:yes", ""),
+                                            (_wa_text("opt_decline", lang), "pol:no", "")])
+                return
+            await _wa_finish_link(arg, None if _row.get("consent_at") else _msg.consent_row("whatsapp"),
+                                  ask_optins=not _row.get("consent_at"))
             return
         if cmd == "unlink":
             await asyncio.to_thread(_msg.unlink_whatsapp, sb, number)
@@ -5575,9 +5618,14 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
                     send(_wa_text("policy_no", lang))
                     return
                 if _dec is None:
-                    send_choices(_wa_text("policy_prompt", lang, url=_msg.policy_url(lang)), "btn_answer",
+                    send_choices(_wa_text("policy_prompt", lang, url=_msg.policy_url(lang), terms=_msg.TERMS_URL),
+                                 "btn_answer",
                                  [(_wa_text("opt_accept", lang), "pol:yes", ""),
                                   (_wa_text("opt_decline", lang), "pol:no", "")])
+                    return
+                _held = await asyncio.to_thread(_msg.held_code_for, sb, number)
+                if _held:                         # [wa-qr-consent] they scanned the QR first → link now
+                    await _wa_finish_link(_held, _msg.consent_row("whatsapp"), ask_optins=True)
                     return
                 if link:                          # accepted: a linked number can ask straight away
                     send(_wa_text("policy_ok", lang))
@@ -5606,6 +5654,33 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
             if _msg.is_nudge(body) or body.strip().lower().strip(" .!?") in (
                     "ready", "send", "listo", "pronto", "haan", "yes", "si", "sí", "sim"):
                 return
+        # [wa-qr-consent] the two OPTIONAL questions after connecting: alerts, then offers & news
+        _step = ctx.get("optin_step")
+        if _step or str(choice_id or "").startswith("opt:"):
+            _which = (choice_id.split(":")[1] if str(choice_id or "").startswith("opt:") else _step) or ""
+            _ans = _msg.parse_optin_reply(body, choice_id or "")
+            if _which in ("alerts", "offers") and _ans:
+                _patch = (_msg.alerts_row(_ans == "yes") if _which == "alerts"
+                          else _msg.marketing_row(_ans == "yes"))
+                try:
+                    await asyncio.to_thread(lambda: sb.table("messaging_links").update(_patch)
+                                            .eq("id", link["id"]).execute())
+                except Exception as _oe:
+                    print(f"[whatsapp] opt-in save failed …{number[-4:]}: {_oe}")
+                if _which == "alerts":
+                    ctx["optin_step"] = "offers"
+                    _save(ctx)
+                    send_choices(_wa_text("optin_offers", lang), "btn_answer",
+                                 [(_wa_text("opt_yes", lang), "opt:offers:yes", ""),
+                                  (_wa_text("opt_no", lang), "opt:offers:no", "")])
+                else:
+                    ctx.pop("optin_step", None)
+                    _save(ctx)
+                    send(_wa_text("optin_done", lang))
+                return
+            if _step and not _ans:
+                ctx.pop("optin_step", None)      # they asked a question instead: both stay OFF
+                _save(ctx)
         # [wa-templates] template button taps
         if choice_id == "show_answer":
             if not pend.get("items"):
