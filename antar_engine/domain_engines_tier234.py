@@ -337,11 +337,28 @@ def engine_loss_of_parent(planets, house_lords, birth_date):
     father_risk = min(70, len(father_indicators)*25)
     mother_risk = min(70, len(mother_indicators)*25)
 
+    # [over-surfacing gate 2026-10-07] A clean parent chart must say NOTHING about
+    # parent health. The remedy used to be a static string ("Moon: Serve mother. Keep
+    # mother healthy.") returned on EVERY chart — so build_tier234_verdicts_block
+    # rendered a "PARENT HEALTH → keep mother healthy" line even when both risks were 0
+    # and there were no indicators, and the reading LLM told the person to take care of
+    # a parent whose chart showed no issue. Now the remedy names ONLY the parent the
+    # engine actually flagged, and is empty when neither parent has an indicator; the
+    # renderer skips the whole block in that case. (Same discipline as the daily
+    # speculation/travel caution gate: no standing caution without an activation.)
     timing_note = ""
-    if age > 60:
-        timing_note = "At this life stage, parent health naturally becomes a priority — chart indicators heighten the need for care."
-    elif father_risk >= 50 or mother_risk >= 50:
-        timing_note = "During Sun/9th lord dasha (father) or Moon/4th lord dasha (mother) — most sensitive periods."
+    if father_indicators or mother_indicators:
+        if age > 60:
+            timing_note = "At this life stage, parent health naturally becomes a priority — chart indicators heighten the need for care."
+        elif father_risk >= 50 or mother_risk >= 50:
+            timing_note = "During Sun/9th lord dasha (father) or Moon/4th lord dasha (mother) — most sensitive periods."
+
+    remedy_parts = []
+    if father_indicators:
+        remedy_parts.append("Sun remedy: offer water daily at sunrise; respect and spend time with your father.")
+    if mother_indicators:
+        remedy_parts.append("Moon remedy: serve your mother; offer milk on Mondays.")
+    remedy = " ".join(remedy_parts)
 
     return {
         "father_risk": father_risk,
@@ -349,8 +366,9 @@ def engine_loss_of_parent(planets, house_lords, birth_date):
         "father_indicators": father_indicators,
         "mother_indicators": mother_indicators,
         "timing_note": timing_note,
-        "remedy": "Sun remedy: Offer water daily at sunrise. Respect father actively. Moon: Serve mother. Keep mother healthy.",
-        "sensitivity_note": "This is karmic timing — remedies and care can ease but not always prevent.",
+        "remedy": remedy,
+        "sensitivity_note": ("This is karmic timing — remedies and care can ease but not always prevent."
+                             if (father_indicators or mother_indicators) else ""),
     }
 
 
@@ -998,6 +1016,12 @@ def build_tier234_verdicts_block(results: dict) -> str:
     for engine, data in results.items():
         if engine == "wow" or not data:
             continue
+        # [over-surfacing gate 2026-10-07] parent_loss returns zero-valued risk keys on a
+        # clean chart, so `not data` never skipped it and a "PARENT HEALTH" heading was
+        # emitted with a standing remedy and no finding behind it. Skip the whole block
+        # when the engine flagged neither parent.
+        if engine == "parent_loss" and not (data.get("father_indicators") or data.get("mother_indicators")):
+            continue
         label = LABELS.get(engine, engine.upper())
         lines.append(f"\n{label}:")
 
@@ -1005,17 +1029,23 @@ def build_tier234_verdicts_block(results: dict) -> str:
         if score_key: lines.append(f"  Score/Risk: {data[score_key]}/100")
         if data.get("verdict"): lines.append(f"  Verdict: {data['verdict']}")
 
-        for ind_key in ["lk_indicators","indicators","positive","gain_indicators","support_indicators"]:
-            items = data.get(ind_key,[])
-            if items:
-                for i in items[:3]: lines.append(f"  ✓ {i}")
-                break
+        if engine == "parent_loss":
+            # Names its findings father_indicators / mother_indicators (not the generic
+            # keys below). Surface the actual reason for a REAL flag, not just a remedy.
+            for i in (data.get("father_indicators") or [])[:2]: lines.append(f"  ⚠ {i}")
+            for i in (data.get("mother_indicators") or [])[:2]: lines.append(f"  ⚠ {i}")
+        else:
+            for ind_key in ["lk_indicators","indicators","positive","gain_indicators","support_indicators"]:
+                items = data.get(ind_key,[])
+                if items:
+                    for i in items[:3]: lines.append(f"  ✓ {i}")
+                    break
 
-        for warn_key in ["challenges","risk_factors","cautions","disputes"]:
-            items = data.get(warn_key,[])
-            if items:
-                for i in items[:2]: lines.append(f"  ⚠ {i}")
-                break
+            for warn_key in ["challenges","risk_factors","cautions","disputes"]:
+                items = data.get(warn_key,[])
+                if items:
+                    for i in items[:2]: lines.append(f"  ⚠ {i}")
+                    break
 
         for extra in ["timing_signals","timing","best_periods","award_types",
                       "vehicle_color_lk","lk_muhurta_advice","auspicious_advice",
