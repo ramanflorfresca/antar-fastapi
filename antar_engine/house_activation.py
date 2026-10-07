@@ -339,16 +339,34 @@ def score_domains(chart_data: dict, dashas: dict, transit_events: list,
                         or any(h in _DUSTHANAS for h in houses)))
 
         # confidence rises with convergence + transit corroboration
-        confidence = 0.35
-        if vim_active:
-            confidence += 0.25
-        if jaimini_active:
-            confidence += 0.15
-        if transit_count:
-            confidence += 0.15
-        if convergence:
-            confidence += 0.10
-        confidence = round(min(1.0, confidence), 2)
+        if daily:
+            # [signal-independence 2026-10-07 — fix #3] For a DAILY read, confidence
+            # must reflect INDEPENDENT axes, not stacked standing-chapter layers.
+            # vim_active (a static ~18-yr mahadasha), jaimini_active (a months-long
+            # chara period) and the `convergence` bonus are all the SAME standing
+            # chapter — not three same-day confirmations — and a transit's many
+            # sub-events are often ONE moving body (e.g. all Moon). The old
+            # 0.35+0.25+0.15+0.15+0.10 let a fleeting Moon transit + a static chapter
+            # hit a false 1.0. Two axes: the chapter (ONE bounded backdrop) + the
+            # day's sky (weighted by DISTINCT transiting bodies, since "today" is
+            # defined by what is moving). Monthly/yearly keep the old formula — over
+            # a long period the standing chapter legitimately IS the signal.
+            _distinct_tbodies = len({str(e.get("planet") or "") for e in dom_events})
+            _chapter_conf = min((0.20 if vim_active else 0.0)
+                                + (0.10 if jaimini_active else 0.0), 0.25)
+            _sky_conf = min(0.30, 0.15 * _distinct_tbodies)
+            confidence = round(min(1.0, 0.35 + _chapter_conf + _sky_conf), 2)
+        else:
+            confidence = 0.35
+            if vim_active:
+                confidence += 0.25
+            if jaimini_active:
+                confidence += 0.15
+            if transit_count:
+                confidence += 0.15
+            if convergence:
+                confidence += 0.10
+            confidence = round(min(1.0, confidence), 2)
 
         # date window from the domain's transit events (earliest→latest)
         window = ""
