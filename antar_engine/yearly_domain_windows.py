@@ -234,6 +234,24 @@ def build_yearly_domain_windows(chart_data: dict, dashas: dict,
         # year-activation = total score across standout months (ranks domains)
         activation_score = sum(r["score"] for r, t in zip(rows[key], tones)
                                if t in ("up", "down"))
+        # [yv2-coherence 2026-10-07] Split the magnitude into opportunity vs
+        # risk so a domain's YEAR polarity decides how it is FRAMED. Previously
+        # a strained domain (big risk months) still ranked high AND got its few
+        # opportunity months labelled "up", so it surfaced as a positive #1
+        # lead right next to a "connections are strained" attention flag — the
+        # layers contradicted each other. Ranking still goes by total magnitude
+        # (an at-risk domain SHOULD surface — owner's rule is lead with the
+        # strong AND the at-risk), but the caution-dominant ones now lead with
+        # their pressure window and carry care=True, so the framing matches.
+        opp_score  = sum(r["score"] for r, t in zip(rows[key], tones) if t == "up")
+        risk_score = sum(r["score"] for r, t in zip(rows[key], tones) if t == "down")
+        net_score  = opp_score - risk_score
+        if risk_score > opp_score * 1.15:
+            dom_polarity, care = "caution", True
+        elif opp_score > risk_score * 1.15:
+            dom_polarity, care = "opportunity", False
+        else:
+            dom_polarity, care = "mixed", False
         if not ups and not downs:
             continue
         label = YEAR_LABEL.get(key, key.title())
@@ -257,13 +275,29 @@ def build_yearly_domain_windows(chart_data: dict, dashas: dict,
         fwd_ups = [w["window"] for w in _fwd if w["direction"] == "up"]
         fwd_downs = [w["window"] for w in _fwd if w["direction"] == "down"]
         has_fwd = bool(fwd_ups or fwd_downs)
+        # [yv2-coherence 2026-10-07] Frame the line by the domain's net polarity,
+        # so a caution-dominant domain leads with its pressure window instead of
+        # reading as a positive "strongest around X" headline.
         if has_fwd:
-            parts = []
-            if fwd_ups:
-                parts.append("strongest around " + ", ".join(fwd_ups))
-            if fwd_downs:
-                parts.append("under pressure around " + ", ".join(fwd_downs))
-            line = f"{say[key].capitalize()} is active this year — " + "; ".join(parts) + "."
+            if dom_polarity == "caution" and fwd_downs:
+                line = (f"{say[key].capitalize()} needs care this year — "
+                        "under pressure around " + ", ".join(fwd_downs))
+                if fwd_ups:
+                    line += "; a lift around " + ", ".join(fwd_ups)
+                line += "."
+            elif dom_polarity == "opportunity" and fwd_ups:
+                line = (f"{say[key].capitalize()} is favourable this year — "
+                        "strongest around " + ", ".join(fwd_ups))
+                if fwd_downs:
+                    line += "; ease off around " + ", ".join(fwd_downs)
+                line += "."
+            else:
+                parts = []
+                if fwd_ups:
+                    parts.append("strongest around " + ", ".join(fwd_ups))
+                if fwd_downs:
+                    parts.append("under pressure around " + ", ".join(fwd_downs))
+                line = f"{say[key].capitalize()} is active this year — " + "; ".join(parts) + "."
         else:
             line = (f"{say[key].capitalize()} was active earlier this year — "
                     "its strong windows have largely passed.")
@@ -273,6 +307,11 @@ def build_yearly_domain_windows(chart_data: dict, dashas: dict,
             "windows": windows,
             "has_forward": has_fwd,
             "score": round(activation_score, 1),
+            # [yv2-coherence 2026-10-07] net-signed impact + the year polarity the
+            # FE should colour by, so a caution domain never renders as positive.
+            "net_score": round(net_score, 1),
+            "polarity": dom_polarity,
+            "care": care,
         })
 
     # forward-having domains rank first (an all-elapsed domain shouldn't lead the
