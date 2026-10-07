@@ -5559,6 +5559,150 @@ def _wa_welcome(link: dict, lang: str) -> tuple:
     return "\n\n".join(parts), starters
 
 
+# ── [wa-onboarding 2026-10-06] chat-first onboarding ─────────────────────────────────────────────
+def _wa_onboard_on() -> bool:
+    return (os.getenv("WHATSAPP_ONBOARDING") or "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def _wa_phone_user(number: str) -> Optional[str]:
+    """The phone-only Supabase auth user for a WhatsApp number (created once, then reused). The email is a
+    deterministic placeholder on a domain with no mailbox — we never mail it; the user claims the account
+    later by signing in with Google/Apple (merge) or via a magic link."""
+    digits = "".join(ch for ch in number if ch.isdigit())
+    email = f"wa{digits}@{os.getenv('WA_PLACEHOLDER_EMAIL_DOMAIN') or 'wa.antar.world'}"
+    try:
+        res = supabase.auth.admin.create_user({
+            "email": email, "email_confirm": True,
+            "user_metadata": {"source": "whatsapp", "phone": number}})
+        return res.user.id
+    except Exception as e:
+        if "already" not in str(e).lower() and "registered" not in str(e).lower():
+            print(f"[wa-onboarding] create_user failed …{number[-4:]}: {e}")
+            return None
+    try:      # created earlier (a retry): find it by its deterministic email
+        for page in range(1, 26):
+            users = supabase.auth.admin.list_users(page=page, per_page=200)
+            users = getattr(users, "users", users) or []
+            for u in users:
+                if (getattr(u, "email", "") or "").lower() == email:
+                    return u.id
+            if len(users) < 200:
+                break
+    except Exception as e:
+        print(f"[wa-onboarding] user lookup failed …{number[-4:]}: {e}")
+    return None
+
+
+async def _wa_geocode(place: str, lat_lon: Optional[tuple] = None) -> Optional[tuple]:
+    """(label, lat, lon, tz_name) or None. A shared location pin skips the geocoder."""
+    from antar_engine import messaging as _msg
+    try:
+        if lat_lon:
+            lat, lon = float(lat_lon[0]), float(lat_lon[1])
+            tz = await asyncio.to_thread(_msg.tz_from_coords, lat, lon)
+            return (place or f"{lat:.2f}, {lon:.2f}"), lat, lon, tz or ""
+        lat, lon, tz, _src = await _geocode_city(place, "")
+        if lat is None or lon is None:
+            return None
+        if not tz:
+            tz = await asyncio.to_thread(_msg.tz_from_coords, lat, lon)
+        return place.strip(), float(lat), float(lon), tz or ""
+    except Exception as e:
+        print(f"[wa-onboarding] geocode '{str(place)[:40]}' failed: {e}")
+        return None
+
+
+_WA_OB_PROMPT = {"name": "bad_name", "dob": "ask_dob", "tob": "ask_tob", "pob": "ask_pob",
+                 "current": "ask_current"}
+
+
+async def _wa_onboard_turn(number: str, body: str, choice_id: str, lat_lon: Optional[tuple],
+                           lang: str, send, send_choices) -> dict:
+    """One message from a number with no linked chart. Returns {handled, chart_id}.
+    handled=False → the caller falls back to today's 'connect in the app' reply (feature off, table
+    missing, or no consent evidence yet)."""
+    from antar_engine import messaging as _msg, wa_onboarding as _wo
+    out = {"handled": False, "chart_id": None}
+    if not _wa_onboard_on():
+        return out
+    st, avail = await asyncio.to_thread(_wo.load, supabase, number)
+    if not avail:
+        return out
+    try:
+        import phonenumbers
+        country = phonenumbers.region_code_for_number(phonenumbers.parse(number)) or ""
+    except Exception:
+        country = ""
+    out["handled"] = True
+    if _wo.is_stale(st) or st.get("status") == "done":
+        st = _wo.new_state(lang, country)
+        await asyncio.to_thread(_wo.save, supabase, number, st)
+        send(_wo.text("hello", lang))
+        return out
+    st["lang"] = lang = st.get("lang") or lang
+    step = st.get("step") or "name"
+    if step in _WA_OB_PROMPT and _msg.is_nudge(body) and not lat_lon and not choice_id:
+        send(_wo.text("resumed", lang))                      # "hello" mid-flow re-asks, never answers it
+        send(_wo.text(_WA_OB_PROMPT[step], lang, name=st.get("name", "")) if step != "name"
+             else _wo.text("hello", lang))
+        return out
+
+    def _confirm_choices(s):
+        send_choices(_wo.confirm_text(s, lang), "btn_answer",
+                     [(_wa_text("opt_yes", lang), "wob:yes", ""), (_wa_text("opt_no", lang), "wob:no", "")])
+
+    r = _wo.advance(st, body if not lat_lon else (body or "pin"), choice_id)
+    st = r["state"]
+    if r["action"] in ("geocode_pob", "geocode_current"):
+        which = "pob" if r["action"] == "geocode_pob" else "current"
+        g = await _wa_geocode(r["arg"] if r["arg"] != "pin" else "", lat_lon)
+        if not g:
+            await asyncio.to_thread(_wo.save, supabase, number, st)
+            send(_wo.text("bad_pob", lang))
+            return out
+        label, lat, lon, tz = g
+        st = _wo.set_place(st, which, label, lat, lon, tz, _msg.tz_label(tz))
+        await asyncio.to_thread(_wo.save, supabase, number, st)
+        if which == "pob":
+            send(_wo.text("ask_current", lang))
+        else:
+            _confirm_choices(st)
+        return out
+    if r["action"] == "build":
+        send(_wo.text("building", lang))
+        try:
+            uid = await asyncio.to_thread(_wa_phone_user, number)
+            if not uid:
+                raise RuntimeError("no phone-only user")
+            await asyncio.to_thread(_wo.save, supabase, number, st, "open", None, uid)
+            res = await _create_chart_for_user(ChartCreateRequest(**_wo.to_chart_fields(st)), uid, None)
+            cid = getattr(res, "chart_id", None) or (res.get("chart_id") if isinstance(res, dict) else None)
+            if not cid:
+                raise RuntimeError("chart create returned no id")
+            ok = await asyncio.to_thread(_msg.link_whatsapp_direct, supabase, cid, uid, number,
+                                         _msg.consent_row("whatsapp"))
+            if not ok:
+                raise RuntimeError("link failed")
+        except Exception as e:
+            print(f"[wa-onboarding] build failed …{number[-4:]}: {e}")
+            await asyncio.to_thread(_wo.save, supabase, number, st)    # state kept → "hi" retries the confirm
+            send(_wo.text("failed", lang))
+            return out
+        await asyncio.to_thread(_wo.save, supabase, number, st, "done", cid, uid)
+        out["chart_id"] = cid
+        return out
+    await asyncio.to_thread(_wo.save, supabase, number, st)
+    if r["reply"] == "__confirm__":
+        _confirm_choices(st)
+    elif r["reply"] == "which_fix":
+        send_choices(_wo.text("which_fix", lang), "btn_choose",
+                     [("Name", "wob:fix:name", ""), ("Date", "wob:fix:dob", ""),
+                      ("Time", "wob:fix:tob", ""), ("Place", "wob:fix:pob", "")])
+    else:
+        send(_wo.text(r["reply"], lang, **r["params"]))
+    return out
+
+
 async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int = 0,
                      sink: Optional["_WaSink"] = None, message_sid: str = "",
                      choice_id: str = "", lat_lon: Optional[tuple] = None,
@@ -5671,6 +5815,7 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
 
         # [wa-policy 2026-10-05] data-policy acceptance before anything else (Ley 1581 / DPDP / LGPD):
         # a number that hasn't accepted the current wording — in the app or here — is asked first.
+        _pol = None
         if cmd != "help":
             _pol = await asyncio.to_thread(_msg.policy_state, sb, number, link)
             if _pol == "needed":
@@ -5687,6 +5832,7 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
                                  [(_wa_text("opt_accept", lang), "pol:yes", ""),
                                   (_wa_text("opt_decline", lang), "pol:no", "")])
                     return
+                _pol = "ok"
                 _held = await asyncio.to_thread(_msg.held_code_for, sb, number)
                 if _held:                         # [wa-qr-consent] they scanned the QR first → link now
                     await _wa_finish_link(_held, _msg.consent_row("whatsapp"), ask_optins=True)
@@ -5696,6 +5842,26 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
                     return
                 # accepted, not linked yet → fall through to how to connect
 
+        if not link and _pol == "ok" and _wa_onboard_on():
+            # [wa-onboarding] a stranger who accepted the policy in chat: collect birth details here
+            _ob = await _wa_onboard_turn(number, body, choice_id or "", lat_lon, lang, send, send_choices)
+            if _ob["chart_id"]:
+                _lk = await asyncio.to_thread(_msg.get_whatsapp_link, sb, number)
+                if _lk:
+                    _wtext, _starters = await asyncio.to_thread(_wa_welcome, _lk, lang)
+                    send_choices(_wtext, "btn_choose", _q_items(_starters))
+                    _c = _msg.remember_options({}, "ask", _starters)
+                    _c["optin_step"] = "alerts"
+                    send_choices(_wa_text("optin_alerts", lang), "btn_answer",
+                                 [(_wa_text("opt_yes", lang), "opt:alerts:yes", ""),
+                                  (_wa_text("opt_no", lang), "opt:alerts:no", "")])
+                    try:
+                        _msg.save_link_context(sb, _lk, dict(_c, lang=lang, last_in=int(inbound_ts)))
+                    except Exception:
+                        pass
+                return
+            if _ob["handled"]:
+                return
         if not link:
             secret = os.getenv("WHATSAPP_LINK_SECRET")
             base = os.getenv("WHATSAPP_CONNECT_URL")     # e.g. https://antar.world/wa/connect
@@ -14365,15 +14531,21 @@ async def create_chart(
     authorization: Optional[str] = Header(None),
     http_request: Request = None,
 ):
-    from antar_engine import chart as chart_module
-    from antar_engine import vimsottari, jaimini, ashtottari
-
     user_id = None
     if authorization:
         try:
             user_id = verify_token(authorization)
         except HTTPException:
             pass
+    return await _create_chart_for_user(request, user_id, http_request)
+
+
+async def _create_chart_for_user(request: "ChartCreateRequest", user_id: Optional[str],
+                                 http_request: Optional[Request] = None):
+    """The chart-create body. Split from the endpoint so a caller that already knows the user
+    (WhatsApp chat onboarding: a phone-only account, no bearer token) runs the SAME code path."""
+    from antar_engine import chart as chart_module
+    from antar_engine import vimsottari, jaimini, ashtottari
 
     _bl = getattr(request, "birth_lat", None)
     _bg = getattr(request, "birth_lng", None)
