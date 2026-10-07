@@ -4962,6 +4962,8 @@ _WA_L = {
                 "es": "Esa fue la lectura completa. Pregúntame lo que quieras, o envía *ayuda*.",
                 "pt": "Essa foi a leitura completa. Pergunte o que quiser, ou envie *ajuda*.",
                 "hinglish": "Yeh poora read tha. Aur kuch poochiye, ya *help* bhejiye."},
+    "next_intro": {"en": "What would you like to ask next?", "es": "¿Qué quieres preguntar ahora?",
+                   "pt": "O que você quer perguntar agora?", "hinglish": "Ab aap kya poochna chahenge?"},
     "more_hint": {"en": "_Reply *more* for the full read._",
                   "es": "_Responde *más* para la lectura completa._",
                   "pt": "_Responda *mais* para a leitura completa._",
@@ -5211,6 +5213,15 @@ def _wa_inline_on() -> bool:
     return (os.getenv("WHATSAPP_INLINE_REPLIES") or "on").strip().lower() not in ("0", "off", "false", "no")
 
 
+WA_LIST_BODY_MAX = 1000        # WhatsApp interactive list body limit is 1024
+
+
+def _wa_full_depth() -> bool:
+    """[wa-full-depth 2026-10-06] owner: WhatsApp gives the SAME answer as Ask (verdict, why, window, step,
+    practice), not a one-screen trim. WHATSAPP_ANSWER_DEPTH=compact restores the old trim."""
+    return (os.getenv("WHATSAPP_ANSWER_DEPTH") or "full").strip().lower() != "compact"
+
+
 class _WaSink:
     """Where a handler's replies go: buffered for the webhook's TwiML response
     until the inline deadline closes it, then sent through the REST API."""
@@ -5230,7 +5241,7 @@ class _WaSink:
         return True
 
     def send_choices(self, body: str, button: str, items: list, text: str,
-                     prefer_rest: bool = False) -> bool:
+                     prefer_rest: bool = False, list_intro: str = "") -> bool:
         """A tappable list when replies go via REST; numbered `text` otherwise.
         [wa-consistent 2026-10-04] `prefer_rest`: outbound is known to work for this number, so
         a fast (inline) answer ALSO goes out as the tappable list — the same look as a slow one."""
@@ -5238,6 +5249,13 @@ class _WaSink:
             return self.send(text)
         if (self.inline and not self.closed) and not prefer_rest:
             return self.send(text)
+        if len(body or "") > WA_LIST_BODY_MAX:
+            # [wa-full-depth 2026-10-06] a full-depth answer is longer than a list message may be (1024):
+            # the answer goes as its own message, then a short list carries the next questions — both
+            # through the same path, so they arrive in order
+            self.outbox.append(("text", body, None))
+            self.outbox.append(("list", text, (list_intro or "…", button, items)))
+            return True
         self.outbox.append(("list", text, (body, button, items)))
         return True
 
@@ -5745,7 +5763,7 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
         except Exception:
             pass
         sink.send_choices(_wa_strip_numbered(text) or text, _wa_text(button_key, lang), items, text,
-                          prefer_rest=_pref)
+                          prefer_rest=_pref, list_intro=_wa_text("next_intro", lang))
 
     def _q_items(qs, titles=None):
         # [followup-flows 2026-10-04] the row title is the KIND of next step ("⏳ Timing"), the
@@ -6370,7 +6388,7 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
         except Exception:
             pass
         text, fus = _msg.format_ask_whatsapp_v2(payload, lang, header=header, asked=question,
-                                                compact=True, include_practice=_show_pc)
+                                                compact=not _wa_full_depth(), include_practice=_show_pc)
         full, _fus_all = _msg.format_ask_whatsapp_v2(payload, lang, header=header, asked=question,
                                                      include_practice=_show_pc)
         # [followup-flows] the one-screen trim drops the 3rd numbered follow-up (the bridge);

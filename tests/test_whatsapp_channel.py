@@ -749,6 +749,7 @@ def test_compact_keeps_timing_and_fits_one_screen():
 
 
 def test_long_answer_offers_more_and_more_sends_full(m, monkeypatch):
+    monkeypatch.setenv("WHATSAPP_ANSWER_DEPTH", "compact")    # the old one-screen trim, still available
     link = _link()
     cv = _Conv(m, monkeypatch, link=link, answer=dict(_LONG))
     cv.run("How is speculation today")
@@ -1448,3 +1449,21 @@ def test_prompt_event_endpoint(m, monkeypatch):
     assert c.post("/api/v1/messaging/whatsapp/prompt", json={"event": "dismissed"}, headers=h).json()["recorded"]
     assert got == [("user-1", "dismissed")]
     assert c.post("/api/v1/messaging/whatsapp/prompt", json={"event": "nope"}, headers=h).status_code == 400
+
+
+def test_full_depth_is_the_default_and_sends_the_whole_answer(m, monkeypatch):
+    """[wa-full-depth 2026-10-06] WhatsApp sends the same answer as Ask, with no 'Reply more' trim."""
+    monkeypatch.delenv("WHATSAPP_ANSWER_DEPTH", raising=False)
+    cv = _Conv(m, monkeypatch, link=_link(), answer=dict(_LONG))
+    cv.run("How is speculation today")
+    assert "Reply *more* for the full read" not in cv.sent[-1]
+    assert len(cv.sent[-1]) > 500
+
+
+def test_long_body_goes_as_its_own_message_before_the_list():
+    import time as _t
+    import main as _m
+    s = _m._WaSink("+10000000000", _t.time(), inline=False)
+    s.send_choices("x" * 1500, "Ask next", [("Q?", "q:Q?", "Q?")], "x" * 1500 + "\n\n1  Q?",
+                   prefer_rest=True, list_intro="What next?")
+    assert [k for k, *_ in s.outbox] == ["text", "list"] and s.outbox[1][2][0] == "What next?"
