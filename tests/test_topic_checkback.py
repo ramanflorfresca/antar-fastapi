@@ -262,6 +262,17 @@ def test_not_sure_can_become_a_real_answer():
     assert tcb.record_answer(db, CHART, cid, "yes", NOW + timedelta(days=2))["outcome"] == "yes"
 
 
+def test_reask_marker_only_when_it_really_was_a_reask():
+    db = DB(); cid = _one(db)
+    tcb.record_answer(db, CHART, cid, "not_sure", NOW)
+    tcb.record_answer(db, CHART, cid, "yes", NOW + timedelta(days=2))          # settled early
+    assert "+reask" not in (db.claims()[0].get("checkin_channel") or "")
+    db2 = DB(); cid2 = _one(db2)
+    tcb.record_answer(db2, CHART, cid2, "not_sure", NOW)
+    tcb.record_answer(db2, CHART, cid2, "yes", NOW + timedelta(days=31))       # the real re-ask
+    assert "+reask" in db2.claims()[0]["checkin_channel"]
+
+
 def test_not_sure_is_neither_a_hit_nor_a_miss_on_the_board():
     claims = [{"id": f"k{i}", "chart_id": f"c{i}", "source": "topic_read", "topic": "money",
                "claim_type": "window", "window_start": "2026-10-14", "window_end": "2026-10-20",
