@@ -21,7 +21,7 @@ Owner rules baked into the wording (do not loosen):
 """
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 from typing import Dict, Optional
 
 TOPIC_KEYS = ("money", "career", "love", "health", "business", "peace", "family")
@@ -75,19 +75,23 @@ TAG: Dict[str, Dict[str, str]] = {
     "en": {"active": "active now", "care": "needs care now", "open": "window opens {mon}",
            "care_from": "take care from {mon}", "quiet": "quiet", "steady": "steady",
            "steady_open": "steady, a good window", "steady_care": "steady, go gently",
+           "steady_open_far": "steady, window opens {mon}", "steady_care_far": "steady, take care from {mon}",
            "open_soon": "open this week", "care_soon": "take care this week"},
     "es": {"active": "activo ahora", "care": "pide cuidado ahora", "open": "se abre una ventana en {mon}",
            "care_from": "cuidado desde {mon}", "quiet": "tranquilo", "steady": "estable",
            "steady_open": "estable, con buena ventana", "steady_care": "estable, con calma",
+           "steady_open_far": "estable, ventana en {mon}", "steady_care_far": "estable, cuidado desde {mon}",
            "open_soon": "abierto esta semana", "care_soon": "cuidado esta semana"},
     "pt": {"active": "ativo agora", "care": "pede cuidado agora", "open": "uma janela abre em {mon}",
            "care_from": "cuidado a partir de {mon}", "quiet": "tranquilo", "steady": "estável",
            "steady_open": "estável, com boa janela", "steady_care": "estável, com calma",
+           "steady_open_far": "estável, janela em {mon}", "steady_care_far": "estável, cuidado a partir de {mon}",
            "open_soon": "aberto esta semana", "care_soon": "cuidado esta semana"},
     "hinglish": {"active": "abhi active", "care": "abhi dhyaan chahiye",
                  "open": "{mon} mein window khulegi", "care_from": "{mon} se dhyaan rakhein",
                  "quiet": "shaant", "steady": "sthir",
                  "steady_open": "sthir, achhi window", "steady_care": "sthir, dheere chalein",
+                 "steady_open_far": "sthir, {mon} mein window khulegi", "steady_care_far": "sthir, {mon} se dhyaan rakhein",
                  "open_soon": "is hafte window khuli hai", "care_soon": "is hafte dhyaan rakhein"},
 }
 
@@ -101,6 +105,19 @@ MONTHS: Dict[str, tuple] = {
 
 def month_name(d: date, lang: str) -> str:
     return MONTHS.get(lang, MONTHS["en"])[d.month - 1]
+
+
+def month_year_short(d: date, lang: str) -> str:
+    """'Jun 2028' — a month that is far enough out to need its year."""
+    return f"{month_name(d, lang)} {d.year}"
+
+
+def add_months(d: date, n: int) -> date:
+    """d + n calendar months, the day clamped to the target month's length."""
+    y, m = divmod(d.year * 12 + d.month - 1 + n, 12)
+    m += 1
+    last = (date(y + (m == 12), m % 12 + 1, 1) - timedelta(days=1)).day
+    return date(y, m, min(d.day, last))
 
 
 def day_label(d: date, lang: str) -> str:
