@@ -457,7 +457,8 @@ def _reasoning(ctx: TopicContext, key: str, a: dict, scale: str, lang: str,
     if a["chara_confirm"]:
         bullets.append(B["agree"])
     if a["n_signals"] and w_start and w_end:
-        tmpl = B["signals_care" if a["mode"] == "care" else "signals_open"]
+        sfx = "_day" if w_start == w_end else ""   # one day reads "on Oct 7", never "between Oct 7 and Oct 7"
+        tmpl = B[("signals_care" if a["mode"] == "care" else "signals_open") + sfx]
         bullets.append(tmpl.format(n=a["n_signals"], area=area,
                                    start=C.day_label(w_start, lang), end=C.day_label(w_end, lang)))
     elif not a["n_signals"]:

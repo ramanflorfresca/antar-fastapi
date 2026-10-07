@@ -351,6 +351,32 @@ def test_copy_tables_are_complete_for_every_language_topic_and_scale():
         assert len(C.MONTHS[l]) == 12
 
 
+@pytest.mark.parametrize("lang", LANGS)
+@pytest.mark.parametrize("mode", ["open", "care"])
+def test_single_day_window_never_says_between_x_and_x(lang, mode):
+    ctx = _synth("Saturn", [_ev("2026-10-07", "Jupiter", 10)])
+    a = dict(T.assess(ctx, "career", TODAY, ctx.events(TODAY, TODAY, False)), mode=mode, n_signals=1)
+    one = T._reasoning(ctx, "career", a, "today", lang, TODAY, TODAY)["bullets"][-1]
+    rng = T._reasoning(ctx, "career", a, "month", lang, TODAY, TODAY + timedelta(days=6))["bullets"][-1]
+    day = C.day_label(TODAY, lang)
+    assert day in one and one.count(day) == 1          # the date appears once
+    assert one != rng                                  # a real range keeps its own wording
+    if lang == "en":
+        area = C.AREA["en"]["career"]
+        assert one == (f"Slow-moving influences support {area} on Oct 7." if mode == "open"
+                       else f"Slow-moving influences press on {area} on Oct 7.")
+        assert "between" not in one
+
+
+def test_single_day_window_end_to_end_reads_on_the_day():
+    ctx = _synth("Saturn", [_ev("2026-10-07", "Jupiter", 10)])
+    r = T.read_topic(ctx, "career", "today", TODAY, "en")
+    w = r["best_window"] or r["watch_window"]
+    assert w and w["start"] == w["end"] == "2026-10-07"
+    assert all("between" not in b for b in w["reasoning"]["bullets"])
+    assert any(" on Oct 7." in b for b in w["reasoning"]["bullets"])
+
+
 def test_topic_labels_and_tags_localised():
     out = T.rank_topics(_synth("Saturn", [_ev("2026-10-12", "Jupiter", 10)]), TODAY, "pt")
     assert out[0]["label"] == "Carreira" and out[0]["tag"] == "ativo agora"
