@@ -483,31 +483,52 @@ def _reasoning(ctx: TopicContext, key: str, a: dict, scale: str, lang: str,
 
 
 # ── remedy ───────────────────────────────────────────────────────────────────
-def build_remedy(ctx: TopicContext, key: str, today: date, lang: str) -> dict:
-    """{summary, steps[]} — free steps first, a stone only as an optional last
-    step, never a price. The mantra and stone come from the practice engine."""
-    steps = [{"kind": "practice", "optional": False, "text": t}
-             for t in C.pick(C.FREE_STEPS, lang)[key]]
-    try:
-        vim = _vim_active_planets(ctx.dashas, today.isoformat())
-        kar = TOPIC_SPEC[key]["karakas"]
-        planet = next((p for p in kar if p in vim), kar[0])
-        from antar_engine.practice_library import get_planet_content
-        name = ((get_planet_content(planet, "en") or {}).get("mantra") or {}).get("name")
-        if name:
-            steps.append({"kind": "mantra", "optional": True,
-                          "text": C.pick(C.MANTRA_STEP, lang).format(name=name)})
-    except Exception:
-        pass
+def _chart_gem(ctx: TopicContext) -> Optional[dict]:
     try:
         from antar_engine.practice_engine import select_chart_gemstone
-        gem = select_chart_gemstone((ctx.chart_data or {}).get("planets") or {},
-                                    (ctx.chart_data or {}).get("lagna"))
-        if gem and gem.get("stone"):
+        return select_chart_gemstone((ctx.chart_data or {}).get("planets") or {},
+                                     (ctx.chart_data or {}).get("lagna"))
+    except Exception:
+        return None
+
+
+def remedy_planet(ctx: TopicContext, key: str, today: date, gem: Optional[dict] = None) -> str:
+    """The ONE planet a topic's remedy speaks for: the running chapter ∩ the topic's
+    key planets. When the chart's own stone planet is among those, it wins, so the
+    mantra and the stone can agree; with no overlap, the topic's first key planet."""
+    vim = _vim_active_planets(ctx.dashas, today.isoformat())
+    kar = TOPIC_SPEC[key]["karakas"]
+    hits = [p for p in kar if p in vim]
+    if gem and gem.get("_planet") in hits:
+        return gem["_planet"]
+    return hits[0] if hits else kar[0]
+
+
+def build_remedy(ctx: TopicContext, key: str, today: date, lang: str) -> dict:
+    """{summary, steps[]} — free steps first, a stone only as an optional last
+    step, never a price. The mantra and the stone are for the SAME planet: the
+    chart-level stone engine cannot be pointed at an arbitrary planet (a planet
+    that works against the lagna is never offered as a stone), so when its planet
+    is not the remedy planet the stone step is dropped rather than mismatched."""
+    steps = [{"kind": "practice", "optional": False, "text": t}
+             for t in C.pick(C.FREE_STEPS, lang)[key]]
+    gem = _chart_gem(ctx)
+    try:
+        planet = remedy_planet(ctx, key, today, gem)
+    except Exception:
+        planet = None
+    if planet:
+        try:
+            from antar_engine.practice_library import get_planet_content
+            name = ((get_planet_content(planet, "en") or {}).get("mantra") or {}).get("name")
+            if name:
+                steps.append({"kind": "mantra", "optional": True,
+                              "text": C.pick(C.MANTRA_STEP, lang).format(name=name)})
+        except Exception:
+            pass
+        if gem and gem.get("stone") and gem.get("_planet") == planet:
             steps.append({"kind": "stone", "optional": True,
                           "text": C.pick(C.STONE_STEP, lang).format(stone=gem["stone"])})
-    except Exception:
-        pass
     return {"summary": C.pick(C.REMEDY_SUMMARY, lang), "steps": steps}
 
 

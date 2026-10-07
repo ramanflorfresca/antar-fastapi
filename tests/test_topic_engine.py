@@ -486,6 +486,48 @@ def test_remedy_free_steps_first_and_stone_only_optional_last(ctxs):
             assert "skip" in rem["steps"][-1]["text"]
 
 
+def test_remedy_mantra_and_stone_are_for_the_same_planet_or_no_stone(ctxs):
+    from antar_engine.practice_engine import GEM_BY_PLANET
+    from antar_engine.practice_library import get_planet_content
+    seen_stone = seen_dropped = 0
+    for ctx in ctxs:
+        gem = T._chart_gem(ctx)
+        for on in (TODAY, date(2027, 6, 1), date(2029, 1, 1)):
+            for k in T.TOPIC_KEYS:
+                rem = T.build_remedy(ctx, k, on, "en")
+                planet = T.remedy_planet(ctx, k, on, gem)
+                mantra = [s for s in rem["steps"] if s["kind"] == "mantra"]
+                stone = [s for s in rem["steps"] if s["kind"] == "stone"]
+                assert len(mantra) == 1 and get_planet_content(planet, "en")["mantra"]["name"] in mantra[0]["text"]
+                if stone:
+                    seen_stone += 1
+                    assert gem["_planet"] == planet and GEM_BY_PLANET[planet]["stone"] in stone[0]["text"]
+                    assert rem["steps"][-1]["kind"] == "stone"
+                else:
+                    seen_dropped += 1
+                    assert not gem or gem["_planet"] != planet
+    assert seen_stone and seen_dropped      # both branches are exercised by the fixtures
+
+
+def test_mismatched_stone_is_dropped_not_shown(monkeypatch):
+    # Jupiter runs (a money key planet) but the chart's stone is Emerald (Mercury)
+    ctx = _synth("Jupiter")
+    monkeypatch.setattr(T, "_chart_gem", lambda c: {"stone": "Emerald", "_planet": "Mercury"})
+    kinds = [s["kind"] for s in T.build_remedy(ctx, "money", TODAY, "en")["steps"]]
+    assert kinds == ["practice", "practice", "mantra"]
+
+
+def test_remedy_prefers_the_charts_stone_planet_when_it_is_also_running(monkeypatch):
+    ctx = _synth("Jupiter")
+    ctx.dashas["vimsottari"].append(dict(ctx.dashas["vimsottari"][-1], lord_or_sign="Mercury",
+                                         planet_or_sign="Mercury", level="pratyantardasha"))
+    monkeypatch.setattr(T, "_vim_active_planets", lambda d, on: {"Jupiter", "Mercury"})
+    monkeypatch.setattr(T, "_chart_gem", lambda c: {"stone": "Emerald", "_planet": "Mercury"})
+    rem = T.build_remedy(ctx, "money", TODAY, "en")["steps"]
+    assert [s["kind"] for s in rem] == ["practice", "practice", "mantra", "stone"]
+    assert "Emerald" in rem[-1]["text"]
+
+
 def test_money_business_health_never_promise_outcomes():
     promise = re.compile(r"(rich|wealth|fortune|millionaire|guarantee|will succeed|diagnos|cure|disease|"
                          r"rico|riqueza|garant|enferm|diagn|doen)", re.I)
