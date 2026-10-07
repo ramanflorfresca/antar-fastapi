@@ -32122,6 +32122,25 @@ async def ask_endpoint(request: AskRequest):
                     payload["convergence"] = None
             except Exception as _spg:
                 print(f"[ask] speculation chip-suppress non-fatal: {_spg}")
+            # [window-dates 2026-10-07] Parsed bounds for the timing chip, so the
+            # answer card can DRAW the window instead of only labelling it.
+            #
+            # Parsed from payload["timing"] and not from the outcome claim: the
+            # claim deliberately prefers a window named in the read text over the
+            # chip (see outcomes.build_claim), so the two can differ. The drawing
+            # sits directly under the chip, and a bar that disagrees with the
+            # label above it is worse than no bar.
+            #
+            # MUST run BEFORE _ask_localize — that localizes the chip to es/pt
+            # month names, which parse_window cannot read.
+            try:
+                from antar_engine.outcomes import parse_window as _pw_chip
+                _w_s, _w_e = _pw_chip(payload.get("timing") or "", date.today())
+                if _w_s and _w_e:
+                    payload["window_start"] = _w_s.isoformat()
+                    payload["window_end"] = _w_e.isoformat()
+            except Exception as _wde:
+                print(f"[ask][window-dates] non-fatal: {_wde}")
             # [es-loc 2026-06-09] expanded fields: actions[]/practices[]/convergence
             # are container keys — translate_dict recurses into their subtrees.
             payload = await _ask_localize(payload, language, [
