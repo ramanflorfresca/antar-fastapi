@@ -27,9 +27,18 @@ def _table_missing(e) -> bool:
     return ("pgrst205" in m or "could not find the table" in m or "does not exist" in m)
 
 
+_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"     # no 0/O, 1/I/L
+
+
 def gen_link_code() -> str:
-    """Short, URL-safe, unambiguous one-time code (for t.me/<bot>?start=<code>)."""
-    return secrets.token_urlsafe(6)
+    """Short, readable one-time code, e.g. 'K7Q2MX' (shown inside the pre-typed WhatsApp message)."""
+    return "".join(secrets.choice(_CODE_ALPHABET) for _ in range(6))
+
+
+def wa_connect_text(code: str) -> str:
+    """[wa-connect-popup 2026-10-06] The message pre-typed in WhatsApp when someone taps Connect / scans the
+    QR. Human words, the code at the end — the person only presses Send."""
+    return f"Hi Antar! Connect my account: {code}"
 
 
 def create_pending_link(sb, chart_id: str, user_id: Optional[str],
@@ -331,6 +340,47 @@ def record_policy(sb, number: str, decision: str, lang: str = "en", link: Option
     return True
 
 
+# ── [wa-connect-popup 2026-10-06] the one-time "Connect WhatsApp" popup ─────────────────
+# Owner: show it ONCE, and know whether the person clicked it. One row per account in wa_connect_prompts
+# (sql_wa_connect_prompts.sql). Without the table: show it (the app's own local flag stops repeats).
+PROMPT_EVENTS = ("shown", "clicked", "dismissed")
+
+
+def prompt_state(sb, user_id: str) -> dict:
+    try:
+        rows = sb.table("wa_connect_prompts").select("*").eq("user_id", user_id).limit(1).execute().data or []
+    except Exception as e:
+        if not _table_missing(e):
+            print(f"[wa-prompt] read failed: {e}")
+        return {"tracked": False, "shown_at": None, "clicked_at": None, "dismissed_at": None}
+    r = rows[0] if rows else {}
+    return {"tracked": True, "shown_at": r.get("shown_at"), "clicked_at": r.get("clicked_at"),
+            "dismissed_at": r.get("dismissed_at")}
+
+
+def should_show_prompt(state: dict, linked: bool) -> bool:
+    """Once only: never for a connected number, never again after it was shown."""
+    return (not linked) and not state.get("shown_at")
+
+
+def record_prompt(sb, user_id: str, event: str) -> bool:
+    if event not in PROMPT_EVENTS or not user_id:
+        return False
+    now = datetime.now(timezone.utc).isoformat()
+    col = {"shown": "shown_at", "clicked": "clicked_at", "dismissed": "dismissed_at"}[event]
+    try:
+        rows = sb.table("wa_connect_prompts").select("user_id").eq("user_id", user_id).limit(1).execute().data or []
+        if rows:
+            sb.table("wa_connect_prompts").update({col: now, "updated_at": now}).eq("user_id", user_id).execute()
+        else:
+            sb.table("wa_connect_prompts").insert({"user_id": user_id, col: now, "updated_at": now}).execute()
+        return True
+    except Exception as e:
+        if not _table_missing(e):
+            print(f"[wa-prompt] record failed: {e}")
+        return False
+
+
 def consent_row(source: str) -> dict:
     """Columns recording the user's WhatsApp opt-in + Terms/Privacy acceptance."""
     return {"consent_at": datetime.now(timezone.utc).isoformat(),
@@ -443,6 +493,11 @@ def parse_wa_command(text: str) -> tuple:
     m = re.fullmatch(r"(?i)(?:link|conectar|ligar|connect)\s+([A-Za-z0-9_\-]{4,32})", t)
     if m:
         return ("link", m.group(1))
+    # [wa-connect-popup] "Hi Antar! Connect my account: K7Q2MX" (the pre-typed message), any language edits
+    m = re.search(r"(?i)\b(?:connect(?: my account)?|conectar(?: mi cuenta)?|conectar minha conta|code|c[oó]digo)"
+                  r"\s*[:#-]?\s*([A-Za-z0-9]{6})\s*[.!]?\s*$", t)
+    if m:
+        return ("link", m.group(1).upper())
     low = t.lower().strip(" .!¡?¿")
     if low in ("stop", "unlink", "parar", "desconectar", "band", "band karo", "unsubscribe"):
         return ("unlink", "")

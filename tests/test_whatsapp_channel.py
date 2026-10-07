@@ -1400,7 +1400,8 @@ def test_link_start_picks_the_number_by_the_users_country(m, monkeypatch):
     c = TestClient(m.app)
     h = {"Authorization": "Bearer x"}
     r = c.post("/api/v1/messaging/link/start", json={"channel": "whatsapp", "country": "IN"}, headers=h).json()
-    assert r["antar_number"] == "+19782131475" and r["deep_link"] == "https://wa.me/19782131475?text=LINK%20abc12345"
+    assert r["antar_number"] == "+19782131475"
+    assert r["deep_link"] == "https://wa.me/19782131475?text=Hi%20Antar%21%20Connect%20my%20account%3A%20abc12345"
     assert r["qr_text"] == r["deep_link"]
     r = c.post("/api/v1/messaging/link/start", json={"channel": "whatsapp", "country": "CO"}, headers=h).json()
     assert r["antar_number"] == "+17322035001"
@@ -1418,3 +1419,32 @@ def test_country_falls_back_to_the_chart(m, monkeypatch):
     monkeypatch.setattr(m, "supabase", type("S", (), {"table": lambda self, t: _Q()})())
     assert m._wa_user_country(None, None, "chart-1") == "IN"
     assert m._wa_iso("Colombia") == "CO" and m._wa_iso("us") == "US" and m._wa_iso("Atlantis") == ""
+
+
+# ─── [wa-connect-popup 2026-10-06] readable code, friendly pre-typed message, one-time popup ───
+
+def test_code_is_readable_and_the_pretyped_message_parses():
+    code = msg.gen_link_code()
+    assert len(code) == 6 and all(c in msg._CODE_ALPHABET for c in code)
+    assert msg.parse_wa_command(msg.wa_connect_text(code)) == ("link", code)
+    assert msg.parse_wa_command("hi antar! connect my account: k7q2mx") == ("link", "K7Q2MX")
+    assert msg.parse_wa_command("LINK abc12345") == ("link", "abc12345")
+    assert msg.parse_wa_command("Can you connect me with a good job?")[0] != "link"
+
+
+def test_popup_shows_once_and_never_for_linked():
+    assert msg.should_show_prompt({"shown_at": None}, linked=False)
+    assert not msg.should_show_prompt({"shown_at": "2026-10-06"}, linked=False)
+    assert not msg.should_show_prompt({"shown_at": None}, linked=True)
+
+
+def test_prompt_event_endpoint(m, monkeypatch):
+    from fastapi.testclient import TestClient
+    got = []
+    monkeypatch.setattr(m, "verify_token", lambda a: "user-1")
+    monkeypatch.setattr(msg, "record_prompt", lambda sb, uid, ev: got.append((uid, ev)) or True)
+    c = TestClient(m.app)
+    h = {"Authorization": "Bearer x"}
+    assert c.post("/api/v1/messaging/whatsapp/prompt", json={"event": "dismissed"}, headers=h).json()["recorded"]
+    assert got == [("user-1", "dismissed")]
+    assert c.post("/api/v1/messaging/whatsapp/prompt", json={"event": "nope"}, headers=h).status_code == 400

@@ -4798,18 +4798,24 @@ def messaging_link_start(req: _MsgLinkStart, http_request: Request, authorizatio
     if not out.get("available"):
         raise HTTPException(503, out.get("reason") or "messaging not set up yet")
     if (req.channel or "") == "whatsapp":
-        # [whatsapp] wa.me opens WhatsApp with "LINK <code>" pre-typed; one tap sends it.
+        # [whatsapp] wa.me opens WhatsApp with "Hi Antar! Connect my account: <code>" pre-typed; one tap sends it.
         from antar_engine import wa_numbers as _wn
         _cc = _wa_user_country(http_request, req.country, chart_id)
         digits = re.sub(r"\D", "", _wn.deep_link_number(_cc, key=str(user_id))
                         or os.getenv("TWILIO_WHATSAPP_FROM") or "")
-        out["deep_link"] = (f"https://wa.me/{digits}?text=LINK%20{out['code']}"
+        import urllib.parse as _up
+        out["prefilled_text"] = _msg.wa_connect_text(out["code"])
+        out["deep_link"] = (f"https://wa.me/{digits}?text={_up.quote(out['prefilled_text'])}"
                             if digits else None)
+        try:
+            _msg.record_prompt(supabase, user_id, "clicked")     # asking for a link = they tapped Connect
+        except Exception:
+            pass
         out["qr_text"] = out["deep_link"]          # render this as the QR on desktop
         out["antar_number"] = ("+" + digits) if digits else None
         out["country"] = _cc or None
         out["expires_in_minutes"] = _msg.WA_LINK_CODE_MAX_AGE_MIN
-        out["instructions"] = "Open the link and tap send, or message Antar: LINK " + out["code"]
+        out["instructions"] = "Open the link and tap Send."
         return out
     uname = os.getenv("TELEGRAM_BOT_USERNAME")
     out["deep_link"] = (f"https://t.me/{uname}?start={out['code']}" if uname else None)
@@ -6363,6 +6369,9 @@ def messaging_whatsapp_status(http_request: Request, country: Optional[str] = No
     out["available"] = _wa_on()
     out["consent_version"] = _msg.WA_CONSENT_VERSION
     out["marketing_consent_version"] = _msg.WA_MARKETING_CONSENT_VERSION
+    # [wa-connect-popup] the app shows the Connect popup only when this says so (once per account)
+    _ps = _msg.prompt_state(supabase, user_id)
+    out["prompt"] = dict(_ps, show=bool(out.get("available")) and _msg.should_show_prompt(_ps, bool(out.get("linked"))))
     from antar_engine import wa_numbers as _wn
     _num = ""
     try:   # a connected person keeps talking to the number they wrote to; otherwise their country's number
@@ -6398,6 +6407,20 @@ def messaging_whatsapp_alerts(req: _WaAlerts, authorization: str = Header(...)):
         print(f"[whatsapp] alerts toggle failed: {e}")
         raise HTTPException(503, "alerts not available yet")
     return {"alerts_opt_in": bool(req.enabled)}
+
+
+class _WaPromptEvent(BaseModel):
+    event: str          # shown | clicked | dismissed
+
+
+@app.post("/api/v1/messaging/whatsapp/prompt")
+def messaging_whatsapp_prompt(req: _WaPromptEvent, authorization: str = Header(...)):
+    """[wa-connect-popup 2026-10-06] Record what the person did with the one-time Connect WhatsApp popup."""
+    from antar_engine import messaging as _msg
+    user_id = verify_token(authorization)
+    if req.event not in _msg.PROMPT_EVENTS:
+        raise HTTPException(400, "event must be shown, clicked or dismissed")
+    return {"recorded": _msg.record_prompt(supabase, user_id, req.event), "event": req.event}
 
 
 class _WaMarketing(BaseModel):
