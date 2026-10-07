@@ -111,6 +111,9 @@ _LINES: Dict[str, Dict[str, Dict[str, str]]] = {
 }
 
 
+_DUSTHANAS = {6, 8, 12}   # the "difficult" houses — illness/loss/upheaval
+
+
 def _band(dom: dict) -> str:
     """Map a scored domain to a line band using its polarity + caution + tone."""
     pol = (dom.get("polarity") or "neutral").lower()
@@ -119,6 +122,14 @@ def _band(dom: dict) -> str:
         tone = float(dom.get("tone") or 0.0)
     except (TypeError, ValueError):
         tone = 0.0
+    # [house-aware 2026-10-07] If an OPPORTUNITY domain's primary signifier house
+    # didn't fire and only a dusthana (risk) house did — e.g. speculation {5,8}
+    # lit on the 8th, not the 5th — the opportunity side isn't actually lit. Frame
+    # it as the protect/risk line, not "a venture tempts". Keeps the day_map line
+    # consistent with the headline ("don't take the risk today").
+    if (pol == "opportunity" and dom.get("primary_fired") is False
+            and any(h in _DUSTHANAS for h in (dom.get("fired_houses") or []))):
+        return "protect"
     if pol == "risk":
         return "protect"
     if pol == "opportunity":
