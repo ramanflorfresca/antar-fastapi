@@ -34254,9 +34254,20 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                         result["highlight"] = (f"Today asks for care around {_say} — "
                                                "protect more than you push.")
                     elif _caution:
-                        result["headline"]  = f"Today lights up {_say} — take it, but keep a stop."
-                        result["highlight"] = (f"Today's momentum is in {_say} — lean in, "
-                                               "but cap the downside and keep one clear exit.")
+                        # [house-say 2026-10-07] If the lead's PRIMARY signifier house
+                        # didn't fire (the activation came via its risk/secondary
+                        # house — e.g. speculation lit only on the 8th, not the 5th),
+                        # the opportunity side isn't actually lit: don't invite
+                        # "take it". `_say` already switched to the fired house's
+                        # phrase upstream (house_says).
+                        if _lead.get("primary_fired") is False:
+                            result["headline"]  = f"Watch for {_say} today — if you act, keep a hard stop."
+                            result["highlight"] = (f"Today's movement in {_say} comes via the risk side — "
+                                                   "don't force an opening; cap any downside.")
+                        else:
+                            result["headline"]  = f"Today lights up {_say} — take it, but keep a stop."
+                            result["highlight"] = (f"Today's momentum is in {_say} — lean in, "
+                                                   "but cap the downside and keep one clear exit.")
                     else:
                         result["headline"]  = f"A strong day for {_say}."
                         result["highlight"] = (f"Today's momentum is in {_say} — "
