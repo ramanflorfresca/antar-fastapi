@@ -328,33 +328,77 @@ def _calm_tag(lang: str, tone: str, quiet: bool = False) -> str:
         else t["quiet" if quiet else "steady"]
 
 
+NEAR_DAYS = 2   # a window starting this soon is "now-ish", never "opens {month}"
+
+
+def _tile_window(tone: str, read: Optional[dict]) -> Optional[Tuple[date, date]]:
+    """(start, end) of the window the tile's tone names, from the read it opens."""
+    if not read or tone not in ("open", "care"):
+        return None
+    w = read.get("best_window" if tone == "open" else "watch_window")
+    if not w:
+        return None
+    return date.fromisoformat(w["start"]), date.fromisoformat(w["end"])
+
+
+def _near_score(ctx: TopicContext, key: str, today: date, now_score: float) -> float:
+    try:
+        a = assess(ctx, key, today, ctx.events(today - timedelta(days=1), today + timedelta(days=NEAR_DAYS), True))
+        return max(now_score, a["score"])
+    except Exception:
+        return now_score
+
+
 def rank_topics(ctx: TopicContext, today: date, language: str = "en") -> List[dict]:
-    """[{key,label,status,tag,tone,rank}], most active first. Never raises."""
+    """[{key,label,status,tag,tone,rank}], most active first. Never raises.
+
+    Status, tag and tone all come from the read the tile opens (best_fit_scale):
+    a window running today (or starting within NEAR_DAYS) is never "upcoming",
+    and "window opens {mon}" names the month of that read's own window."""
     lang = C.serve_language(language)
     try:
         now = _now_assessments(ctx, today)
         keep = active_set(now)
+        tiles = {k: _tile_read(ctx, k, today) for k in TOPIC_KEYS}
+        # unlit tiles whose own read has a window running today / about to start
+        near = {}
+        for k in TOPIC_KEYS:
+            tone, read = tiles[k]
+            win = _tile_window(tone, read)
+            if k not in keep and not now[k]["lit"] and win and win[0] <= today + timedelta(days=NEAR_DAYS):
+                near[k] = (win, _near_score(ctx, k, today, now[k]["score"]))
+        # a window running TODAY may join "active" under the same cap and relative cut
+        promoted = set()
+        top = max([now[k]["score"] for k in keep] + [v[1] for v in near.values()] or [0.0])
+        for k in sorted(near, key=lambda k: (-near[k][1], TOPIC_KEYS.index(k))):
+            win, sc = near[k]
+            if win[0] <= today and len(keep) + len(promoted) < ACTIVE_CAP and (
+                    sc >= STRONG_MIN or sc >= REL_FRAC * top):
+                promoted.add(k)
         rows = []
         for i, k in enumerate(TOPIC_KEYS):
             a = now[k]
-            # ONE source for colour AND words: the read this tile opens
-            tone, read = _tile_read(ctx, k, today)
-            if k in keep:
+            tone, read = tiles[k]
+            if k in keep or k in promoted:
                 status = "active"
                 tag = C.TAG[lang]["care" if tone == "care" else "active"]
-                order = (0, -a["score"], i)
+                order = (0, -(near[k][1] if k in promoted else a["score"]), i)
             elif a["lit"]:
                 # really lit, but not among the chart's strongest: steady, not "now"
                 status, tag = "steady", _calm_tag(lang, tone)
                 order = (2, -a["score"], i)
+            elif k in near:
+                # its own read is already inside a window: near-term words, never "opens {month}"
+                status = "steady"
+                tag = C.TAG[lang]["care_soon" if tone == "care" else "open_soon"]
+                order = (2, -near[k][1], i)
             else:
+                win = _tile_window(tone, read)
                 opening = _next_opening(ctx, k, today)
-                if opening:
-                    d, omode = opening
-                    mode = tone if tone in ("open", "care") else omode
-                    if mode != omode:   # the read's own window, so the month matches its colour
-                        w = (read or {}).get("best_window" if mode == "open" else "watch_window")
-                        d = date.fromisoformat(w["start"]) if w else d
+                # "upcoming" needs a real opening ahead AND, when the tile's read is known,
+                # a window in THAT read: the month comes from it, so tag and read agree
+                if opening and (win or read is None):
+                    d, mode = (win[0], tone) if win else opening
                     status = "upcoming"
                     tag = C.TAG[lang]["care_from" if mode == "care" else "open"].format(
                         mon=C.month_name(d, lang))
@@ -661,16 +705,19 @@ def _read_topic(ctx: TopicContext, key: str, scale: str, today: date, language: 
 
 
 def _best_fit(ctx: TopicContext, key: str, today: date) -> Tuple[str, Optional[dict]]:
-    """(scale, that scale's read) — the read is None when the season fallback
-    was not computed here."""
-    for scale in ("today", "month"):
+    """(scale, that scale's read): the nearest scale with a real dated window.
+    With none anywhere, an honest steady season read."""
+    season = None
+    for scale in ("today", "month", "season", "year"):
         try:
             r = read_topic(ctx, key, scale, today, "en", with_best_fit=False)
-            if r["best_window"] or r["watch_window"]:
-                return scale, r
         except Exception:
             continue
-    return "season", None
+        if scale == "season":
+            season = r
+        if r["best_window"] or r["watch_window"]:
+            return scale, r
+    return "season", season
 
 
 def best_fit_scale(ctx: TopicContext, key: str, today: date) -> str:
