@@ -356,7 +356,7 @@ def test_season_is_the_current_sub_period_with_its_end_date():
     ctx = _synth("Saturn")
     r = T.read_topic(ctx, "career", "season", TODAY, "en", with_best_fit=False)
     assert r["period"]["end"] == "2027-03-10" and not r["period"]["approximate"]
-    assert r["period"]["label"] == "This season, to Mar 10"
+    assert r["period"]["label"] == "This season, to Mar 2027"   # ends in another calendar year
 
 
 def test_season_without_sub_period_is_flagged_approximate():
@@ -899,7 +899,7 @@ def test_tile_status_tag_tone_and_read_agree(ctxs, lang):
                     s = date.fromisoformat(w["start"])
                     assert s > lim, where
                     name = "care_from" if r["tone"] == "care" else "open"
-                    assert r["tag"] == T.C.TAG[lang][name].format(mon=T.C.month_name(s, lang)), where
+                    assert r["tag"] == T.C.TAG[lang][name].format(mon=T._mon(s, lang, d)), where   # year only when > 12 months out
                 elif w and r["status"] != "active" and date.fromisoformat(w["start"]) <= lim:
                     assert r["status"] == "steady" and r["tone"] in ("open", "care"), where
                 for name, tone in (("open_soon", "open"), ("care_soon", "care")):
@@ -925,3 +925,121 @@ def test_near_term_copy_exists_in_every_language_and_hindi_falls_back():
     for lang in LANGS:
         assert T.C.TAG[lang]["open_soon"] and T.C.TAG[lang]["care_soon"]
     assert T.C.serve_language("hi") == "en"
+
+
+# ── far windows and far period labels (observed 2026-10-07, owner's chart) ───
+def _season_ctx(end):
+    ctx = _synth("Saturn")
+    ctx.dashas["vimsottari"][1].update({"end_date": end, "end": end, "start_date": "2026-08-13", "start": "2026-08-13"})
+    return ctx
+
+
+_SEASON_FAR = {"en": "This season, to Apr 2029", "es": "Esta etapa, hasta abr 2029",
+               "pt": "Esta fase, até abr 2029", "hinglish": "Is daur mein, Apr 2029 tak"}
+
+
+@pytest.mark.parametrize("lang", LANGS)
+def test_observed_season_label_carries_the_year_when_it_runs_to_2029(lang):
+    r = T.read_topic(_season_ctx("2029-04-25"), "career", "season", TODAY, lang, with_best_fit=False)
+    assert r["period"]["end"] == "2029-04-25" and r["period"]["label"] == _SEASON_FAR[lang]
+
+
+def test_hindi_season_label_falls_back_to_english_with_the_year():
+    r = T.read_topic(_season_ctx("2029-04-25"), "career", "season", TODAY, "hi", with_best_fit=False)
+    assert r["period"]["label"] == "This season, to Apr 2029"
+
+
+@pytest.mark.parametrize("end,label", [
+    ("2026-12-05", "This season, to Dec 5"),        # 11 months, same year: short
+    ("2026-12-31", "This season, to Dec 2026"),     # > 11 months out: year
+    ("2027-01-05", "This season, to Jan 2027"),     # 12 months
+    ("2027-02-05", "This season, to Feb 2027"),     # 13 months
+])
+def test_season_label_boundary_at_11_12_13_months(end, label):
+    jan = date(2026, 1, 5)
+    ctx = _season_ctx(end)
+    ctx.dashas["vimsottari"][1]["start_date"] = ctx.dashas["vimsottari"][1]["start"] = "2025-12-01"
+    assert T._period(ctx, "season", jan, "en")["label"] == label
+
+
+def test_other_scale_labels_are_unchanged():
+    ctx = _season_ctx("2029-04-25")
+    assert T._period(ctx, "month", TODAY, "en")["label"] == "Next 30 days"
+    assert T._period(ctx, "today", TODAY, "en")["label"] == "Today"
+    assert T._period(ctx, "year", TODAY, "en")["label"].startswith("Your year, ")
+
+
+def _score_stub(monkeypatch, reads, opening=None, score=3.0):
+    now = {k: {"score": score, "lit": False, "mode": "steady"} for k in T.TOPIC_KEYS}
+    monkeypatch.setattr(T, "_now_assessments", lambda c, t: now)
+    monkeypatch.setattr(T, "_next_opening", lambda c, k, t: opening)
+    monkeypatch.setattr(T, "_tile_read", lambda c, k, t: reads.get(k, ("steady", None)))
+
+
+_FAR_TAGS = {
+    "en": ("steady, window opens Jun 2028", "steady, take care from Jun 2028"),
+    "es": ("estable, ventana en jun 2028", "estable, cuidado desde jun 2028"),
+    "pt": ("estável, janela em jun 2028", "estável, cuidado a partir de jun 2028"),
+    "hinglish": ("sthir, Jun 2028 mein window khulegi", "sthir, Jun 2028 se dhyaan rakhein"),
+}
+
+
+@pytest.mark.parametrize("lang", LANGS)
+def test_observed_business_far_window_tag_names_the_month_and_year(monkeypatch, lang):
+    win = {"start": "2028-06-28", "end": "2028-08-26"}
+    _score_stub(monkeypatch, {"business": ("open", {"best_window": win, "watch_window": None}),
+                              "love": ("care", {"best_window": None, "watch_window": win})})
+    rows = {r["key"]: r for r in T.rank_topics(_synth(), TODAY, lang)}
+    assert (rows["business"]["status"], rows["business"]["tone"]) == ("steady", "open")
+    assert rows["business"]["tag"] == _FAR_TAGS[lang][0]
+    assert rows["love"]["tag"] == _FAR_TAGS[lang][1] and rows["love"]["tone"] == "care"
+
+
+@pytest.mark.parametrize("months,far", [(11, False), (12, False), (13, True)])
+def test_far_tag_boundary_at_11_12_13_months(monkeypatch, months, far):
+    s = C.add_months(TODAY, months)
+    win = {"start": s.isoformat(), "end": (s + timedelta(days=40)).isoformat()}
+    reads = {"business": ("open", {"best_window": win, "watch_window": None}),
+             "health": ("care", {"best_window": None, "watch_window": win})}
+    _score_stub(monkeypatch, reads)                       # steady path
+    rows = {r["key"]: r for r in T.rank_topics(_synth(), TODAY, "en")}
+    assert (rows["business"]["tag"] == f"steady, window opens {C.month_year_short(s, 'en')}") is far
+    assert (rows["business"]["tag"] == "steady, a good window") is (not far)
+    assert (rows["health"]["tag"] == f"steady, take care from {C.month_year_short(s, 'en')}") is far
+    assert (rows["health"]["tag"] == "steady, go gently") is (not far)
+    _score_stub(monkeypatch, reads, opening=(s, "open"))  # upcoming path
+    rows = {r["key"]: r for r in T.rank_topics(_synth(), TODAY, "en")}
+    want = C.month_year_short(s, "en") if far else C.month_name(s, "en")
+    assert rows["business"]["status"] == "upcoming" and rows["business"]["tag"] == f"window opens {want}"
+    assert rows["health"]["tag"] == f"take care from {want}"
+
+
+def test_far_tag_copy_exists_in_every_language_and_has_no_jargon():
+    for lang in LANGS:
+        for n in ("steady_open_far", "steady_care_far"):
+            assert "{mon}" in C.TAG[lang][n] and not _JARGON.search(C.TAG[lang][n])
+
+
+def _fake_reads(monkeypatch, by_scale):
+    def fake(ctx, key, scale, today, lang="en", with_best_fit=True):
+        return by_scale.get(scale) or {"tone": "steady", "best_window": None, "watch_window": None}
+    monkeypatch.setattr(T, "read_topic", fake)
+
+
+def _open(start):
+    return {"tone": "open", "best_window": {"start": start, "end": start}, "watch_window": None}
+
+
+def test_best_fit_keeps_the_only_scale_that_shows_a_far_window(monkeypatch):
+    _fake_reads(monkeypatch, {"season": _open("2028-06-28")})
+    assert T.best_fit_scale(_synth(), "business", TODAY) == "season"
+
+
+def test_best_fit_prefers_a_near_window_on_a_later_scale_over_a_far_one(monkeypatch):
+    _fake_reads(monkeypatch, {"season": _open("2028-06-28"), "year": _open("2027-03-01")})
+    assert T.best_fit_scale(_synth(), "business", TODAY) == "year"
+
+
+def test_best_fit_nearest_scale_still_wins_when_its_window_is_near(monkeypatch):
+    _fake_reads(monkeypatch, {"month": _open("2026-10-20"), "season": _open("2027-03-01")})
+    assert T.best_fit_scale(_synth(), "business", TODAY) == "month"

@@ -321,14 +321,31 @@ def active_set(now: Dict[str, dict]) -> set:
     return keep
 
 
-def _calm_tag(lang: str, tone: str, quiet: bool = False) -> str:
-    """Tag for a tile that is not "active now": the wording follows the read's tone."""
+NEAR_DAYS = 2   # a window starting this soon is "now-ish", never "opens {month}"
+FAR_MONTHS = 12          # a window starting later than this is "far": its tag names the date
+LABEL_YEAR_MONTHS = 11   # a period ending later than this carries its year in the label
+
+
+def _is_far(start: Optional[date], today: date) -> bool:
+    return bool(start) and start > C.add_months(today, FAR_MONTHS)
+
+
+def _mon(d: date, lang: str, today: date) -> str:
+    """Month name for a tag; the year joins it once the date is > 12 months out."""
+    return C.month_year_short(d, lang) if _is_far(d, today) else C.month_name(d, lang)
+
+
+def _calm_tag(lang: str, tone: str, quiet: bool = False,
+              start: Optional[date] = None, today: Optional[date] = None) -> str:
+    """Tag for a tile that is not "active now": the wording follows the read's tone.
+    A window that starts > 12 months out is never "a good window"/"go gently" with
+    no timing — the tag names when."""
     t = C.TAG[lang]
+    if tone in ("open", "care") and today and _is_far(start, today):
+        return t["steady_open_far" if tone == "open" else "steady_care_far"].format(
+            mon=C.month_year_short(start, lang))
     return t["steady_open"] if tone == "open" else t["steady_care"] if tone == "care" \
         else t["quiet" if quiet else "steady"]
-
-
-NEAR_DAYS = 2   # a window starting this soon is "now-ish", never "opens {month}"
 
 
 def _tile_window(tone: str, read: Optional[dict]) -> Optional[Tuple[date, date]]:
@@ -385,7 +402,8 @@ def rank_topics(ctx: TopicContext, today: date, language: str = "en") -> List[di
                 order = (0, -(near[k][1] if k in promoted else a["score"]), i)
             elif a["lit"]:
                 # really lit, but not among the chart's strongest: steady, not "now"
-                status, tag = "steady", _calm_tag(lang, tone)
+                w0 = _tile_window(tone, read)
+                status, tag = "steady", _calm_tag(lang, tone, start=w0 and w0[0], today=today)
                 order = (2, -a["score"], i)
             elif k in near:
                 # its own read is already inside a window: near-term words, never "opens {month}"
@@ -401,10 +419,10 @@ def rank_topics(ctx: TopicContext, today: date, language: str = "en") -> List[di
                     d, mode = (win[0], tone) if win else opening
                     status = "upcoming"
                     tag = C.TAG[lang]["care_from" if mode == "care" else "open"].format(
-                        mon=C.month_name(d, lang))
+                        mon=_mon(d, lang, today))
                     order = (1, d.toordinal(), -a["score"], i)
                 elif a["score"] >= STEADY_MIN:
-                    status, tag = "steady", _calm_tag(lang, tone)
+                    status, tag = "steady", _calm_tag(lang, tone, start=win and win[0], today=today)
                     order = (2, -a["score"], i)
                 else:
                     status, tag = "quiet", _calm_tag(lang, tone, quiet=True)
@@ -471,9 +489,14 @@ def _period(ctx: TopicContext, scale: str, today: date, lang: str) -> dict:
         except Exception:
             s, e, approx = today, today + timedelta(days=364), True
     pl = C.PERIOD_LABEL[lang][scale]
-    label = pl.format(end=C.day_label(e, lang),
-                      start=C.day_label_y(s, lang)) if scale != "year" else pl.format(
-        end=C.day_label_y(e, lang), start=C.day_label_y(s, lang))
+    if scale == "year":
+        label = pl.format(end=C.day_label_y(e, lang), start=C.day_label_y(s, lang))
+    else:
+        # a deadline in another calendar year (or > 11 months out) carries its year:
+        # "to Apr 25" would read as next April when the season runs to 2029
+        far = e.year != today.year or e > C.add_months(today, LABEL_YEAR_MONTHS)
+        label = pl.format(end=C.month_year_short(e, lang) if far else C.day_label(e, lang),
+                          start=C.day_label_y(s, lang))
     return {"start": s, "end": e, "approximate": approx, "label": label}
 
 
@@ -705,9 +728,9 @@ def _read_topic(ctx: TopicContext, key: str, scale: str, today: date, language: 
 
 
 def _best_fit(ctx: TopicContext, key: str, today: date) -> Tuple[str, Optional[dict]]:
-    """(scale, that scale's read): the nearest scale with a real dated window.
-    With none anywhere, an honest steady season read."""
-    season = None
+    """(scale, that scale's read): the nearest scale with a real dated window, preferring
+    one that starts within 12 months over a far one. With none anywhere, an honest steady season read."""
+    season = far = None
     for scale in ("today", "month", "season", "year"):
         try:
             r = read_topic(ctx, key, scale, today, "en", with_best_fit=False)
@@ -716,8 +739,13 @@ def _best_fit(ctx: TopicContext, key: str, today: date) -> Tuple[str, Optional[d
         if scale == "season":
             season = r
         if r["best_window"] or r["watch_window"]:
+            w = r["best_window"] if r["tone"] == "open" else r["watch_window"]
+            if _is_far(date.fromisoformat(w["start"]), today):
+                far = far or (scale, r)   # keep looking for a nearer window on a later scale
+                continue
             return scale, r
-    return "season", season
+    # only far windows: the nearest scale that shows one; the tile tag carries the timing
+    return far or ("season", season)
 
 
 def best_fit_scale(ctx: TopicContext, key: str, today: date) -> str:
