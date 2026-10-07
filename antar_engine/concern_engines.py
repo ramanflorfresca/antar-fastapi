@@ -250,8 +250,19 @@ def analyze_concern(concern: str, chart_data: dict, dashas: dict,
                 # a running period lights the theme; for RISK only a malefic/weak
                 # lord elevates it, a benefic/strong lord is protective.
                 if not is_risk or dig < 0 or lord in _MALEFICS:
-                    add(lord, 1.5, "and its period is running now")
-                    dasha_active.append(lord)
+                    # [precision 2026-10-07] SHARED-HOUSE fix, lord path. The
+                    # occupant path below gates the running-period credit by
+                    # primary_houses, but the lord path did not — so a running MD/AD
+                    # that LORDS a shared/tertiary concern house (the 11th is in
+                    # every gain-domain) still flipped the domain to lit / "well
+                    # supported" off one activator. Mirror the occupant gate: full
+                    # +1.5 + lit only on a PRIMARY significator house; a shared house
+                    # gives minor support and does NOT set lit.
+                    if h in primary_houses:
+                        add(lord, 1.5, "and its period is running now")
+                        dasha_active.append(lord)
+                    else:
+                        add(lord, 0.6, "and its period is running now (a supporting influence)")
                 else:
                     relief += 0.5
             for p in in_house[h]:
