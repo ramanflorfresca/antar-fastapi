@@ -57,28 +57,48 @@ CHAPTER_THEME = {
            "Rahu": "ambição e caminhos novos e fora do comum",
            "Ketu": "desapegar e encontrar sua direção interior"},
 }
+CHAPTER_THEME["hi"] = {
+    "Sun": "पहचान और नेतृत्व की ओर कदम बढ़ाना",
+    "Moon": "घर, परिवार और आपका भावनात्मक संतुलन",
+    "Mars": "जोश, साहस और निर्णायक कदम",
+    "Mercury": "कौशल, संवाद और व्यापार",
+    "Jupiter": "विकास, सीख और अच्छा मार्गदर्शन",
+    "Venus": "रिश्ते, सुकून और रचनात्मक काम",
+    "Saturn": "लगातार मेहनत से कुछ टिकाऊ बनाना",
+    "Rahu": "महत्वाकांक्षा और नए, अलग रास्ते",
+    "Ketu": "छोड़ना और अपनी भीतरी दिशा पाना"}
 _GENERIC_THEME = {"en": "what you want this next season to build",
+                  "hi": "आप इस अगले दौर से जो बनाना चाहते हैं",
                   "es": "lo que quieres que construya esta nueva etapa",
                   "pt": "o que você quer que esta nova fase construa"}
 
-_WINDOW_WHAT = {"en": "your strongest money window", "es": "tu mejor ventana de dinero",
+_WINDOW_WHAT = {"en": "your strongest money window", "hi": "आपकी सबसे मज़बूत पैसे की समय-खिड़की", "es": "tu mejor ventana de dinero",
                 "pt": "sua melhor janela de dinheiro"}
 
 # the question a "How do I use it?" tap asks on their behalf
 _HOW_Q = {
     "antar_window_alert_v1": {"en": "How do I make the most of my money window that opens on {d}?",
+                              "hi": "{d} को खुलने वाली मेरी पैसे की समय-खिड़की का पूरा लाभ मैं कैसे उठाऊँ?",
                               "es": "¿Cómo aprovecho mi ventana de dinero que se abre el {d}?",
                               "pt": "Como aproveito minha janela de dinheiro que abre em {d}?"},
     "antar_chapter_alert_v1": {"en": "How do I make the most of the new chapter that begins on {d}?",
+                               "hi": "{d} से शुरू होने वाले नए अध्याय का पूरा लाभ मैं कैसे उठाऊँ?",
                                "es": "¿Cómo aprovecho la nueva etapa que empieza el {d}?",
                                "pt": "Como aproveito a nova fase que começa em {d}?"},
 }
 
-_MONTHS = {"es": ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"],
+_MONTHS = {"hi": ["जनवरी", "फ़रवरी", "मार्च", "अप्रैल", "मई", "जून", "जुलाई", "अगस्त", "सितंबर",
+                  "अक्टूबर", "नवंबर", "दिसंबर"],
+           "es": ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"],
            "pt": ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"]}
 
 
 def lang2(lang: str) -> str:
+    # [hi-templates-prep] Devanagari Hindi gets Hindi variables; Hinglish ("hinglish"[:2] == "hi"!) keeps
+    # the existing English variables, so test the template language, not the 2-letter prefix.
+    from antar_engine import wa_templates as _wt
+    if _wt.wa_lang(lang) == "hi":
+        return "hi"
     l = (lang or "en").lower()[:2]
     return l if l in ("es", "pt") else "en"
 
@@ -128,8 +148,7 @@ def render(alert: dict, lang: str, first_name: str, lord: Optional[str] = None) 
     tpl = SENDABLE[alert["alert_type"]]
     s = _start(alert)
     d = fmt_day(s, l) if s else ""
-    name = (first_name or "").strip() or {"es": "de nuevo", "pt": "de novo"}.get(
-        l, "dost" if wt.wa_lang(lang) == "hinglish" else "there")
+    name = (first_name or "").strip() or wt.default_first_name(lang)
     body = wt.TEMPLATES[tpl]["body"][wt.wa_lang(lang)]
     if tpl == "antar_window_alert_v1":
         variables = {"1": name, "2": _WINDOW_WHAT[l], "3": d}

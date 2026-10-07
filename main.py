@@ -1279,7 +1279,7 @@ async def _wa_alert_job():
             if (pend.get("items") and not pend.get("notified") and not in_window
                     and now.timestamp() - float(pend.get("at") or 0) < 72 * 3600 and pend.get("q")):
                 if await _aio_wa.to_thread(_wt.send, number, "antar_answer_ready_v1", lang,
-                                           {"1": first or "there", "2": pend["q"]}):
+                                           {"1": first or (_wt.default_first_name(lang) if _wt.wa_lang(lang) == "hi" else "there"), "2": pend["q"]}):
                     pend["notified"] = int(now.timestamp())
                     ctx["pending"] = pend
                     stats["answer_ready"] += 1

@@ -37,6 +37,12 @@ import urllib.request
 from typing import Optional
 
 LANGS = ("en", "es", "pt_BR", "hinglish")
+# [hi-templates-prep 2026-10-07] Devanagari Hindi templates are DRAFTED but not part of LANGS: the submit
+# scripts only create them with --with-hindi / --lang hi, so nothing is sent to Meta by accident. Submitted
+# under Meta locale "hi". Until a ContentSid is configured (WA_TPL_<NAME>_HI) a Hindi reader gets the
+# ENGLISH template — never Hinglish (see template_sid).
+HINDI = "hi"
+ALL_LANGS = LANGS + (HINDI,)
 
 TEMPLATES = {
     "antar_checkin_v1": {
@@ -288,9 +294,15 @@ _PRICEY = _re.compile(
     r"chhoot|kharid\w*|paise|daam)\b")
 
 
+_PRICEY_HI = _re.compile(
+    r"कीमत|मूल्य|दाम|छूट|डिस्काउंट|कूपन|खरीद|भुगतान|पैसे|रुपये|रुपया|अपग्रेड|सब्सक्रि|प्लान|प्रीमियम|"
+    r"चेकआउट|सीमित समय|जल्दी करें|आखिरी मौका|आख़िरी मौका|सेल")
+
+
 def marketing_text_ok(text: str) -> bool:
-    """False for price / discount / purchase / pressure wording — WhatsApp never carries those."""
-    return not _PRICEY.search(text or "")
+    """False for price / discount / purchase / pressure wording — WhatsApp never carries those
+    (English / Spanish / Portuguese / Hinglish, and Devanagari Hindi)."""
+    return not (_PRICEY.search(text or "") or _PRICEY_HI.search(text or ""))
 
 
 def build_marketing(kind: str, name: str, lang: str, *, item: Optional[str] = None,
@@ -300,7 +312,7 @@ def build_marketing(kind: str, name: str, lang: str, *, item: Optional[str] = No
     through send(), which re-checks the recipient's opt-in."""
     wl = wa_lang(lang)
     first = " ".join(str(name or "").split()).split(" ")[0] or ("there" if wl == "en" else "")
-    first = first or {"es": "hola", "pt_BR": "olá", "hinglish": "dost"}.get(wl, "there")
+    first = first or {"es": "hola", "pt_BR": "olá", "hinglish": "dost", "hi": "मित्र"}.get(wl, "there")
     if kind == "news":
         entry = NEWS_ITEMS.get(item or "")
         if not entry:
@@ -333,16 +345,70 @@ for _n, (_b, _btn) in _HINGLISH.items():
     TEMPLATES[_n]["body"]["hinglish"] = _b
     TEMPLATES[_n]["buttons"]["hinglish"] = _btn
 
+# ── Hindi (Devanagari) — DRAFT for native-speaker review, not yet submitted ───────
+# Same Meta utility rules as the others (no variable first/last, none adjacent, buttons ≤ 20 chars,
+# nothing promotional in UTILITY). Respectful "आप"; Antar is masculine ("मैं … करता हूँ") like the Hinglish
+# column. Proper nouns / the Antar brand stay Latin; button ids are unchanged so the handlers work as is.
+_HINDI_TPL = {
+    "antar_checkin_v1": (
+        "नमस्ते {{1}}, {{2}} को आपकी Antar रीडिंग में लिखा था: “{{3}}”। क्या यह हुआ? "
+        "आपका उत्तर Antar को आपके लिए और सटीक बनाता है।",
+        [("हाँ", "1"), ("कुछ हद तक", "2"), ("नहीं", "3"), ("अभी पता नहीं", "4")]),
+    "antar_window_alert_v1": (
+        "नमस्ते {{1}}, Antar में आपने जो अलर्ट चालू किया था: {{2}}, {{3}} को खुलता है। "
+        "इसका पूरा लाभ कैसे उठाएँ, यह जानना हो तो यहीं उत्तर दीजिए।",
+        [("कैसे उपयोग करूँ?", "alert_how"), ("अलर्ट बंद करें", "alert_stop")]),
+    "antar_chapter_alert_v1": (
+        "नमस्ते {{1}}, Antar में आपने जो अलर्ट चालू किया था: आपकी रीडिंग का नया अध्याय "
+        "{{2}} को शुरू होता है, और उसका केंद्र {{3}} है। इसे अच्छी तरह कैसे उपयोग करें, "
+        "यहीं उत्तर देकर पूछिए।",
+        [("कैसे उपयोग करूँ?", "alert_how"), ("अलर्ट बंद करें", "alert_stop")]),
+    "antar_answer_ready_v1": (
+        "नमस्ते {{1}}, “{{2}}” का Antar उत्तर तैयार है। देखने के लिए नीचे टैप कीजिए।",
+        [("मेरा उत्तर दिखाइए", "show_answer")]),
+    "antar_policy_update_v1": (
+        "नमस्ते {{1}}, हमने WhatsApp पर आपके डेटा को Antar कैसे संभालता है, इसे अपडेट किया है। "
+        "रीडिंग यहीं मिलती रहें, इसके लिए अपडेट की गई डेटा नीति देखकर स्वीकार कीजिए।",
+        [("स्वीकार करता हूँ", "pol:yes"), ("स्वीकार नहीं", "pol:no")]),
+    "antar_decision_window_v1": (
+        "नमस्ते {{1}}, आपने Antar से “{{2}}” के समय पर नज़र रखने को कहा था। "
+        "जो समय-खिड़की आपने सहेजी थी, वह {{3}} को खुलती है। बात करनी हो तो यहीं उत्तर दीजिए।",
+        [("मैं क्या करूँ?", "alert_how"), ("रिमाइंडर बंद", "alert_stop")]),
+    "antar_news_v1": (
+        "नमस्ते {{1}}, Antar में नया: {{2}}। {{3}} समाचार और ऑफ़र बंद करने के लिए कभी भी STOP OFFERS लिख दीजिए।",
+        [("Antar से पूछें", "own"), ("ऑफ़र बंद करें", "mkt_stop")]),
+    "antar_offer_v1": (
+        "नमस्ते {{1}}, Antar सदस्यों के लिए एक सूचना: {{2}}। यह {{3}} तक खुला है। "
+        "ये संदेश बंद करने के लिए कभी भी STOP OFFERS लिख दीजिए।",
+        [("Antar से पूछें", "own"), ("ऑफ़र बंद करें", "mkt_stop")]),
+}
+for _n, (_b, _btn) in _HINDI_TPL.items():
+    TEMPLATES[_n]["body"][HINDI] = _b
+    TEMPLATES[_n]["buttons"][HINDI] = _btn
+
+_HINDI_NEWS = {
+    "decisions": ("कोई निर्णय सहेजिए और Antar उसकी समय-खिड़की पर नज़र रखता है",
+                  "Antar को बताइए कि आप क्या तय कर रहे हैं, समय खुलते ही वह आपको संदेश भेजेगा।"),
+    "daily_wisdom": ("आपके समय के अनुसार चुना गया रोज़ का एक श्लोक",
+                     "हर दिन Practice खोलिए और अपनी वर्तमान स्थिति से जुड़ा एक छोटा अंश पढ़िए।"),
+    "people_timing": ("देखिए आपके दिन किसी अपने के साथ कैसे मिलते हैं",
+                      "जीवनसाथी, सह-संस्थापक या माता-पिता को जोड़िए और आपसी समय की तुलना कीजिए।"),
+    "places": ("दुनिया में कहाँ आपका समय सबसे अच्छा चलता है",
+               "Places में अपना ध्यान-क्षेत्र चुनिए और देखिए कौन-से शहर आपके लिए ठीक हैं।"),
+}
+for _k, _v in _HINDI_NEWS.items():
+    NEWS_ITEMS[_k][HINDI] = _v
+
 
 def wa_lang(lang: str) -> str:
-    """Antar language → template language ('en' | 'es' | 'pt_BR' | 'hinglish'; anything else → English)."""
+    """Antar language → template language ('en' | 'es' | 'pt_BR' | 'hinglish' | 'hi'; anything else → English).
+    'hi' = Devanagari (Meta locale "hi"); 'hinglish' = Roman script. Never one for the other."""
     l = (lang or "en").lower().replace("_", "-")
-    # [hi 2026-10-07] ONLY Roman-script Hinglish takes the Hinglish template. Devanagari "hi" used to match
-    # startswith("hi") and silently get the Roman-script one. No Hindi template is submitted to Meta yet
-    # (it would need locale "hi"), so a Devanagari reader gets the ENGLISH template — explicit, and listed
-    # in the PR as the follow-up — never Hinglish.
-    return ("es" if l.startswith("es") else "pt_BR" if l.startswith("pt")
-            else "hinglish" if l.startswith("hinglish") or l == "hi-latn" else "en")
+    if l.startswith("hinglish") or l == "hi-latn":
+        return "hinglish"
+    if l in ("hi", "hindi") or l.startswith("hi-"):
+        return HINDI
+    return "es" if l.startswith("es") else "pt_BR" if l.startswith("pt") else "en"
 
 
 def env_key(name: str, lang: str) -> str:
@@ -353,13 +419,29 @@ def template_sid(name: str, lang: str) -> Optional[str]:
     """ContentSid of an APPROVED template, or None (not approved / not set). A Hinglish template that
     isn't approved falls back to the English one — the person still gets the message."""
     sid = (os.getenv(env_key(name, lang)) or "").strip()
-    if not sid and wa_lang(lang) == "hinglish":
+    if not sid and wa_lang(lang) in ("hinglish", HINDI):
+        # an unapproved Hinglish / Hindi template → the ENGLISH one (explicit; never the other Hindi script)
         sid = (os.getenv(env_key(name, "en")) or "").strip()
     return sid or None
 
 
+def default_first_name(lang: str) -> str:
+    """The greeting word used when the person's first name is unknown, in the template's language."""
+    return {"es": "de nuevo", "pt_BR": "de novo", "hinglish": "dost", "hi": "मित्र"}.get(wa_lang(lang), "there")
+
+
+def served_lang(name: str, lang: str) -> str:
+    """The template language actually sent: the requested one when its ContentSid is configured,
+    else English (so logs/bodies match what the person received)."""
+    wl = wa_lang(lang)
+    if wl in ("hinglish", HINDI) and not (os.getenv(env_key(name, lang)) or "").strip():
+        return "en"
+    return wl
+
+
 def meta_locale(lang: str) -> str:
-    """The language code a template is SUBMITTED under (Hinglish has no Meta locale of its own)."""
+    """The language code a template is SUBMITTED under (Hinglish has no Meta locale of its own;
+    Devanagari Hindi is Meta's "hi")."""
     wl = wa_lang(lang)
     return (os.getenv("WA_HINGLISH_LOCALE") or "en") if wl == "hinglish" else wl
 
@@ -423,7 +505,7 @@ def send(to_number: str, name: str, lang: str, variables: dict, link: Optional[d
         except Exception:
             _osid = ""
         from antar_engine import wa_log as _wl
-        _wl.record("out", to, (TEMPLATES.get(name, {}).get("body", {}).get(wa_lang(lang)) or ""),
+        _wl.record("out", to, (TEMPLATES.get(name, {}).get("body", {}).get(served_lang(name, lang)) or ""),
                    sender=sender, sid=_osid, kind="template", template=name, lang=lang,
                    meta={"variables": vars_})
         return True

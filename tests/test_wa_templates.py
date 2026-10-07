@@ -7,7 +7,7 @@ from antar_engine import wa_templates as wt, messaging as msg
 # UTILITY templates only: the MARKETING pair (offers & news) is held to its own rules in
 # tests/test_wa_offers_news.py — it is promotional by definition and must never be mistaken for these.
 @pytest.mark.parametrize("name", [n for n, t in wt.TEMPLATES.items() if t["category"] == "UTILITY"])
-@pytest.mark.parametrize("lang", ["en", "es", "pt_BR", "hinglish"])
+@pytest.mark.parametrize("lang", ["en", "es", "pt_BR", "hinglish", "hi"])
 def test_templates_follow_meta_utility_rules(name, lang):
     t = wt.TEMPLATES[name]
     body = t["body"][lang]
@@ -71,8 +71,8 @@ def test_tips_cover_the_never_send_list():
 
 def test_every_template_covers_every_language_with_same_variables_and_buttons():
     for name, t in wt.TEMPLATES.items():
-        assert set(t["body"]) == set(wt.LANGS) == set(t["buttons"]), name
-        ids = {tuple(b for _, b in t["buttons"][l]) for l in wt.LANGS}
+        assert set(t["body"]) == set(wt.ALL_LANGS) == set(t["buttons"]), name
+        ids = {tuple(b for _, b in t["buttons"][l]) for l in wt.ALL_LANGS}
         assert len(ids) == 1, (name, ids)                      # same handler ids in every language
 
 

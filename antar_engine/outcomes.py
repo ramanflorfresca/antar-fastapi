@@ -389,7 +389,10 @@ def template_vars(claim: dict, first_name: str = "") -> Optional[dict]:
     if len(said) > 110:
         said = said[:109].rsplit(" ", 1)[0] + "\u2026"
     lang = (claim.get("language") or "en")[:2]
-    name = (first_name or "").strip() or {"es": "de nuevo", "pt": "de novo"}.get(lang, "there")
+    from antar_engine import wa_templates as _wt
+    name = (first_name or "").strip() or (
+        _wt.default_first_name(claim.get("language")) if _wt.wa_lang(claim.get("language")) == "hi"
+        else {"es": "de nuevo", "pt": "de novo"}.get(lang, "there"))
     return {"1": name, "2": when, "3": said}
 
 

@@ -31,12 +31,14 @@ def main():
     ap.add_argument("--go", action="store_true")
     ap.add_argument("--only")
     ap.add_argument("--lang")
+    ap.add_argument("--with-hindi", action="store_true", help="also create/submit the Devanagari Hindi templates (locale hi)")
     a = ap.parse_args()
     auth = base64.b64encode(f"{os.getenv('TWILIO_ACCOUNT_SID')}:{os.getenv('TWILIO_AUTH_TOKEN')}".encode()).decode()
     for name, t in wt.TEMPLATES.items():
         if a.only and name != a.only:
             continue
-        for lang in wt.LANGS:
+        # Hindi (locale "hi") is drafted but only created when asked: --with-hindi, or --lang hi
+        for lang in (wt.ALL_LANGS if (a.with_hindi or a.lang == "hi") else wt.LANGS):
             if a.lang and lang != a.lang:
                 continue
             body = wt.content_payload(name, lang)
