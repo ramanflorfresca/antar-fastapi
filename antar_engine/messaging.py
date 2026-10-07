@@ -181,7 +181,28 @@ WA_MARKETING_CONSENT_VERSION = "wa-mkt-2026-10-05"
 # optional columns (sql_wa_marketing_consent.sql); a write that carries them retries without them if the
 # columns don't exist yet — linking must never fail because marketing consent can't be recorded
 OPTIONAL_LINK_COLS = ("marketing_opt_in", "marketing_opt_in_at", "marketing_consent_version",
-                      "alerts_opt_in", "alerts_opt_in_at")
+                      "alerts_opt_in", "alerts_opt_in_at",
+                      "training_opt_in", "training_opt_in_at", "training_consent_version")
+
+# [wa-training 2026-10-06] A THIRD, separate, optional, unticked opt-in: may Antar learn from this
+# person's de-identified conversations to improve its own model. Never implied by linking, the Terms
+# or the offers opt-in. Wording lives in docs/WA_TRAINING_CONSENT_wording.md; bump on any change.
+WA_TRAINING_CONSENT_VERSION = "wa-train-2026-10-06"
+
+
+def training_row(opt_in: bool) -> dict:
+    """Columns recording the training opt-in (off unless explicitly given; withdrawing clears it)."""
+    on = bool(opt_in)
+    return {"training_opt_in": on,
+            "training_opt_in_at": datetime.now(timezone.utc).isoformat() if on else None,
+            "training_consent_version": WA_TRAINING_CONSENT_VERSION if on else None}
+
+
+def can_train(link: Optional[dict]) -> bool:
+    """Only a linked number that opted in to training under the current wording."""
+    l = link or {}
+    return (l.get("status") == "linked" and l.get("training_opt_in") is True
+            and l.get("training_consent_version") == WA_TRAINING_CONSENT_VERSION)
 
 
 def marketing_row(opt_in: bool) -> dict:
