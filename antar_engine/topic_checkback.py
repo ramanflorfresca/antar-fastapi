@@ -390,8 +390,10 @@ def record_answer(sb, chart_id: str, claim_id: str, answer: str,
         }, on_conflict="claim_id").execute()
     except Exception as e:
         raise StoreUnavailable(str(e))
-    if prev and prev.get("outcome") == "not_sure":
-        # this was the one allowed re-ask — whatever they said, it is never asked again
+    at = _answered_at(prev) if prev else None
+    if prev and prev.get("outcome") == "not_sure" and at and now - at >= timedelta(days=REASK_AFTER_DAYS):
+        # this was the one allowed re-ask — whatever they said, it is never asked again.
+        # (A "not sure" settled sooner than that was never a re-ask, so it is not marked.)
         try:
             ch = claim.get("checkin_channel") or "app"
             if REASK_MARK not in ch:
