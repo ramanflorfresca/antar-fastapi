@@ -134,7 +134,9 @@ def sender_for(number: str, ctx: Optional[dict] = None, lang: str = "") -> str:
     known = norm((ctx or {}).get("sender"))
     if known and any(s["number"] == known for s in pool()):
         return known
-    return assign(number, lang=lang)
+    chosen = assign(number, lang=lang)
+    print(f"[wa-numbers] assigned …{norm(number)[-4:]} country={country_of(number) or '?'} -> {chosen}")
+    return chosen
 
 
 def use(sender: str):
