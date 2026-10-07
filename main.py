@@ -49885,6 +49885,11 @@ def answer_topic_checkback(chart_id: str, checkback_id: str, body: _TopicCheckba
         raise HTTPException(400, f"answer must be one of {list(_tcb.ANSWERS)}")
     try:
         res = _tcb.record_answer(supabase, chart_id, checkback_id, ans)
+    except _tcb.DemoReadOnly:
+        # the DemoGuardMiddleware already blocks this; refuse here too in case it is bypassed
+        from antar_engine import demo_mode as _dm
+        status, payload = _dm.decide("POST", "/", True, "")
+        return _ValidationJSONResponse(payload, status_code=status)
     except _tcb.UnknownCheckback:
         raise HTTPException(404, "check-back not found")
     except _tcb.StoreUnavailable as e:

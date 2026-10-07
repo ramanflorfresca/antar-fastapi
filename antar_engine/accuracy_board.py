@@ -232,7 +232,18 @@ def build(claims: list, outcomes: list) -> dict:
     }
 
 
+def without_charts(claims: list, chart_ids) -> list:
+    """Drop claims on the given charts (the public demo chart is shared and read-only:
+    its claims are never answerable and would distort answer rate and engine x topic rows)."""
+    skip = {str(c).strip().lower() for c in chart_ids if c}
+    if not skip:
+        return claims
+    return [c for c in claims if str(c.get("chart_id") or "").strip().lower() not in skip]
+
+
 def load(sb) -> tuple:
+    """Every board claim + outcome, EXCLUDING the public demo chart (all sources)."""
+    from antar_engine import demo_mode
     claims, off = [], 0
     while True:
         page = (sb.table("prediction_claims")
@@ -243,6 +254,7 @@ def load(sb) -> tuple:
         off += 1000
         if len(page) < 1000:
             break
+    claims = without_charts(claims, [demo_mode.demo_chart_id(sb, force=True)])
     outs = (sb.table("prediction_outcomes").select("claim_id,outcome,answered_at")
             .limit(100000).execute().data) or []
     return claims, outs

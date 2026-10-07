@@ -52,6 +52,19 @@ LOOKBACK_DAYS = 120            # a window that ended months ago is no longer a f
 _warned = set()
 
 
+def is_demo(sb, chart_id) -> bool:
+    """True when chart_id is the public demo chart. The demo is read-only, so a claim
+    recorded on it could never be answered. Refreshes demo_mode's id cache (a tiny sync
+    read, ~30s TTL) — so call from a def endpoint / thread like everything here.
+    Fail-open to False on any read error (demo_chart_id keeps its last known value)."""
+    try:
+        from antar_engine import demo_mode
+        demo_mode.demo_chart_id(sb)
+        return demo_mode.is_demo_chart(chart_id)
+    except Exception:
+        return False
+
+
 def _warn_once(key: str, msg: str):
     if key not in _warned:
         _warned.add(key)
@@ -133,8 +146,11 @@ def record_windows(sb, out: Optional[dict], chart_id: str, today: Optional[date]
     overlap-aware: the engine's windows are bucketed from TODAY, so the same stretch
     comes back with a start/end a few days off tomorrow; a window that overlaps one
     already recorded for the same (topic, scale, kind) is the same stretch, not a new
-    claim. Returns how many new claims were written. Never raises."""
+    claim. Returns how many new claims were written. Never raises. Never records on
+    the public demo chart (read-only: nobody could answer)."""
     try:
+        if is_demo(sb, chart_id):
+            return 0
         rows = build_claims(out, chart_id, today)
         if not rows:
             return 0
@@ -302,7 +318,10 @@ def _parse_ts(v) -> Optional[datetime]:
 
 def due_items(sb, chart_id: str, language=None, now: Optional[datetime] = None,
               limit: int = 1) -> list:
-    """The check-back cards due for this chart. Fail-open: [] if the tables are missing."""
+    """The check-back cards due for this chart. Fail-open: [] if the tables are missing.
+    Always [] for the demo chart, without touching the store."""
+    if is_demo(sb, chart_id):
+        return []
     now = now or datetime.now(timezone.utc)
     try:
         claims = (sb.table("prediction_claims").select("*").eq("chart_id", chart_id)
@@ -351,18 +370,24 @@ class StoreUnavailable(Exception):
     pass
 
 
+class DemoReadOnly(Exception):
+    pass
+
+
 def record_answer(sb, chart_id: str, claim_id: str, answer: str,
                   now: Optional[datetime] = None) -> dict:
     """Save the answer. Idempotent: a final answer (yes/no) is never overwritten, a
     "not sure" can be replaced by a real answer, and a repeat "not sure" is a no-op.
     Raises UnknownCheckback (not this chart's topic-read claim) / ValueError (bad answer)
-    / StoreUnavailable (could not read or write)."""
+    / StoreUnavailable (could not read or write) / DemoReadOnly (the public demo chart)."""
     if answer not in ANSWERS:
         raise ValueError(f"answer must be one of {list(ANSWERS)}")
     try:
         uuid.UUID(str(claim_id))
     except ValueError:
         raise UnknownCheckback(claim_id)     # a malformed id can never be a claim
+    if is_demo(sb, chart_id):
+        raise DemoReadOnly(chart_id)
     now = now or datetime.now(timezone.utc)
     try:
         rows = (sb.table("prediction_claims").select("*").eq("id", claim_id)

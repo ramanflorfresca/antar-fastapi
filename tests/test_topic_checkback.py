@@ -435,3 +435,98 @@ def test_topic_read_records_in_background_and_survives_a_broken_store(client, mo
     main._TOPIC_RECORDED.clear()
     r = c.get(f"/api/v1/chart/{CHART}/topic-read?topic=money&scale=month")
     assert r.status_code == 200 and r.json()["topic"] == "money"
+
+
+# ── DEMO chart: read-only, so nothing is recorded, offered, or scored ────────
+DEMO = str(uuid.uuid4())
+
+
+@pytest.fixture
+def demo(monkeypatch):
+    from antar_engine import demo_mode
+    monkeypatch.setitem(demo_mode._CACHE, "id", DEMO)
+    monkeypatch.setitem(demo_mode._CACHE, "at", __import__("time").time())
+    return DEMO
+
+
+def _stale_demo_claim(db):
+    tcb.record_windows(db, read(best=("2026-09-14", "2026-09-20"), period_end="2026-10-01"),
+                       CHART, date(2026, 9, 1))
+    row = db.claims()[0]
+    row["chart_id"] = DEMO          # as if recorded before this fix
+    return row
+
+
+def test_demo_chart_records_nothing(demo):
+    db = DB()
+    assert tcb.record_windows(db, read(), DEMO, TODAY) == 0
+    assert db.claims() == []
+    assert tcb.record_windows(db, read(), CHART, TODAY) == 1      # other charts unchanged
+
+
+def test_demo_chart_gets_no_due_items_and_no_store_read(demo):
+    db = DB()
+    _stale_demo_claim(db)
+    class Boom(DB):
+        def table(self, name):
+            raise AssertionError("store touched for the demo chart")
+    assert tcb.due_items(db, DEMO, now=NOW) == []
+    assert tcb.due_items(Boom(), DEMO, now=NOW) == []
+
+
+def test_demo_endpoint_list_is_empty_and_answer_handler_refuses(client, demo):
+    c, db, main = client
+    row = _stale_demo_claim(db)
+    assert c.get(f"/api/v1/chart/{DEMO}/topic-checkbacks").json() == {"checkbacks": [], "count": 0}
+    # TestClient has the guard middleware too; call the handler directly to prove it refuses alone
+    res = main.answer_topic_checkback(DEMO, row["id"], main._TopicCheckbackIn(answer="yes"))
+    assert res.status_code == 403
+    import json
+    assert json.loads(res.body)["code"] == "DEMO_READ_ONLY"
+    assert db.t.get("prediction_outcomes", []) == []
+    with pytest.raises(tcb.DemoReadOnly):
+        tcb.record_answer(db, DEMO, row["id"], "yes")
+
+
+def test_demo_background_record_skipped(client, demo, monkeypatch):
+    c, db, main = client
+    main._TOPIC_RECORDED.clear()
+    main._topic_read_record(read(best=("2026-10-14", "2026-10-20")), DEMO, TODAY)
+    assert db.claims() == []
+
+
+def test_non_demo_flow_unchanged_when_a_demo_is_configured(client, demo):
+    c, db, main = client
+    tcb.record_windows(db, read(best=("2026-09-14", "2026-09-20"), period_end="2026-10-01"),
+                       CHART, date(2026, 9, 1))
+    body = c.get(f"/api/v1/chart/{CHART}/topic-checkbacks").json()
+    assert body["count"] == 1                                      # due after window end, one at a time
+    cid = body["checkbacks"][0]["id"]
+    assert c.post(f"/api/v1/chart/{CHART}/topic-checkbacks/{cid}/answer", json={"answer": "not_sure"}).json()["outcome"] == "not_sure"
+
+
+def test_board_excludes_the_demo_chart_from_every_source():
+    claims = [{"id": f"d{i}", "chart_id": DEMO, "source": s, "topic": "money", "claim_type": "window",
+               "window_start": "2026-09-01", "window_end": "2026-09-10", "engines": {}}
+              for i, s in enumerate(("topic_read", "ask_explore", "decoy"))]
+    claims.append({"id": "r1", "chart_id": CHART, "source": "topic_read", "topic": "money",
+                   "claim_type": "window", "window_start": "2026-09-01", "window_end": "2026-09-10",
+                   "engines": {"topic_read": {"kind": "best", "scale": "month"}}})
+    kept = ab.without_charts(claims, [DEMO.upper()])
+    assert [c["id"] for c in kept] == ["r1"]
+    assert ab.without_charts(claims, [None]) == claims
+
+
+def test_board_load_drops_demo_claims(monkeypatch):
+    from antar_engine import demo_mode
+    monkeypatch.setattr(demo_mode, "demo_chart_id", lambda sb, force=False: DEMO)
+    db = DB()
+    for cid in (DEMO, CHART):
+        db.t.setdefault("prediction_claims", []).append(
+            {"id": str(uuid.uuid4()), "chart_id": cid, "source": "topic_read"})
+    class Q2(_Q):
+        def range(self, a, b):
+            self._lim = b + 1; return self
+    db.table = lambda name: Q2(db, name)
+    claims, _ = ab.load(db)
+    assert [c["chart_id"] for c in claims] == [CHART]
