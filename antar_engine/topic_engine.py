@@ -321,6 +321,13 @@ def active_set(now: Dict[str, dict]) -> set:
     return keep
 
 
+def _calm_tag(lang: str, tone: str, quiet: bool = False) -> str:
+    """Tag for a tile that is not "active now": the wording follows the read's tone."""
+    t = C.TAG[lang]
+    return t["steady_open"] if tone == "open" else t["steady_care"] if tone == "care" \
+        else t["quiet" if quiet else "steady"]
+
+
 def rank_topics(ctx: TopicContext, today: date, language: str = "en") -> List[dict]:
     """[{key,label,status,tag,tone,rank}], most active first. Never raises."""
     lang = C.serve_language(language)
@@ -330,30 +337,36 @@ def rank_topics(ctx: TopicContext, today: date, language: str = "en") -> List[di
         rows = []
         for i, k in enumerate(TOPIC_KEYS):
             a = now[k]
-            opening = None
+            # ONE source for colour AND words: the read this tile opens
+            tone, read = _tile_read(ctx, k, today)
             if k in keep:
-                status, tag = "active", C.TAG[lang]["care" if a["mode"] == "care" else "active"]
+                status = "active"
+                tag = C.TAG[lang]["care" if tone == "care" else "active"]
                 order = (0, -a["score"], i)
             elif a["lit"]:
                 # really lit, but not among the chart's strongest: steady, not "now"
-                status, tag = "steady", C.TAG[lang]["steady"]
+                status, tag = "steady", _calm_tag(lang, tone)
                 order = (2, -a["score"], i)
             else:
                 opening = _next_opening(ctx, k, today)
                 if opening:
-                    d, mode = opening
+                    d, omode = opening
+                    mode = tone if tone in ("open", "care") else omode
+                    if mode != omode:   # the read's own window, so the month matches its colour
+                        w = (read or {}).get("best_window" if mode == "open" else "watch_window")
+                        d = date.fromisoformat(w["start"]) if w else d
                     status = "upcoming"
                     tag = C.TAG[lang]["care_from" if mode == "care" else "open"].format(
                         mon=C.month_name(d, lang))
                     order = (1, d.toordinal(), -a["score"], i)
                 elif a["score"] >= STEADY_MIN:
-                    status, tag = "steady", C.TAG[lang]["steady"]
+                    status, tag = "steady", _calm_tag(lang, tone)
                     order = (2, -a["score"], i)
                 else:
-                    status, tag = "quiet", C.TAG[lang]["quiet"]
+                    status, tag = "quiet", _calm_tag(lang, tone, quiet=True)
                     order = (3, -a["score"], i)
             rows.append((order, {"key": k, "label": C.LABEL[lang][k], "status": status, "tag": tag,
-                                 "tone": topic_tone(ctx, k, today)}))
+                                 "tone": tone}))
         rows.sort(key=lambda r: r[0])
         return [dict(r[1], rank=n + 1) for n, r in enumerate(rows)]
     except Exception:
@@ -665,16 +678,22 @@ def best_fit_scale(ctx: TopicContext, key: str, today: date) -> str:
     return _best_fit(ctx, key, today)[0]
 
 
-def topic_tone(ctx: TopicContext, key: str, today: date) -> str:
-    """open|care|steady — exactly topic-read(scale=best_fit_scale).tone, so a tile
-    and the read it opens can never disagree."""
+def _tile_read(ctx: TopicContext, key: str, today: date) -> Tuple[str, Optional[dict]]:
+    """(tone, read) of topic-read(scale=best_fit_scale) — the one place a tile's
+    colour and wording come from. read is None on the steady fallback."""
     try:
         scale, r = _best_fit(ctx, key, today)
         if r is None:
             r = read_topic(ctx, key, scale, today, "en", with_best_fit=False)
-        return r["tone"]
+        return r["tone"], r
     except Exception:
-        return "steady"
+        return "steady", None
+
+
+def topic_tone(ctx: TopicContext, key: str, today: date) -> str:
+    """open|care|steady — exactly topic-read(scale=best_fit_scale).tone, so a tile
+    and the read it opens can never disagree."""
+    return _tile_read(ctx, key, today)[0]
 
 
 # ── small TTL cache (per process) ────────────────────────────────────────────

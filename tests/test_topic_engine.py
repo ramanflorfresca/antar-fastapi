@@ -150,6 +150,64 @@ def test_topics_tone_equals_topic_read_tone_at_best_fit_scale(ctxs):
             assert out[k]["tone"] == full["tone"], (ctx.chart_id, k)
 
 
+def _tag_class(lang, tag):
+    """care | open | calm — which family a served tag belongs to, in `lang`."""
+    t = T.C.TAG[lang]
+    def is_(name):
+        pat = t[name]
+        if "{mon}" in pat:
+            pre, post = pat.split("{mon}")
+            return tag.startswith(pre) and tag.endswith(post)
+        return tag == pat
+    if any(is_(n) for n in ("care", "care_from", "steady_care")):
+        return "care"
+    if any(is_(n) for n in ("active", "open", "steady_open")):
+        return "open"
+    return "calm"
+
+
+_DATES3 = [TODAY, date(2027, 1, 15), date(2027, 6, 2)]
+
+
+@pytest.mark.parametrize("lang", ["en", "es", "pt", "hinglish"])
+def test_tag_never_contradicts_tone_and_tone_is_the_best_fit_read(ctxs, lang):
+    """4 charts x 7 topics x 3 dates: the words and the colour come from the same read."""
+    for ctx in ctxs:
+        for d in _DATES3:
+            for r in T.rank_topics(ctx, d, lang):
+                cls = _tag_class(lang, r["tag"])
+                if r["tone"] == "open":
+                    assert cls != "care", (ctx.chart_id, d, r)
+                if r["tone"] == "care":
+                    assert cls != "open", (ctx.chart_id, d, r)
+                if r["tone"] != "care":
+                    assert not r["tag"].startswith(T.C.TAG[lang]["care"]), (ctx.chart_id, d, r)
+                if lang == "en":
+                    full = T.read_topic(ctx, r["key"], T.best_fit_scale(ctx, r["key"], d), d, "en")
+                    assert r["tone"] == full["tone"], (ctx.chart_id, d, r["key"])
+
+
+def test_the_maya_money_case_active_open_never_says_needs_care():
+    """Regression: status active + tone open used to carry 'needs care now'."""
+    ctx = _synth("Jupiter", [_ev("2026-10-12", "Jupiter", 2)])
+    for r in T.rank_topics(ctx, TODAY, "en"):
+        assert not (r["tone"] == "open" and "care" in r["tag"]), r
+        assert not (r["tone"] == "care" and r["tag"] == "active now"), r
+
+
+def test_tags_follow_tone_for_each_status(monkeypatch):
+    now = {k: {"score": 0.0, "lit": False, "mode": "steady"} for k in T.TOPIC_KEYS}
+    now["money"] = {"score": 5.0, "lit": True, "mode": "care"}   # old logic: care tag
+    now["love"] = {"score": 4.5, "lit": True, "mode": "open"}    # old logic: active tag
+    monkeypatch.setattr(T, "_now_assessments", lambda c, t: now)
+    monkeypatch.setattr(T, "_next_opening", lambda c, k, t: None)
+    tones = {"money": "open", "love": "care"}
+    monkeypatch.setattr(T, "_tile_read", lambda c, k, t: (tones.get(k, "steady"), None))
+    rows = {r["key"]: r for r in T.rank_topics(_synth(), TODAY, "en")}
+    assert rows["money"]["tag"] == "active now" and rows["money"]["tone"] == "open"
+    assert rows["love"]["tag"] == "needs care now" and rows["love"]["tone"] == "care"
+
+
 def test_topics_tone_can_be_care_while_status_is_active():
     ctx = _synth("Saturn", [_ev("2026-10-12", "Saturn", 10, "conjunction")])
     rows = {r["key"]: r for r in T.rank_topics(ctx, TODAY, "en")}
