@@ -32,7 +32,8 @@ _LANG_NAME = {"en": "English", "es": "Spanish", "pt": "Portuguese",
 
 def _lang(language: str) -> str:
     l = (language or "en").split("-")[0].lower()
-    return "hinglish" if l == "hi" else (l if l in _REL_LABEL else "en")
+    # [hi 2026-10-07] was `"hinglish" if l == "hi"` — a Devanagari Hindi reader got Roman Hinglish.
+    return l if l in _REL_LABEL else "en"
 
 
 def relation_label(relation: Optional[str], language: str = "en") -> str:

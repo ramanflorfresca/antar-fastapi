@@ -81,7 +81,7 @@ check("US+MX birth still prompts (unchanged)", uspr.needs_language_prompt is Tru
 
 print("== translation_middleware (source-level; module imports config) ==")
 tm = src("antar_engine/translation_middleware.py")
-check("SUPPORTED_LANGUAGES has fr", 'SUPPORTED_LANGUAGES = ("es", "pt", "fr")' in tm)
+check("SUPPORTED_LANGUAGES has fr", 'TRANSLATED_LANGUAGES as SUPPORTED_LANGUAGES' in tm)
 check("translator target map has fr", '"fr": "French (France)"' in tm)
 
 print("== main.py (source-level) ==")

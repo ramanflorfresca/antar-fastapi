@@ -40,8 +40,12 @@ def _lang(language) -> str:
     before (es/pt/Hinglish users getting English fallback copy).
     """
     l = str(language or "en").strip().lower()
-    if l in ("hi", "hinglish") or l.startswith("hi"):
+    # [hi 2026-10-07] "hi" = Devanagari -> the "hindi" copy below; the legacy "hi" key
+    # holds the Roman-script Hinglish copy and only Hinglish readers get it.
+    if l in ("hinglish", "hi-latn") or l.startswith("hinglish"):
         return "hi"
+    if l in ("hi", "hindi") or l.startswith("hi-") or l.startswith("hi_"):
+        return "hindi"
     b = l.split("_")[0].split("-")[0][:2]
     return b if b in ("es", "pt") else "en"
 
@@ -158,6 +162,17 @@ _TEXT = {
               "bhi nahi. Garbhdharan ka clinical jawab sirf doctor hi de sakta hai.",
     },
 }
+
+
+# [hi 2026-10-07] Devanagari Hindi copy (same four domains, same stance as the English).
+_TEXT["health"]["hindi"] = ("यह आपके ग्रहों की स्थिति और समय का विश्लेषण है — निदान नहीं, और कोई गारंटी भी नहीं। "
+                           "कोई तकलीफ़ हो तो डॉक्टर से मिलिए, और कुछ भी शुरू या बंद करने से पहले भी।")
+_TEXT["money"]["hindi"] = ("यह आपके ग्रहों की स्थिति और समय का विश्लेषण है — वित्तीय सलाह नहीं, और मुनाफ़े की गारंटी भी नहीं। "
+                          "इतना पैसा कभी न लगाइए जिसे खोना आप सह न सकें।")
+_TEXT["legal"]["hindi"] = ("यह आपके ग्रहों की स्थिति और समय का विश्लेषण है — कानूनी सलाह नहीं, और किसी नतीजे की गारंटी भी नहीं। "
+                          "मुक़दमा आपके वकील का है।")
+_TEXT["fertility"]["hindi"] = ("यह आपके ग्रहों की स्थिति और समय का विश्लेषण है — निदान नहीं, और कोई गारंटी भी नहीं। "
+                              "गर्भधारण के बारे में चिकित्सकीय उत्तर केवल डॉक्टर ही दे सकता है।")
 
 
 # [yesno-disclaimer 2026-10-05] What the person ASKED is the strongest domain signal.

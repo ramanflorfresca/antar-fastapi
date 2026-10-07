@@ -23,6 +23,8 @@ that generates one structured daily signal for a SPECIFIC user on a SPECIFIC day
 
 3. **LANGUAGE ENFORCEMENT.** If language is "es", ALL output fields MUST be in Spanish.
    Zero English words. If language is "en", all output in English. No mixing.
+   If language is "hi", ALL output fields MUST be Hindi in DEVANAGARI script (हिन्दी) — never
+   Roman-script Hindi ("aapka din…") and never English; address the reader as "आप".
 
 4. **NO JARGON in user-facing fields.** Never use nakshatra names, tithi numbers, house
    numbers, or Sanskrit terms in verdict_subline, haz_hoy, evita_hoy, el_movimiento,
@@ -380,7 +382,7 @@ Self-check before returning JSON: read every text field. If you find an English
 word, rewrite that entire field in Spanish before returning.
 
 Same rule applies to all languages: if language == "pt", all Portuguese;
-if language == "hi", all Hindi; if language == "fr", all French.
+if language == "hi", all Hindi in Devanagari script (never Roman letters); if language == "fr", all French.
 No mixing of languages ever.
 
 ## TIMEZONE AWARENESS

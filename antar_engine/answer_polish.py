@@ -210,7 +210,9 @@ _FAM_OFFTOPIC = re.compile(
 
 def _lang(language: str) -> str:
     l = (language or "en").lower()
-    return "hi" if l in ("hi", "hinglish") else (l[:2] if l[:2] in ("en", "es", "pt") else "en")
+    # [hi 2026-10-07] "hi" = Devanagari: these tables hold Roman-script copy under their legacy "hi" key, so a
+    # Devanagari reader must NOT get them. Explicit English here; Ask's Devanagari guard translates the answer.
+    return "hi" if l in ("hinglish", "hi-latn") else (l[:2] if l[:2] in ("en", "es", "pt") else "en")
 
 
 def _keepcase(rep):

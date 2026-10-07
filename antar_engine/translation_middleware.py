@@ -44,7 +44,12 @@ from antar_engine.translation_glossary import build_translation_system_prompt
 
 logger = logging.getLogger(__name__)
 
-SUPPORTED_LANGUAGES = ("es", "pt", "fr")
+# [hi 2026-10-07] "hi" = Devanagari Hindi, translated like es/pt/fr but gated on SCRIPT
+# (see _hindi_ok) instead of the English-marker check. "hinglish" is not translated.
+from antar_engine.lang_registry import (
+    TRANSLATED_LANGUAGES as SUPPORTED_LANGUAGES,
+    script_counts as _script_counts,
+)
 TRANSLATOR_MODEL = HAIKU_MODEL
 
 # Keys never sent to the translator — IDs, metadata, enums, volatile fields,
@@ -294,6 +299,10 @@ async def translate_dict(
     """Translate user-facing strings in `data`, caching per content_hash."""
     skip_set = GLOBAL_SKIP_FIELDS | set(fields_to_skip or [])
     translatable = _extract_translatable(data, fields_to_translate, skip_set)
+    if language == "hi":
+        # Natively-generated Hindi (the daily/Ask prompts write Devanagari directly)
+        # passes straight through; only values that are NOT Devanagari are translated.
+        translatable = {k: v for k, v in translatable.items() if _hindi_bad(v)}
     if not translatable:
         return data
 
@@ -314,11 +323,22 @@ async def translate_dict(
                         hit=False, n_strings=len(translatable))
     translated = await _call_translator(translatable, language)
 
-    await save_translation(
-        endpoint_name=endpoint_name, chart_id=chart_id,
-        language=language, content_hash=content_hash, translated_data=translated,
-    )
-    return _apply_translations(data, translated, skip_set)
+    # [hi] A Hindi value that is STILL not Devanagari after the retry was kept in
+    # English by _call_translator. Say so (explicit, never silent) and do not cache
+    # it, so the next request tries again instead of pinning English for Hindi.
+    _hi_residual = (language == "hi"
+                    and any(_hindi_bad(v) for v in translated.values()))
+    if not _hi_residual:
+        await save_translation(
+            endpoint_name=endpoint_name, chart_id=chart_id,
+            language=language, content_hash=content_hash, translated_data=translated,
+        )
+    out = _apply_translations(data, translated, skip_set)
+    if _hi_residual:
+        logger.warning(f"[translation] hi residual English kept: endpoint={endpoint_name}")
+        if isinstance(out, dict):
+            out["_translation_status"] = "partial_english"
+    return out
 
 
 def _extract_translatable(data, allowlist, skip_set, path=""):
@@ -399,6 +419,17 @@ def _looks_english(text: str) -> bool:
     return len(set(m.lower() for m in _ENGLISH_MARKERS.findall(text))) >= 2
 
 
+def _hindi_bad(text: str) -> bool:
+    """True when a Hindi-bound value still needs translating / a 'translated' value is
+    not Devanagari: English, Roman-script Hindi (Hinglish), or a half-translated mix.
+    Digits, dates and one- or two-letter tokens carry no language and are never bad.
+    Latin proper nouns inside a Hindi sentence are fine — the bar is a script ratio."""
+    if not isinstance(text, str):
+        return False
+    dev, lat = _script_counts(text)
+    return lat >= 3 and dev / (dev + lat) < 0.7
+
+
 async def _translator_round(strings, language_name, system_prompt, extra_rule=""):
     """One translator call. Returns the parsed {path: translated} dict."""
     user_message = (
@@ -445,11 +476,14 @@ _DF_MON_LOC = {
     "es": ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"],
     "pt": ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"],
     "fr": ["janv", "févr", "mars", "avr", "mai", "juin", "juil", "août", "sept", "oct", "nov", "déc"],
+    "hi": ["जनवरी", "फ़रवरी", "मार्च", "अप्रैल", "मई", "जून", "जुलाई", "अगस्त", "सितंबर",
+           "अक्टूबर", "नवंबर", "दिसंबर"],
 }
 _DF_WD_LOC = {
     "es": ["lun", "mar", "mié", "jue", "vie", "sáb", "dom"],
     "pt": ["seg", "ter", "qua", "qui", "sex", "sáb", "dom"],
     "fr": ["lun", "mar", "mer", "jeu", "ven", "sam", "dim"],
+    "hi": ["सोम", "मंगल", "बुध", "गुरु", "शुक्र", "शनि", "रवि"],
 }
 _MON_ALT = "Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec"
 _DF_FULL = re.compile(
@@ -524,6 +558,7 @@ async def _call_translator(strings, target_language):
         "es": "Spanish (LATAM neutral)",
         "pt": "Brazilian Portuguese",
         "fr": "French (France)",
+        "hi": "Hindi (Devanagari script only — never Roman-script Hindi)",
     }[target_language]
 
     # 2-arg signature per the Loc-4 Sanskrit-handling addendum.
@@ -549,8 +584,9 @@ async def _call_translator(strings, target_language):
     # still-English; keep the ORIGINAL authored string (never a paraphrase)
     # for anything that fails twice. English-in-target is a rendering bug;
     # a silently rewritten English sentence is a voice bug — worse.
+    _bad = _hindi_bad if target_language == "hi" else _looks_english
     _still_en = {k: strings[k] for k, v in translated.items()
-                 if k in strings and isinstance(v, str) and _looks_english(v)}
+                 if k in strings and isinstance(v, str) and _bad(v)}
     if _still_en:
         logger.warning(
             f"[translation] {len(_still_en)} value(s) returned in English — retrying once")
@@ -560,12 +596,12 @@ async def _call_translator(strings, target_language):
                 extra_rule=("REMINDER: your previous attempt returned English. "
                             f"Write every value in {language_name} only.\n" + _df_rule))
             for k, v in retry.items():
-                if k in translated and isinstance(v, str) and not _looks_english(v):
+                if k in translated and isinstance(v, str) and not _bad(v):
                     translated[k] = v
         except Exception as _re:
             logger.warning(f"[translation] retry failed (non-fatal): {_re}")
         for k in _still_en:
-            if _looks_english(translated.get(k, "")):
+            if _bad(translated.get(k, "")):
                 logger.warning(f"[translation] still English after retry, keeping ORIGINAL: {k}")
                 translated[k] = strings[k]
 

@@ -42,8 +42,14 @@ def lang_of(language) -> str:
     same silent-i18n bug that has bitten every other surface.
     """
     l = str(language or "en").strip().lower()
-    if l in ("hi", "hinglish") or l.startswith("hi"):
+    # [hi 2026-10-07] "hi" = Devanagari ("hindi" copy); the legacy "hi" key is Roman-script
+    # Hinglish. A stored legacy "hi" row stays Hinglish (it was written before the split).
+    if l in ("hinglish", "hi-latn") or l.startswith("hinglish"):
         return "hi"
+    if l in ("hindi",) or l.startswith("hi-") or l.startswith("hi_"):
+        return "hindi"
+    if l == "hi":
+        return "hindi"
     b = l.split("_")[0].split("-")[0][:2]
     return b if b in ("es", "pt") else "en"
 
@@ -142,12 +148,14 @@ _PUSH = {
     "es": ("Tu ventana está abierta", "{q} — la ventana que guardaste se abre ahora. {move}"),
     "pt": ("Sua janela está aberta", "{q} — a janela que você salvou abre agora. {move}"),
     "hi": ("Aapki window khul gayi", "{q} — jo window aapne save ki thi woh ab khul rahi hai. {move}"),
+    "hindi": ("आपकी समय-खिड़की खुल गई", "{q} — आपने जो समय-खिड़की सहेजी थी, वह अब खुल रही है। {move}"),
 }
 _MOVE = {
     "en": "Open Antar to see what to do first.",
     "es": "Abre Antar para ver qué hacer primero.",
     "pt": "Abra o Antar para ver o que fazer primeiro.",
     "hi": "Pehla kadam dekhne ke liye Antar kholein.",
+    "hindi": "पहला कदम देखने के लिए Antar खोलिए।",
 }
 
 
