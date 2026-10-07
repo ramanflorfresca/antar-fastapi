@@ -133,11 +133,84 @@ def test_rank_shape_order_and_contiguous_ranks(ctxs):
         out = T.rank_topics(ctx, TODAY, "en")
         assert [r["rank"] for r in out] == list(range(1, 8))
         assert {r["key"] for r in out} == set(T.TOPIC_KEYS)
-        assert set(out[0]) == {"key", "label", "status", "tag", "rank"}
+        assert set(out[0]) == {"key", "label", "status", "tag", "tone", "rank"}
         order = {"active": 0, "upcoming": 1, "steady": 2, "quiet": 3}
         st = [order[r["status"]] for r in out]
         assert st == sorted(st)
         assert all(r["tag"] for r in out)
+
+
+def test_topics_tone_equals_topic_read_tone_at_best_fit_scale(ctxs):
+    """A tile's colour and the read it opens can never disagree (4 real charts, 7 topics)."""
+    for ctx in ctxs:
+        out = {r["key"]: r for r in T.rank_topics(ctx, TODAY, "en")}
+        for k in T.TOPIC_KEYS:
+            assert out[k]["tone"] in ("open", "care", "steady")
+            full = T.read_topic(ctx, k, T.best_fit_scale(ctx, k, TODAY), TODAY, "en")
+            assert out[k]["tone"] == full["tone"], (ctx.chart_id, k)
+
+
+def test_topics_tone_can_be_care_while_status_is_active():
+    ctx = _synth("Saturn", [_ev("2026-10-12", "Saturn", 10, "conjunction")])
+    rows = {r["key"]: r for r in T.rank_topics(ctx, TODAY, "en")}
+    assert rows["career"]["status"] == "active" and rows["career"]["tone"] == "care"
+
+
+def test_fallback_topics_carry_a_steady_tone():
+    assert {r["tone"] for r in T.fallback_topics("en")} == {"steady"}
+
+
+def _fake_now(scores):
+    return {k: {"score": scores.get(k, 0.0), "lit": scores.get(k, 0.0) >= T.ACTIVE_MIN, "mode": "open"}
+            for k in T.TOPIC_KEYS}
+
+
+def test_active_is_capped_at_three_by_relative_strength():
+    now = _fake_now({"money": 4.7, "business": 4.58, "career": 4.33, "love": 4.2, "health": 3.9})
+    assert T.active_set(now) == {"money", "business", "career"}
+
+
+def test_active_needs_to_be_near_the_charts_strongest():
+    # 4.0 is "lit" on its own but far below 5.3 → falls to steady (relative cut)
+    now = _fake_now({"business": 5.3, "career": 4.3, "love": 3.6})
+    assert T.active_set(now) == {"business", "career"}
+
+
+def test_a_genuinely_strong_signal_is_never_demoted_by_the_cap():
+    now = _fake_now({"money": 6.5, "business": 6.0, "career": 5.8, "love": 5.6, "health": 3.6})
+    assert T.active_set(now) == {"money", "business", "career", "love"}   # all >= STRONG_MIN, health cut
+
+
+def test_ties_at_the_cap_break_by_fixed_topic_order():
+    now = _fake_now({"money": 4.4, "career": 4.4, "love": 4.4, "health": 4.4})
+    assert T.active_set(now) == {"money", "career", "love"}
+
+
+def test_rank_topics_never_shows_more_than_three_active_and_demotes_to_steady(monkeypatch):
+    ctx = _synth()
+    monkeypatch.setattr(T, "_now_assessments", lambda c, t: {
+        k: dict(T.assess(c, k, t, []), **v) for k, v in _fake_now(
+            {"money": 4.7, "business": 4.58, "career": 4.33, "love": 4.2, "health": 3.9}).items()})
+    out = {r["key"]: r["status"] for r in T.rank_topics(ctx, TODAY, "en")}
+    assert sorted(k for k, v in out.items() if v == "active") == ["business", "career", "money"]
+    assert out["love"] == "steady" and out["health"] == "steady"
+
+
+def test_a_chart_where_only_one_topic_is_lit_shows_exactly_one_active():
+    ctx = _synth("Mars", [_ev("2026-10-12", "Jupiter", 1)])   # Aries: Mars rules the 1st/6th → health only
+    rows = {r["key"]: r["status"] for r in T.rank_topics(ctx, TODAY, "en")}
+    assert [k for k, v in rows.items() if v == "active"] == ["health"]
+
+
+def test_real_charts_stay_within_the_cap(ctxs):
+    from datetime import date as _d
+    for ctx in ctxs:
+        for on in (TODAY, _d(2027, 1, 15), _d(2027, 8, 10)):
+            out = T.rank_topics(ctx, on, "en")
+            n = sum(r["status"] == "active" for r in out)
+            now = T._now_assessments(ctx, on)
+            strong = sum(now[k]["lit"] and now[k]["score"] >= T.STRONG_MIN for k in now)
+            assert n <= max(T.ACTIVE_CAP, strong)
 
 
 def test_rank_is_deterministic(ctxs):
@@ -278,6 +351,65 @@ def test_copy_tables_are_complete_for_every_language_topic_and_scale():
         assert len(C.MONTHS[l]) == 12
 
 
+@pytest.mark.parametrize("lang", LANGS)
+@pytest.mark.parametrize("mode", ["open", "care"])
+def test_single_day_window_never_says_between_x_and_x(lang, mode):
+    ctx = _synth("Saturn", [_ev("2026-10-07", "Jupiter", 10)])
+    a = dict(T.assess(ctx, "career", TODAY, ctx.events(TODAY, TODAY, False)), mode=mode, n_signals=1)
+    one = T._reasoning(ctx, "career", a, "today", lang, TODAY, TODAY)["bullets"][-1]
+    rng = T._reasoning(ctx, "career", a, "month", lang, TODAY, TODAY + timedelta(days=6))["bullets"][-1]
+    day = C.day_label(TODAY, lang)
+    assert day in one and one.count(day) == 1          # the date appears once
+    assert one != rng                                  # a real range keeps its own wording
+    if lang == "en":
+        area = C.AREA["en"]["career"]
+        assert one == (f"Slow-moving influences support {area} on Oct 7." if mode == "open"
+                       else f"Slow-moving influences press on {area} on Oct 7.")
+        assert "between" not in one
+
+
+def test_single_day_window_end_to_end_reads_on_the_day():
+    ctx = _synth("Saturn", [_ev("2026-10-07", "Jupiter", 10)])
+    r = T.read_topic(ctx, "career", "today", TODAY, "en")
+    w = r["best_window"] or r["watch_window"]
+    assert w and w["start"] == w["end"] == "2026-10-07"
+    assert all("between" not in b for b in w["reasoning"]["bullets"])
+    assert any(" on Oct 7." in b for b in w["reasoning"]["bullets"])
+
+
+def _both_windows_ctx():
+    return _synth("Saturn", [_ev("2026-10-12", "Jupiter", 10), _ev("2026-10-13", "Venus", 10),
+                             _ev("2026-10-30", "Saturn", 10), _ev("2026-11-02", "Mars", 10)])
+
+
+def test_top_level_reasoning_is_the_primary_windows_and_each_window_is_distinct():
+    r = T.read_topic(_both_windows_ctx(), "career", "month", TODAY, "en")
+    best, watch = r["best_window"], r["watch_window"]
+    assert best and watch and r["tone"] == "open"
+    assert r["reasoning"] == best["reasoning"]                   # primary = the window `tone` names
+    assert r["reasoning"] != watch["reasoning"]
+    assert best["reasoning"] != watch["reasoning"]               # each window carries its own
+    assert "support" in best["reasoning"]["bullets"][-1] and "press" in watch["reasoning"]["bullets"][-1]
+    assert r["why"] == " ".join(r["reasoning"]["bullets"][:2])
+
+
+def test_care_only_read_top_level_reasoning_is_the_watch_windows():
+    ctx = _synth("Saturn", [_ev("2026-10-30", "Saturn", 10), _ev("2026-11-02", "Mars", 10)])
+    r = T.read_topic(ctx, "career", "month", TODAY, "en")
+    assert r["tone"] == "care" and r["best_window"] is None
+    assert r["reasoning"] == r["watch_window"]["reasoning"]
+
+
+def test_today_windows_carry_no_invented_clock_times():
+    """The dated feed has no clock times and the day's best hour is topic-agnostic,
+    so a today window stays date-only (the UI then draws the whole day)."""
+    ctx = _synth("Saturn", [_ev("2026-10-07", "Jupiter", 10)])
+    r = T.read_topic(ctx, "career", "today", TODAY, "en")
+    w = r["best_window"] or r["watch_window"]
+    assert w and "start_time" not in w and "end_time" not in w
+    assert len(w["start"]) == len(w["end"]) == 10
+
+
 def test_topic_labels_and_tags_localised():
     out = T.rank_topics(_synth("Saturn", [_ev("2026-10-12", "Jupiter", 10)]), TODAY, "pt")
     assert out[0]["label"] == "Carreira" and out[0]["tag"] == "ativo agora"
@@ -354,6 +486,48 @@ def test_remedy_free_steps_first_and_stone_only_optional_last(ctxs):
             assert "skip" in rem["steps"][-1]["text"]
 
 
+def test_remedy_mantra_and_stone_are_for_the_same_planet_or_no_stone(ctxs):
+    from antar_engine.practice_engine import GEM_BY_PLANET
+    from antar_engine.practice_library import get_planet_content
+    seen_stone = seen_dropped = 0
+    for ctx in ctxs:
+        gem = T._chart_gem(ctx)
+        for on in (TODAY, date(2027, 6, 1), date(2029, 1, 1)):
+            for k in T.TOPIC_KEYS:
+                rem = T.build_remedy(ctx, k, on, "en")
+                planet = T.remedy_planet(ctx, k, on, gem)
+                mantra = [s for s in rem["steps"] if s["kind"] == "mantra"]
+                stone = [s for s in rem["steps"] if s["kind"] == "stone"]
+                assert len(mantra) == 1 and get_planet_content(planet, "en")["mantra"]["name"] in mantra[0]["text"]
+                if stone:
+                    seen_stone += 1
+                    assert gem["_planet"] == planet and GEM_BY_PLANET[planet]["stone"] in stone[0]["text"]
+                    assert rem["steps"][-1]["kind"] == "stone"
+                else:
+                    seen_dropped += 1
+                    assert not gem or gem["_planet"] != planet
+    assert seen_stone and seen_dropped      # both branches are exercised by the fixtures
+
+
+def test_mismatched_stone_is_dropped_not_shown(monkeypatch):
+    # Jupiter runs (a money key planet) but the chart's stone is Emerald (Mercury)
+    ctx = _synth("Jupiter")
+    monkeypatch.setattr(T, "_chart_gem", lambda c: {"stone": "Emerald", "_planet": "Mercury"})
+    kinds = [s["kind"] for s in T.build_remedy(ctx, "money", TODAY, "en")["steps"]]
+    assert kinds == ["practice", "practice", "mantra"]
+
+
+def test_remedy_prefers_the_charts_stone_planet_when_it_is_also_running(monkeypatch):
+    ctx = _synth("Jupiter")
+    ctx.dashas["vimsottari"].append(dict(ctx.dashas["vimsottari"][-1], lord_or_sign="Mercury",
+                                         planet_or_sign="Mercury", level="pratyantardasha"))
+    monkeypatch.setattr(T, "_vim_active_planets", lambda d, on: {"Jupiter", "Mercury"})
+    monkeypatch.setattr(T, "_chart_gem", lambda c: {"stone": "Emerald", "_planet": "Mercury"})
+    rem = T.build_remedy(ctx, "money", TODAY, "en")["steps"]
+    assert [s["kind"] for s in rem] == ["practice", "practice", "mantra", "stone"]
+    assert "Emerald" in rem[-1]["text"]
+
+
 def test_money_business_health_never_promise_outcomes():
     promise = re.compile(r"(rich|wealth|fortune|millionaire|guarantee|will succeed|diagnos|cure|disease|"
                          r"rico|riqueza|garant|enferm|diagn|doen)", re.I)
@@ -411,7 +585,7 @@ def test_topics_route_returns_list_and_caches(main_mod, monkeypatch):
     b = _run(main_mod.get_chart_topics("c1", None, None))
     assert a == b and a[0]["key"] == "career" and a[0]["label"] == "Carrera"   # chart's stored language wins over a missing param
     assert len(calls) == 2    # context is rebuilt, the ranking itself is cached
-    assert all(set(r) == {"key", "label", "status", "tag", "rank"} for r in a)
+    assert all(set(r) == {"key", "label", "status", "tag", "tone", "rank"} for r in a)
 
 
 def test_topics_route_falls_back_on_load_failure(main_mod, monkeypatch):
@@ -456,7 +630,8 @@ def _reveal_dashas():
     }
 
 
-def test_reveal_two_lines_with_real_dates():
+def test_reveal_two_lines_with_real_dates(monkeypatch):
+    monkeypatch.setenv("REVEAL_LINES_PLANET_NAMES", "1")
     from antar_engine.reveal_lines import reveal_lines
     cd = {"lagna": {"sign": "Aries", "sign_index": 0}}     # Capricorn = 10th from Aries → work
     out = reveal_lines(cd, _reveal_dashas(), "1990-10-15", "exact", TODAY, "en")
@@ -464,7 +639,57 @@ def test_reveal_two_lines_with_real_dates():
                    "A work-focused stretch, from January 2026 to November 2027."]
 
 
-def test_reveal_skips_line_two_without_birth_time_and_never_fills():
+def test_reveal_default_uses_the_plain_energy_phrase_not_the_planet(monkeypatch):
+    from antar_engine.reveal_lines import reveal_lines
+    monkeypatch.delenv("REVEAL_LINES_PLANET_NAMES", raising=False)
+    cd = {"lagna": {"sign": "Aries", "sign_index": 0}}
+    d = {"vimsottari": [{"lord_or_sign": "Saturn", "level": "mahadasha", "start_date": "2008-03-10",
+                         "end_date": "2027-03-20"}]}
+    assert reveal_lines(cd, d, "1991-03-14", "exact", TODAY, "en") == [
+        "Since March 2008 you are in a discipline-and-time chapter. It runs until March 2027."]
+    assert reveal_lines(cd, d, "1991-03-14", "exact", TODAY, "es") == [
+        "Desde marzo de 2008 estás en una etapa de disciplina y tiempo. Dura hasta marzo de 2027."]
+    assert reveal_lines(cd, d, "1991-03-14", "exact", TODAY, "pt") == [
+        "Desde março de 2008 você está em uma fase de disciplina e tempo. Ela vai até março de 2027."]
+    assert reveal_lines(cd, d, "1991-03-14", "exact", TODAY, "hinglish") == [
+        "March 2008 se aap discipline-and-time ke daur mein hain. Ye March 2027 tak chalega."]
+    # Hindi falls back to the whole English read
+    assert reveal_lines(cd, d, "1991-03-14", "exact", TODAY, "hi") == reveal_lines(cd, d, "1991-03-14", "exact", TODAY, "en")
+    for lang in LANGS:
+        for line in reveal_lines(cd, d, "1991-03-14", "exact", TODAY, lang):
+            assert not _JARGON.search(line), line
+
+
+@pytest.mark.parametrize("planet,phrase", [
+    ("Sun", "identity-and-purpose"), ("Moon", "emotion-and-instinct"), ("Mars", "drive-and-courage"),
+    ("Mercury", "mind-and-communication"), ("Jupiter", "growth-and-wisdom"), ("Venus", "love-and-value"),
+    ("Saturn", "discipline-and-time"), ("Rahu", "ambition-and-the-unfamiliar"),
+    ("Ketu", "detachment-and-the-past")])
+def test_reveal_every_planet_has_a_plain_phrase_matching_the_identity_table(monkeypatch, planet, phrase):
+    from antar_engine.reveal_lines import reveal_lines
+    from antar_engine.chart_identity import _PLANET_PLAIN
+    monkeypatch.delenv("REVEAL_LINES_PLANET_NAMES", raising=False)
+    d = {"vimsottari": [{"lord_or_sign": planet, "level": "mahadasha", "start_date": "2008-03-10",
+                         "end_date": "2027-03-20"}]}
+    out = reveal_lines({"lagna": {"sign": "Aries"}}, d, "1991-03-14", "exact", TODAY, "en")
+    assert phrase in out[0] and phrase.replace("-", " ") == _PLANET_PLAIN[planet]
+
+
+def test_reveal_planet_names_switch_keeps_the_name_in_every_language(monkeypatch):
+    from antar_engine.reveal_lines import reveal_lines
+    monkeypatch.setenv("REVEAL_LINES_PLANET_NAMES", "true")
+    d = {"vimsottari": [{"lord_or_sign": "Saturn", "level": "mahadasha", "start_date": "2008-03-10",
+                         "end_date": "2027-03-20"}]}
+    cd = {"lagna": {"sign": "Aries"}}
+    assert reveal_lines(cd, d, "1991-03-14", "exact", TODAY, "en") == [
+        "Since March 2008 you are in a Saturn chapter. It runs until March 2027."]
+    assert "Saturno" in reveal_lines(cd, d, "1991-03-14", "exact", TODAY, "es")[0]
+    assert "Saturno" in reveal_lines(cd, d, "1991-03-14", "exact", TODAY, "pt")[0]
+    assert "Saturn" in reveal_lines(cd, d, "1991-03-14", "exact", TODAY, "hinglish")[0]
+
+
+def test_reveal_skips_line_two_without_birth_time_and_never_fills(monkeypatch):
+    monkeypatch.setenv("REVEAL_LINES_PLANET_NAMES", "1")
     from antar_engine.reveal_lines import reveal_lines
     cd = {"lagna": {"sign": "Aries", "sign_index": 0}}
     out = reveal_lines(cd, _reveal_dashas(), "1990-10-15", "unknown", TODAY, "en")
@@ -474,7 +699,8 @@ def test_reveal_skips_line_two_without_birth_time_and_never_fills():
     assert len(reveal_lines(cd, only_j, "1990-10-15", "exact", TODAY, "en")) == 1
 
 
-def test_reveal_first_chapter_does_not_claim_a_start_at_birth():
+def test_reveal_first_chapter_does_not_claim_a_start_at_birth(monkeypatch):
+    monkeypatch.setenv("REVEAL_LINES_PLANET_NAMES", "1")
     from antar_engine.reveal_lines import reveal_lines
     d = {"vimsottari": [{"lord_or_sign": "Venus", "level": "mahadasha", "start_date": "1990-10-15",
                          "end_date": "2027-02-01"}]}
@@ -482,7 +708,8 @@ def test_reveal_first_chapter_does_not_claim_a_start_at_birth():
     assert out == ["You are in a Venus chapter. It runs until February 2027."]
 
 
-def test_reveal_never_shows_an_ended_chapter_and_has_no_system_words():
+def test_reveal_never_shows_an_ended_chapter_and_has_no_system_words(monkeypatch):
+    monkeypatch.setenv("REVEAL_LINES_PLANET_NAMES", "1")
     from antar_engine.reveal_lines import reveal_lines
     cd = {"lagna": {"sign": "Aries", "sign_index": 0}}
     assert reveal_lines(cd, _reveal_dashas(), "1990-10-15", "exact", date(2030, 1, 1), "en")[0:1] != []

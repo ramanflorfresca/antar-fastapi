@@ -35,6 +35,7 @@ HONESTY RULES (owner, from project memory — do not loosen)
 """
 from __future__ import annotations
 
+import copy
 import json
 import logging
 import threading
@@ -68,6 +69,13 @@ TOPIC_SPEC: Dict[str, Dict[str, Any]] = {
 
 ACTIVE_MIN = 3.5     # score at which a topic / bucket counts as really lit
 STEADY_MIN = 1.5     # below this a topic is "quiet"
+# A picker where most tiles say "active now" tells the user nothing, so "active"
+# is also RELATIVE to the chart: of the topics that are really lit, only those
+# within REL_FRAC of the strongest stay active, at most ACTIVE_CAP of them. A
+# genuinely strong signal (STRONG_MIN) is never demoted by the cap or the cut.
+ACTIVE_CAP = 3
+REL_FRAC = 0.75
+STRONG_MIN = 5.5
 LOOKAHEAD_DAYS = 150
 NOW_HORIZON_DAYS = 30
 SEASON_SCAN_CAP_DAYS = 730
@@ -293,22 +301,43 @@ def _next_opening(ctx: TopicContext, key: str, today: date) -> Optional[Tuple[da
 def fallback_topics(language: str = "en") -> List[dict]:
     lang = C.serve_language(language)
     return [{"key": k, "label": C.LABEL[lang][k], "status": "steady",
-             "tag": C.TAG[lang]["steady"], "rank": i + 1}
+             "tag": C.TAG[lang]["steady"], "tone": "steady", "rank": i + 1}
             for i, k in enumerate(TOPIC_KEYS)]
 
 
+def active_set(now: Dict[str, dict]) -> set:
+    """Which really-lit topics stay "active": relative to the chart's strongest,
+    capped, ties broken by fixed topic order. The rest fall to steady."""
+    lit = sorted((k for k in TOPIC_KEYS if now[k]["lit"]),
+                 key=lambda k: (-now[k]["score"], TOPIC_KEYS.index(k)))
+    if not lit:
+        return set()
+    top = now[lit[0]]["score"]
+    keep = set()
+    for i, k in enumerate(lit):
+        sc = now[k]["score"]
+        if sc >= STRONG_MIN or (i < ACTIVE_CAP and sc >= REL_FRAC * top):
+            keep.add(k)
+    return keep
+
+
 def rank_topics(ctx: TopicContext, today: date, language: str = "en") -> List[dict]:
-    """[{key,label,status,tag,rank}], most active first. Never raises."""
+    """[{key,label,status,tag,tone,rank}], most active first. Never raises."""
     lang = C.serve_language(language)
     try:
         now = _now_assessments(ctx, today)
+        keep = active_set(now)
         rows = []
         for i, k in enumerate(TOPIC_KEYS):
             a = now[k]
             opening = None
-            if a["lit"]:
+            if k in keep:
                 status, tag = "active", C.TAG[lang]["care" if a["mode"] == "care" else "active"]
                 order = (0, -a["score"], i)
+            elif a["lit"]:
+                # really lit, but not among the chart's strongest: steady, not "now"
+                status, tag = "steady", C.TAG[lang]["steady"]
+                order = (2, -a["score"], i)
             else:
                 opening = _next_opening(ctx, k, today)
                 if opening:
@@ -323,7 +352,8 @@ def rank_topics(ctx: TopicContext, today: date, language: str = "en") -> List[di
                 else:
                     status, tag = "quiet", C.TAG[lang]["quiet"]
                     order = (3, -a["score"], i)
-            rows.append((order, {"key": k, "label": C.LABEL[lang][k], "status": status, "tag": tag}))
+            rows.append((order, {"key": k, "label": C.LABEL[lang][k], "status": status, "tag": tag,
+                                 "tone": topic_tone(ctx, k, today)}))
         rows.sort(key=lambda r: r[0])
         return [dict(r[1], rank=n + 1) for n, r in enumerate(rows)]
     except Exception:
@@ -428,7 +458,8 @@ def _reasoning(ctx: TopicContext, key: str, a: dict, scale: str, lang: str,
     if a["chara_confirm"]:
         bullets.append(B["agree"])
     if a["n_signals"] and w_start and w_end:
-        tmpl = B["signals_care" if a["mode"] == "care" else "signals_open"]
+        sfx = "_day" if w_start == w_end else ""   # one day reads "on Oct 7", never "between Oct 7 and Oct 7"
+        tmpl = B[("signals_care" if a["mode"] == "care" else "signals_open") + sfx]
         bullets.append(tmpl.format(n=a["n_signals"], area=area,
                                    start=C.day_label(w_start, lang), end=C.day_label(w_end, lang)))
     elif not a["n_signals"]:
@@ -452,31 +483,52 @@ def _reasoning(ctx: TopicContext, key: str, a: dict, scale: str, lang: str,
 
 
 # ── remedy ───────────────────────────────────────────────────────────────────
-def build_remedy(ctx: TopicContext, key: str, today: date, lang: str) -> dict:
-    """{summary, steps[]} — free steps first, a stone only as an optional last
-    step, never a price. The mantra and stone come from the practice engine."""
-    steps = [{"kind": "practice", "optional": False, "text": t}
-             for t in C.pick(C.FREE_STEPS, lang)[key]]
-    try:
-        vim = _vim_active_planets(ctx.dashas, today.isoformat())
-        kar = TOPIC_SPEC[key]["karakas"]
-        planet = next((p for p in kar if p in vim), kar[0])
-        from antar_engine.practice_library import get_planet_content
-        name = ((get_planet_content(planet, "en") or {}).get("mantra") or {}).get("name")
-        if name:
-            steps.append({"kind": "mantra", "optional": True,
-                          "text": C.pick(C.MANTRA_STEP, lang).format(name=name)})
-    except Exception:
-        pass
+def _chart_gem(ctx: TopicContext) -> Optional[dict]:
     try:
         from antar_engine.practice_engine import select_chart_gemstone
-        gem = select_chart_gemstone((ctx.chart_data or {}).get("planets") or {},
-                                    (ctx.chart_data or {}).get("lagna"))
-        if gem and gem.get("stone"):
+        return select_chart_gemstone((ctx.chart_data or {}).get("planets") or {},
+                                     (ctx.chart_data or {}).get("lagna"))
+    except Exception:
+        return None
+
+
+def remedy_planet(ctx: TopicContext, key: str, today: date, gem: Optional[dict] = None) -> str:
+    """The ONE planet a topic's remedy speaks for: the running chapter ∩ the topic's
+    key planets. When the chart's own stone planet is among those, it wins, so the
+    mantra and the stone can agree; with no overlap, the topic's first key planet."""
+    vim = _vim_active_planets(ctx.dashas, today.isoformat())
+    kar = TOPIC_SPEC[key]["karakas"]
+    hits = [p for p in kar if p in vim]
+    if gem and gem.get("_planet") in hits:
+        return gem["_planet"]
+    return hits[0] if hits else kar[0]
+
+
+def build_remedy(ctx: TopicContext, key: str, today: date, lang: str) -> dict:
+    """{summary, steps[]} — free steps first, a stone only as an optional last
+    step, never a price. The mantra and the stone are for the SAME planet: the
+    chart-level stone engine cannot be pointed at an arbitrary planet (a planet
+    that works against the lagna is never offered as a stone), so when its planet
+    is not the remedy planet the stone step is dropped rather than mismatched."""
+    steps = [{"kind": "practice", "optional": False, "text": t}
+             for t in C.pick(C.FREE_STEPS, lang)[key]]
+    gem = _chart_gem(ctx)
+    try:
+        planet = remedy_planet(ctx, key, today, gem)
+    except Exception:
+        planet = None
+    if planet:
+        try:
+            from antar_engine.practice_library import get_planet_content
+            name = ((get_planet_content(planet, "en") or {}).get("mantra") or {}).get("name")
+            if name:
+                steps.append({"kind": "mantra", "optional": True,
+                              "text": C.pick(C.MANTRA_STEP, lang).format(name=name)})
+        except Exception:
+            pass
+        if gem and gem.get("stone") and gem.get("_planet") == planet:
             steps.append({"kind": "stone", "optional": True,
                           "text": C.pick(C.STONE_STEP, lang).format(stone=gem["stone"])})
-    except Exception:
-        pass
     return {"summary": C.pick(C.REMEDY_SUMMARY, lang), "steps": steps}
 
 
@@ -567,9 +619,13 @@ def _read_topic(ctx: TopicContext, key: str, scale: str, today: date, language: 
     core = (C.pick(C.CORE, lang)[key][mode] if mode in ("open", "care")
             else C.pick(C.STEADY_CORE, lang).format(area=area))
     claim = C.pick(C.LEAD_JOIN, lang).format(lead=lead, core=core)
-    reasoning = _reasoning(ctx, key, dict(a_main, mode=mode), scale, lang,
-                           date.fromisoformat((best or watch)["start"]) if (best or watch) else None,
-                           date.fromisoformat((best or watch)["end"]) if (best or watch) else None)
+    # the top-level reasoning is the PRIMARY window's own (the one `tone` names);
+    # the other window keeps its own distinct reasoning
+    primary = best if mode == "open" else watch if mode == "care" else None
+    if primary:
+        reasoning = copy.deepcopy(primary["reasoning"])
+    else:
+        reasoning = _reasoning(ctx, key, dict(a_main, mode=mode), scale, lang, None, None)
     why = " ".join(reasoning["bullets"][:2])
     out = {
         "chart_id": ctx.chart_id, "topic": key, "label": C.LABEL[lang][key],
@@ -591,16 +647,34 @@ def _read_topic(ctx: TopicContext, key: str, scale: str, today: date, language: 
     return out
 
 
-def best_fit_scale(ctx: TopicContext, key: str, today: date) -> str:
-    """The scale the UI should open on: the nearest one with a real dated window."""
+def _best_fit(ctx: TopicContext, key: str, today: date) -> Tuple[str, Optional[dict]]:
+    """(scale, that scale's read) — the read is None when the season fallback
+    was not computed here."""
     for scale in ("today", "month"):
         try:
             r = read_topic(ctx, key, scale, today, "en", with_best_fit=False)
             if r["best_window"] or r["watch_window"]:
-                return scale
+                return scale, r
         except Exception:
             continue
-    return "season"
+    return "season", None
+
+
+def best_fit_scale(ctx: TopicContext, key: str, today: date) -> str:
+    """The scale the UI should open on: the nearest one with a real dated window."""
+    return _best_fit(ctx, key, today)[0]
+
+
+def topic_tone(ctx: TopicContext, key: str, today: date) -> str:
+    """open|care|steady — exactly topic-read(scale=best_fit_scale).tone, so a tile
+    and the read it opens can never disagree."""
+    try:
+        scale, r = _best_fit(ctx, key, today)
+        if r is None:
+            r = read_topic(ctx, key, scale, today, "en", with_best_fit=False)
+        return r["tone"]
+    except Exception:
+        return "steady"
 
 
 # ── small TTL cache (per process) ────────────────────────────────────────────

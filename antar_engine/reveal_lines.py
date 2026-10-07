@@ -9,11 +9,17 @@ The two plain-words lines shown while the first chart loads:
 Rules (brief section 5): 0–2 lines; a line whose data is missing is SKIPPED,
 never replaced with filler; line 2 is skipped when the birth time is unknown;
 no system names in the strings; a chapter that has already ended is never shown.
-Planet names are allowed here (the brief's own example: "a Jupiter chapter").
+
+PLANET NAMES: off by default (env REVEAL_LINES_PLANET_NAMES). The identity payload
+has a standing rule against planet names in user-reachable text
+(chart_identity.py [jargon-fix 2026-09-30]), so line 1 uses the same plain energy
+phrase ("a discipline-and-time chapter"). Set REVEAL_LINES_PLANET_NAMES=1 to keep
+the planet name ("a Saturn chapter", the brief's own example).
 """
 from __future__ import annotations
 
 import logging
+import os
 from datetime import date
 from typing import List, Optional
 
@@ -21,6 +27,23 @@ from antar_engine import topic_copy as C
 from antar_engine.house_activation import _lagna_index
 
 logger = logging.getLogger(__name__)
+
+
+def planet_names_enabled() -> bool:
+    return os.getenv("REVEAL_LINES_PLANET_NAMES", "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def _chapter_word(planet: str, lang: str) -> Optional[str]:
+    """What fills "a ___ chapter": the planet name (switch on) or the identity
+    payload's plain energy phrase (default). None when there is nothing honest to say."""
+    if planet_names_enabled():
+        return C.pick(C.PLANET, lang).get(planet)
+    from antar_engine.chart_identity import _plain_l
+    plain = _plain_l("es" if lang == "es" else "pt" if lang == "pt" else "en", planet)
+    if not plain:
+        return None
+    # en/hinglish put the phrase before a noun: "a discipline-and-time chapter"
+    return plain.replace(" ", "-") if lang in ("en", "hinglish") else plain
 
 
 def _d(v) -> Optional[date]:
@@ -50,7 +73,7 @@ def reveal_lines(chart_data: dict, dashas: dict, birth_date: str, birth_time_acc
         big = _running((dashas or {}).get("vimsottari"), today, ("mahadasha", "maha_dasha", "1"))
         if big:
             row, s, e = big
-            planet = C.pick(C.PLANET, lang).get(str(row.get("lord_or_sign") or row.get("planet_or_sign") or "").title())
+            planet = _chapter_word(str(row.get("lord_or_sign") or row.get("planet_or_sign") or "").title(), lang)
             if planet and e >= today:
                 b = _d(birth_date)
                 # the first chapter starts at birth with only its remaining balance — "since birth" would lie
