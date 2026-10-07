@@ -464,36 +464,36 @@ def is_gambling_gate_open():
 
 
 def run_gambling_backtest(roster_path=DEFAULT_GAMBLING_ROSTER, write=True):
-    """Score the dated speculation rule on real win/loss cases. Gate opens only on
-    the PRE-REGISTERED config at >=70% and >= MIN_GAMBLING_CASES. Exploratory
-    configs are reported but never open the gate."""
-    if not os.path.exists(roster_path):
-        sc = {"passed": False, "reason": "no gambling validation set provided",
-              "roster_path": roster_path, "n_cases": 0, "hit_rate": None,
-              "threshold": PASS_THRESHOLD, "config": _GAMBLING_GATE_CONFIG,
-              "timestamp": datetime.utcnow().isoformat() + "Z"}
-        if write:
-            _write_gambling_gate(sc)
-        return sc
-    with open(roster_path) as f:
-        cases = json.load(f)
-    if isinstance(cases, dict):
-        cases = cases.get("cases", [])
+    """RETIRED 2026-10-07 — the natal-dasha speculation gate is retired and no
+    longer scores or opens any gate.
 
-    n, hits, rate = _score_gambling(cases, _GAMBLING_GATE_CONFIG)
-    explore = []
-    for cfg in _GAMBLING_EXPLORE_CONFIGS:
-        en, eh, er = _score_gambling(cases, cfg)
-        explore.append({"config": cfg, "n_cases": en, "hits": eh, "hit_rate": er})
+    Why: it rested on `kp_speculation.kp_speculation_on_date`, whose significator
+    set is NON-DISCRIMINATING — on a typical chart ALL NINE planets qualify as
+    speculation significators (favour houses {2,5,6,11} outnumber against {8,12},
+    and a single favour-hit with zero against passes), so the gate's "is the
+    running MD/AD/PD lord a significator?" test is a near-no-op (always true) and
+    the prediction collapses onto the transit term alone. It also cannot resolve a
+    single session — a night's wins AND losses fall in the same dasha (proven on
+    real data). Gambling timing uses KP HORARY instead (moment-based): `run_backtest`
+    on a roster that carries each session's START MOMENT (time + location), not
+    just a date.
 
-    passed = bool(n >= MIN_GAMBLING_CASES and rate is not None and rate >= PASS_THRESHOLD)
-    reason = ("passed" if passed else
-              (f"only {n} scored cases (< {MIN_GAMBLING_CASES})" if n < MIN_GAMBLING_CASES
-               else f"hit_rate {rate} < {PASS_THRESHOLD}"))
-    sc = {"passed": passed, "reason": reason, "n_cases": n, "hits": hits,
-          "hit_rate": rate, "threshold": PASS_THRESHOLD,
-          "config": _GAMBLING_GATE_CONFIG, "explore": explore,
-          "timestamp": datetime.utcnow().isoformat() + "Z"}
+    Kept as a stub (not deleted) so any stored gate status is overwritten with a
+    clear 'retired' and nothing can accidentally re-open the gate off the broken
+    method."""
+    sc = {
+        "passed": False,
+        "retired": True,
+        "reason": ("natal-dasha speculation gate retired 2026-10-07 — "
+                   "non-discriminating significators (all 9 planets qualify) + "
+                   "cannot resolve a single session; use KP horary (run_backtest) "
+                   "with per-session moments"),
+        "roster_path": roster_path,
+        "n_cases": 0,
+        "hit_rate": None,
+        "threshold": PASS_THRESHOLD,
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+    }
     if write:
         _write_gambling_gate(sc)
     return sc

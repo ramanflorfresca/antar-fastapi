@@ -19,6 +19,13 @@ SPEC_AGAINST = {8, 12}
 
 
 def speculation_significators(chart, strong=True):
+    """RETIRED 2026-10-07 (natal-dasha path). NON-DISCRIMINATING: on a typical
+    chart this returns ALL NINE planets — favour houses {2,5,6,11} outnumber
+    against {8,12}, so a planet touching one favour house and zero against passes.
+    That makes any downstream "is the dasha lord a significator" gate a no-op.
+    Kept only for the retired backtest; gambling timing uses KP horary (CSL-based),
+    which tests the cuspal sub-lord of the matter — a specific, discriminating
+    planet. Do NOT reuse this for a live read."""
     from .kp_timing import _net_positive
     from .kp_significators import ALL_PLANETS
     return {p for p in ALL_PLANETS
@@ -27,7 +34,10 @@ def speculation_significators(chart, strong=True):
 
 def kp_speculation_on_date(chart, date_str, strictness="ad_pd",
                            require_transit=False, strong=True) -> dict:
-    """{pred: 'yes'|'no', md, ad, pd, sigs}. Never raises into the caller."""
+    """RETIRED 2026-10-07 (natal-dasha speculation rule). {pred, md, ad, pd, sigs}.
+    Kept only for the retired backtest — `sigs` is non-discriminating (see
+    speculation_significators) so `pred` effectively tracks the transit term alone,
+    and natal-dasha cannot resolve a single session. Use KP horary for live reads."""
     try:
         from .kp_timing import (build_timeline, lords_at, _combined_pass,
                                 _date_to_jd)
