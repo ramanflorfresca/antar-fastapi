@@ -21700,6 +21700,7 @@ class CompatibilityStartRequest(BaseModel):
     latitude_b:         Optional[float] = None
     longitude_b:        Optional[float] = None
     timezone_b:         Optional[str] = None
+    gender_b:           Optional[str] = None   # [people-links] stored on a NEW person chart
     language:           Optional[str] = "en"
 
 
@@ -22076,6 +22077,11 @@ async def compatibility_start(request: CompatibilityStartRequest,
             chart_b = _res_b2.data[0]["chart_data"] if _res_b2.data else {}
             dashas_b = get_dashas_for_chart(chart_id_b)
             print(f"[compat] Reusing existing sub-chart {chart_id_b} for {request.name_b}")
+            if request.gender_b:
+                try:
+                    supabase.table("charts").update({"gender": request.gender_b}).eq("id", chart_id_b).execute()
+                except Exception as _ge:
+                    print(f"[compat] gender update non-fatal: {_ge}")
         else:
             from antar_engine.chart import calculate_chart
             chart_b = calculate_chart(
@@ -22135,6 +22141,7 @@ async def compatibility_start(request: CompatibilityStartRequest,
                 label="/compat (chart B)",
             )
             supabase.table("charts").insert({
+                **({"gender": request.gender_b} if request.gender_b else {}),
                 "id": chart_id_b,
                 "birth_date": request.birth_date_b,
                 "birth_time": birth_time_b,
@@ -25776,7 +25783,16 @@ def _ask_clarify_payload(language: str = "en") -> dict:
 
 
 def _ask_load_people_sync(chart_id: str) -> list:
-    """The asker's OWN People (chart_connections where chart_id_a == asker)."""
+    """The asker's OWN People. [people-links] person_links + aliases + gender first
+    (plus any legacy connection with no link row yet); chart_connections alone when
+    the chart has no person_links rows (or the tables are unreachable)."""
+    try:
+        from antar_engine import people_links as _pl
+        linked = _pl.load_people_for_ask(supabase, chart_id)
+        if linked is not None:
+            return linked
+    except Exception as _e:
+        print(f"[ask][subject] person_links read failed, using chart_connections: {_e}")
     rows = (supabase.table("chart_connections")
             .select("chart_id_b,name_b,compat_type")
             .eq("chart_id_a", chart_id).order("updated_at", desc=True).limit(60)
@@ -37428,6 +37444,376 @@ def remove_network_person(chart_id: str, connection_chart_id: str):
     except Exception as e:
         print(f"[network] remove person failed cid_a={str(chart_id)[:8]}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# [people-links 2026-10-06] Relationship Integration Engine, phase 1
+# Spec: Antar.world/SPEC_relationship_integration_engine.md · helpers: antar_engine/people_links.py
+# A person chart (charts row) + a typed, time-bounded person_links row + aliases.
+# Auth model: the same bearer model as /me/charts - the caller must be signed in and
+# own owner_chart_id (charts.user_id == token user). Link-keyed routes resolve the
+# link's owner first and apply the same check. (The older id-keyed /network routes
+# have no token check; these new routes do not copy that.)
+# ═════════════════════════════════════════════════════════════════════════════
+class PersonCreateRequest(BaseModel):
+    owner_chart_id: str
+    name: str
+    relation: str
+    relation_detail: Optional[str] = None
+    gender: Optional[str] = None
+    role: Optional[str] = None            # employee/boss readings: sales|marketing|finance|managerial
+    birth_date: str
+    birth_time: Optional[str] = None
+    birth_city: Optional[str] = None
+    birth_country: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    timezone: Optional[str] = None
+    aliases: Optional[List[str]] = None   # nicknames ("beta")
+    language: Optional[str] = "en"
+
+
+class PersonEditRequest(BaseModel):
+    name: Optional[str] = None
+    gender: Optional[str] = None
+    birth_date: Optional[str] = None
+    birth_time: Optional[str] = None
+    birth_city: Optional[str] = None
+    birth_country: Optional[str] = None
+    role: Optional[str] = None
+    language: Optional[str] = "en"
+
+
+class PersonRelationRequest(BaseModel):
+    relation: str
+    relation_detail: Optional[str] = None
+    role: Optional[str] = None
+    language: Optional[str] = "en"
+
+
+class PersonAliasRequest(BaseModel):
+    alias: str
+
+
+def _people_authz_owner_sync(owner_chart_id: str, authorization) -> str:
+    """401 without a valid bearer; 404 (never 403, so ids are not probeable) when the
+    caller does not own owner_chart_id. Returns the user id."""
+    user_id, _ = _st_identity(authorization)
+    if not user_id:
+        raise HTTPException(status_code=401, detail={"error": "sign_in_required"})
+    r = (supabase.table("charts").select("id").eq("id", owner_chart_id)
+         .eq("user_id", user_id).limit(1).execute())
+    if not r.data:
+        raise HTTPException(status_code=404, detail={"error": "not_found"})
+    return user_id
+
+
+def _people_link_authz_sync(link_id: str, authorization) -> dict:
+    """The CURRENT link `link_id`, only if its owner chart belongs to the caller."""
+    from antar_engine import people_links as _PL
+    user_id, _ = _st_identity(authorization)
+    if not user_id:
+        raise HTTPException(status_code=401, detail={"error": "sign_in_required"})
+    link = _PL.get_link(supabase, link_id)
+    if not link or link.get("ended_at"):
+        raise HTTPException(status_code=404, detail={"error": "not_found"})
+    r = (supabase.table("charts").select("id").eq("id", link["owner_chart_id"])
+         .eq("user_id", user_id).limit(1).execute())
+    if not r.data:
+        raise HTTPException(status_code=404, detail={"error": "not_found"})
+    return link
+
+
+def _people_subchart_sync(link: dict) -> dict:
+    """The person chart row, only if it is this owner's People sub-chart."""
+    r = (supabase.table("charts").select("*").eq("id", link["person_chart_id"]).limit(1).execute())
+    row = (r.data or [None])[0]
+    if (not row or row.get("deleted_at") or row.get("user_id") is not None
+            or row.get("chart_type") != "compatibility"
+            or row.get("parent_chart_id") != link["owner_chart_id"]):
+        raise HTTPException(status_code=404, detail={"error": "not_found"})
+    return row
+
+
+def _people_item_sync(link: dict) -> dict:
+    from antar_engine import people_links as _PL
+    for it in _PL.list_current_links(supabase, link["owner_chart_id"]):
+        if it["link_id"] == link["id"]:
+            return it
+    return {"link_id": link["id"], "person_chart_id": link["person_chart_id"],
+            "relation": link["relation"], "relation_detail": link.get("relation_detail")}
+
+
+async def _people_run_compat(owner_chart_id: str, person_chart_id: str, name: str,
+                             relation: str, role: Optional[str], language: Optional[str]) -> dict:
+    """Score owner x person with the relationship's own compat type by calling the
+    canonical compatibility_start (ownership checks, forward-dasha, per-type weights,
+    chart_connections upsert) - not a copy of it."""
+    from antar_engine import people_links as _PL
+    owner = (await asyncio.to_thread(
+        lambda: supabase.table("charts").select("name,first_name")
+        .eq("id", owner_chart_id).limit(1).execute().data)) or [{}]
+    name_a = ((owner[0].get("first_name") or owner[0].get("name") or "").split() or ["Person A"])[0]
+    needs_role = relation in ("employee", "boss")
+    req = CompatibilityStartRequest(
+        chart_id_a=owner_chart_id, chart_id_b=person_chart_id, name_a=name_a, name_b=name,
+        compat_type=_PL.relation_to_compat_type(relation),
+        role=(role or _PL.DEFAULT_ROLE) if needs_role else None, language=language or "en")
+    out = await compatibility_start(req, None)
+    return {"score": out.get("score"), "badge": out.get("badge"),
+            "headline": out.get("headline"), "compat_type": out.get("compat_type"),
+            "session_id": out.get("session_id"), "access": out.get("access")}
+
+
+@app.post("/api/v1/people")
+async def people_create(body: PersonCreateRequest, authorization: Optional[str] = Header(None)):
+    from antar_engine import people_links as _PL
+    await asyncio.to_thread(_people_authz_owner_sync, body.owner_chart_id, authorization)
+    rel = _PL.normalise_relation(body.relation, body.relation_detail)
+    if not rel:
+        raise HTTPException(422, {"error": "invalid_relation",
+                                  "message": f"relation must be one of {list(_PL.RELATIONS)}"})
+    relation, detail = rel
+    name = (body.name or "").strip()
+    if not name or not (body.birth_date or "").strip():
+        raise HTTPException(422, {"error": "name_and_birth_date_required"})
+    gender = _PL.norm_gender(body.gender) or _PL.gender_from_detail(detail)
+    # score first: compatibility_start creates the person chart (parent = owner,
+    # chart_type 'compatibility', user_id NULL) exactly as the People tab always did
+    req = CompatibilityStartRequest(
+        chart_id_a=body.owner_chart_id, name_b=name, birth_date_b=body.birth_date,
+        birth_time_b=body.birth_time, birth_city_b=body.birth_city,
+        birth_country_b=body.birth_country, latitude_b=body.latitude,
+        longitude_b=body.longitude, timezone_b=body.timezone, gender_b=gender,
+        compat_type=_PL.relation_to_compat_type(relation),
+        role=(body.role or _PL.DEFAULT_ROLE) if relation in ("employee", "boss") else None,
+        language=body.language or "en")
+    out = await compatibility_start(req, None)
+    person_id = out.get("chart_id_b")
+    if not person_id:
+        raise HTTPException(500, {"error": "person_chart_not_created"})
+
+    def _persist():
+        patch = {"first_name": name.split()[0]}
+        if gender:
+            patch["gender"] = gender
+        supabase.table("charts").update(patch).eq("id", person_id).execute()
+        link, created = _PL.create_link(supabase, body.owner_chart_id, person_id, relation, detail)
+        _PL.add_aliases(supabase, body.owner_chart_id, person_id,
+                        _PL.build_aliases(name, body.aliases))
+        return link, created
+
+    link, created = await asyncio.to_thread(_persist)
+    item = await asyncio.to_thread(_people_item_sync, link)
+    item["score"] = {"score": out.get("score"), "badge": out.get("badge"),
+                     "headline": out.get("headline"), "compat_type": out.get("compat_type"),
+                     "session_id": out.get("session_id"), "access": out.get("access")}
+    item["created"] = created
+    return item
+
+
+@app.get("/api/v1/people/{owner_chart_id}")
+async def people_list(owner_chart_id: str, authorization: Optional[str] = Header(None)):
+    from antar_engine import people_links as _PL
+    await asyncio.to_thread(_people_authz_owner_sync, owner_chart_id, authorization)
+    people = await asyncio.to_thread(_PL.list_current_links, supabase, owner_chart_id)
+    return {"people": people, "count": len(people)}
+
+
+async def _people_recompute_chart(row: dict, body: "PersonEditRequest") -> dict:
+    """Recompute a person chart IN PLACE (same chart id) from edited birth data and
+    replace its dasha rows. Returns the column updates that were written."""
+    from antar_engine import chart as _chart_module
+    from antar_engine import people_links as _PL
+    bd = (body.birth_date or row.get("birth_date") or "")[:10]
+    bt = body.birth_time or row.get("birth_time") or "12:00"
+    city_changed = body.birth_city is not None or body.birth_country is not None
+    city = body.birth_city or row.get("birth_city") or ""
+    country = body.birth_country if body.birth_country is not None else (row.get("birth_country") or "")
+    lat, lng, tzname = row.get("latitude"), row.get("longitude"), row.get("timezone")
+    geo_source = row.get("geocode_source")
+    if city_changed or lat is None or lng is None:
+        lat, lng, tzname, geo_source = await _geocode_city(city, country)
+    off = None
+    try:
+        import pytz as _pz
+        fmt = "%Y-%m-%d %H:%M:%S" if len(str(bt).split(":")) == 3 else "%Y-%m-%d %H:%M"
+        off = _pz.timezone(tzname).localize(datetime.strptime(f"{bd} {bt}", fmt),
+                                            is_dst=None).utcoffset().total_seconds() / 3600
+    except Exception:
+        off = float(row.get("timezone_offset") or 0.0)
+    new_chart = _chart_module.calculate_chart(birth_date=bd, birth_time=bt, lat=lat, lng=lng,
+                                              tz_offset=off, ayanamsa="lahiri")
+    _assert_birth_jd_consistent(bd, bt, off, new_chart, label="/people PATCH")
+    upd = {"birth_date": bd, "birth_time": bt, "birth_city": city, "birth_country": country,
+           "latitude": lat, "longitude": lng, "timezone_offset": off, "chart_data": new_chart,
+           "lagna_sign": new_chart.get("lagna", {}).get("sign", ""),
+           "moon_sign": new_chart.get("planets", {}).get("Moon", {}).get("sign", ""),
+           "sun_sign": new_chart.get("planets", {}).get("Sun", {}).get("sign", "")}
+    if tzname:
+        upd["timezone"] = tzname
+    if geo_source:
+        upd["geocode_source"] = geo_source
+
+    def _write():
+        supabase.table("charts").update(upd).eq("id", row["id"]).execute()
+        drows = _PL.build_dasha_rows(row["id"], new_chart)
+        if drows:
+            _delete_rows_by("dasha_periods", "chart_id", row["id"])
+            for i in range(0, len(drows), 100):
+                supabase.table("dasha_periods").insert(drows[i:i + 100]).execute()
+        invalidate_dasha_cache(row["id"])
+    await asyncio.to_thread(_write)
+    return upd
+
+
+@app.patch("/api/v1/people/{link_id}")
+async def people_edit(link_id: str, body: PersonEditRequest,
+                      authorization: Optional[str] = Header(None)):
+    """Edit the person chart (name / birth data / gender), owner only. Birth-data
+    edits recompute the SAME chart row (no duplicate), then compat is re-run."""
+    from antar_engine import people_links as _PL
+    link = await asyncio.to_thread(_people_link_authz_sync, link_id, authorization)
+    row = await asyncio.to_thread(_people_subchart_sync, link)
+    patch, changed = {}, False
+    new_name = (body.name or "").strip()
+    if new_name and new_name != (row.get("name") or ""):
+        patch.update({"name": new_name, "first_name": new_name.split()[0]})
+        changed = True
+    if body.gender is not None:
+        g = _PL.norm_gender(body.gender)
+        if g and g != row.get("gender"):
+            patch["gender"] = g
+            changed = True
+
+    def _differs(field):
+        new = getattr(body, field)
+        if new is None:
+            return False
+        n = 10 if field == "birth_date" else 99
+        return str(new).strip()[:n] != str(row.get(field) or "").strip()[:n]
+    birth_edit = any(_differs(f) for f in ("birth_date", "birth_time", "birth_city", "birth_country"))
+    if patch:
+        await asyncio.to_thread(
+            lambda: supabase.table("charts").update(patch).eq("id", row["id"]).execute())
+    if birth_edit:
+        await _people_recompute_chart(row, body)
+        changed = True
+    if patch.get("name"):
+        await asyncio.to_thread(_PL.sync_name_aliases, supabase, link["owner_chart_id"],
+                                row["id"], row.get("name") or "", new_name)
+    score = None
+    if changed:
+        name = new_name or (row.get("name") or "")
+        try:
+            score = await _people_run_compat(link["owner_chart_id"], row["id"], name,
+                                             link["relation"], body.role, body.language)
+        except HTTPException:
+            raise
+        except Exception as e:
+            print(f"[people] compat re-run failed link={link_id[:8]}: {e}")
+    item = await asyncio.to_thread(_people_item_sync, link)
+    if score:
+        item["score"] = score
+    item["changed"] = changed
+    item["recomputed"] = bool(birth_edit)
+    return item
+
+
+@app.patch("/api/v1/people/{link_id}/relation")
+async def people_change_relation(link_id: str, body: PersonRelationRequest,
+                                 authorization: Optional[str] = Header(None)):
+    """girlfriend -> wife etc. Ends the current row (reason 'changed'), inserts the new
+    one, re-runs compat with the new type. Latest score only is returned."""
+    from antar_engine import people_links as _PL
+    link = await asyncio.to_thread(_people_link_authz_sync, link_id, authorization)
+    rel = _PL.normalise_relation(body.relation, body.relation_detail)
+    if not rel:
+        raise HTTPException(422, {"error": "invalid_relation",
+                                  "message": f"relation must be one of {list(_PL.RELATIONS)}"})
+    relation, detail = rel
+    new_link, changed = await asyncio.to_thread(
+        _PL.change_relation, supabase, link_id, relation, detail)
+    if not new_link:
+        raise HTTPException(404, {"error": "not_found"})
+    score = None
+    if changed:
+        row = await asyncio.to_thread(_people_subchart_sync, new_link)
+        g = _PL.gender_from_detail(detail)
+        if g and not _PL.norm_gender(row.get("gender")):
+            await asyncio.to_thread(
+                lambda: supabase.table("charts").update({"gender": g}).eq("id", row["id"]).execute())
+        try:
+            score = await _people_run_compat(new_link["owner_chart_id"], row["id"],
+                                             row.get("name") or "", relation, body.role, body.language)
+        except HTTPException:
+            raise
+        except Exception as e:
+            print(f"[people] compat re-run after relation change failed link={link_id[:8]}: {e}")
+    item = await asyncio.to_thread(_people_item_sync, new_link)
+    if score:
+        item["score"] = score
+    item["changed"] = changed
+    return item
+
+
+@app.post("/api/v1/people/{link_id}/aliases")
+async def people_add_alias(link_id: str, body: PersonAliasRequest,
+                           authorization: Optional[str] = Header(None)):
+    from antar_engine import people_links as _PL
+    link = await asyncio.to_thread(_people_link_authz_sync, link_id, authorization)
+    al = _PL.build_aliases("", [body.alias])
+    if not al or len(body.alias.strip()) > 60:
+        raise HTTPException(422, {"error": "invalid_alias"})
+    await asyncio.to_thread(_PL.add_aliases, supabase, link["owner_chart_id"],
+                            link["person_chart_id"], al)
+    aliases = await asyncio.to_thread(_PL.list_aliases, supabase, link["owner_chart_id"],
+                                      link["person_chart_id"])
+    return {"aliases": [{"id": a.get("id"), "alias": a.get("alias"), "source": a.get("source")}
+                        for a in aliases]}
+
+
+@app.delete("/api/v1/people/{link_id}/aliases/{alias_id}")
+async def people_delete_alias(link_id: str, alias_id: str,
+                              authorization: Optional[str] = Header(None)):
+    from antar_engine import people_links as _PL
+    link = await asyncio.to_thread(_people_link_authz_sync, link_id, authorization)
+    ok = await asyncio.to_thread(_PL.delete_alias, supabase, link["owner_chart_id"],
+                                 link["person_chart_id"], alias_id)
+    if not ok:
+        raise HTTPException(404, {"error": "not_found"})
+    return {"success": True}
+
+
+def _people_remove_sync(link: dict) -> dict:
+    from antar_engine import people_links as _PL
+    owner, pid = link["owner_chart_id"], link["person_chart_id"]
+    _PL.end_link(supabase, link["id"], "removed")
+    supabase.table("person_aliases").delete().eq("owner_chart_id", owner) \
+        .eq("person_chart_id", pid).execute()
+    for t in ("compatibility_sessions", "chart_connections"):
+        supabase.table(t).delete().eq("chart_id_a", owner).eq("chart_id_b", pid).execute()
+    purged = False
+    r = supabase.table("charts").select("id,user_id,chart_type,parent_chart_id,deleted_at") \
+        .eq("id", pid).limit(1).execute()
+    s0 = (r.data or [None])[0]
+    if (s0 and s0.get("user_id") is None and s0.get("chart_type") == "compatibility"
+            and s0.get("parent_chart_id") == owner and not s0.get("deleted_at")
+            and not _PL.person_referenced_elsewhere(supabase, pid, owner)):
+        errs = _purge_people_subchart(pid)
+        purged = True
+        if errs:
+            print(f"[people] subchart purge partial: {errs}")
+    return {"success": True, "subchart_purged": purged}
+
+
+@app.delete("/api/v1/people/{link_id}")
+async def people_remove(link_id: str, authorization: Optional[str] = Header(None)):
+    """Ends the link ('removed', row kept for the timeline), deletes the owner's aliases
+    and connection/session rows, and purges the person chart when nothing else
+    references it (PR #221 purge helpers)."""
+    link = await asyncio.to_thread(_people_link_authz_sync, link_id, authorization)
+    return await asyncio.to_thread(_people_remove_sync, link)
 
 
 # ── Connection notes (permanent, per-person; survive compat re-runs) ──────────
