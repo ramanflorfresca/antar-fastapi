@@ -4735,6 +4735,42 @@ def _wa_request_country(request: Optional[Request], hint: Optional[str] = None) 
     return c if len(c) == 2 and c.isalpha() and c not in ("XX", "T1") else ""
 
 
+_WA_COUNTRY_NAMES = {"india": "IN", "united states": "US", "usa": "US", "united states of america": "US",
+                     "colombia": "CO", "argentina": "AR", "canada": "CA", "mexico": "MX", "méxico": "MX",
+                     "brazil": "BR", "brasil": "BR", "spain": "ES", "españa": "ES", "united kingdom": "GB",
+                     "kuwait": "KW", "venezuela": "VE", "chile": "CL", "peru": "PE", "perú": "PE"}
+
+
+def _wa_iso(v) -> str:
+    c = str(v or "").strip()
+    if len(c) == 2 and c.isalpha():
+        return c.upper()
+    return _WA_COUNTRY_NAMES.get(c.lower(), "")
+
+
+def _wa_user_country(http_request: Optional[Request], hint: Optional[str], chart_id: Optional[str]) -> str:
+    """[wa-connect-by-country 2026-10-06] Which country's WhatsApp number this person should connect to:
+    the app's hint → the edge country header → the chart's current / birth country → the IP's country.
+    Owner: Indian users get the India number, everyone else the US number (routing lives in WA_SENDERS)."""
+    c = _wa_request_country(http_request, hint)
+    if c:
+        return c
+    if chart_id:
+        try:
+            row = (supabase.table("charts").select("current_country,birth_country").eq("id", chart_id)
+                   .limit(1).execute().data or [{}])[0]
+            c = _wa_iso(row.get("current_country")) or _wa_iso(row.get("birth_country"))
+            if c:
+                return c
+        except Exception:
+            pass
+    try:
+        from antar_engine.geo_lookup import extract_client_ip, lookup_country
+        return _wa_iso(lookup_country(extract_client_ip(http_request)) if http_request is not None else "")
+    except Exception:
+        return ""
+
+
 @app.post("/api/v1/messaging/link/start")
 def messaging_link_start(req: _MsgLinkStart, http_request: Request, authorization: str = Header(...)):
     """Generate a one-time link code + deep link for the user to send to the bot."""
@@ -4759,10 +4795,14 @@ def messaging_link_start(req: _MsgLinkStart, http_request: Request, authorizatio
     if (req.channel or "") == "whatsapp":
         # [whatsapp] wa.me opens WhatsApp with "LINK <code>" pre-typed; one tap sends it.
         from antar_engine import wa_numbers as _wn
-        digits = re.sub(r"\D", "", _wn.deep_link_number(_wa_request_country(http_request, req.country),
-                                                         key=str(user_id)) or os.getenv("TWILIO_WHATSAPP_FROM") or "")
+        _cc = _wa_user_country(http_request, req.country, chart_id)
+        digits = re.sub(r"\D", "", _wn.deep_link_number(_cc, key=str(user_id))
+                        or os.getenv("TWILIO_WHATSAPP_FROM") or "")
         out["deep_link"] = (f"https://wa.me/{digits}?text=LINK%20{out['code']}"
                             if digits else None)
+        out["qr_text"] = out["deep_link"]          # render this as the QR on desktop
+        out["antar_number"] = ("+" + digits) if digits else None
+        out["country"] = _cc or None
         out["expires_in_minutes"] = _msg.WA_LINK_CODE_MAX_AGE_MIN
         out["instructions"] = "Open the link and tap send, or message Antar: LINK " + out["code"]
         return out

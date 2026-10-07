@@ -1385,3 +1385,36 @@ def test_telegram_without_a_disclaimer_is_unchanged():
     from antar_engine import messaging as m
     p = dict(_dz_payloads()[0]); p.pop("disclaimer")
     assert "planetary positions" not in m.format_ask_for_telegram(p, "en")
+
+
+# ─── [wa-connect-by-country 2026-10-06] the connect link opens the right Antar number ───────
+
+def test_link_start_picks_the_number_by_the_users_country(m, monkeypatch):
+    from fastapi.testclient import TestClient
+    monkeypatch.setenv("WA_SENDERS", '[{"number": "+19782131475", "label": "in-1", "countries": ["IN"]},'
+                                     ' {"number": "+17322035001", "label": "us-1", "countries": ["US", "CA", "*"]}]')
+    monkeypatch.setattr(m, "verify_token", lambda a: "user-1")
+    monkeypatch.setattr(m, "_resolve_primary_chart_id", lambda uid: "chart-1")
+    monkeypatch.setattr(msg, "create_pending_link",
+                        lambda sb, cid, uid, ch, extra=None: {"available": True, "code": "abc12345", "channel": ch})
+    c = TestClient(m.app)
+    h = {"Authorization": "Bearer x"}
+    r = c.post("/api/v1/messaging/link/start", json={"channel": "whatsapp", "country": "IN"}, headers=h).json()
+    assert r["antar_number"] == "+19782131475" and r["deep_link"] == "https://wa.me/19782131475?text=LINK%20abc12345"
+    assert r["qr_text"] == r["deep_link"]
+    r = c.post("/api/v1/messaging/link/start", json={"channel": "whatsapp", "country": "CO"}, headers=h).json()
+    assert r["antar_number"] == "+17322035001"
+
+
+def test_country_falls_back_to_the_chart(m, monkeypatch):
+    monkeypatch.setattr(m, "_wa_request_country", lambda req, hint=None: "")
+
+    class _Q:
+        def select(self, *a): return self
+        def eq(self, *a): return self
+        def limit(self, *a): return self
+        def execute(self): return type("R", (), {"data": [{"current_country": "India", "birth_country": ""}]})()
+
+    monkeypatch.setattr(m, "supabase", type("S", (), {"table": lambda self, t: _Q()})())
+    assert m._wa_user_country(None, None, "chart-1") == "IN"
+    assert m._wa_iso("Colombia") == "CO" and m._wa_iso("us") == "US" and m._wa_iso("Atlantis") == ""
