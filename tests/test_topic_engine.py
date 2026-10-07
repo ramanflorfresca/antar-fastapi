@@ -160,6 +160,59 @@ def test_fallback_topics_carry_a_steady_tone():
     assert {r["tone"] for r in T.fallback_topics("en")} == {"steady"}
 
 
+def _fake_now(scores):
+    return {k: {"score": scores.get(k, 0.0), "lit": scores.get(k, 0.0) >= T.ACTIVE_MIN, "mode": "open"}
+            for k in T.TOPIC_KEYS}
+
+
+def test_active_is_capped_at_three_by_relative_strength():
+    now = _fake_now({"money": 4.7, "business": 4.58, "career": 4.33, "love": 4.2, "health": 3.9})
+    assert T.active_set(now) == {"money", "business", "career"}
+
+
+def test_active_needs_to_be_near_the_charts_strongest():
+    # 4.0 is "lit" on its own but far below 5.3 → falls to steady (relative cut)
+    now = _fake_now({"business": 5.3, "career": 4.3, "love": 3.6})
+    assert T.active_set(now) == {"business", "career"}
+
+
+def test_a_genuinely_strong_signal_is_never_demoted_by_the_cap():
+    now = _fake_now({"money": 6.5, "business": 6.0, "career": 5.8, "love": 5.6, "health": 3.6})
+    assert T.active_set(now) == {"money", "business", "career", "love"}   # all >= STRONG_MIN, health cut
+
+
+def test_ties_at_the_cap_break_by_fixed_topic_order():
+    now = _fake_now({"money": 4.4, "career": 4.4, "love": 4.4, "health": 4.4})
+    assert T.active_set(now) == {"money", "career", "love"}
+
+
+def test_rank_topics_never_shows_more_than_three_active_and_demotes_to_steady(monkeypatch):
+    ctx = _synth()
+    monkeypatch.setattr(T, "_now_assessments", lambda c, t: {
+        k: dict(T.assess(c, k, t, []), **v) for k, v in _fake_now(
+            {"money": 4.7, "business": 4.58, "career": 4.33, "love": 4.2, "health": 3.9}).items()})
+    out = {r["key"]: r["status"] for r in T.rank_topics(ctx, TODAY, "en")}
+    assert sorted(k for k, v in out.items() if v == "active") == ["business", "career", "money"]
+    assert out["love"] == "steady" and out["health"] == "steady"
+
+
+def test_a_chart_where_only_one_topic_is_lit_shows_exactly_one_active():
+    ctx = _synth("Mars", [_ev("2026-10-12", "Jupiter", 1)])   # Aries: Mars rules the 1st/6th → health only
+    rows = {r["key"]: r["status"] for r in T.rank_topics(ctx, TODAY, "en")}
+    assert [k for k, v in rows.items() if v == "active"] == ["health"]
+
+
+def test_real_charts_stay_within_the_cap(ctxs):
+    from datetime import date as _d
+    for ctx in ctxs:
+        for on in (TODAY, _d(2027, 1, 15), _d(2027, 8, 10)):
+            out = T.rank_topics(ctx, on, "en")
+            n = sum(r["status"] == "active" for r in out)
+            now = T._now_assessments(ctx, on)
+            strong = sum(now[k]["lit"] and now[k]["score"] >= T.STRONG_MIN for k in now)
+            assert n <= max(T.ACTIVE_CAP, strong)
+
+
 def test_rank_is_deterministic(ctxs):
     assert T.rank_topics(ctxs[1], TODAY, "en") == T.rank_topics(ctxs[1], TODAY, "en")
 

@@ -68,6 +68,13 @@ TOPIC_SPEC: Dict[str, Dict[str, Any]] = {
 
 ACTIVE_MIN = 3.5     # score at which a topic / bucket counts as really lit
 STEADY_MIN = 1.5     # below this a topic is "quiet"
+# A picker where most tiles say "active now" tells the user nothing, so "active"
+# is also RELATIVE to the chart: of the topics that are really lit, only those
+# within REL_FRAC of the strongest stay active, at most ACTIVE_CAP of them. A
+# genuinely strong signal (STRONG_MIN) is never demoted by the cap or the cut.
+ACTIVE_CAP = 3
+REL_FRAC = 0.75
+STRONG_MIN = 5.5
 LOOKAHEAD_DAYS = 150
 NOW_HORIZON_DAYS = 30
 SEASON_SCAN_CAP_DAYS = 730
@@ -297,18 +304,39 @@ def fallback_topics(language: str = "en") -> List[dict]:
             for i, k in enumerate(TOPIC_KEYS)]
 
 
+def active_set(now: Dict[str, dict]) -> set:
+    """Which really-lit topics stay "active": relative to the chart's strongest,
+    capped, ties broken by fixed topic order. The rest fall to steady."""
+    lit = sorted((k for k in TOPIC_KEYS if now[k]["lit"]),
+                 key=lambda k: (-now[k]["score"], TOPIC_KEYS.index(k)))
+    if not lit:
+        return set()
+    top = now[lit[0]]["score"]
+    keep = set()
+    for i, k in enumerate(lit):
+        sc = now[k]["score"]
+        if sc >= STRONG_MIN or (i < ACTIVE_CAP and sc >= REL_FRAC * top):
+            keep.add(k)
+    return keep
+
+
 def rank_topics(ctx: TopicContext, today: date, language: str = "en") -> List[dict]:
     """[{key,label,status,tag,tone,rank}], most active first. Never raises."""
     lang = C.serve_language(language)
     try:
         now = _now_assessments(ctx, today)
+        keep = active_set(now)
         rows = []
         for i, k in enumerate(TOPIC_KEYS):
             a = now[k]
             opening = None
-            if a["lit"]:
+            if k in keep:
                 status, tag = "active", C.TAG[lang]["care" if a["mode"] == "care" else "active"]
                 order = (0, -a["score"], i)
+            elif a["lit"]:
+                # really lit, but not among the chart's strongest: steady, not "now"
+                status, tag = "steady", C.TAG[lang]["steady"]
+                order = (2, -a["score"], i)
             else:
                 opening = _next_opening(ctx, k, today)
                 if opening:
