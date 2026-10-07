@@ -1,0 +1,440 @@
+"""Topic picker + topic read: ranking, independence, dating, language, jargon.
+
+Deterministic: fixed `today`, fixed births, no network (swisseph only)."""
+import asyncio
+import re
+from datetime import date, timedelta
+
+import pytest
+from fastapi import HTTPException
+
+from antar_engine import topic_copy as C
+from antar_engine import topic_engine as T
+from antar_engine.places_concern import CONCERN_MAP
+
+TODAY = date(2026, 10, 7)
+LANGS = ("en", "es", "pt", "hinglish")
+
+# Words that must never reach a user in a topic string. Planet/sign names are
+# banned too; the mantra step is the one place a Sanskrit mantra is quoted
+# verbatim, so its kind is exempt from the planet-name check only.
+_JARGON = re.compile(
+    r"\b(dasha|dasa|mahadasha|antardasha|pratyantar\w*|jaimini|vimsottari|vimshottari|"
+    r"chara|malefic\w*|benefic\w*|transits?|gochar|karakas?|lagna|nakshatra|navamsa|"
+    r"dusthana|kendra|trikona|ascendant|houses?|d-?\d{1,2}|"
+    r"sun|moon|mars|mercury|jupiter|venus|saturn|rahu|ketu|"
+    r"sol|luna|marte|mercurio|j[úu]piter|saturno|"
+    r"aries|taurus|gemini|cancer|leo|virgo|libra|scorpio|sagittarius|capricorn|aquarius|pisces)\b",
+    re.I)
+
+
+def _rows(d):
+    out = []
+    for lvl, key in (("mahadasha", "mahadashas"), ("antardasha", "antardashas")):
+        for m in d[key]:
+            out.append({"lord_or_sign": m["lord"], "planet_or_sign": m["lord"],
+                        "start_date": m["start_date"], "end_date": m["end_date"],
+                        "start": m["start_date"], "end": m["end_date"], "level": lvl})
+    return out
+
+
+def _real_ctx(birth="1990-10-15", time="14:10", acc=None):
+    from antar_engine.chart import calculate_chart
+    from antar_engine.vimsottari import calculate_vimsottari_from_chart
+    cd = calculate_chart(birth, time, 17.38, 78.48, 5.5)
+    d = calculate_vimsottari_from_chart(cd, cd["birth_jd"])
+    return T.TopicContext("c1", cd, {"vimsottari": _rows(d)}, birth_date=birth,
+                          birth_time_accuracy=acc)
+
+
+BIRTHS = [("1985-03-15", "08:30"), ("1990-10-15", "14:10"), ("1978-07-02", "22:45"),
+          ("2001-12-30", "05:05")]
+
+
+@pytest.fixture(scope="module")
+def ctxs():
+    return [_real_ctx(b, t) for b, t in BIRTHS]
+
+
+def _synth(dashas_planet=None, events=None, acc=None, lagna="Aries"):
+    """Aries lagna: 10th lord Saturn, 6th lord Mars, 2nd Venus, 11th Saturn …"""
+    dashas = {"vimsottari": []}
+    if dashas_planet:
+        dashas["vimsottari"] = [
+            {"lord_or_sign": dashas_planet, "planet_or_sign": dashas_planet, "level": "mahadasha",
+             "start_date": "2020-01-01", "end_date": "2040-01-01", "start": "2020-01-01", "end": "2040-01-01"},
+            {"lord_or_sign": dashas_planet, "planet_or_sign": dashas_planet, "level": "antardasha",
+             "start_date": "2026-06-01", "end_date": "2027-03-10", "start": "2026-06-01", "end": "2027-03-10"},
+        ]
+    ctx = T.TopicContext("syn", {"lagna": {"sign": lagna, "sign_index": 0}, "planets": {}},
+                         dashas, birth_date="1990-10-15", birth_time_accuracy=acc)
+    ctx.events = lambda s, e, fast, _ev=list(events or []): [
+        x for x in _ev if s.isoformat() <= x["date"] <= e.isoformat()]
+    return ctx
+
+
+def _ev(d, planet, house, kind="aspect"):
+    return {"date": d, "planet": planet, "natal_house": house, "event_type": kind,
+            "natal_target": "X", "aspect_kind": "trine"}
+
+
+# ── spec / independence ─────────────────────────────────────────────────────
+def test_spec_mirrors_places_concern_map():
+    assert set(T.TOPIC_KEYS) == set(CONCERN_MAP)
+    for k in T.TOPIC_KEYS:
+        assert set(T._topic_houses(k)) == set(CONCERN_MAP[k]["houses"]), k
+        assert T.TOPIC_SPEC[k]["karakas"] == CONCERN_MAP[k]["karakas"], k
+
+
+def test_movement_on_a_shared_house_is_credited_once_across_topics():
+    # Family & Peace share the 4th, Love & Business the 7th: one event = one point of credit
+    for house in range(1, 13):
+        total = sum(T._CLAIM.get((k, house), 0.0) for k in T.TOPIC_KEYS)
+        assert total <= 1.0 + 1e-9, (house, total)
+    assert T._CLAIM[("family", 4)] == T._CLAIM[("peace", 4)] == 0.5
+    assert T._CLAIM[("love", 7)] == T._CLAIM[("business", 7)] == 0.5
+
+
+def test_one_event_on_a_shared_house_does_not_double_count():
+    ctx = _synth(events=[_ev("2026-10-12", "Jupiter", 4)])
+    fam = T.assess(ctx, "family", TODAY, ctx.events(TODAY, TODAY + timedelta(days=29), False))
+    peace = T.assess(ctx, "peace", TODAY, ctx.events(TODAY, TODAY + timedelta(days=29), False))
+    assert fam["score"] + peace["score"] == pytest.approx(0.75, abs=0.02)  # one 0.75 point split in two
+
+
+def test_chapter_counts_once_even_when_lord_and_key_planet_coincide():
+    # Aries lagna, Saturn runs: Saturn is the 10th lord AND a career key planet
+    ctx = _synth("Saturn")
+    a = T.assess(ctx, "career", TODAY, [])
+    assert a["dasha_pts"] == 3.0 and a["score"] == 3.0
+
+
+def test_second_timeline_only_confirms(monkeypatch):
+    ctx = _synth()  # no running chapter at all
+    monkeypatch.setattr(T, "_chara_weight", lambda *a, **k: 1.0)
+    alone = T.assess(ctx, "career", TODAY, [])
+    assert alone["score"] <= 0.5 and not alone["lit"] and not alone["chara_confirm"]
+    ctx2 = _synth("Saturn")
+    both = T.assess(ctx2, "career", TODAY, [])
+    assert both["chara_confirm"] and both["chara_pts"] <= 1.0 and both["score"] <= 4.0
+
+
+def test_motion_subevents_of_one_passage_count_once():
+    evs = [_ev("2026-10-10", "Jupiter", 2, "ingress"), _ev("2026-10-11", "Jupiter", 2, "nakshatra_shift"),
+           _ev("2026-10-14", "Jupiter", 2, "nakshatra_shift")]
+    ctx = _synth(events=evs)
+    a = T.assess(ctx, "money", TODAY, evs)
+    assert a["n_signals"] == 1
+
+
+# ── ranking + fallback ──────────────────────────────────────────────────────
+def test_rank_shape_order_and_contiguous_ranks(ctxs):
+    for ctx in ctxs:
+        out = T.rank_topics(ctx, TODAY, "en")
+        assert [r["rank"] for r in out] == list(range(1, 8))
+        assert {r["key"] for r in out} == set(T.TOPIC_KEYS)
+        assert set(out[0]) == {"key", "label", "status", "tag", "rank"}
+        order = {"active": 0, "upcoming": 1, "steady": 2, "quiet": 3}
+        st = [order[r["status"]] for r in out]
+        assert st == sorted(st)
+        assert all(r["tag"] for r in out)
+
+
+def test_rank_is_deterministic(ctxs):
+    assert T.rank_topics(ctxs[1], TODAY, "en") == T.rank_topics(ctxs[1], TODAY, "en")
+
+
+def test_fallback_is_all_steady_in_fixed_order(monkeypatch, ctxs):
+    monkeypatch.setattr(T, "_now_assessments", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom")))
+    out = T.rank_topics(ctxs[0], TODAY, "es")
+    assert [r["key"] for r in out] == list(C.TOPIC_KEYS)
+    assert {r["status"] for r in out} == {"steady"}
+    assert [r["rank"] for r in out] == list(range(1, 8))
+    assert out[0]["label"] == "Dinero"
+
+
+def test_neutral_topics_are_never_padded_into_activity():
+    out = T.rank_topics(_synth(), TODAY, "en")   # no chapter, no movement
+    assert {r["status"] for r in out} == {"quiet"}
+
+
+def test_active_topic_needs_real_activation():
+    ctx = _synth("Saturn", [_ev("2026-10-12", "Jupiter", 10)])  # chapter + a supportive aspect on the 10th
+    out = {r["key"]: r for r in T.rank_topics(ctx, TODAY, "en")}
+    assert out["career"]["status"] == "active" and out["career"]["tag"] == "active now"
+    assert T.rank_topics(ctx, TODAY, "en")[0]["key"] == "career"
+
+
+# ── watch only when real ────────────────────────────────────────────────────
+def test_structural_lean_alone_never_makes_a_watch_window():
+    ctx = _synth("Saturn")   # a demanding chapter, but nothing dated against career
+    for scale in T.SCALES:
+        r = T.read_topic(ctx, "career", scale, TODAY, "en")
+        assert r["watch_window"] is None, scale
+
+
+def test_dated_demanding_movement_makes_a_watch_window():
+    ctx = _synth("Saturn", [_ev("2026-10-20", "Saturn", 10)])
+    r = T.read_topic(ctx, "career", "month", TODAY, "en")
+    assert r["watch_window"] and r["watch_window"]["start"] <= "2026-10-20" <= r["watch_window"]["end"]
+    assert r["best_window"] is None and r["tone"] == "care"
+
+
+def test_supportive_movement_makes_best_window_and_no_watch():
+    ctx = _synth("Saturn", [_ev("2026-10-20", "Jupiter", 10)])
+    r = T.read_topic(ctx, "career", "month", TODAY, "en")
+    assert r["best_window"] and r["watch_window"] is None and r["tone"] == "open"
+    assert r["best_window"]["reasoning"]["bullets"]
+
+
+# ── dating ──────────────────────────────────────────────────────────────────
+def test_clamp_window_never_returns_a_past_date():
+    assert T.clamp_window(date(2026, 9, 1), date(2026, 10, 2), TODAY) is None
+    assert T.clamp_window(date(2026, 9, 25), date(2026, 10, 20), TODAY) == (TODAY, date(2026, 10, 20))
+    assert T.clamp_window(date(2026, 10, 9), date(2026, 10, 12), TODAY) == (date(2026, 10, 9), date(2026, 10, 12))
+
+
+@pytest.mark.parametrize("today", [date(2026, 10, 7), date(2026, 10, 14), date(2027, 1, 31)])
+def test_no_deadline_or_window_is_ever_in_the_past(ctxs, today):
+    # the old bug: on Oct 7 a 15th-anchored chart showed "Oct 15 – Nov 15" with
+    # deadlines "before October 2". A rolling 30 days from today can't do that.
+    for ctx in ctxs:
+        for key in T.TOPIC_KEYS:
+            for scale in T.SCALES:
+                r = T.read_topic(ctx, key, scale, today, "en", with_best_fit=False)
+                if scale == "month":
+                    assert r["period"]["start"] == today.isoformat()
+                    assert r["period"]["end"] == (today + timedelta(days=29)).isoformat()
+                for w in (r["best_window"], r["watch_window"]):
+                    if w:
+                        assert w["start"] >= today.isoformat(), (key, scale, w)
+                        assert w["end"] >= w["start"]
+                        assert w["end"] <= r["period"]["end"], (key, scale, w, r["period"])
+
+
+def test_year_is_the_solar_return_year_with_its_range():
+    ctx = _real_ctx("1990-10-15", "14:10")
+    r = T.read_topic(ctx, "money", "year", TODAY, "en", with_best_fit=False)
+    assert (r["period"]["start"], r["period"]["end"]) == ("2025-10-15", "2026-10-14")
+    assert "2025" in r["period"]["label"] and "2026" in r["period"]["label"]
+    r2 = T.read_topic(ctx, "money", "year", date(2026, 10, 15), "en", with_best_fit=False)
+    assert (r2["period"]["start"], r2["period"]["end"]) == ("2026-10-15", "2027-10-14")
+
+
+def test_season_is_the_current_sub_period_with_its_end_date():
+    ctx = _synth("Saturn")
+    r = T.read_topic(ctx, "career", "season", TODAY, "en", with_best_fit=False)
+    assert r["period"]["end"] == "2027-03-10" and not r["period"]["approximate"]
+    assert r["period"]["label"] == "This season, to Mar 10"
+
+
+def test_season_without_sub_period_is_flagged_approximate():
+    r = T.read_topic(_synth(), "career", "season", TODAY, "en", with_best_fit=False)
+    assert r["period"]["approximate"] is True
+
+
+def test_whole_period_window_needs_two_agreeing_timelines(monkeypatch):
+    ctx = _synth("Venus")   # Aries lagna: Venus rules the 2nd — a supportive money chapter
+    assert T.read_topic(ctx, "money", "month", TODAY, "en")["best_window"] is None
+    monkeypatch.setattr(T, "_chara_weight", lambda *a, **k: 0.9)
+    w = T.read_topic(ctx, "money", "month", TODAY, "en")["best_window"]
+    assert w and w["start"] == TODAY.isoformat() and w["label"] == "All of the next 30 days"
+    # a demanding chapter, even if both timelines agree, is never sold as a green window
+    assert T.read_topic(_synth("Saturn"), "career", "month", TODAY, "en")["best_window"] is None
+
+
+# ── language ────────────────────────────────────────────────────────────────
+@pytest.mark.parametrize("raw,served", [("en", "en"), ("es", "es"), ("pt-BR", "pt"), ("hi-Latn", "hinglish"),
+                                        ("hinglish", "hinglish"), ("hi", "en"), ("fr", "en"), ("xx", "en"),
+                                        (None, "en"), ("", "en")])
+def test_language_fallback_is_whole_english_never_mixed(raw, served):
+    r = T.read_topic(_synth("Saturn", [_ev("2026-10-20", "Jupiter", 10)]), "career", "month", TODAY, raw)
+    assert r["language"] == served
+    if served == "en":
+        assert r["label"] == "Career" and r["claim"].startswith("This month")
+
+
+def test_each_language_is_actually_translated():
+    ctx = _synth("Saturn", [_ev("2026-10-20", "Jupiter", 10)])
+    claims = {l: T.read_topic(ctx, "career", "month", TODAY, l)["claim"] for l in LANGS}
+    assert len(set(claims.values())) == 4
+    assert claims["es"].startswith("Este mes") and claims["pt"].startswith("Este mês")
+    assert claims["hinglish"].startswith("Is mahine")
+
+
+def test_copy_tables_are_complete_for_every_language_topic_and_scale():
+    for l in LANGS:
+        assert set(C.LABEL[l]) == set(C.AREA[l]) == set(C.FREE_STEPS[l]) == set(C.TOPIC_KEYS)
+        assert set(C.CORE[l]) == set(C.MOVE[l]) == set(C.TOPIC_KEYS)
+        for k in C.TOPIC_KEYS:
+            assert set(C.CORE[l][k]) == {"open", "care"}
+            assert set(C.MOVE[l][k]) == {"open", "care", "steady"}
+            assert len(C.FREE_STEPS[l][k]) == 2
+        for tbl in (C.SPAN_LEAD, C.PERIOD_LABEL, C.WHOLE_SPAN):
+            assert set(tbl[l]) == set(C.SCALES)
+        assert set(C.TAG[l]) == set(C.TAG["en"])
+        assert set(C.WHY_BULLET[l]) == set(C.WHY_BULLET["en"])
+        assert set(C.CONFIDENCE_NOTE[l]) == {"high", "medium", "low"}
+        assert len(C.MONTHS[l]) == 12
+
+
+def test_topic_labels_and_tags_localised():
+    out = T.rank_topics(_synth("Saturn", [_ev("2026-10-12", "Jupiter", 10)]), TODAY, "pt")
+    assert out[0]["label"] == "Carreira" and out[0]["tag"] == "ativo agora"
+
+
+# ── no jargon, no prices, honesty wording ───────────────────────────────────
+def _strings(obj, skip_mantra=True):
+    if isinstance(obj, str):
+        yield obj
+    elif isinstance(obj, dict):
+        if skip_mantra and obj.get("kind") == "mantra":
+            return
+        for k, v in obj.items():
+            if k in ("key", "topic", "scale", "language", "chart_id", "start", "end", "as_of", "view",
+                     "level", "tone", "kind", "status", "best_fit_scale"):
+                continue
+            yield from _strings(v, skip_mantra)
+    elif isinstance(obj, (list, tuple)):
+        for v in obj:
+            yield from _strings(v, skip_mantra)
+
+
+def test_no_jargon_in_any_copy_table():
+    for name in dir(C):
+        tbl = getattr(C, name)
+        if name.isupper() and isinstance(tbl, dict) and name not in ("PLANET", "MONTHS"):
+            for s in _strings(tbl, skip_mantra=False):
+                if name == "MANTRA_STEP":
+                    continue
+                assert not _JARGON.search(s), (name, s)
+
+
+def test_no_jargon_in_any_topic_read_string(ctxs):
+    seen = 0
+    synth = [_synth("Saturn", [_ev("2026-10-20", "Jupiter", 10), _ev("2026-11-02", "Saturn", 2),
+                               _ev("2026-10-25", "Saturn", 4)]),
+             _synth("Mars", [_ev("2026-10-15", "Saturn", 7)], acc="unknown"),
+             _synth("Jupiter", [], acc="approximate")]
+    for ctx in ctxs + synth:
+        for lang in LANGS:
+            for key in T.TOPIC_KEYS:
+                for scale in T.SCALES:
+                    r = T.read_topic(ctx, key, scale, TODAY, lang)
+                    for s in _strings(r):
+                        assert not _JARGON.search(s), (lang, key, scale, s)
+                        seen += 1
+            for row in T.rank_topics(ctx, TODAY, lang):
+                for s in _strings(row):
+                    assert not _JARGON.search(s), (lang, row)
+    assert seen > 1000
+
+
+def test_no_prices_and_no_consent_wording_in_remedies(ctxs):
+    bad = re.compile(r"(\$|€|₹|£|\bprice|\bprecio|\bpre[çc]o|\bcost|\bbuy\b|\bcomprar|\bcomprar|\bconsent|"
+                     r"\bsubscri|\bplan\b|\bfree trial|\d+\s?(usd|inr|eur))", re.I)
+    for ctx in ctxs:
+        for lang in LANGS:
+            for key in T.TOPIC_KEYS:
+                rem = T.build_remedy(ctx, key, TODAY, lang)
+                for st in rem["steps"]:
+                    assert not bad.search(st["text"]), st
+                assert not bad.search(rem["summary"])
+
+
+def test_remedy_free_steps_first_and_stone_only_optional_last(ctxs):
+    for ctx in ctxs:
+        rem = T.build_remedy(ctx, "money", TODAY, "en")
+        kinds = [s["kind"] for s in rem["steps"]]
+        assert kinds[0] == "practice" and kinds[1] == "practice"
+        assert not rem["steps"][0]["optional"]
+        if "stone" in kinds:
+            assert kinds[-1] == "stone" and kinds.count("stone") == 1
+            assert rem["steps"][-1]["optional"] is True
+            assert "skip" in rem["steps"][-1]["text"]
+
+
+def test_money_business_health_never_promise_outcomes():
+    promise = re.compile(r"(rich|wealth|fortune|millionaire|guarantee|will succeed|diagnos|cure|disease|"
+                         r"rico|riqueza|garant|enferm|diagn|doen)", re.I)
+    for l in LANGS:
+        for k in ("money", "business", "health"):
+            for s in list(C.CORE[l][k].values()) + list(C.MOVE[l][k].values()) + list(C.FREE_STEPS[l][k]):
+                assert not promise.search(s), (l, k, s)
+
+
+def test_reasoning_object_shape(ctxs):
+    r = T.read_topic(_synth("Saturn", [_ev("2026-10-20", "Jupiter", 10)]), "career", "month", TODAY, "en")
+    for rs in (r["reasoning"], r["best_window"]["reasoning"]):
+        assert isinstance(rs["bullets"], list) and rs["bullets"]
+        assert rs["based_on"] and all(b["view"] in ("today", "month", "year", "chapter") and b["label"]
+                                      for b in rs["based_on"])
+        assert rs["confidence"]["level"] in ("high", "medium", "low") and rs["confidence"]["note"]
+    assert r["confidence_note"] == r["reasoning"]["confidence"]["note"]
+    assert r["best_fit_scale"] in T.SCALES
+
+
+def test_unknown_birth_time_lowers_confidence():
+    ev = [_ev("2026-10-20", "Jupiter", 10)]
+    known = T.read_topic(_synth("Saturn", ev), "career", "month", TODAY, "en")
+    unk = T.read_topic(_synth("Saturn", ev, acc="unknown"), "career", "month", TODAY, "en")
+    assert unk["reasoning"]["confidence"]["level"] == "low"
+    assert any("birth time" in b for b in unk["reasoning"]["bullets"])
+    assert known["reasoning"]["confidence"]["level"] in ("medium", "high", "low")
+
+
+def test_engine_failure_in_read_degrades_to_steady_read(monkeypatch):
+    monkeypatch.setattr(T, "assess", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("x")))
+    r = T.read_topic(_synth("Saturn"), "love", "month", TODAY, "en")
+    assert r["best_window"] is None and r["watch_window"] is None and r["tone"] == "steady"
+    assert r["claim"] and r["your_move"] and r["remedy"]["steps"]
+
+
+# ── routes ──────────────────────────────────────────────────────────────────
+@pytest.fixture
+def main_mod(monkeypatch):
+    import main
+    T.cache_clear()
+    return main
+
+
+def _run(coro):
+    return asyncio.run(coro)
+
+
+def test_topics_route_returns_list_and_caches(main_mod, monkeypatch):
+    ctx = _synth("Saturn", [_ev("2026-10-12", "Jupiter", 10)])
+    calls = []
+    monkeypatch.setattr(main_mod, "_topic_ctx_load", lambda cid: (calls.append(cid) or (ctx, {"language": "es"})))
+    monkeypatch.setattr(main_mod, "_prac_local_date", lambda tz: TODAY)
+    a = _run(main_mod.get_chart_topics("c1", None, None))
+    b = _run(main_mod.get_chart_topics("c1", None, None))
+    assert a == b and a[0]["key"] == "career" and a[0]["label"] == "Carrera"   # chart's stored language wins over a missing param
+    assert len(calls) == 2    # context is rebuilt, the ranking itself is cached
+    assert all(set(r) == {"key", "label", "status", "tag", "rank"} for r in a)
+
+
+def test_topics_route_falls_back_on_load_failure(main_mod, monkeypatch):
+    def boom(cid): raise RuntimeError("db down")
+    monkeypatch.setattr(main_mod, "_topic_ctx_load", boom)
+    out = _run(main_mod.get_chart_topics("c1", "en", None))
+    assert [r["key"] for r in out] == list(C.TOPIC_KEYS) and {r["status"] for r in out} == {"steady"}
+
+
+def test_topics_route_404_for_unknown_chart(main_mod, monkeypatch):
+    monkeypatch.setattr(main_mod, "_topic_ctx_load", lambda cid: (None, None))
+    with pytest.raises(HTTPException) as e:
+        _run(main_mod.get_chart_topics("nope", "en", None))
+    assert e.value.status_code == 404
+
+
+def test_topic_read_route_validates_and_returns(main_mod, monkeypatch):
+    ctx = _synth("Saturn", [_ev("2026-10-20", "Jupiter", 10)])
+    monkeypatch.setattr(main_mod, "_topic_ctx_load", lambda cid: (ctx, {}))
+    monkeypatch.setattr(main_mod, "_prac_local_date", lambda tz: TODAY)
+    out = _run(main_mod.get_chart_topic_read("c1", "Career", "MONTH", "en", None))
+    assert out["topic"] == "career" and out["scale"] == "month" and out["best_window"]
+    for bad in (("legal", "month"), ("career", "decade")):
+        with pytest.raises(HTTPException) as e:
+            _run(main_mod.get_chart_topic_read("c1", bad[0], bad[1], "en", None))
+        assert e.value.status_code == 422

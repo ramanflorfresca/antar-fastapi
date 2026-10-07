@@ -49735,3 +49735,104 @@ async def support_agent_endpoint(request: SupportRequest, http_request: Request 
 
     payload["latency_ms"] = latency_ms
     return payload
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# Topic picker + topic read  (/ask home: "What's on your mind?")
+# Engine: antar_engine/topic_engine.py (pure, deterministic). These routes only
+# load the chart + dashas and cache. Final strings and dates are built in the
+# engine in the requested language — the front end renders them verbatim.
+# ═════════════════════════════════════════════════════════════════════════════
+_TOPIC_LIST_TTL = 6 * 3600
+_TOPIC_READ_TTL = 3 * 3600
+
+
+def _topic_ctx_load(chart_id: str):
+    """Sync (threadpool) — chart row + vimsottari/jaimini rows → TopicContext.
+    Returns (ctx, row) or (None, None) when the chart doesn't exist."""
+    from antar_engine.topic_engine import TopicContext
+    res = supabase.table("charts").select("*").eq("id", chart_id).execute()
+    if not res.data:
+        return None, None
+    row = res.data[0]
+    cd = _safe_jsonb(row.get("chart_data"))
+    jd = _safe_jsonb(row.get("jaimini_data")) or None
+    dashas = get_dashas_for_chart(chart_id) or {}
+    ctx = TopicContext(chart_id=chart_id, chart_data=cd, dashas=dashas,
+                       birth_date=str(row.get("birth_date") or "")[:10],
+                       jaimini_data=jd, birth_time_accuracy=row.get("birth_time_accuracy"))
+    return ctx, row
+
+
+def _topic_lang(language, row):
+    from antar_engine.topic_copy import serve_language
+    return serve_language(language if language else (row or {}).get("language") or "en")
+
+
+def _topics_compute(chart_id: str, language, tz_offset):
+    import antar_engine.topic_engine as _te
+    ctx, row = _topic_ctx_load(chart_id)
+    if ctx is None:
+        return None
+    lang = _topic_lang(language, row)
+    today = _prac_local_date(tz_offset)
+    ck = ("topics", chart_id, lang, today.isoformat())
+    hit = _te.cache_get(ck)
+    if hit is not None:
+        return hit
+    out = _te.rank_topics(ctx, today, lang)
+    _te.cache_put(ck, out, _TOPIC_LIST_TTL)
+    return out
+
+
+@app.get("/api/v1/chart/{chart_id}/topics")
+async def get_chart_topics(chart_id: str, language: Optional[str] = None,
+                           tz_offset: Optional[int] = None):
+    """The seven topics, most active first: [{key,label,status,tag,rank}].
+    status ∈ active|upcoming|quiet|steady. Any engine failure degrades to all
+    'steady' in fixed order — never an error screen (404 only for an unknown chart)."""
+    import antar_engine.topic_engine as _te
+    try:
+        out = await run_in_threadpool(_topics_compute, chart_id, language, tz_offset)
+    except Exception as e:
+        print(f"[topics] load failed → steady fallback: {e!r}")
+        return _te.fallback_topics(language or "en")
+    if out is None:
+        raise HTTPException(status_code=404, detail="Chart not found")
+    return out
+
+
+def _topic_read_compute(chart_id: str, topic: str, scale: str, language, tz_offset):
+    import antar_engine.topic_engine as _te
+    ctx, row = _topic_ctx_load(chart_id)
+    if ctx is None:
+        return None
+    lang = _topic_lang(language, row)
+    today = _prac_local_date(tz_offset)
+    ck = ("topic-read", chart_id, topic, scale, lang, today.isoformat())
+    hit = _te.cache_get(ck)
+    if hit is not None:
+        return hit
+    out = _te.read_topic(ctx, topic, scale, today, lang)
+    _te.cache_put(ck, out, _TOPIC_READ_TTL)
+    return out
+
+
+@app.get("/api/v1/chart/{chart_id}/topic-read")
+async def get_chart_topic_read(chart_id: str, topic: str, scale: str = "month",
+                               language: Optional[str] = None,
+                               tz_offset: Optional[int] = None):
+    """One topic at one time scale (today|month|season|year): claim, best/watch
+    window (dates never in the past), why, your_move, confidence note, reasoning
+    and a remedy block. Month = rolling 30 days from today; year = the
+    solar-return year; season = the current sub-period (end date returned)."""
+    from antar_engine.topic_copy import TOPIC_KEYS as _TK, SCALES as _SC
+    topic, scale = (topic or "").strip().lower(), (scale or "").strip().lower()
+    if topic not in _TK:
+        raise HTTPException(status_code=422, detail=f"topic must be one of {list(_TK)}")
+    if scale not in _SC:
+        raise HTTPException(status_code=422, detail=f"scale must be one of {list(_SC)}")
+    out = await run_in_threadpool(_topic_read_compute, chart_id, topic, scale, language, tz_offset)
+    if out is None:
+        raise HTTPException(status_code=404, detail="Chart not found")
+    return out
