@@ -9,7 +9,7 @@ DRAFT for the owner and counsel. Not legal advice. Bump `WA_TRAINING_CONSENT_VER
   service if the answer is no.
 - **Plain about what it is.** Says what is kept, what is removed, who sees it, and how to stop.
 - **Not retroactive.** Only messages sent after the yes are ever used.
-- **Withdraw any time** in the app (Settings → WhatsApp) or by replying `STOP TRAINING`. Withdrawal
+- **Withdraw any time** by replying `STOP TRAINING` in the chat (an in-app Settings toggle is a Lovable follow-up). Plain `STOP` still disconnects WhatsApp entirely, which also ends training use. Withdrawal
   removes the person from every future export immediately.
 
 ## Question (sent in chat, two tap buttons: Yes / No thanks)
@@ -53,7 +53,7 @@ Colombia Ley 1581 (prior express authorization), Argentina Ley 25.326, Brazil LG
 WhatsApp Business policy on use of message content.
 
 ## Hard rules for the build
-1. **Do not ship the question until `STOP TRAINING` and the in-app withdrawal both work.**
+1. **Wired (2026-10-06):** the question follows the offers question (only once the columns exist) and `STOP TRAINING` / `PARAR ENTRENAMIENTO` / `PARAR TREINAMENTO` withdraw. Still to do: an in-app toggle.
 2. Under-18s: Antar does not collect age; decide whether to exclude or to ask before any export.
 3. Sensitive content (health, finances, relationships, self-harm) — decide an exclusion list before training.
 4. Training-grade output is the export only (`scripts/export_wa_training.py`): consented, post-consent,

@@ -257,7 +257,7 @@ TERMS_URL = os.getenv("WA_TERMS_URL") or "https://antar.world/terms"
 
 
 def parse_optin_reply(body: str, choice_id: str = "") -> Optional[str]:
-    """'yes' / 'no' to an optional alerts / offers question (buttons or typed)."""
+    """'yes' / 'no' to an optional alerts / offers / training question (buttons or typed)."""
     if choice_id.startswith("opt:"):
         return choice_id.rsplit(":", 1)[-1] if choice_id.rsplit(":", 1)[-1] in ("yes", "no") else None
     t = (body or "").strip().lower().strip(" .!¡?¿*")
@@ -450,6 +450,9 @@ def parse_wa_command(text: str) -> tuple:
         return ("help", "")
     if low in ("tips", "tip", "consejos", "dicas", "guide", "how to use", "rules"):
         return ("tips", "")
+    if low in ("stop training", "stop learning", "training off", "parar entrenamiento",
+               "parar entrenamiento de ia", "parar treinamento", "training band", "stop ai training"):
+        return ("training_off", "")
     if low in ("stop alerts", "alerts off", "no alerts", "parar alertas", "sin alertas",
                "sem alertas", "alerts band", "alert band"):
         return ("alerts_off", "")

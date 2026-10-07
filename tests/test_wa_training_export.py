@@ -49,3 +49,19 @@ def test_conversations_split_and_pseudonym():
     assert [len(c["messages"]) for c in cs] == [2, 1]
     assert cs[0]["messages"][1]["role"] == "assistant"
     assert "chart-uuid" not in str(cs) and cs[0]["person"] == ex.pseudonym("chart-uuid-1234", "k")
+
+
+def test_stop_training_is_its_own_command_not_unlink():
+    for t in ("STOP TRAINING", "stop training.", "Parar entrenamiento", "parar treinamento"):
+        assert msg.parse_wa_command(t) == ("training_off", "")
+    assert msg.parse_wa_command("stop") == ("unlink", "")           # plain STOP still disconnects
+    assert msg.parse_wa_command("how is training for a marathon") == ("", "")
+
+
+def test_training_texts_exist_in_every_language():
+    import re
+    src = open(os.path.join(os.path.dirname(__file__), "..", "main.py")).read()
+    for key in ("optin_training", "training_on", "training_off"):
+        block = src[src.index(f'"{key}": {{') if f'"{key}": {{' in src else src.index(f'"{key}":'):][:2500]
+        for lang in ("en", "es", "pt", "hinglish"):
+            assert f'"{lang}":' in block, (key, lang)

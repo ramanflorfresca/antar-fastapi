@@ -5013,6 +5013,19 @@ _WA_L = {
                      "es": "Opcional: ¿quieres recibir ofertas y novedades ocasionales de Antar por WhatsApp?",
                      "pt": "Opcional: quer receber ofertas e novidades ocasionais da Antar pelo WhatsApp?",
                      "hinglish": "Optional: kya aap WhatsApp par Antar se kabhi-kabhi offers aur news chahte hain?"},
+    "optin_training": {
+        "en": "One more choice, entirely optional. Can Antar learn from your conversations to become a better astrologer? If you say yes, we use your messages and Antar's replies from now on — after removing your name, phone number, email, links and birth date — to train and improve Antar's own AI. Chats are never sold or shared with advertisers, and Antar works exactly the same if you say no. Reply STOP TRAINING any time to withdraw.",
+        "es": "Una elección más, totalmente opcional. ¿Puede Antar aprender de tus conversaciones para ser mejor astrólogo? Si dices que sí, usaremos tus mensajes y las respuestas de Antar a partir de ahora —tras quitar tu nombre, teléfono, correo, enlaces y fecha de nacimiento— para entrenar y mejorar la IA propia de Antar. Los chats nunca se venden ni se comparten con anunciantes, y Antar funciona igual si dices que no. Responde PARAR ENTRENAMIENTO cuando quieras para retirarte.",
+        "pt": "Mais uma escolha, totalmente opcional. A Antar pode aprender com suas conversas para ser uma astróloga melhor? Se disser sim, usaremos suas mensagens e as respostas da Antar a partir de agora — após remover seu nome, telefone, e-mail, links e data de nascimento — para treinar e melhorar a IA própria da Antar. As conversas nunca são vendidas nem compartilhadas com anunciantes, e a Antar funciona igual se disser não. Responda PARAR TREINAMENTO quando quiser para retirar.",
+        "hinglish": "Ek aur choice, bilkul optional. Kya Antar aapki baatcheet se seekh sakta hai taaki ek behtar astrologer ban sake? Agar aap haan kehte hain, to ab se aapke messages aur Antar ke jawab — aapka naam, phone number, email, links aur janm tithi hata kar — Antar ke apne AI ko train karne mein use honge. Chats kabhi bechi ya advertisers ke saath share nahi hoti, aur na kehne par Antar bilkul waise hi kaam karta hai. Kabhi bhi man badle to STOP TRAINING bhej dein."},
+    "training_on": {"en": "Thank you — Antar will learn from your chats from now on. Reply STOP TRAINING any time.",
+                    "es": "Gracias — Antar aprenderá de tus chats desde ahora. Responde PARAR ENTRENAMIENTO cuando quieras.",
+                    "pt": "Obrigado — a Antar vai aprender com suas conversas a partir de agora. Responda PARAR TREINAMENTO quando quiser.",
+                    "hinglish": "Shukriya — Antar ab se aapki chats se seekhega. Kabhi bhi STOP TRAINING bhej dein."},
+    "training_off": {"en": "Done. Antar won't use your chats for learning from now on. Everything else stays as it is.",
+                     "es": "Listo. Antar ya no usará tus chats para aprender. Todo lo demás sigue igual.",
+                     "pt": "Pronto. A Antar não usará mais suas conversas para aprender. Todo o resto continua igual.",
+                     "hinglish": "Ho gaya. Antar ab aapki chats se nahi seekhega. Baaki sab pehle jaisa chalega."},
     "optin_done": {"en": "Saved. You can change this anytime — send 'stop alerts' or 'stop offers', or use Settings → WhatsApp.",
                    "es": "Guardado. Puedes cambiarlo cuando quieras — envía 'parar alertas' o 'parar ofertas', o usa Ajustes → WhatsApp.",
                    "pt": "Salvo. Você pode mudar quando quiser — envie 'parar alertas' ou 'parar ofertas', ou use Ajustes → WhatsApp.",
@@ -5704,20 +5717,34 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
         if _step or str(choice_id or "").startswith("opt:"):
             _which = (choice_id.split(":")[1] if str(choice_id or "").startswith("opt:") else _step) or ""
             _ans = _msg.parse_optin_reply(body, choice_id or "")
-            if _which in ("alerts", "offers") and _ans:
+            if _which in ("alerts", "offers", "training") and _ans:
                 _patch = (_msg.alerts_row(_ans == "yes") if _which == "alerts"
-                          else _msg.marketing_row(_ans == "yes"))
+                          else _msg.marketing_row(_ans == "yes") if _which == "offers"
+                          else _msg.training_row(_ans == "yes"))
+                _saved_ok = True
                 try:
                     await asyncio.to_thread(lambda: sb.table("messaging_links").update(_patch)
                                             .eq("id", link["id"]).execute())
                 except Exception as _oe:
+                    _saved_ok = False
                     print(f"[whatsapp] opt-in save failed …{number[-4:]}: {_oe}")
+                if _which == "training":
+                    ctx.pop("optin_step", None)
+                    _save(ctx)
+                    send(_wa_text("training_on" if (_ans == "yes" and _saved_ok) else "optin_done", lang))
+                    return
                 if _which == "alerts":
                     ctx["optin_step"] = "offers"
                     _save(ctx)
                     send_choices(_wa_text("optin_offers", lang), "btn_answer",
                                  [(_wa_text("opt_yes", lang), "opt:offers:yes", ""),
                                   (_wa_text("opt_no", lang), "opt:offers:no", "")])
+                elif "training_opt_in" in (link or {}):   # asked only once the column exists
+                    ctx["optin_step"] = "training"
+                    _save(ctx)
+                    send_choices(_wa_text("optin_training", lang), "btn_answer",
+                                 [(_wa_text("opt_yes", lang), "opt:training:yes", ""),
+                                  (_wa_text("opt_no", lang), "opt:training:no", "")])
                 else:
                     ctx.pop("optin_step", None)
                     _save(ctx)
@@ -5742,6 +5769,14 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
             except Exception as _me:
                 print(f"[whatsapp] offers off failed …{number[-4:]}: {_me}")
             send(_wa_text("marketing_off", lang))
+            return
+        if cmd == "training_off":     # [wa-training] withdraw the learning consent; the connection stays
+            try:
+                await asyncio.to_thread(lambda: sb.table("messaging_links").update(
+                    _msg.training_row(False)).eq("id", link["id"]).execute())
+            except Exception as _te:
+                print(f"[whatsapp] training off failed …{number[-4:]}: {_te}")
+            send(_wa_text("training_off", lang))
             return
         if choice_id == "alert_stop" or cmd == "alerts_off":
             try:
