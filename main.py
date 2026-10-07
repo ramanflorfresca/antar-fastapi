@@ -6579,6 +6579,8 @@ def messaging_whatsapp_status(http_request: Request, country: Optional[str] = No
     _num = _num or _wn.deep_link_number(_wa_request_country(http_request, country), key=str(user_id))
     digits = re.sub(r"\D", "", _num or os.getenv("TWILIO_WHATSAPP_FROM") or "")
     out["antar_number"] = ("+" + digits) if digits else None
+    out["open_chat_link"] = _msg.open_chat_link(digits)       # [wa-one-card] "Open chat" for a connected user
+    out["state"] = _msg.card_state(out)                       # unavailable | not_connected | connected
     if out.get("chart_id"):
         out["chart_name"] = _wa_chart_name(out["chart_id"])
     return out
