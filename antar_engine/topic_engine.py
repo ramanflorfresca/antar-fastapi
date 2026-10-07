@@ -293,12 +293,12 @@ def _next_opening(ctx: TopicContext, key: str, today: date) -> Optional[Tuple[da
 def fallback_topics(language: str = "en") -> List[dict]:
     lang = C.serve_language(language)
     return [{"key": k, "label": C.LABEL[lang][k], "status": "steady",
-             "tag": C.TAG[lang]["steady"], "rank": i + 1}
+             "tag": C.TAG[lang]["steady"], "tone": "steady", "rank": i + 1}
             for i, k in enumerate(TOPIC_KEYS)]
 
 
 def rank_topics(ctx: TopicContext, today: date, language: str = "en") -> List[dict]:
-    """[{key,label,status,tag,rank}], most active first. Never raises."""
+    """[{key,label,status,tag,tone,rank}], most active first. Never raises."""
     lang = C.serve_language(language)
     try:
         now = _now_assessments(ctx, today)
@@ -323,7 +323,8 @@ def rank_topics(ctx: TopicContext, today: date, language: str = "en") -> List[di
                 else:
                     status, tag = "quiet", C.TAG[lang]["quiet"]
                     order = (3, -a["score"], i)
-            rows.append((order, {"key": k, "label": C.LABEL[lang][k], "status": status, "tag": tag}))
+            rows.append((order, {"key": k, "label": C.LABEL[lang][k], "status": status, "tag": tag,
+                                 "tone": topic_tone(ctx, k, today)}))
         rows.sort(key=lambda r: r[0])
         return [dict(r[1], rank=n + 1) for n, r in enumerate(rows)]
     except Exception:
@@ -591,16 +592,34 @@ def _read_topic(ctx: TopicContext, key: str, scale: str, today: date, language: 
     return out
 
 
-def best_fit_scale(ctx: TopicContext, key: str, today: date) -> str:
-    """The scale the UI should open on: the nearest one with a real dated window."""
+def _best_fit(ctx: TopicContext, key: str, today: date) -> Tuple[str, Optional[dict]]:
+    """(scale, that scale's read) — the read is None when the season fallback
+    was not computed here."""
     for scale in ("today", "month"):
         try:
             r = read_topic(ctx, key, scale, today, "en", with_best_fit=False)
             if r["best_window"] or r["watch_window"]:
-                return scale
+                return scale, r
         except Exception:
             continue
-    return "season"
+    return "season", None
+
+
+def best_fit_scale(ctx: TopicContext, key: str, today: date) -> str:
+    """The scale the UI should open on: the nearest one with a real dated window."""
+    return _best_fit(ctx, key, today)[0]
+
+
+def topic_tone(ctx: TopicContext, key: str, today: date) -> str:
+    """open|care|steady — exactly topic-read(scale=best_fit_scale).tone, so a tile
+    and the read it opens can never disagree."""
+    try:
+        scale, r = _best_fit(ctx, key, today)
+        if r is None:
+            r = read_topic(ctx, key, scale, today, "en", with_best_fit=False)
+        return r["tone"]
+    except Exception:
+        return "steady"
 
 
 # ── small TTL cache (per process) ────────────────────────────────────────────

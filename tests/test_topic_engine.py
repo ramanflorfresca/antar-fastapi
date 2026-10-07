@@ -133,11 +133,31 @@ def test_rank_shape_order_and_contiguous_ranks(ctxs):
         out = T.rank_topics(ctx, TODAY, "en")
         assert [r["rank"] for r in out] == list(range(1, 8))
         assert {r["key"] for r in out} == set(T.TOPIC_KEYS)
-        assert set(out[0]) == {"key", "label", "status", "tag", "rank"}
+        assert set(out[0]) == {"key", "label", "status", "tag", "tone", "rank"}
         order = {"active": 0, "upcoming": 1, "steady": 2, "quiet": 3}
         st = [order[r["status"]] for r in out]
         assert st == sorted(st)
         assert all(r["tag"] for r in out)
+
+
+def test_topics_tone_equals_topic_read_tone_at_best_fit_scale(ctxs):
+    """A tile's colour and the read it opens can never disagree (4 real charts, 7 topics)."""
+    for ctx in ctxs:
+        out = {r["key"]: r for r in T.rank_topics(ctx, TODAY, "en")}
+        for k in T.TOPIC_KEYS:
+            assert out[k]["tone"] in ("open", "care", "steady")
+            full = T.read_topic(ctx, k, T.best_fit_scale(ctx, k, TODAY), TODAY, "en")
+            assert out[k]["tone"] == full["tone"], (ctx.chart_id, k)
+
+
+def test_topics_tone_can_be_care_while_status_is_active():
+    ctx = _synth("Saturn", [_ev("2026-10-12", "Saturn", 10, "conjunction")])
+    rows = {r["key"]: r for r in T.rank_topics(ctx, TODAY, "en")}
+    assert rows["career"]["status"] == "active" and rows["career"]["tone"] == "care"
+
+
+def test_fallback_topics_carry_a_steady_tone():
+    assert {r["tone"] for r in T.fallback_topics("en")} == {"steady"}
 
 
 def test_rank_is_deterministic(ctxs):
@@ -411,7 +431,7 @@ def test_topics_route_returns_list_and_caches(main_mod, monkeypatch):
     b = _run(main_mod.get_chart_topics("c1", None, None))
     assert a == b and a[0]["key"] == "career" and a[0]["label"] == "Carrera"   # chart's stored language wins over a missing param
     assert len(calls) == 2    # context is rebuilt, the ranking itself is cached
-    assert all(set(r) == {"key", "label", "status", "tag", "rank"} for r in a)
+    assert all(set(r) == {"key", "label", "status", "tag", "tone", "rank"} for r in a)
 
 
 def test_topics_route_falls_back_on_load_failure(main_mod, monkeypatch):
