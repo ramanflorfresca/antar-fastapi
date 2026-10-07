@@ -33,7 +33,12 @@ def main():
     ap.add_argument("--lang")
     ap.add_argument("--with-hindi", action="store_true", help="also create/submit the Devanagari Hindi templates (locale hi)")
     a = ap.parse_args()
-    auth = base64.b64encode(f"{os.getenv('TWILIO_ACCOUNT_SID')}:{os.getenv('TWILIO_AUTH_TOKEN')}".encode()).decode()
+    sid, tok = os.getenv("TWILIO_ACCOUNT_SID"), os.getenv("TWILIO_AUTH_TOKEN")
+    if a.go and not (sid and tok):
+        # a dry run needs no credentials; a real run without them used to send "None:None" and die on a 401
+        sys.exit("Set TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN in the environment before using --go "
+                 "(nothing was sent).")
+    auth = base64.b64encode(f"{sid}:{tok}".encode()).decode()
     for name, t in wt.TEMPLATES.items():
         if a.only and name != a.only:
             continue
