@@ -630,7 +630,8 @@ def _reveal_dashas():
     }
 
 
-def test_reveal_two_lines_with_real_dates():
+def test_reveal_two_lines_with_real_dates(monkeypatch):
+    monkeypatch.setenv("REVEAL_LINES_PLANET_NAMES", "1")
     from antar_engine.reveal_lines import reveal_lines
     cd = {"lagna": {"sign": "Aries", "sign_index": 0}}     # Capricorn = 10th from Aries → work
     out = reveal_lines(cd, _reveal_dashas(), "1990-10-15", "exact", TODAY, "en")
@@ -638,7 +639,57 @@ def test_reveal_two_lines_with_real_dates():
                    "A work-focused stretch, from January 2026 to November 2027."]
 
 
-def test_reveal_skips_line_two_without_birth_time_and_never_fills():
+def test_reveal_default_uses_the_plain_energy_phrase_not_the_planet(monkeypatch):
+    from antar_engine.reveal_lines import reveal_lines
+    monkeypatch.delenv("REVEAL_LINES_PLANET_NAMES", raising=False)
+    cd = {"lagna": {"sign": "Aries", "sign_index": 0}}
+    d = {"vimsottari": [{"lord_or_sign": "Saturn", "level": "mahadasha", "start_date": "2008-03-10",
+                         "end_date": "2027-03-20"}]}
+    assert reveal_lines(cd, d, "1991-03-14", "exact", TODAY, "en") == [
+        "Since March 2008 you are in a discipline-and-time chapter. It runs until March 2027."]
+    assert reveal_lines(cd, d, "1991-03-14", "exact", TODAY, "es") == [
+        "Desde marzo de 2008 estás en una etapa de disciplina y tiempo. Dura hasta marzo de 2027."]
+    assert reveal_lines(cd, d, "1991-03-14", "exact", TODAY, "pt") == [
+        "Desde março de 2008 você está em uma fase de disciplina e tempo. Ela vai até março de 2027."]
+    assert reveal_lines(cd, d, "1991-03-14", "exact", TODAY, "hinglish") == [
+        "March 2008 se aap discipline-and-time ke daur mein hain. Ye March 2027 tak chalega."]
+    # Hindi falls back to the whole English read
+    assert reveal_lines(cd, d, "1991-03-14", "exact", TODAY, "hi") == reveal_lines(cd, d, "1991-03-14", "exact", TODAY, "en")
+    for lang in LANGS:
+        for line in reveal_lines(cd, d, "1991-03-14", "exact", TODAY, lang):
+            assert not _JARGON.search(line), line
+
+
+@pytest.mark.parametrize("planet,phrase", [
+    ("Sun", "identity-and-purpose"), ("Moon", "emotion-and-instinct"), ("Mars", "drive-and-courage"),
+    ("Mercury", "mind-and-communication"), ("Jupiter", "growth-and-wisdom"), ("Venus", "love-and-value"),
+    ("Saturn", "discipline-and-time"), ("Rahu", "ambition-and-the-unfamiliar"),
+    ("Ketu", "detachment-and-the-past")])
+def test_reveal_every_planet_has_a_plain_phrase_matching_the_identity_table(monkeypatch, planet, phrase):
+    from antar_engine.reveal_lines import reveal_lines
+    from antar_engine.chart_identity import _PLANET_PLAIN
+    monkeypatch.delenv("REVEAL_LINES_PLANET_NAMES", raising=False)
+    d = {"vimsottari": [{"lord_or_sign": planet, "level": "mahadasha", "start_date": "2008-03-10",
+                         "end_date": "2027-03-20"}]}
+    out = reveal_lines({"lagna": {"sign": "Aries"}}, d, "1991-03-14", "exact", TODAY, "en")
+    assert phrase in out[0] and phrase.replace("-", " ") == _PLANET_PLAIN[planet]
+
+
+def test_reveal_planet_names_switch_keeps_the_name_in_every_language(monkeypatch):
+    from antar_engine.reveal_lines import reveal_lines
+    monkeypatch.setenv("REVEAL_LINES_PLANET_NAMES", "true")
+    d = {"vimsottari": [{"lord_or_sign": "Saturn", "level": "mahadasha", "start_date": "2008-03-10",
+                         "end_date": "2027-03-20"}]}
+    cd = {"lagna": {"sign": "Aries"}}
+    assert reveal_lines(cd, d, "1991-03-14", "exact", TODAY, "en") == [
+        "Since March 2008 you are in a Saturn chapter. It runs until March 2027."]
+    assert "Saturno" in reveal_lines(cd, d, "1991-03-14", "exact", TODAY, "es")[0]
+    assert "Saturno" in reveal_lines(cd, d, "1991-03-14", "exact", TODAY, "pt")[0]
+    assert "Saturn" in reveal_lines(cd, d, "1991-03-14", "exact", TODAY, "hinglish")[0]
+
+
+def test_reveal_skips_line_two_without_birth_time_and_never_fills(monkeypatch):
+    monkeypatch.setenv("REVEAL_LINES_PLANET_NAMES", "1")
     from antar_engine.reveal_lines import reveal_lines
     cd = {"lagna": {"sign": "Aries", "sign_index": 0}}
     out = reveal_lines(cd, _reveal_dashas(), "1990-10-15", "unknown", TODAY, "en")
@@ -648,7 +699,8 @@ def test_reveal_skips_line_two_without_birth_time_and_never_fills():
     assert len(reveal_lines(cd, only_j, "1990-10-15", "exact", TODAY, "en")) == 1
 
 
-def test_reveal_first_chapter_does_not_claim_a_start_at_birth():
+def test_reveal_first_chapter_does_not_claim_a_start_at_birth(monkeypatch):
+    monkeypatch.setenv("REVEAL_LINES_PLANET_NAMES", "1")
     from antar_engine.reveal_lines import reveal_lines
     d = {"vimsottari": [{"lord_or_sign": "Venus", "level": "mahadasha", "start_date": "1990-10-15",
                          "end_date": "2027-02-01"}]}
@@ -656,7 +708,8 @@ def test_reveal_first_chapter_does_not_claim_a_start_at_birth():
     assert out == ["You are in a Venus chapter. It runs until February 2027."]
 
 
-def test_reveal_never_shows_an_ended_chapter_and_has_no_system_words():
+def test_reveal_never_shows_an_ended_chapter_and_has_no_system_words(monkeypatch):
+    monkeypatch.setenv("REVEAL_LINES_PLANET_NAMES", "1")
     from antar_engine.reveal_lines import reveal_lines
     cd = {"lagna": {"sign": "Aries", "sign_index": 0}}
     assert reveal_lines(cd, _reveal_dashas(), "1990-10-15", "exact", date(2030, 1, 1), "en")[0:1] != []
