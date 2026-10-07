@@ -400,6 +400,16 @@ def test_care_only_read_top_level_reasoning_is_the_watch_windows():
     assert r["reasoning"] == r["watch_window"]["reasoning"]
 
 
+def test_today_windows_carry_no_invented_clock_times():
+    """The dated feed has no clock times and the day's best hour is topic-agnostic,
+    so a today window stays date-only (the UI then draws the whole day)."""
+    ctx = _synth("Saturn", [_ev("2026-10-07", "Jupiter", 10)])
+    r = T.read_topic(ctx, "career", "today", TODAY, "en")
+    w = r["best_window"] or r["watch_window"]
+    assert w and "start_time" not in w and "end_time" not in w
+    assert len(w["start"]) == len(w["end"]) == 10
+
+
 def test_topic_labels_and_tags_localised():
     out = T.rank_topics(_synth("Saturn", [_ev("2026-10-12", "Jupiter", 10)]), TODAY, "pt")
     assert out[0]["label"] == "Carreira" and out[0]["tag"] == "ativo agora"
