@@ -18855,6 +18855,9 @@ def _lang_pref_for_user(user_id):
         return None
 
 
+ONBOARDING_LANGS = ("en", "hi", "hinglish", "es", "pt")
+
+
 @app.get("/api/v1/languages")
 def public_languages():
     """The languages the app offers, for the pre-account language step.
@@ -18864,10 +18867,11 @@ def public_languages():
     so every first-time guest got "Couldn't load languages". This is the same list and
     the same native display names, with no user data: nothing here is personal.
     """
-    return {
-        "available": SETTINGS_AVAILABLE_LANGS,
-        "labels": {c: _LANG_LABELS[c] for c in SETTINGS_AVAILABLE_LANGS},
-    }
+    # The agreed onboarding picker is five languages, in this order (design contact sheet,
+    # frame 9). The settings registry also holds others (e.g. fr) that have no real
+    # reading path yet, so do not offer them to a brand-new user.
+    codes = [c for c in ONBOARDING_LANGS if c in SETTINGS_AVAILABLE_LANGS]
+    return {"available": codes, "labels": {c: _LANG_LABELS[c] for c in codes}}
 
 
 @app.get("/api/v1/me/language")

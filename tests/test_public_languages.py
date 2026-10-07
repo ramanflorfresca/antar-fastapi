@@ -4,10 +4,11 @@
 def test_public_languages_needs_no_login_and_matches_the_settings_list():
     import main
     out = main.public_languages()
-    assert out["available"] == main.SETTINGS_AVAILABLE_LANGS
-    assert set(out["labels"]) == set(main.SETTINGS_AVAILABLE_LANGS)
-    for code in ("en", "es", "pt"):
-        assert code in out["available"] and out["labels"][code]
+    assert out["available"] == ["en", "hi", "hinglish", "es", "pt"]      # the five agreed, in order
+    assert "fr" not in out["available"]
+    assert set(out["labels"]) == set(out["available"])
+    assert all(out["labels"][c] for c in out["available"])
+    assert set(out["available"]) <= set(main.SETTINGS_AVAILABLE_LANGS)
 
 
 def test_route_is_registered_without_an_auth_header_parameter():
