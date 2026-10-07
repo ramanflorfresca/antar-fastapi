@@ -6945,18 +6945,71 @@ def decisions_list(chart_id: str, authorization: Optional[str] = Header(None),
             raise HTTPException(403, "not your chart")
     try:
         q = (supabase.table("saved_decisions").select("*")
-             .eq("chart_id", chart_id).order("created_at", desc=True).limit(100))
-        if not include_archived:
-            q = q.is_("archived_at", "null")
-        rows = q.execute().data or []
+             .eq("chart_id", chart_id).order("created_at", desc=True).limit(300))
+        all_saved = q.execute().data or []
     except Exception as e:
         print(f"[decisions] list failed: {e}")
         return {"available": False, "decisions": [], "count": 0}
+    rows = [r for r in all_saved if include_archived or not r.get("archived_at")][:100]
     for r in rows:
         r["status"] = _sd.status_for(
             date.fromisoformat(r["window_start"]) if r.get("window_start") else None,
             date.fromisoformat(r["window_end"]) if r.get("window_end") else None)
+    # [your-questions 2026-10-07] Add every dated Ask answer (app + WhatsApp) the
+    # engine already recorded, so the screen is not empty for someone who never
+    # tapped save. Read-time merge only; fail-open to the saved rows.
+    try:
+        claims = (supabase.table("prediction_claims")
+                  .select("id,chart_id,created_at,source,question,verdict,window_start,window_end,channel,language")
+                  .eq("chart_id", chart_id).in_("source", list(_sd.ASK_CLAIM_SOURCES))
+                  .order("created_at", desc=True).limit(300).execute().data or [])
+        auto = _sd.claims_to_decisions(claims, all_saved)
+        rows = sorted(rows + auto, key=lambda r: str(r.get("created_at") or ""), reverse=True)[:100]
+    except Exception as e:
+        print(f"[decisions] auto questions skipped: {str(e)[:100]}")
     return {"available": True, "decisions": rows, "count": len(rows)}
+
+
+def _materialize_claim_decision(user_id: str, claim_id: str, *, note=None, archived=None) -> dict:
+    """Turn an auto row ('claim:<uuid>') into a real saved_decisions row the first
+    time the user acts on it (add a note, archive, delete). Deleting only HIDES it:
+    the claim is the accuracy record and is never touched. No reminder is armed:
+    the user never asked to be reminded about this one."""
+    from antar_engine import saved_decisions as _sd
+    try:
+        got = (supabase.table("prediction_claims")
+               .select("id,chart_id,question,verdict,window_start,window_end,language")
+               .eq("id", claim_id).limit(1).execute().data or [])
+    except Exception:
+        got = []
+    if not got or not _oc_owned_chart(user_id, got[0]["chart_id"]):
+        raise HTTPException(404, "decision not found")
+    c = got[0]
+    row = _sd.build_row(c["chart_id"], c.get("question") or "",
+                        {"verdict": c.get("verdict"), "timing": "",
+                         "window_start": c.get("window_start"), "window_end": c.get("window_end")},
+                        language=c.get("language") or "en", note=note, claim_id=c["id"])
+    row["open_reminder_due_at"] = None
+    row["timing_label"] = _sd.claim_timing_label(
+        _sd._d(c.get("window_start")), _sd._d(c.get("window_end")), c.get("language"))
+    if archived:
+        row["archived_at"] = datetime.now(timezone.utc).isoformat()
+    try:
+        ex = (supabase.table("saved_decisions").select("id").eq("claim_id", c["id"])
+              .limit(1).execute().data or [])
+        if ex:
+            patch = {"updated_at": "now()"}
+            if note is not None:
+                patch["note"] = row["note"]
+            if archived is not None:
+                patch["archived_at"] = row.get("archived_at")
+            supabase.table("saved_decisions").update(patch).eq("id", ex[0]["id"]).execute()
+        else:
+            supabase.table("saved_decisions").insert(row).execute()
+    except Exception as e:
+        print(f"[decisions] materialize failed: {e}")
+        raise HTTPException(503, "could not update the decision")
+    return {"updated": True, "decision_id": _sd.claim_decision_id(claim_id)}
 
 
 class _DecisionPatch(BaseModel):
@@ -6969,6 +7022,12 @@ def decisions_update(decision_id: str, body: _DecisionPatch,
                      authorization: str = Header(...)):
     """Edit the note, or archive/unarchive."""
     user_id = verify_token(authorization)
+    from antar_engine import saved_decisions as _sd_c
+    _cid = _sd_c.parse_claim_decision_id(decision_id)
+    if _cid:
+        return _materialize_claim_decision(user_id, _cid,
+                                           note=(body.note.strip()[:1000] or None) if body.note is not None else None,
+                                           archived=body.archived)
     try:
         rows = (supabase.table("saved_decisions").select("chart_id")
                 .eq("id", decision_id).limit(1).execute()).data or []
@@ -6991,8 +7050,13 @@ def decisions_update(decision_id: str, body: _DecisionPatch,
 
 @app.delete("/api/v1/decisions/{decision_id}")
 def decisions_delete(decision_id: str, authorization: str = Header(...)):
-    """Delete a saved decision outright."""
+    """Delete a saved decision outright. An auto row ('claim:<uuid>') is only hidden."""
     user_id = verify_token(authorization)
+    from antar_engine import saved_decisions as _sd_c
+    _cid = _sd_c.parse_claim_decision_id(decision_id)
+    if _cid:
+        _materialize_claim_decision(user_id, _cid, archived=True)
+        return {"deleted": True, "decision_id": decision_id}
     try:
         rows = (supabase.table("saved_decisions").select("chart_id")
                 .eq("id", decision_id).limit(1).execute()).data or []
