@@ -35,6 +35,7 @@ HONESTY RULES (owner, from project memory — do not loosen)
 """
 from __future__ import annotations
 
+import copy
 import json
 import logging
 import threading
@@ -597,9 +598,13 @@ def _read_topic(ctx: TopicContext, key: str, scale: str, today: date, language: 
     core = (C.pick(C.CORE, lang)[key][mode] if mode in ("open", "care")
             else C.pick(C.STEADY_CORE, lang).format(area=area))
     claim = C.pick(C.LEAD_JOIN, lang).format(lead=lead, core=core)
-    reasoning = _reasoning(ctx, key, dict(a_main, mode=mode), scale, lang,
-                           date.fromisoformat((best or watch)["start"]) if (best or watch) else None,
-                           date.fromisoformat((best or watch)["end"]) if (best or watch) else None)
+    # the top-level reasoning is the PRIMARY window's own (the one `tone` names);
+    # the other window keeps its own distinct reasoning
+    primary = best if mode == "open" else watch if mode == "care" else None
+    if primary:
+        reasoning = copy.deepcopy(primary["reasoning"])
+    else:
+        reasoning = _reasoning(ctx, key, dict(a_main, mode=mode), scale, lang, None, None)
     why = " ".join(reasoning["bullets"][:2])
     out = {
         "chart_id": ctx.chart_id, "topic": key, "label": C.LABEL[lang][key],

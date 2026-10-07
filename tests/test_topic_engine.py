@@ -377,6 +377,29 @@ def test_single_day_window_end_to_end_reads_on_the_day():
     assert any(" on Oct 7." in b for b in w["reasoning"]["bullets"])
 
 
+def _both_windows_ctx():
+    return _synth("Saturn", [_ev("2026-10-12", "Jupiter", 10), _ev("2026-10-13", "Venus", 10),
+                             _ev("2026-10-30", "Saturn", 10), _ev("2026-11-02", "Mars", 10)])
+
+
+def test_top_level_reasoning_is_the_primary_windows_and_each_window_is_distinct():
+    r = T.read_topic(_both_windows_ctx(), "career", "month", TODAY, "en")
+    best, watch = r["best_window"], r["watch_window"]
+    assert best and watch and r["tone"] == "open"
+    assert r["reasoning"] == best["reasoning"]                   # primary = the window `tone` names
+    assert r["reasoning"] != watch["reasoning"]
+    assert best["reasoning"] != watch["reasoning"]               # each window carries its own
+    assert "support" in best["reasoning"]["bullets"][-1] and "press" in watch["reasoning"]["bullets"][-1]
+    assert r["why"] == " ".join(r["reasoning"]["bullets"][:2])
+
+
+def test_care_only_read_top_level_reasoning_is_the_watch_windows():
+    ctx = _synth("Saturn", [_ev("2026-10-30", "Saturn", 10), _ev("2026-11-02", "Mars", 10)])
+    r = T.read_topic(ctx, "career", "month", TODAY, "en")
+    assert r["tone"] == "care" and r["best_window"] is None
+    assert r["reasoning"] == r["watch_window"]["reasoning"]
+
+
 def test_topic_labels_and_tags_localised():
     out = T.rank_topics(_synth("Saturn", [_ev("2026-10-12", "Jupiter", 10)]), TODAY, "pt")
     assert out[0]["label"] == "Carreira" and out[0]["tag"] == "ativo agora"
