@@ -584,6 +584,11 @@ supabase: Client = create_client(
     os.getenv("SUPABASE_URL"),
     os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY") or os.getenv("SUPABASE_ANON_KEY")
 )
+try:
+    from antar_engine import wa_log as _wa_log_mod
+    _wa_log_mod.bind(supabase)      # [wa-log] the WhatsApp conversation record
+except Exception as _e:
+    print(f"[wa-log] not bound: {_e}")
 
 
 def _install_pg_transient_retry(client) -> None:
@@ -6263,10 +6268,24 @@ async def messaging_whatsapp_webhook(http_request: Request):
         from xml.sax.saxutils import escape as _xml_escape
         txt = _xml_escape(_wa_text("help", _wa_lang(body)))
         print(f"[whatsapp] help via TwiML …{number[-4:]}")
+        from antar_engine import wa_log as _wl0
+        _wl0.record("in", number, body, sender=params.get("To") or "", sid=sid)
+        _wl0.record("out", number, _wa_text("help", _wa_lang(body)), sender=params.get("To") or "", kind="text",
+                    meta={"via": "twiml"})
         return _Resp(content=f"<Response><Message>{txt}</Message></Response>",
                      media_type="text/xml")
     from antar_engine import wa_numbers as _wn
+    from antar_engine import wa_log as _wl
     _wn.use(_msg.wa_number(params.get("To")))   # [wa-numbers] answer from the number they wrote to
+    print(f"[wa-numbers] inbound …{number[-4:]} country={_wn.country_of(number) or '?'} "
+          f"to={_wn.current_sender.get() or '?'}")
+    _wl.record("in", number, body, sender=params.get("To") or "", sid=sid,
+               kind=("media" if num_media else "location" if lat_lon
+                     else "button" if (params.get("ListId") or params.get("ButtonPayload")) else "text"),
+               meta={k: v for k, v in {"choice": params.get("ListId") or params.get("ButtonPayload"),
+                                       "media_type": params.get("MediaContentType0"),
+                                       "lat_lon": lat_lon, "profile_name": params.get("ProfileName")}.items() if v})
+    _wl.inbound_sid.set(sid)     # the NLU shadow (a child task) annotates this row with topic/intent
     sink = _WaSink(number, now, inline=_wa_inline_on())
     choice = (params.get("ListId") or params.get("ButtonPayload") or "").strip()
     _media = ((params.get("MediaUrl0") or "").strip() or None,
@@ -17981,6 +18000,7 @@ _CHART_DERIVED_TABLES = (
     # is that they are the person's, so a deleted chart must take them with it
     "saved_decisions",
     "nlu_log",                 # [nlu] stores the person's question text
+    "wa_messages",             # [wa-log] every WhatsApp message, both directions
     # the user's own questions — PII, and previously left behind entirely
     "signature_question_log", "intent_classify_log",
     # Prashna oracle (user questions + natal-grounded verdicts). followups are
@@ -24555,6 +24575,11 @@ async def _nlu_shadow(question: str, chart_id: Optional[str], language: str,
         kw = _nlu_keyword_view(question, language, mode)
         diff = _u.compare(u, kw)
         dis = [f for f, d in diff.items() if not d["agree"]]
+        if channel == "whatsapp":
+            from antar_engine import wa_log as _wl
+            _wl.annotate(_wl.inbound_sid.get(), lang=u.get("language"), intent=u.get("intent"),
+                         area=u.get("area"), subject=u.get("subject"), polarity=u.get("polarity"),
+                         horizon_days=u.get("horizon_days"), yes_no_fit=u.get("yes_no_fit"))
         print(f"[nlu][shadow] ch={channel} lang={u['language']} intent={u['intent']} "
               f"area={u['area']} subj={u['subject']} pol={u['polarity']} hz={u['horizon_days']} "
               f"yn={u['yes_no_fit']} conf={u['confidence']:.2f} disagree={dis} q={question[:100]!r}")

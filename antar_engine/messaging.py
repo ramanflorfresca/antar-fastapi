@@ -397,7 +397,13 @@ def whatsapp_send(to_number: str, text: str, last_inbound_ts: Optional[float]) -
                 _TWILIO_MSG_API.format(sid=sid), data=data, method="POST",
                 headers={"Authorization": "Basic " + auth,
                          "Content-Type": "application/x-www-form-urlencoded"})
-            urllib.request.urlopen(req, timeout=15)
+            _r = urllib.request.urlopen(req, timeout=15)
+            try:
+                _osid = json.loads(_r.read()).get("sid", "")
+            except Exception:
+                _osid = ""
+            from antar_engine import wa_log as _wl
+            _wl.record("out", to, part, sender=sender, sid=_osid)
         except urllib.error.HTTPError as e:
             print(f"[whatsapp] send failed …{to[-4:]}: {e.code} {e.read()[:300]!r}")
             ok = False
@@ -1191,10 +1197,17 @@ def whatsapp_send_list(to_number: str, body: str, button: str, items: list,
         data = urllib.parse.urlencode({"From": sender, "To": "whatsapp:" + to,
                                        "ContentSid": content_sid,
                                        "ContentVariables": json.dumps(variables)}).encode()
-        urllib.request.urlopen(urllib.request.Request(
+        _r = urllib.request.urlopen(urllib.request.Request(
             _TWILIO_MSG_API.format(sid=sid), data=data, method="POST",
             headers={"Authorization": "Basic " + auth,
                      "Content-Type": "application/x-www-form-urlencoded"}), timeout=15)
+        try:
+            _osid = json.loads(_r.read()).get("sid", "")
+        except Exception:
+            _osid = ""
+        from antar_engine import wa_log as _wl
+        _wl.record("out", to, body, sender=sender, sid=_osid, kind="list",
+                   meta={"button": button, "items": [{"title": t, "id": i} for t, i, _d in items]})
         return True
     except urllib.error.HTTPError as e:
         print(f"[whatsapp] list send failed …{to[-4:]}: {e.code} {e.read()[:200]!r}")

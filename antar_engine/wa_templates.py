@@ -410,10 +410,18 @@ def send(to_number: str, name: str, lang: str, variables: dict, link: Optional[d
         data = urllib.parse.urlencode({"From": sender, "To": "whatsapp:" + to,
                                        "ContentSid": content_sid,
                                        "ContentVariables": json.dumps(vars_)}).encode()
-        urllib.request.urlopen(urllib.request.Request(
+        _r = urllib.request.urlopen(urllib.request.Request(
             _TWILIO_MSG_API.format(sid=acct), data=data, method="POST",
             headers={"Authorization": "Basic " + auth,
                      "Content-Type": "application/x-www-form-urlencoded"}), timeout=15)
+        try:
+            _osid = json.loads(_r.read()).get("sid", "")
+        except Exception:
+            _osid = ""
+        from antar_engine import wa_log as _wl
+        _wl.record("out", to, (TEMPLATES.get(name, {}).get("body", {}).get(wa_lang(lang)) or ""),
+                   sender=sender, sid=_osid, kind="template", template=name, lang=lang,
+                   meta={"variables": vars_})
         return True
     except urllib.error.HTTPError as e:
         print(f"[whatsapp][template] {name} failed …{to[-4:]}: {e.code} {e.read()[:200]!r}")
