@@ -49821,7 +49821,8 @@ def _topic_read_compute(chart_id: str, topic: str, scale: str, language, tz_offs
 @app.get("/api/v1/chart/{chart_id}/topic-read")
 async def get_chart_topic_read(chart_id: str, topic: str, scale: str = "month",
                                language: Optional[str] = None,
-                               tz_offset: Optional[int] = None):
+                               tz_offset: Optional[int] = None,
+                               background_tasks: BackgroundTasks = None):
     """One topic at one time scale (today|month|season|year): claim, best/watch
     window (dates never in the past), why, your_move, confidence note, reasoning
     and a remedy block. Month = rolling 30 days from today; year = the
@@ -49835,7 +49836,61 @@ async def get_chart_topic_read(chart_id: str, topic: str, scale: str = "month",
     out = await run_in_threadpool(_topic_read_compute, chart_id, topic, scale, language, tz_offset)
     if out is None:
         raise HTTPException(status_code=404, detail="Chart not found")
+    if background_tasks is not None:
+        # [topic-checkback] after the response is sent; fail-open, never slows the read
+        background_tasks.add_task(_topic_read_record, out, chart_id, _prac_local_date(tz_offset))
     return out
+
+
+def _topic_read_record(out, chart_id, today):
+    from antar_engine import topic_checkback as _tcb
+    key = (chart_id, out.get("topic"), out.get("scale"), today.isoformat(),
+           (out.get("best_window") or {}).get("start"), (out.get("best_window") or {}).get("end"),
+           (out.get("watch_window") or {}).get("start"), (out.get("watch_window") or {}).get("end"))
+    if key in _TOPIC_RECORDED:      # same read re-served today: no DB round trip
+        return
+    if len(_TOPIC_RECORDED) > 5000:
+        _TOPIC_RECORDED.clear()
+    _TOPIC_RECORDED.add(key)
+    _tcb.record_windows(supabase, out, chart_id, today)
+
+
+_TOPIC_RECORDED: set = set()
+
+
+@app.get("/api/v1/chart/{chart_id}/topic-checkbacks")
+def get_topic_checkbacks(chart_id: str, language: Optional[str] = None, limit: int = 1):
+    """The dated topic windows that have ENDED and are still unanswered — ask "did it
+    hold?" once (a "not sure yet" is asked once more after 30 days). Oldest first,
+    `limit` 1-3 (default 1: one question at a time). Plain words, en/es/pt/hinglish.
+    Same access as the topic read: the chart id is the key, so guests work too.
+    Any storage trouble degrades to an empty list, never an error."""
+    from antar_engine import topic_checkback as _tcb
+    items = _tcb.due_items(supabase, chart_id, language, limit=limit)
+    return {"checkbacks": items, "count": len(items)}
+
+
+class _TopicCheckbackIn(BaseModel):
+    answer: str
+
+
+@app.post("/api/v1/chart/{chart_id}/topic-checkbacks/{checkback_id}/answer")
+def answer_topic_checkback(chart_id: str, checkback_id: str, body: _TopicCheckbackIn,
+                           language: Optional[str] = None):
+    """Record yes | no | not_sure for one check-back. Idempotent; a final yes/no is
+    never overwritten; unknown ids (or another chart's) are 404."""
+    from antar_engine import topic_checkback as _tcb
+    ans = (body.answer or "").strip().lower()
+    if ans not in _tcb.ANSWERS:
+        raise HTTPException(400, f"answer must be one of {list(_tcb.ANSWERS)}")
+    try:
+        res = _tcb.record_answer(supabase, chart_id, checkback_id, ans)
+    except _tcb.UnknownCheckback:
+        raise HTTPException(404, "check-back not found")
+    except _tcb.StoreUnavailable as e:
+        print(f"[topic-checkback] answer not saved: {e}")
+        raise HTTPException(503, "could not save the answer")
+    return {**res, "id": checkback_id, "thanks": _tcb.thanks(language)}
 
 
 @app.get("/api/v1/chart/{chart_id}/reveal-lines")

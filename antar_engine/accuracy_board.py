@@ -36,7 +36,10 @@ from antar_engine.outcomes import parse_window
 MIN_N = 30
 MIN_ANSWER_RATE = 0.30
 SCORE = {"yes": 1.0, "partly": 0.5, "no": 0.0}
-SOURCES = ("ask_explore", "ask_yesno", "decoy")
+SOURCES = ("ask_explore", "ask_yesno", "decoy", "topic_read")
+# [topic-checkback] topic-read windows: asked after the window ENDS, answered yes / no /
+# not_sure. A best window that held and a watch window that mattered are both "yes" = hit.
+TOPIC_READ = "topic_read"
 _DENIALS = {"NO", "DENIED", "DENIAL", "NOT_PROMISED"}
 
 
@@ -137,6 +140,20 @@ def _finish(cell: dict, baseline: Optional[float]) -> dict:
             "halves": halves, "distinct_windows": len(cell["windows"]), "status": status}
 
 
+def _suppress_small_n(row: dict) -> dict:
+    """Topic-read rows never show a rate on a tiny n — only the count."""
+    row["n"] = row["answered"]
+    row["small_n"] = row["answered"] < MIN_N
+    if row["small_n"]:
+        row["hit_rate"], row["lift"], row["ci95"] = None, None, [None, None]
+        row["halves"] = {k: (None, v[1]) for k, v in row["halves"].items()}
+    return row
+
+
+def _row_for(row: dict, name: str) -> dict:
+    return _suppress_small_n(row) if str(name).startswith(TOPIC_READ) else row
+
+
 def build(claims: list, outcomes: list) -> dict:
     """The whole board from raw rows (pure function — easy to test)."""
     outs = {o["claim_id"]: o for o in outcomes}
@@ -179,6 +196,13 @@ def build(claims: list, outcomes: list) -> dict:
         elif outcome == "not_sure":
             health["not_sure"] += 1
         _add(final[(c.get("source"), topic)], c, outcome, hit)
+        if c.get("source") == TOPIC_READ:
+            tr = (c.get("engines") or {}).get("topic_read") or {}
+            if tr.get("kind") in ("best", "watch"):
+                # its own engine row per window kind: "did the good stretch hold" and
+                # "did the caution matter" are different claims and must not be blended
+                _add(engines[(f"topic_read:{tr['kind']}", topic)], c, outcome, hit)
+            continue          # not a Yes/No engine claim; the KP / event-engine scoring below is not for it
         cw = c.get("confidence_word") or ((c.get("engines") or {}).get("kp") or {}).get("lean")
         if cw:
             _add(calib[str(cw)], c, outcome, hit)
@@ -196,9 +220,9 @@ def build(claims: list, outcomes: list) -> dict:
         "rules": {"min_answers": MIN_N, "min_answer_rate": MIN_ANSWER_RATE,
                   "scores": SCORE, "holdout": "chart-id hash, halves A/B",
                   "baselines_available": bool(baselines)},
-        "final_answers": [dict(source=s, topic=t, **_finish(v, baselines.get(t)))
+        "final_answers": [_row_for(dict(source=s, topic=t, **_finish(v, baselines.get(t))), s)
                           for (s, t), v in sorted(final.items())],
-        "engines": [dict(engine=e, topic=t, **_finish(v, baselines.get(t)))
+        "engines": [_row_for(dict(engine=e, topic=t, **_finish(v, baselines.get(t))), e)
                     for (e, t), v in sorted(engines.items())],
         "calibration": [dict(word=w, **_finish(v, None)) for w, v in sorted(calib.items())],
         "health": dict(health, by_channel=dict(health["by_channel"])),
