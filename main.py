@@ -24957,6 +24957,9 @@ def _ask_lang_directive(language):
                 "Roman/Latin script, code-mixed with English the way an urban Indian "
                 "actually speaks (e.g. \"abhi aapka money window strong nahi hai, lekin "
                 "2027 mein khulega\"). Warm and conversational. Do NOT use Devanagari. "
+                "ALWAYS address the person respectfully as 'aap' (aap, aapka, aapki, aapko; "
+                "imperatives like 'kijiye', 'likhiye', 'dekhiye') — NEVER 'tu', 'tum', 'tera', 'tumhara', "
+                "'tujhe', and never '-o' / bare imperatives like 'karo', 'likho', 'kar'. "
                 "Keep every month/year, name, and the YES/NO verdict exactly as given.")
     if l == "hi":
         return ("\n\nLANGUAGE: Respond ENTIRELY in Hindi (Devanagari script). Keep every "
@@ -25130,6 +25133,11 @@ async def _ask_to_hinglish(text):
                 or (re.search(_REFUSAL_RX, raw) and not re.search(_REFUSAL_RX, text))
                 or ("\n\n" in raw and "\n\n" not in text)):
             return None
+        try:
+            from antar_engine import hinglish_register as _hreg2
+            raw = _hreg2.to_aap(raw)
+        except Exception:
+            pass
         return raw
     except Exception:
         return None
@@ -32151,6 +32159,14 @@ async def ask_endpoint(request: AskRequest):
                                 print(f"[ask][hinglish-fix] english sentence(s) in {_hf} rewritten for {chart_id[:8]}")
                 except Exception as _hfe:
                     print(f"[ask][hinglish-fix] skipped (non-fatal): {_hfe}")
+                # [hinglish-aap 2026-10-06] owner: Antar always says 'aap' — never 'tu / tum / tera'
+                try:
+                    from antar_engine import hinglish_register as _hreg
+                    for _hf in ("read", "next"):
+                        if isinstance(payload.get(_hf), str):
+                            payload[_hf] = _hreg.to_aap(payload[_hf])
+                except Exception as _hae:
+                    print(f"[ask][hinglish-aap] skipped (non-fatal): {_hae}")
             # [no-invented-role] a role they never stated is neutralised
             try:
                 if locals().get("_ask_compare"):
