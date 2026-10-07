@@ -261,6 +261,8 @@ def claims_to_decisions(claims: list, saved_rows: list, *, today: Optional[date]
         ws, we = _d(c.get("window_start")), _d(c.get("window_end"))
         if not we:
             continue
+        if ws and ws > we:      # a mis-parsed window ("Jan 2027 – Nov 2026"): put it in order
+            ws, we = we, ws
         seen.add(k)
         lang = lang_of(c.get("language"))
         out.append({

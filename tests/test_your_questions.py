@@ -73,6 +73,12 @@ def test_languages_es_pt_and_fallback():
     assert r["source"] == "From the app"
 
 
+def test_reversed_window_is_put_in_order():
+    r = sd.claims_to_decisions([claim(1, "Close a deal?", "2027-01-15", "2026-11-30")], [], today=TODAY)[0]
+    assert r["window_start"] == "2026-11-30" and r["window_end"] == "2027-01-15"
+    assert r["timing_label"] == "Nov 2026 – Jan 2027" and r["status"] == "upcoming"
+
+
 def test_claim_id_roundtrip():
     assert sd.parse_claim_decision_id(sd.claim_decision_id("abc")) == "abc"
     assert sd.parse_claim_decision_id("abc") is None and sd.parse_claim_decision_id("claim:") is None
