@@ -732,6 +732,21 @@ def whatsapp_status(sb, user_id: str) -> dict:
             "marketing_opt_in": can_send_marketing(r)}
 
 
+def card_state(out: dict) -> str:
+    """[wa-one-card] The single state the app's WhatsApp card renders: 'unavailable' (channel off — hide it),
+    'connected' (show status + Open chat) or 'not_connected' (show Connect)."""
+    if not out.get("available"):
+        return "unavailable"
+    return "connected" if out.get("linked") else "not_connected"
+
+
+def open_chat_link(digits: str) -> Optional[str]:
+    """wa.me link that opens the chat with Antar and nothing else — for someone who is already connected
+    (no code, no pre-typed text: they just start typing)."""
+    d = re.sub(r"\D", "", digits or "")
+    return f"https://wa.me/{d}" if d else None
+
+
 # ── WhatsApp conversation layer (UX spec 2026-10-02) ──
 # Per-number conversation state lives on the link row (messaging_links.context,
 # jsonb) because Railway runs several uvicorn workers — process memory isn't
