@@ -729,6 +729,20 @@ def _build_events(legacy_response: Dict[str, Any], period_start: _date,
         })
     # Stable sort by month then magnitude
     out.sort(key=lambda e: (e["month_index"], -e["magnitude"]))
+    # [yv2-dedupe 2026-10-06] Two distinct critical_dates in the same domain
+    # can humanize to the identical generic sentence (the templates key only on
+    # domain+polarity, not the specific event) — showing it twice reads as a
+    # bug. Collapse exact (domain, text) repeats, keeping the strongest, which
+    # the sort above already placed first.
+    _seen: set = set()
+    _deduped: List[Dict[str, Any]] = []
+    for _e in out:
+        _k = (_e["domain"], _e["text"])
+        if _k in _seen:
+            continue
+        _seen.add(_k)
+        _deduped.append(_e)
+    out = _deduped
     # [yv2-canonical-flush 2026-06-08] write the local counters back to the
     # stage trace dict. The first patch wired the increments but forgot to
     # flush them, so the live probe saw post_LK_gate=0 / post_narration=0
