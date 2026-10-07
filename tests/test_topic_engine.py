@@ -791,3 +791,137 @@ def test_reveal_route_empty_on_failure_and_404_unknown(main_mod, monkeypatch):
     with pytest.raises(HTTPException) as e:
         _run(main_mod.get_chart_reveal_lines("c1", "en", None))
     assert e.value.status_code == 404
+
+
+# ── tile status/tag come from the read the tile opens ────────────────────────
+def _fast_ctx(slow, fast):
+    """Aries lagna, Jupiter chapter. `fast` events only reach the 'today' scan
+    (include_fast=True); `slow` events are the multi-week feed."""
+    ctx = _synth("Jupiter", [])
+    ctx.events = lambda s, e, fast_on, _s=list(slow), _f=list(fast): [
+        x for x in (_s + (_f if fast_on else [])) if s.isoformat() <= x["date"] <= e.isoformat()]
+    return ctx
+
+
+def _burst(day):
+    return [_ev(day, "Jupiter", 2), _ev(day, "Venus", 2), _ev(day, "Mercury", 11), _ev(day, "Jupiter", 11)]
+
+
+def _january():
+    return [_ev(d, p, h) for d in ("2027-01-08", "2027-01-20", "2027-02-10")
+            for p, h in (("Jupiter", 2), ("Venus", 11), ("Mercury", 2), ("Jupiter", 11))]
+
+
+def _primary(read):
+    return read["best_window"] if read["tone"] == "open" else read["watch_window"] if read["tone"] == "care" else None
+
+
+def test_the_observed_money_case_is_not_upcoming_when_today_is_already_open():
+    """2026-10-07: tile said 'window opens Jan' while its own read said today is a good stretch."""
+    ctx = _fast_ctx(_january(), _burst("2026-10-07"))
+    read = T.read_topic(ctx, "money", T.best_fit_scale(ctx, "money", TODAY), TODAY, "en")
+    assert read["tone"] == "open" and _primary(read)["start"] == "2026-10-07"
+    money = {r["key"]: r for r in T.rank_topics(ctx, TODAY, "en")}["money"]
+    assert money["status"] == "active" and money["tag"] == "active now" and money["tone"] == "open"
+
+
+def _stub(monkeypatch, reads, opening=None):
+    now = {k: {"score": 0.0, "lit": False, "mode": "steady"} for k in T.TOPIC_KEYS}
+    monkeypatch.setattr(T, "_now_assessments", lambda c, t: now)
+    monkeypatch.setattr(T, "_next_opening", lambda c, k, t: opening)
+    monkeypatch.setattr(T, "_tile_read", lambda c, k, t: reads.get(k, ("steady", None)))
+
+
+def test_upcoming_names_the_month_of_the_reads_own_window(monkeypatch):
+    win = {"start": "2027-01-05", "end": "2027-06-03"}
+    _stub(monkeypatch, {"money": ("open", {"best_window": win, "watch_window": None})},
+          opening=(date(2026, 11, 20), "open"))
+    row = {r["key"]: r for r in T.rank_topics(_synth(), TODAY, "en")}["money"]
+    assert row["status"] == "upcoming" and row["tag"] == "window opens Jan"   # not Nov, the unrelated opening
+
+
+def test_a_read_without_a_window_is_never_upcoming(monkeypatch):
+    _stub(monkeypatch, {"money": ("steady", {"best_window": None, "watch_window": None})},
+          opening=(date(2026, 11, 20), "open"))
+    row = {r["key"]: r for r in T.rank_topics(_synth(), TODAY, "en")}["money"]
+    assert row["status"] != "upcoming"
+
+
+def test_window_within_two_days_gets_near_term_words_then_a_month_after(monkeypatch):
+    mk = lambda s: {"health": ("care", {"best_window": None, "watch_window": {"start": s, "end": "2026-10-20"}})}
+    _stub(monkeypatch, mk("2026-10-09"), opening=(date(2027, 1, 5), "care"))
+    row = {r["key"]: r for r in T.rank_topics(_synth(), TODAY, "en")}["health"]
+    assert (row["status"], row["tag"], row["tone"]) == ("steady", "take care this week", "care")
+    _stub(monkeypatch, mk("2026-10-10"), opening=(date(2027, 1, 5), "care"))
+    row = {r["key"]: r for r in T.rank_topics(_synth(), TODAY, "en")}["health"]
+    assert (row["status"], row["tag"]) == ("upcoming", "take care from Oct")
+
+
+def test_promoted_running_windows_obey_the_active_cap_and_relative_cut(monkeypatch):
+    w = {"start": TODAY.isoformat(), "end": TODAY.isoformat()}
+    _stub(monkeypatch, {k: ("open", {"best_window": w, "watch_window": None}) for k in T.TOPIC_KEYS})
+    monkeypatch.setattr(T, "_near_score", lambda c, k, t, s: {"money": 6.0, "career": 5.0, "love": 4.6,
+                                                              "health": 4.4, "business": 3.6}.get(k, 3.5))
+    rows = {r["key"]: r for r in T.rank_topics(_synth(), TODAY, "en")}
+    active = [k for k, r in rows.items() if r["status"] == "active"]
+    assert 1 <= len(active) <= T.ACTIVE_CAP and rows["money"]["status"] == "active"
+    assert all(rows[k]["tag"] == "open this week" and rows[k]["status"] == "steady"
+               for k in rows if k not in active)
+    order = [r["status"] for r in sorted(rows.values(), key=lambda r: r["rank"])]
+    assert order == sorted(order, key=["active", "upcoming", "steady", "quiet"].index)
+
+
+def _tag_is(lang, tag, name):
+    pat = T.C.TAG[lang][name]
+    if "{mon}" in pat:
+        pre, post = pat.split("{mon}")
+        return tag.startswith(pre) and tag.endswith(post)
+    return tag == pat
+
+
+@pytest.mark.parametrize("lang", ["en", "es", "pt", "hinglish"])
+def test_tile_status_tag_tone_and_read_agree(ctxs, lang):
+    """4 charts x 7 topics x 3 dates x 4 languages. The window a tag names exists
+    in topic-read at best_fit_scale, and nothing 'upcoming' is already running."""
+    care_names, open_names = ("care", "care_from", "steady_care", "care_soon"), ("active", "open", "steady_open", "open_soon")
+    for ctx in ctxs:
+        for d in _DATES3:
+            lim = d + timedelta(days=T.NEAR_DAYS)
+            for r in T.rank_topics(ctx, d, lang):
+                k = r["key"]
+                fit = T.best_fit_scale(ctx, k, d)
+                read = T.read_topic(ctx, k, fit, d, "en")
+                where = (ctx.chart_id, str(d), k, r)
+                assert read["best_fit_scale"] == fit and r["tone"] == read["tone"], where
+                w = _primary(read)
+                if r["status"] == "upcoming":
+                    assert w, where
+                    s = date.fromisoformat(w["start"])
+                    assert s > lim, where
+                    name = "care_from" if r["tone"] == "care" else "open"
+                    assert r["tag"] == T.C.TAG[lang][name].format(mon=T.C.month_name(s, lang)), where
+                elif w and r["status"] != "active" and date.fromisoformat(w["start"]) <= lim:
+                    assert r["status"] == "steady" and r["tone"] in ("open", "care"), where
+                for name, tone in (("open_soon", "open"), ("care_soon", "care")):
+                    if _tag_is(lang, r["tag"], name):
+                        assert r["tone"] == tone and w and date.fromisoformat(w["start"]) <= lim, where
+                if r["tone"] == "open":
+                    assert not any(_tag_is(lang, r["tag"], n) for n in care_names), where
+                if r["tone"] == "care":
+                    assert not any(_tag_is(lang, r["tag"], n) for n in open_names), where
+
+
+def test_best_fit_scale_is_the_scale_that_shows_the_window():
+    """Nothing today or this month, a window in the season: the default chip is the season."""
+    ctx = _fast_ctx(_january(), [])
+    assert T.best_fit_scale(ctx, "money", TODAY) == "season"
+    read = T.read_topic(ctx, "money", "season", TODAY, "en")
+    assert read["best_window"]["start"].startswith("2027-01") and read["best_fit_scale"] == "season"
+    row = {r["key"]: r for r in T.rank_topics(ctx, TODAY, "en")}["money"]
+    assert (row["status"], row["tag"]) == ("upcoming", "window opens Jan")
+
+
+def test_near_term_copy_exists_in_every_language_and_hindi_falls_back():
+    for lang in LANGS:
+        assert T.C.TAG[lang]["open_soon"] and T.C.TAG[lang]["care_soon"]
+    assert T.C.serve_language("hi") == "en"

@@ -74,17 +74,21 @@ AREA: Dict[str, Dict[str, str]] = {
 TAG: Dict[str, Dict[str, str]] = {
     "en": {"active": "active now", "care": "needs care now", "open": "window opens {mon}",
            "care_from": "take care from {mon}", "quiet": "quiet", "steady": "steady",
-           "steady_open": "steady, a good window", "steady_care": "steady, go gently"},
+           "steady_open": "steady, a good window", "steady_care": "steady, go gently",
+           "open_soon": "open this week", "care_soon": "take care this week"},
     "es": {"active": "activo ahora", "care": "pide cuidado ahora", "open": "se abre una ventana en {mon}",
            "care_from": "cuidado desde {mon}", "quiet": "tranquilo", "steady": "estable",
-           "steady_open": "estable, con buena ventana", "steady_care": "estable, con calma"},
+           "steady_open": "estable, con buena ventana", "steady_care": "estable, con calma",
+           "open_soon": "abierto esta semana", "care_soon": "cuidado esta semana"},
     "pt": {"active": "ativo agora", "care": "pede cuidado agora", "open": "uma janela abre em {mon}",
            "care_from": "cuidado a partir de {mon}", "quiet": "tranquilo", "steady": "estável",
-           "steady_open": "estável, com boa janela", "steady_care": "estável, com calma"},
+           "steady_open": "estável, com boa janela", "steady_care": "estável, com calma",
+           "open_soon": "aberto esta semana", "care_soon": "cuidado esta semana"},
     "hinglish": {"active": "abhi active", "care": "abhi dhyaan chahiye",
                  "open": "{mon} mein window khulegi", "care_from": "{mon} se dhyaan rakhein",
                  "quiet": "shaant", "steady": "sthir",
-                 "steady_open": "sthir, achhi window", "steady_care": "sthir, dheere chalein"},
+                 "steady_open": "sthir, achhi window", "steady_care": "sthir, dheere chalein",
+                 "open_soon": "is hafte window khuli hai", "care_soon": "is hafte dhyaan rakhein"},
 }
 
 MONTHS: Dict[str, tuple] = {
