@@ -107,7 +107,7 @@ def test_missing_table_is_unavailable_not_a_crash():
 
 def test_every_text_has_all_languages():
     for k, v in wl.T.items():
-        assert set(v) == {"en", "es", "pt", "hinglish"}, k
+        assert set(v) == {"en", "es", "pt", "hinglish", "hi"}, k
 
 
 # ── through the real handler / endpoints ──────────────────────────────────────

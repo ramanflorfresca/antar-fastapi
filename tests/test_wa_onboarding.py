@@ -116,7 +116,7 @@ def test_stale_and_every_key_has_all_languages():
     assert wo.is_stale(None) and wo.is_stale({"updated": 1})
     assert not wo.is_stale({"updated": wo.time.time()})
     for k, v in wo.T.items():
-        assert set(v) == {"en", "es", "pt", "hinglish"}, k
+        assert set(v) == {"en", "es", "pt", "hinglish", "hi"}, k
 
 
 class _SB:

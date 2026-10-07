@@ -1189,6 +1189,13 @@ def _detect_english_leak(signal_json: dict, language: str) -> list:
             all_text += ' ' + str(w.get('text', '')).lower()
     words_in_text = set(_re_val.findall(r'\b[a-záéíóúñüàèìòù]+\b', all_text))
     leaks = list(_ENGLISH_LEAK_WORDS & words_in_text)
+    if language == 'hi':
+        # [hi 2026-10-07] Devanagari Hindi: the Latin-word list above cannot see a Roman-script or
+        # English card, so test the SCRIPT. The response-time Devanagari gate (translation_middleware)
+        # is what actually repairs it; this makes the leak visible in the validation log.
+        from antar_engine.hindi_guard import text_is_hindi as _hi_ok
+        if not _hi_ok(all_text):
+            leaks.append('non_devanagari_output')
     # FIX E: Also detect instrument name phrases (multi-word)
     for inst in _INSTRUMENT_NAMES_EN:
         if inst in all_text:

@@ -2,16 +2,19 @@
 Antar Language Utilities
 """
 
-VALID_LANGUAGES = {"en", "hi", "hinglish", "es", "pt", "fr"}
+# [hi 2026-10-07] single registry — antar_engine/lang_registry.py
+from antar_engine.lang_registry import SUPPORTED_LANGUAGES as _REGISTRY
+VALID_LANGUAGES = set(_REGISTRY)
 VALID_REMEDY_STYLES = {"traditional", "secular"}
 
 _LANGUAGE_BLOCKS = {
     "hi": (
-        "LANGUAGE INSTRUCTION: Respond ENTIRELY in Hindi using Devanagari script.\n"
-        "Use formal, respectful Hindi. Do not mix in English words.\n"
-        "All numbers, dates, percentages in standard numerals (87%, April 15).\n"
-        "Never translate: Antar, Seeker, Navigator.\n"
-        "No Sanskrit astrological terms — use plain Hindi.\n\n"
+        "LANGUAGE INSTRUCTION: Respond ENTIRELY in Hindi using Devanagari script (हिन्दी).\n"
+        "NEVER write Hindi in Roman letters (that is Hinglish, a different language setting) and never an English sentence.\n"
+        "Address the reader respectfully as 'आप' (आपका, आपकी, आपको) — never 'तू' or 'तुम'.\n"
+        "Use plain, warm Hindi. Do not mix in English words except proper nouns.\n"
+        "All numbers, dates, percentages in standard numerals (87%, 15 अप्रैल).\n"
+        "Never translate: Antar. No Sanskrit astrological jargon — use plain Hindi.\n\n"
     ),
     "hinglish": (
         "LANGUAGE INSTRUCTION: Respond in Hinglish — casual Hindi-English mix in Roman script.\n"

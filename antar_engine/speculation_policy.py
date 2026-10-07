@@ -86,7 +86,9 @@ _T = {
 
 def _lang(language: str) -> str:
     l = (language or "en").lower()
-    return "hinglish" if l.startswith("hi") else (l[:2] if l[:2] in ("es", "pt") else "en")
+    # [hi 2026-10-07] only Roman-script Hinglish takes the Hinglish copy; Devanagari "hi" gets
+    # English here and Ask's Devanagari guard translates the finished answer.
+    return "hinglish" if l.startswith("hinglish") or l == "hi-latn" else (l[:2] if l[:2] in ("es", "pt") else "en")
 
 
 def natal_read(chart_data: dict, dashas: dict, birth_date: str) -> Optional[dict]:

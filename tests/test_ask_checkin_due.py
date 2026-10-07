@@ -62,7 +62,7 @@ def test_a_replayed_locked_answer_is_not_a_new_claim():
     ("es",       "Antar volverá a preguntarte en febrero."),
     ("pt",       "O Antar vai voltar a perguntar em fevereiro."),
     ("hinglish", "Antar aapse February mein dobara poochhega."),
-    ("hi",       "Antar aapse February mein dobara poochhega."),
+    ("hi",       "Antar फ़रवरी में आपसे फिर पूछेगा।"),     # Devanagari — never the Roman copy
 ])
 def test_checkin_note_speaks_the_language_the_answer_was_written_in(lang, expected):
     """The FE built this line itself in en/es/pt only, so a Hinglish answer

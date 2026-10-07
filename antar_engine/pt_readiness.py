@@ -55,6 +55,16 @@ FR_READY = {
     "practices-schedule": True, # [loc-3] middleware-routed
 }
 
+# [hi 2026-10-07] Hindi (Devanagari). Response-time translated surfaces are served in
+# Hindi (the translator is script-gated). The SOURCE-GENERATED surfaces below have no
+# translation pass and no native Hindi prompt, so they are served in English —
+# explicitly (the gate logs it), never a silent Hinglish/English swap. Flip to True
+# only after the surface is wired through the translator and read by a native speaker.
+HI_READY = {
+    "welcome": False,
+    "weekly-briefing": False,
+}
+
 _DEFAULT = True
 
 
@@ -65,10 +75,19 @@ def gate_language(surface: str, language: str, default: bool = _DEFAULT) -> str:
     downgrades pt -> en when the surface is not PT-ready. es is never
     substituted for pt.
     """
-    lang = (language or "en").split("-")[0].lower()
-    if lang not in ("en", "es", "pt", "fr"):
+    lang = (language or "en").strip().lower().replace("_", "-")
+    if lang in ("hi-latn", "hinglish"):
+        # Roman-script Hindi is not a translated language on any gated surface.
+        # Explicit English (unchanged behaviour), never a guess at another language.
         return "en"
-    _registry = {"pt": PT_READY, "fr": FR_READY}.get(lang)
+    lang = lang.split("-")[0]
+    if lang not in ("en", "es", "pt", "fr", "hi"):
+        return "en"
+    _registry = {"pt": PT_READY, "fr": FR_READY, "hi": HI_READY}.get(lang)
     if _registry is not None and not _registry.get(surface, default):
+        if lang == "hi":
+            import logging
+            logging.getLogger(__name__).warning(
+                "[lang-gate] surface=%s requested=hi served=en (not Hindi-ready)", surface)
         return "en"
     return lang

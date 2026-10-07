@@ -371,7 +371,10 @@ def apply_alloc_opener(read: str, case: str, language: str = "en", name: str = "
     tmpl = (openers.get(case) or {})
     if not tmpl or not isinstance(read, str):
         return read
-    lang = "hi" if (language or "en").lower() in ("hi", "hinglish") else (language or "en").lower()[:2]
+    _l = (language or "en").lower()
+    # [hi 2026-10-07] the "hi" column here is Roman-script Hinglish; Devanagari "hi" gets English
+    # (Ask's Devanagari guard translates the finished answer) — never the Roman copy.
+    lang = "hi" if _l in ("hinglish", "hi-latn") else ("en" if _l[:2] == "hi" else _l[:2])
     op = (tmpl.get(lang) or tmpl["en"]).format(n=(f"{name}, " if name else ""))
     op = op[0].upper() + op[1:]
     for i in range(2):   # the narrator's own verdict sentence(s) at the top

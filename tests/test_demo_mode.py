@@ -186,5 +186,5 @@ def test_demo_chart_is_exempt_from_the_free_tier_ask_quota():
     dm._CACHE.update(id=None, at=0.0)
     assert not dm.is_demo_chart(DEMO)               # nothing configured → nobody is exempt
     import inspect, main
-    src = inspect.getsource(main.ask_endpoint)
+    src = inspect.getsource(main._ask_endpoint_impl)
     assert "is_demo_chart" in src and "_ask_bypass_cap" in src.split("is_demo_chart", 1)[1][:600]

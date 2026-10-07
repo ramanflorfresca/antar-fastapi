@@ -87,7 +87,7 @@ def test_question_and_note_are_bounded():
     ("en", "Your window is open"),
     ("es", "Tu ventana está abierta"),
     ("pt", "Sua janela está aberta"),
-    ("hi", "Aapki window khul gayi"),
+    ("hi", "आपकी समय-खिड़की खुल गई"),     # Devanagari Hindi — not the Roman Hinglish copy
     ("hinglish", "Aapki window khul gayi"),
 ])
 def test_the_reminder_speaks_the_language_the_decision_was_saved_in(lang, needle):

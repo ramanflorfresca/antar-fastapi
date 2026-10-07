@@ -92,7 +92,7 @@ def build_translation_system_prompt(language_name: str, language_code: str) -> s
     planet_lines = [f"  - {en} → {target}" for en, target in planet_translations.items()]
     planet_block = "\n".join(planet_lines)
 
-    return f"""You are a translator for Antar, a Vedic astrology platform.
+    prompt = f"""You are a translator for Antar, a Vedic astrology platform.
 
 Translate English strings into {language_name} while preserving the following rules:
 
@@ -140,3 +140,25 @@ Translate English strings into {language_name} while preserving the following ru
    This ensures each piece of UI text is self-explanatory even when shown in isolation.
 
 Return ONLY the JSON object. No preamble, no markdown code fences."""
+    if language_code == "hi":
+        prompt += _HINDI_RULES
+    return prompt
+
+
+# [hi 2026-10-07] Hindi (Devanagari) register. Hindi is NOT Hinglish: no Roman-script
+# Hindi, no English sentences. Latin script survives only for the brand name, numbers
+# and proper nouns the reader typed themselves.
+_HINDI_RULES = """
+
+7. HINDI (DEVANAGARI) — overrides the Spanish/Portuguese notes above:
+   - Write in Devanagari script ONLY. NEVER Roman-script Hindi ("aapka career...") and
+     never an English sentence. Every value must read as natural Hindi.
+   - Address the reader respectfully as "आप" (आपका, आपकी, आपको) — never "तू"/"तुम".
+   - Planet names in Devanagari: Sun सूर्य, Moon चंद्र, Mars मंगल, Mercury बुध,
+     Jupiter गुरु, Venus शुक्र, Saturn शनि, Rahu राहु, Ketu केतु.
+   - Sanskrit terms (Mahadasha etc.) become Devanagari (महादशा) with the same
+     first-use parenthetical, written in Hindi.
+   - Keep "Antar", digits, percentages and dates' numerals as written. Months and
+     weekdays in Hindi (जनवरी, फ़रवरी, ... सोमवार).
+   - Do not leave any English word except "Antar" and a person's/place's proper name.
+"""

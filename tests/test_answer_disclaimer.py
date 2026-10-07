@@ -49,7 +49,7 @@ def test_fertility_answer_gets_a_medical_disclaimer():
     ("en", "not a diagnosis"),
     ("es", "no es un diagnóstico"),
     ("pt", "não é diagnóstico"),
-    ("hi", "diagnosis nahi"),
+    ("hi", "निदान नहीं"),                # Devanagari Hindi — NOT the Roman Hinglish copy
     ("hinglish", "diagnosis nahi"),
 ])
 def test_disclaimer_speaks_the_answers_language(lang, needle):

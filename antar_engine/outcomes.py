@@ -155,6 +155,8 @@ _NOTE_MONTHS = {
            "agosto", "septiembre", "octubre", "noviembre", "diciembre"],
     "pt": ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho",
            "agosto", "setembro", "outubro", "novembro", "dezembro"],
+    "hindi": ["जनवरी", "फ़रवरी", "मार्च", "अप्रैल", "मई", "जून", "जुलाई",
+              "अगस्त", "सितंबर", "अक्टूबर", "नवंबर", "दिसंबर"],
 }
 # en and Hinglish both use the English month name — romanised Hindi says
 # "February", not "फ़रवरी".
@@ -163,13 +165,17 @@ _NOTE_TMPL = {
     "es": "Antar volverá a preguntarte en {m}.",
     "pt": "O Antar vai voltar a perguntar em {m}.",
     "hi": "Antar aapse {m} mein dobara poochhega.",
+    "hindi": "Antar {m} में आपसे फिर पूछेगा।",
 }
 
 
 def _note_lang(language) -> str:
     l = str(language or "en").strip().lower()
-    if l in ("hi", "hinglish") or l.startswith("hi"):
+    # [hi 2026-10-07] "hi" = Devanagari ("hindi" copy); legacy "hi" key = Roman Hinglish
+    if l in ("hinglish", "hi-latn") or l.startswith("hinglish"):
         return "hi"
+    if l in ("hi", "hindi") or l.startswith("hi-") or l.startswith("hi_"):
+        return "hindi"
     b = l.split("_")[0].split("-")[0][:2]
     return b if b in ("es", "pt") else "en"
 

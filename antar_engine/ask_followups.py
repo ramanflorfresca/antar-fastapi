@@ -349,7 +349,11 @@ def _norm(s: str) -> str:
 
 def _lang(language: str) -> str:
     l = (language or "en").lower()
-    return "hi" if l in ("hinglish", "hi") else (l[:2] if l[:2] in _Q else "en")
+    # [hi 2026-10-07] the internal "hi" tables are ROMAN-script Hinglish. Devanagari "hi" takes the
+    # English pool; Ask's Devanagari guard translates the chips (and drops any it cannot).
+    if l in ("hinglish", "hi-latn"):
+        return "hi"
+    return "en" if l[:2] == "hi" else (l[:2] if l[:2] in _Q else "en")
 
 
 def pick(bucket: str, question: str, language: str = "en", answered_when: bool = False,

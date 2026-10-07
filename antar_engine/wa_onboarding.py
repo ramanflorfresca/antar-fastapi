@@ -37,18 +37,42 @@ _MONTH_FIRST = {"US", "CA", "PH"}
 
 # ── parsers ────────────────────────────────────────────────────────────────
 
+# [hi 2026-10-07] Devanagari input. Digits and the handful of Hindi words the parsers
+# key on are folded to the Latin forms they already understand, so a Hindi reader can
+# answer the Hindi prompts in Hindi ("१४ मार्च १९९०", "सुबह ६:४०", "पता नहीं", "नाम").
+_DEV_DIGITS = str.maketrans("०१२३४५६७८९", "0123456789")
+_DEV_FOLD = (
+    ("जनवरी", "january"), ("फ़रवरी", "february"), ("फरवरी", "february"), ("मार्च", "march"),
+    ("अप्रैल", "april"), ("मई", "may"), ("जून", "june"), ("जुलाई", "july"), ("अगस्त", "august"),
+    ("सितंबर", "september"), ("सितम्बर", "september"), ("अक्टूबर", "october"),
+    ("अक्तूबर", "october"), ("नवंबर", "november"), ("नवम्बर", "november"),
+    ("दिसंबर", "december"), ("दिसम्बर", "december"),
+    ("पता नहीं", "pata nahi"), ("मालूम नहीं", "maloom nahi"), ("आधी रात", "midnight"),
+    ("दोपहर", "noon"), ("सुबह", "morning"), ("शाम", "evening"), ("रात", "night"), ("लगभग", "lagbhag"),
+)
+
+
+def _deva(text: str) -> str:
+    t = (text or "").translate(_DEV_DIGITS)
+    for hi, lat in _DEV_FOLD:
+        if hi in t:
+            t = t.replace(hi, f" {lat} ")
+    return t
+
+
 _NAME_LEAD = re.compile(
     r"^\s*(?:hi+|hello|hola|ol[aá]|namaste|hey)?[\s,!.]*"
     r"(?:my name is|i am|i'm|im|this is|me llamo|mi nombre es|soy|meu nome [eé]|eu sou|me chamo|"
-    r"mera naam|mera nam|main)?\s*", re.I)
+    r"mera naam|mera nam|main|मेरा नाम(?: है)?|मैं|मेरा नाम)?\s*", re.I)
 
 
 def parse_name(text: str) -> Optional[str]:
     t = _NAME_LEAD.sub("", (text or "").strip(), count=1).strip(" .!,")
-    t = re.sub(r"\s+(?:hai|here|aqui|aquí)$", "", t, flags=re.I)
+    t = re.sub(r"\s+(?:hai|here|aqui|aquí|है|हूँ|हूं)$", "", t, flags=re.I)
     if not t or len(t) > 60 or "?" in t or re.search(r"\d", t) or len(t.split()) > 5:
         return None
-    if not re.fullmatch(r"[^\W\d_]+(?:[ '\-.][^\W\d_]+)*", t, flags=re.UNICODE):
+    if not re.fullmatch(r"[^\W\d_\u0900-\u097F]+(?:[ '\-.][^\W\d_\u0900-\u097F]+)*|"
+                        r"[\u0900-\u0963\u0966-\u097F]+(?: [\u0900-\u0963\u0966-\u097F]+)*", t, flags=re.UNICODE):
         return None
     return " ".join(w[:1].upper() + w[1:] for w in t.split())
 
@@ -56,7 +80,7 @@ def parse_name(text: str) -> Optional[str]:
 def parse_dob(text: str, country: str = "") -> tuple:
     """(iso_date | None, ambiguous). `ambiguous` = 04/05/1990 style where day/month could swap; the
     caller still echoes the month as a word at the confirm step, which is what catches a wrong guess."""
-    t = (text or "").strip().lower()
+    t = _deva(text).strip().lower()
     t = re.sub(r"(\d)(st|nd|rd|th)\b", r"\1", t)
     t = t.replace(",", " ").replace(" of ", " ").replace(" de ", " ")
     today = date.today()
@@ -103,7 +127,7 @@ _UNKNOWN_TIME = re.compile(
 def parse_tob(text: str) -> Optional[tuple]:
     """(HH:MM, accuracy) — accuracy ∈ exact | approximate | unknown (birth_time_confidence.py's vocabulary).
     'unknown' gets 12:00 so a chart can still be built; the engine hedges house claims for it."""
-    t = (text or "").strip().lower().replace(".", "")
+    t = _deva(text).strip().lower().replace(".", "")
     if _UNKNOWN_TIME.search(t):
         return "12:00", "unknown"
     approx = bool(re.search(r"around|about|approx|roughly|aprox|alrededor|mas o menos|mais ou menos|"
@@ -143,14 +167,16 @@ def parse_tob(text: str) -> Optional[tuple]:
 
 
 _YES = {"yes", "y", "yeah", "yep", "ok", "okay", "correct", "right", "si", "sí", "sim", "correcto", "certo",
-        "haan", "han", "ha", "theek", "sahi", "confirm", "confirmo", "👍", "✅"}
-_NO = {"no", "n", "nope", "wrong", "incorrect", "nao", "não", "nahi", "nahin", "galat", "incorrecto", "errado"}
+        "haan", "han", "ha", "theek", "sahi", "confirm", "confirmo", "👍", "✅",
+        "हाँ", "हां", "जी", "जी हाँ", "जी हां", "ठीक", "ठीक है", "सही", "सही है"}
+_NO = {"no", "n", "nope", "wrong", "incorrect", "nao", "não", "nahi", "nahin", "galat", "incorrecto", "errado",
+       "नहीं", "नही", "ना", "गलत", "ग़लत", "गलत है"}
 
 
 def parse_yes_no(text: str, choice_id: str = "") -> Optional[str]:
     if choice_id in ("wob:yes", "wob:no"):
         return choice_id.split(":")[1]
-    t = re.sub(r"[^\w\sñáéíóúãç👍✅]", "", (text or "").lower()).strip()
+    t = re.sub(r"[^\w\sñáéíóúãç👍✅\u0900-\u0963]", "", (text or "").lower()).strip()
     if t in _YES or t.startswith(("yes ", "si ", "sí ", "haan ", "correct ")):
         return "yes"
     if t in _NO or t.startswith(("no ", "nahi ", "wrong ")):
@@ -158,9 +184,11 @@ def parse_yes_no(text: str, choice_id: str = "") -> Optional[str]:
     return None
 
 
-_FIX = {"name": ("name", "nombre", "nome", "naam"), "dob": ("date", "fecha", "data", "tareekh", "dob"),
-        "tob": ("time", "hora", "samay", "waqt"), "pob": ("place", "lugar", "local", "jagah", "city", "ciudad"),
-        "current": ("current", "now", "actual", "agora", "abhi", "live")}
+_FIX = {"name": ("name", "nombre", "nome", "naam", "नाम"),
+        "dob": ("date", "fecha", "data", "tareekh", "dob", "तारीख़", "तारीख", "तिथि"),
+        "tob": ("time", "hora", "samay", "waqt", "समय"),
+        "pob": ("place", "lugar", "local", "jagah", "city", "ciudad", "जगह", "स्थान", "शहर"),
+        "current": ("current", "now", "actual", "agora", "abhi", "live", "अभी", "वर्तमान")}
 
 
 def parse_fix(text: str, choice_id: str = "") -> Optional[str]:
@@ -168,13 +196,13 @@ def parse_fix(text: str, choice_id: str = "") -> Optional[str]:
         return choice_id.split(":")[2]
     t = (text or "").lower()
     for step, words in _FIX.items():
-        if any(re.search(rf"\b{w}\b", t) for w in words):
+        if any((w in t) if ord(w[0]) > 0x900 else re.search(rf"\b{w}\b", t) for w in words):
             return step
     return None
 
 
 _SKIP = re.compile(r"^\s*(skip|saltar|omitir|pular|pass|later|despu[eé]s|depois|baad mein|no thanks|"
-                   r"prefiero no|prefiro n[aã]o)\s*[.!]?\s*$", re.I)
+                   r"prefiero no|prefiro n[aã]o|छोड़ें|छोड़ो|स्किप|बाद में)\s*[.!]?\s*$", re.I)
 
 
 def is_skip(text: str) -> bool:
@@ -275,6 +303,20 @@ _TOB_LABEL = {
 }
 
 
+# [hi 2026-10-07] Devanagari Hindi column (kept in wa_hi.py with the other WhatsApp Hindi copy)
+from antar_engine import wa_hi as _wa_hi
+for _k, _v in _wa_hi.ONBOARDING_HI.items():
+    T[_k]["hi"] = _v
+_CUR_LINE["hi"] = _wa_hi.ONBOARDING_CUR_HI
+for _acc, _lab in _wa_hi.ONBOARDING_TOB_HI.items():
+    _TOB_LABEL[_acc]["hi"] = _lab
+_TOB_LABEL["unknown"]["hi"] = _wa_hi.ONBOARDING_TOB_UNKNOWN_HI
+
+
+_HI_MONTH = ("जनवरी", "फ़रवरी", "मार्च", "अप्रैल", "मई", "जून", "जुलाई", "अगस्त", "सितंबर",
+             "अक्टूबर", "नवंबर", "दिसंबर")
+
+
 def text(key: str, lang: str, **kw) -> str:
     s = T[key].get(lang) or T[key]["en"]
     return s.format(**kw) if kw else s
@@ -284,7 +326,11 @@ def confirm_text(st: dict, lang: str) -> str:
     acc = st.get("tob_acc") or "exact"
     tob = (_TOB_LABEL.get(acc) or _TOB_LABEL["exact"]).get(lang, "{t}").format(t=st.get("tob", ""))
     cur = _CUR_LINE.get(lang, _CUR_LINE["en"]).format(c=st["current"]) if st.get("current") else ""
-    return text("confirm", lang, name=st.get("name", ""), dob=fmt_date(st["dob"]), tob=tob,
+    dob = fmt_date(st["dob"])
+    if lang == "hi":   # [hi] Hindi month name inside the Hindi confirm message
+        y, m, d = (int(x) for x in st["dob"].split("-"))
+        dob = f"{d} {_HI_MONTH[m - 1]} {y}"
+    return text("confirm", lang, name=st.get("name", ""), dob=dob, tob=tob,
                 pob=st.get("pob_label") or st.get("pob", ""), tz=st.get("tz_label") or "—", cur=cur)
 
 

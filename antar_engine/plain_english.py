@@ -488,7 +488,8 @@ async def generate_plain_english(
         )
     elif _lang and _lang.lower() in ("hi", "hindi"):
         user_message = (
-            "CRITICAL: Respond in Hindi. All JSON fields in Hindi only.\n\n"
+            "CRITICAL: Respond in Hindi written in Devanagari script (never Roman letters). "
+            "All JSON fields in Devanagari Hindi only.\n\n"
             + user_message
         )
 

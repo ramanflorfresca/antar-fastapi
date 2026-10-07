@@ -135,7 +135,7 @@ def format_ask_for_telegram(payload: dict, language: str = "en") -> str:
         lines.append(read)
     timing = (p.get("timing") or "").strip()
     if timing and timing.lower() not in read.lower():
-        lines.append({"es": "🗓 Ventana: ", "pt": "🗓 Janela: "}.get(language, "🗓 Window: ") + timing)
+        lines.append({"es": "🗓 Ventana: ", "pt": "🗓 Janela: ", "hi": "🗓 समय-खिड़की: "}.get(language, "🗓 Window: ") + timing)
     nxt = (p.get("next") or "").strip()
     if nxt:
         lines.append(("→ " + nxt))
@@ -151,12 +151,14 @@ def format_ask_for_telegram(payload: dict, language: str = "en") -> str:
         lines.append(re.sub(r"\s+", " ", dz.strip()))
     sq = [q for q in (p.get("suggested_questions") or []) if isinstance(q, str) and q.strip()][:3]
     if sq:
-        head = {"es": "También puedes preguntar:", "pt": "Você também pode perguntar:"}.get(
+        head = {"es": "También puedes preguntar:", "pt": "Você também pode perguntar:",
+                "hi": "आप यह भी पूछ सकते हैं:"}.get(
             language, "You could also ask:")
         lines.append(head + "\n" + "\n".join("• " + q for q in sq))
     out = "\n\n".join(lines).strip()
     return out or {"es": "No pude leer una señal clara ahora — intenta de nuevo en un momento.",
                    "pt": "Não consegui ler um sinal claro agora — tente novamente em instantes.",
+                   "hi": "अभी मैं कोई साफ़ संकेत नहीं पढ़ पाया — कृपया थोड़ी देर बाद फिर कोशिश कीजिए।",
                    }.get(language, "I couldn't read a clear signal just now — try again in a moment.")
 
 
@@ -257,9 +259,12 @@ def can_send_marketing(link: Optional[dict]) -> bool:
 WA_POLICY_URL = os.getenv("WA_POLICY_URL") or "https://antar.world/privacy"
 _POLICY_YES = frozenset({"acepto", "accept", "i accept", "accepted", "aceito", "aceptar", "aceitar", "yes i accept",
                          "si acepto", "sí acepto", "sim aceito", "manzoor", "manzoor hai", "agree", "i agree",
-                         "de acuerdo", "concordo", "1"})
+                         "de acuerdo", "concordo", "1",
+                         # [hi 2026-10-07] Devanagari
+                         "स्वीकार", "स्वीकार है", "मंज़ूर", "मंजूर", "सहमत", "हाँ स्वीकार", "हां स्वीकार"})
 _POLICY_NO = frozenset({"no acepto", "no", "não", "nao", "não aceito", "nao aceito", "decline", "i decline",
-                        "don't accept", "do not accept", "nahi", "manzoor nahi", "2"})
+                        "don't accept", "do not accept", "nahi", "manzoor nahi", "2",
+                        "स्वीकार नहीं", "मंज़ूर नहीं", "मंजूर नहीं", "नहीं", "नही", "ना"})
 
 
 TERMS_URL = os.getenv("WA_TERMS_URL") or "https://antar.world/terms"
@@ -269,10 +274,12 @@ def parse_optin_reply(body: str, choice_id: str = "") -> Optional[str]:
     """'yes' / 'no' to an optional alerts / offers / training question (buttons or typed)."""
     if choice_id.startswith("opt:"):
         return choice_id.rsplit(":", 1)[-1] if choice_id.rsplit(":", 1)[-1] in ("yes", "no") else None
-    t = (body or "").strip().lower().strip(" .!¡?¿*")
-    if t in ("yes", "y", "si", "sí", "sim", "haan", "ha", "1", "yes please", "claro", "ok"):
+    t = (body or "").strip().lower().strip(" .!¡?¿*।")
+    if t in ("yes", "y", "si", "sí", "sim", "haan", "ha", "1", "yes please", "claro", "ok",
+             "हाँ", "हां", "जी", "जी हाँ", "जी हां", "ठीक है"):
         return "yes"
-    if t in ("no", "n", "não", "nao", "nahi", "2", "no thanks", "no gracias", "não obrigado", "skip"):
+    if t in ("no", "n", "não", "nao", "nahi", "2", "no thanks", "no gracias", "não obrigado", "skip",
+             "नहीं", "नही", "ना", "नहीं धन्यवाद", "नहीं, धन्यवाद", "छोड़ें"):
         return "no"
     return None
 
@@ -287,7 +294,7 @@ def parse_policy_reply(body: str, choice_id: str = "") -> Optional[str]:
     """'yes' / 'no' for an answer to the policy prompt, else None."""
     if choice_id in ("pol:yes", "pol:no"):
         return choice_id.split(":")[1]
-    t = (body or "").strip().lower().strip(" .!¡?¿*")
+    t = (body or "").strip().lower().strip(" .!¡?¿*।")
     if t in _POLICY_YES:
         return "yes"
     if t in _POLICY_NO:
@@ -498,22 +505,25 @@ def parse_wa_command(text: str) -> tuple:
                   r"\s*[:#-]?\s*([A-Za-z0-9]{6})\s*[.!]?\s*$", t)
     if m:
         return ("link", m.group(1).upper())
-    low = t.lower().strip(" .!¡?¿")
-    if low in ("stop", "unlink", "parar", "desconectar", "band", "band karo", "unsubscribe"):
+    low = t.lower().strip(" .!¡?¿।")
+    # [hi 2026-10-07] Devanagari command words (whole-message match, like the Latin ones)
+    from antar_engine import wa_hi as _h
+    if low in ("stop", "unlink", "parar", "desconectar", "band", "band karo", "unsubscribe") or low in _h.CMD_UNLINK:
         return ("unlink", "")
-    if low in ("help", "ayuda", "ajuda", "menu", "madad", "?"):
+    if low in ("help", "ayuda", "ajuda", "menu", "madad", "?") or low in _h.CMD_HELP:
         return ("help", "")
-    if low in ("tips", "tip", "consejos", "dicas", "guide", "how to use", "rules"):
+    if low in ("tips", "tip", "consejos", "dicas", "guide", "how to use", "rules") or low in _h.CMD_TIPS:
         return ("tips", "")
     if low in ("stop training", "stop learning", "training off", "parar entrenamiento",
-               "parar entrenamiento de ia", "parar treinamento", "training band", "stop ai training"):
+               "parar entrenamiento de ia", "parar treinamento", "training band", "stop ai training") \
+            or low in _h.CMD_TRAINING_OFF:
         return ("training_off", "")
     if low in ("stop alerts", "alerts off", "no alerts", "parar alertas", "sin alertas",
-               "sem alertas", "alerts band", "alert band"):
+               "sem alertas", "alerts band", "alert band") or low in _h.CMD_ALERTS_OFF:
         return ("alerts_off", "")
     if low in ("stop offers", "stop promos", "stop promotions", "no offers", "no promos", "stop marketing",
                "parar ofertas", "sin ofertas", "sin promociones", "sem ofertas", "parar promoções",
-               "parar promocoes", "offers band", "offer band", "promotion band"):
+               "parar promocoes", "offers band", "offer band", "promotion band") or low in _h.CMD_OFFERS_OFF:
         return ("marketing_off", "")
     return ("", "")
 
@@ -893,9 +903,9 @@ def _first_sentence(text: str) -> tuple:
 
 
 _WA_LABELS = {
-    "window": {"en": "Window", "es": "Ventana", "pt": "Janela", "hinglish": "Window"},
+    "window": {"en": "Window", "es": "Ventana", "pt": "Janela", "hinglish": "Window", "hi": "समय-खिड़की"},
     "also":   {"en": "Reply with a number:", "es": "Responde con un número:",
-               "pt": "Responda com um número:", "hinglish": "Number bhejiye:"},
+               "pt": "Responda com um número:", "hinglish": "Number bhejiye:", "hi": "संख्या भेजकर चुनिए:"},
 }
 
 
@@ -1007,11 +1017,14 @@ _LEAN_HEAD = {
     "hinglish": {"yes": "Haan ki taraf jhukav hai.", "not_now": "Abhi nahi — sahi waqt abhi nahi aaya.",
                  "conditional": "Ho sakta hai — ek shart par.",
                  "no": "Na ki taraf jhukav hai."},
+    "hi": {"yes": "झुकाव हाँ की ओर है।", "not_now": "अभी नहीं — सही समय अभी नहीं आया।",
+           "conditional": "संभव है — एक शर्त पर।", "no": "झुकाव ना की ओर है।"},
 }
 _CHECKBACK = {"en": "_I'll check back after {d} to ask if it happened._",
               "es": "_Te preguntaré después del {d} si pasó._",
               "pt": "_Vou perguntar depois de {d} se aconteceu._",
-              "hinglish": "_{d} ke baad main poochunga ki hua ya nahi._"}
+              "hinglish": "_{d} ke baad main poochunga ki hua ya nahi._",
+              "hi": "_{d} के बाद मैं पूछूँगा कि यह हुआ या नहीं।_"}
 
 
 def _yesno_as_read(p: dict, language: str) -> dict:
@@ -1035,7 +1048,8 @@ def _yesno_as_read(p: dict, language: str) -> dict:
 _OWN_LINE = {"en": "_…or just type your own question._",
              "es": "_…o escribe tu propia pregunta._",
              "pt": "_…ou escreva sua própria pergunta._",
-             "hinglish": "_…ya apna koi bhi sawaal likhiye._"}
+             "hinglish": "_…ya apna koi bhi sawaal likhiye._",
+             "hi": "_…या अपना कोई भी प्रश्न लिखिए।_"}
 
 
 def format_ask_whatsapp_v2(payload: dict, language: str = "en",
@@ -1060,7 +1074,10 @@ def format_ask_whatsapp_v2(payload: dict, language: str = "en",
             try:
                 _d = datetime.fromisoformat(str(p["verify_after"])[:10])
                 lang_cb = language if language in _CHECKBACK else "en"
-                checkback = _CHECKBACK[lang_cb].format(d=f"{_d.strftime('%b')} {_d.day}")
+                _mon = ("जन फ़र मार्च अप्रैल मई जून जुला अग सित अक्टू नव दिस".split()[_d.month - 1]
+                        if lang_cb == "hi" else _d.strftime('%b'))
+                checkback = _CHECKBACK[lang_cb].format(d=f"{_d.day} {_mon}" if lang_cb == "hi"
+                                                       else f"{_mon} {_d.day}")
             except ValueError:
                 checkback = ""
     fus = [q.strip() for q in (p.get("suggested_questions") or [])
@@ -1442,7 +1459,7 @@ def parse_read_command(text: str) -> Optional[str]:
 VOICE_MAX_BYTES = 10 * 1024 * 1024
 _STT_URL = "https://api.elevenlabs.io/v1/speech-to-text"
 _STT_LANG = {"eng": "en", "en": "en", "spa": "es", "es": "es", "por": "pt", "pt": "pt",
-             "hin": "hinglish", "hi": "hinglish"}
+             "hin": "hi", "hi": "hi"}
 
 
 def voice_enabled() -> bool:
@@ -1478,6 +1495,11 @@ def transcribe_voice(media_url: str, content_type: str = "audio/ogg") -> tuple:
         text = " ".join(str(d.get("text") or "").split())
         lang = _STT_LANG.get(str(d.get("language_code") or "").lower()[:3]) or \
             _STT_LANG.get(str(d.get("language_code") or "").lower()[:2])
+        # [hi 2026-10-07] ElevenLabs reports "hin" for spoken Hindi whether the transcript came back in
+        # Devanagari or romanised. The SCRIPT of the transcript decides hi vs hinglish.
+        if lang == "hi":
+            from antar_engine.lang_registry import detect_devanagari_language as _dd
+            lang = "hi" if _dd(text) else "hinglish"
         return text[:1000], lang
     except Exception as e:
         print(f"[whatsapp][voice] transcribe failed: {type(e).__name__}: {e}")

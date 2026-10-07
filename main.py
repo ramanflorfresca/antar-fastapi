@@ -355,6 +355,12 @@ import httpx as _httpx
 
 # --- Language Utils (Sprint L — Language Preferences) ---
 from language_utils import build_language_instruction, resolve_language, resolve_language_from_query
+# [hi 2026-10-07] one registry of served languages (en/hi/hinglish/es/pt/fr) + the Devanagari guard
+from antar_engine.lang_registry import (
+    SUPPORTED_LANGUAGES as _LANG_REGISTRY, LANGUAGE_LABELS as _LANG_LABELS,
+    TRANSLATED_LANGUAGES, WA_LANGUAGES as _WA_LANGS, normalize_language as _norm_lang,
+    detect_devanagari_language as _detect_devanagari,
+)
 
 
 RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
@@ -4184,7 +4190,7 @@ async def get_chart_signature(chart_id: str, language: str = "en", authorization
         # silently ignored — honor it via response-time translation
         # (es/pt/fr), the same pattern /compat uses. EN unchanged.
         _sig_lang = (language or "en").split("-")[0].lower()
-        if _sig_lang in ("es", "pt", "fr"):
+        if _sig_lang in TRANSLATED_LANGUAGES:
             try:
                 from antar_engine.translation_middleware import translate_dict as _sig_td
                 payload = await _sig_td(
@@ -5309,6 +5315,14 @@ _WA_AREA_Q = {
 }
 
 
+# [hi 2026-10-07] Devanagari Hindi column. Every key must have one (tests/test_lang_hi.py asserts
+# it) so a Hindi reader never falls through `_wa_text` to English by omission.
+from antar_engine import wa_hi as _wa_hi_copy
+for _k, _v in _wa_hi_copy.WA_L_HI.items():
+    _WA_L[_k]["hi"] = _v
+_WA_AREA_Q["hi"] = _wa_hi_copy.WA_AREA_Q_HI
+
+
 def _wa_text(key: str, lang: str, **kw) -> str:
     s = _WA_L[key].get(lang) or _WA_L[key]["en"]
     return s.format(**kw) if kw else s
@@ -5321,12 +5335,17 @@ _WA_CMD_LANG = {"ayuda": "es", "parar": "es", "desconectar": "es", "cambiar": "e
 
 
 def _wa_lang(text: str, fallback: str = "en") -> str:
-    """en / es / pt / hinglish from the message text; `fallback` when unclear.
-    One-word commands are too short for the detectors, so the word itself decides."""
+    """en / es / pt / hinglish / hi from the message text; `fallback` when unclear.
+    One-word commands are too short for the detectors, so the word itself decides.
+    [hi 2026-10-07] Devanagari script is Hindi outright (no word list needed); Roman-script
+    Hindi stays Hinglish. This only decides the language OF THIS REPLY — the stored language
+    is never changed by a message."""
     first = (text or "").strip().lower().strip(" .!¡?¿").split(" ")[0] if text else ""
     if first in _WA_CMD_LANG:
         return _WA_CMD_LANG[first]
     try:
+        if _detect_devanagari(text):
+            return "hi"
         d = _ask_detect_text_lang(text)
         if d in ("es", "pt"):
             return d
@@ -5336,7 +5355,7 @@ def _wa_lang(text: str, fallback: str = "en") -> str:
             return "en"
     except Exception:
         pass
-    return fallback if fallback in ("en", "es", "pt", "hinglish") else "en"
+    return fallback if fallback in _WA_LANGS else "en"
 
 
 def _wa_kp_generic(question: str) -> bool:
@@ -5365,10 +5384,13 @@ def _wa_saved_lang(chart_id: Optional[str]) -> Optional[str]:
     v = str(r[0].get("language_preference") or r[0].get("language") or "").strip().lower()
     if not v:
         return None
-    if v.startswith("hinglish") or v.startswith("hi"):
-        return "hinglish"
-    v = v.replace("_", "-").split("-")[0]
-    return v if v in ("en", "es", "pt") else None
+    # [hi 2026-10-07] was `startswith("hi") -> "hinglish"`, which turned a saved Devanagari `hi`
+    # into Roman Hinglish on WhatsApp. "hi" is Devanagari; "hinglish" / "hi-Latn" are Roman.
+    from antar_engine.lang_registry import is_supported as _lang_ok
+    if not _lang_ok(v):
+        return None
+    code = _norm_lang(v, log=False)
+    return code if code in _WA_LANGS else None
 
 
 def _wa_tz(number: str) -> int:
@@ -5493,9 +5515,11 @@ def _wa_note_device_tz(chart_id: str, minutes: int) -> None:
 
 _WA_TOMORROW = {"en": "{t} tomorrow", "es": "las {t} de mañana", "pt": "das {t} de amanhã",
                 "hinglish": "kal {t}"}
-_WA_TODAY = {"en": "{t}", "es": "las {t}", "pt": "das {t}", "hinglish": "{t}"}
+_WA_TODAY = {"en": "{t}", "es": "las {t}", "pt": "das {t}", "hinglish": "{t}", "hi": "{t}"}
+_WA_TOMORROW["hi"] = "कल {t}"
 _WA_WEEKDAYS = {"es": ("lun", "mar", "mié", "jue", "vie", "sáb", "dom"),
-                "pt": ("seg", "ter", "qua", "qui", "sex", "sáb", "dom")}
+                "pt": ("seg", "ter", "qua", "qui", "sex", "sáb", "dom"),
+                "hi": ("सोम", "मंगल", "बुध", "गुरु", "शुक्र", "शनि", "रवि")}
 
 
 def _wa_when_label(local_dt, local_now, lang: str) -> str:
@@ -5559,8 +5583,10 @@ def _wa_welcome(link: dict, lang: str) -> tuple:
     try:
         from antar_engine.ask_suggestions import build_suggested_prompts
         starters = [s.get("text") for s in build_suggested_prompts(
-            cid, supabase, language=("en" if lang == "hinglish" else lang))
+            cid, supabase, language=("en" if lang in ("hinglish", "hi") else lang))
             if isinstance(s, dict) and s.get("text")][:3]
+        if lang == "hi":   # [hi] authored Devanagari starters — never the English pool
+            starters = list(_WA_AREA_Q["hi"])
     except Exception as e:
         print(f"[whatsapp] starters skipped: {e}")
     parts = [_wa_text("welcome", lang, name=name)]
@@ -5745,6 +5771,10 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
     except Exception as _e:
         print(f"[wa-numbers] sender not remembered: {_e}")
     lang = _wa_lang(body, _fb) if body else _fb
+    if _fb == "hi" and lang == "hinglish":
+        # [hi 2026-10-07] a reader who chose हिन्दी keeps Devanagari when a message happens to be Roman-script;
+        # Hinglish is a different picker option and is never switched to implicitly.
+        lang = "hi"
     if str(choice_id or "").startswith("q:"):
         # [wa-ui 2026-10-04] a tapped suggestion keeps the conversation's language (a Hinglish chat
         # flipped to English when the tapped chip text was English)
@@ -6009,7 +6039,7 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
                     send(_wa_text("voice_failed", lang))
                     return
                 body = _vt
-                lang = _vl if _vl in ("en", "es", "pt", "hinglish") else _wa_lang(_vt, lang)
+                lang = _vl if _vl in _WA_LANGS else _wa_lang(_vt, lang)
                 _shown = _vt if len(_vt) <= 220 else _vt[:217].rsplit(" ", 1)[0] + "…"
                 send(_wa_text("voice_heard", lang, t=_shown))
                 print(f"[whatsapp][voice] transcribed {len(_vt)} chars lang={lang} …{number[-4:]}")
@@ -6075,8 +6105,10 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
                 from antar_engine.ask_suggestions import build_suggested_prompts
                 starters = [x.get("text") for x in await asyncio.to_thread(
                     build_suggested_prompts, link.get("chart_id"), sb,
-                    ("en" if lang == "hinglish" else lang))
+                    ("en" if lang in ("hinglish", "hi") else lang))
                     if isinstance(x, dict) and x.get("text")][:3]
+                if lang == "hi":   # [hi] authored Devanagari starters — never the English pool
+                    starters = list(_WA_AREA_Q["hi"])
             except Exception as e:
                 print(f"[whatsapp] menu starters skipped: {e}")
             send_choices(_wa_text("menu", lang) + ("\n\n" + "\n".join(
@@ -9396,7 +9428,7 @@ Answer specifically about {_other_name}'s strengths/weaknesses for the question 
     # side-panels leaked English on es. Translate the two big prose dicts (life-
     # arc narrative + chakra reading) IN PLACE so both return paths serve es/pt/fr.
     _pred_panel_lang = (getattr(request, "language", "en") or "en").split("-")[0].lower()
-    if _pred_panel_lang in ("es", "pt", "fr"):
+    if _pred_panel_lang in TRANSLATED_LANGUAGES:
         try:
             from antar_engine.translation_middleware import translate_dict as _pp_td
             if isinstance(chapter_arc_data, dict):
@@ -9557,7 +9589,7 @@ Do not use any planet names or astrological jargon — translate everything into
     # each remedy's `purpose` leaked English on es. Translate IN PLACE so both
     # /predict return paths serve es/pt/fr (the main answer was already localized).
     _pt_tail_lang = (getattr(request, "language", "en") or "en").split("-")[0].lower()
-    if _pt_tail_lang in ("es", "pt", "fr"):
+    if _pt_tail_lang in TRANSLATED_LANGUAGES:
         try:
             from antar_engine.translation_middleware import translate_dict as _tl_td
             _to_tx = {}
@@ -12226,12 +12258,19 @@ def set_language(
     authorization: str = Header(...)
 ):
     user_id = verify_token(authorization)
+    # [hi 2026-10-07] validate against the registry: this used to store ANY string
+    # (a typo or "Hindi" became the chart's language and then silently served English).
+    from antar_engine.lang_registry import is_supported as _lang_ok
+    if not _lang_ok(request.language):
+        raise HTTPException(status_code=400, detail={
+            "error": "unsupported language", "available": list(_LANG_REGISTRY)})
+    _picked = _norm_lang(request.language)
     supabase.table("charts").update({
-        "language_preference": request.language,
-        "locale_variant": request.language,
+        "language_preference": _picked,
+        "locale_variant": _picked,
     }).eq("user_id", user_id).execute()
-    ui = get_ui_strings(request.language)
-    return {"status": "ok", "language": request.language, "ui_strings": ui}
+    ui = get_ui_strings(_picked)
+    return {"status": "ok", "language": _picked, "ui_strings": ui}
 
 # ── Patra ─────────────────────────────────────────────────────────────────────
 
@@ -17640,7 +17679,9 @@ def astrocartography_waitlist(request: WaitlistRequest):
 # ════════════════════════════════════════════════════════════════════
 import time as _st_time
 
-SETTINGS_AVAILABLE_LANGS = ["en", "es", "pt", "fr", "hi", "hinglish"]
+# [hi 2026-10-07] Order = the picker order (English, हिन्दी, Hinglish, Español, Português, Français).
+# `hi` is DEVANAGARI Hindi; `hinglish` is Roman-script Hindi. The FE sends exactly these codes.
+SETTINGS_AVAILABLE_LANGS = list(_LANG_REGISTRY)
 _SETTINGS_PORTAL_RETURN_URL = "https://antar.world/settings?billing=back"
 
 _SETTINGS_DEFAULT_NOTIFS = {
@@ -17778,7 +17819,7 @@ def _st_chart_shape(row, primary_chart_id):
 async def _st_localize(payload, language, fields):
     """Translate user-visible labels/hints at response time (es/pt). User-entered text untouched."""
     lang = (language or "en").split("-")[0].lower()
-    if lang in ("es", "pt"):
+    if lang in ("es", "pt", "hi"):
         try:
             from antar_engine.translation_middleware import translate_dict as _st_td
             payload = await _st_td(
@@ -18774,8 +18815,9 @@ def settings_language(authorization: Optional[str] = Header(None), chart_id: Opt
     # returned "en" for EVERYONE. English users never noticed; Spanish-market
     # users (Colombia etc.) saw English despite their chart deriving es.
     iface = (p.get("language") or "").strip().lower()
-    if iface not in ("en", "es", "pt"):
-        iface = "en"
+    # [hi 2026-10-07] was `not in ("en","es","pt") -> "en"`, which answered "en" to
+    # anyone who had picked Hindi/Hinglish/French — the picker could never stick.
+    iface = _norm_lang(iface, log=False) if iface else "en"
     # Gap-fill: when the profile still holds the browser-seeded default ("en")
     # but the chart's geo-derived preference is es/pt, honor the preference. A
     # real Settings pick updates BOTH profile and chart pref (see PATCH), so
@@ -18788,6 +18830,8 @@ def settings_language(authorization: Optional[str] = Header(None), chart_id: Opt
         "interface": iface,
         "analysis": iface,
         "available": SETTINGS_AVAILABLE_LANGS,
+        # additive: native display names for the picker, keyed by code
+        "labels": {c: _LANG_LABELS[c] for c in SETTINGS_AVAILABLE_LANGS},
     }
     return _st_cache_set(("lang", user_id), payload)
 
@@ -18804,9 +18848,11 @@ async def settings_language_patch(request: Request, authorization: Optional[str]
     picked = body.get("interface") or body.get("analysis")
     if picked is None:
         return JSONResponse(status_code=400, content={"error": "nothing to update"})
-    if picked not in SETTINGS_AVAILABLE_LANGS:
+    from antar_engine.lang_registry import is_supported as _lang_ok
+    if not _lang_ok(picked):
         return JSONResponse(status_code=400, content={
             "error": "unsupported language", "available": SETTINGS_AVAILABLE_LANGS})
+    picked = _norm_lang(picked)   # "hi-IN" -> "hi", "pt-BR" -> "pt"; Hinglish stays "hinglish"
     _st_get_profile(user_id)
     supabase.table("profiles").update(
         {"language": picked, "updated_at": datetime.utcnow().isoformat()}
@@ -18821,7 +18867,10 @@ async def settings_language_patch(request: Request, authorization: Optional[str]
         pass
     _st_cache_bust(user_id)
     _st_bust_prediction_cache(user_id, picked)
-    return await settings_language(authorization=authorization)
+    # [hi 2026-10-07] settings_language is a plain `def`; `await`-ing its dict raised TypeError, so
+    # this PATCH saved the language and then answered 500 (latent since 2026-05-30). The language
+    # picker depends on this response, so return it directly.
+    return settings_language(authorization=authorization)
 
 
 # ════════════════════════════════ NOTIFICATIONS ════════════════════════════════
@@ -22103,7 +22152,7 @@ async def compat_six_layer(request: CompatRequest, http_request: Request = None)
             print(f"[compat] deep_read non-fatal: {_de}")
 
     # ── Translate user-facing fields for es/pt ──
-    if language in ("es", "pt", "fr"):
+    if language in TRANSLATED_LANGUAGES:
         try:
             from antar_engine.translation_middleware import translate_dict
             response = await translate_dict(
@@ -23404,7 +23453,7 @@ async def get_compatibility_session(session_id: str, language: str = "en"):
     # [session-i18n 2026-09-13] localize the same fields as /compatibility/start
     # (headline/summary/catalysts/watch_points/layer detail) so a Spanish user
     # reopening a saved connection doesn't see an English result screen.
-    if (language or "en") in ("es", "pt", "fr"):
+    if (language or "en") in TRANSLATED_LANGUAGES:
         try:
             from antar_engine.translation_middleware import translate_dict
             out = await translate_dict(out, language=language,
@@ -24182,7 +24231,7 @@ async def ask_prashna(request: PrashnaRequest):
         # user-facing field name; nested arrays inside `remedy` are recursed because
         # the container key `remedy` is in the allowlist. Cache hits when the same
         # EN strings have been translated before.
-        if language in ("es", "pt", "fr"):
+        if language in TRANSLATED_LANGUAGES:
             try:
                 from antar_engine.translation_middleware import translate_dict as _pr_td
                 _prashna_resp = await _pr_td(
@@ -25041,8 +25090,13 @@ def _ask_lang_directive(language):
                 "'tujhe', and never '-o' / bare imperatives like 'karo', 'likho', 'kar'. "
                 "Keep every month/year, name, and the YES/NO verdict exactly as given.")
     if l == "hi":
-        return ("\n\nLANGUAGE: Respond ENTIRELY in Hindi (Devanagari script). Keep every "
-                "month/year, name, and the YES/NO verdict exactly as given.")
+        return ("\n\nLANGUAGE: Respond ENTIRELY in Hindi written in Devanagari script (हिन्दी). "
+                "NEVER write Hindi in Roman letters (that is Hinglish, a different setting) and never an "
+                "English sentence. Warm, plain, conversational Hindi. ALWAYS address the person "
+                "respectfully as 'आप' (आपका, आपकी, आपको; imperatives like 'कीजिए', 'लिखिए', 'देखिए') — "
+                "NEVER 'तू', 'तुम', 'तेरा', 'तुम्हारा' and never bare imperatives like 'करो', 'लिखो'. "
+                "Months and weekdays in Hindi (जनवरी, सोमवार); keep digits, years, names, the word "
+                "'Antar' and the YES/NO verdict exactly as given.")
     return ""
 
 
@@ -28180,8 +28234,69 @@ _ASK_HUMAN_VOICE = (
 )
 
 
+def _ask_resolve_language(client_language, question):
+    """(language, learned, client_language) for one Ask call — the ONE place the answer
+    language is decided from what the client sent and what the question looks like.
+
+    * the question's language wins when it is confidently es / pt / Hinglish / Devanagari
+      Hindi, and a clearly-English question is answered in English (existing rule);
+    * [hi 2026-10-07] a client that explicitly picked हिन्दी (`hi`) and types ROMAN-script
+      Hindi keeps Devanagari — Hinglish is a different picker option, and a Hindi reader
+      must not be silently switched to it;
+    * `learned` is a language DETECTED from the text while the client sent "en" — it only
+      feeds the one-time "switch the app?" offer; the stored language is never changed here.
+    """
+    orig = _ask_norm_lang(client_language)
+    language = orig
+    learned = ""
+    q = (question or "").strip()
+    q_lang = _ask_detect_text_lang(q) or _ask_detect_hinglish(q) or _detect_devanagari(q)
+    if orig == "hi" and q_lang == "hinglish":
+        q_lang = None
+    if q_lang and q_lang != language:
+        language = q_lang
+        if orig == "en":
+            learned = q_lang
+    elif orig != "en" and not q_lang and _ask_is_english(q):
+        language = "en"
+    return language, learned, orig
+
+
+async def _ask_hindi_finalize(result, request):
+    """[hi 2026-10-07] Final Devanagari guard for Ask. Only runs when the answer language
+    resolves to `hi`; every other language returns `result` untouched."""
+    try:
+        if _ask_resolve_language(request.language, request.question)[0] != "hi":
+            return result
+        from antar_engine.hindi_guard import enforce_hindi
+        if isinstance(result, dict):
+            return await enforce_hindi(result)
+        from starlette.responses import JSONResponse as _HJR
+        if isinstance(result, _HJR):
+            body = json.loads(result.body)
+            body = await enforce_hindi(body)
+            headers = {k: v for k, v in result.headers.items()
+                       if k.lower() not in ("content-length", "content-type")}
+            return _HJR(status_code=result.status_code, content=body, headers=headers)
+    except Exception as _he:
+        # Fail CLOSED on the language, not open: an unguarded answer could be English.
+        print(f"[ask][hi-guard] failed: {_he}")
+        try:
+            from antar_engine.lang_registry import fallback_text as _hfb
+            return {"mode": "explore", "read": _hfb("read", "hi"), "next": _hfb("next", "hi"),
+                    "locked": False, "language": "hi"}
+        except Exception:
+            return result
+    return result
+
+
 @app.post("/api/v1/ask")
 async def ask_endpoint(request: AskRequest):
+    """Unified ASK endpoint — see _ask_endpoint_impl. Wraps it with the Hindi language guard."""
+    return await _ask_hindi_finalize(await _ask_endpoint_impl(request), request)
+
+
+async def _ask_endpoint_impl(request: AskRequest):
     """
     Unified ASK endpoint.
       mode="explore" -> open coaching: {mode, read, next, locked:false}
@@ -28218,19 +28333,11 @@ async def ask_endpoint(request: AskRequest):
     # es/pt (a bilingual user with a Spanish interface who types in English). Only
     # overrides when confident; ambiguous text keeps the client/profile language.
     _orig_lang = language
-    _ask_lang_learned = ""
-    # es/pt first (diacritic-backed), then Hinglish (Romanized Hindi markers).
-    _q_lang = _ask_detect_text_lang(question) or _ask_detect_hinglish(question)
-    if _q_lang and _q_lang != language:
-        language = _q_lang
-        if _orig_lang == "en":
-            _ask_lang_learned = _q_lang
-        logger.info(f"[ask][lang] question is {_q_lang}; answering {_q_lang} "
-                    f"(client sent {_orig_lang})")
-    elif _orig_lang != "en" and not _q_lang and _ask_is_english(question):
-        language = "en"
-        logger.info(f"[ask][lang] question is English; answering en "
-                    f"(client sent {_orig_lang})")
+    # es/pt first (diacritic-backed), then Hinglish (Romanized Hindi), then Devanagari Hindi —
+    # decided in ONE place, shared with the Hindi guard that wraps this handler.
+    language, _ask_lang_learned, _ = _ask_resolve_language(request.language, question)
+    if language != _orig_lang:
+        logger.info(f"[ask][lang] answering {language} (client sent {_orig_lang})")
 
     # [conversation-layer 2026-10-02] A short follow-up ("How about tomorrow",
     # "y mañana?") is rewritten into a standalone question BEFORE any routing, so
@@ -33068,7 +33175,7 @@ async def ask_history(chart_id: str, limit: int = 30, before: str = None, langua
     # done concurrently to bound latency, cached via translation_middleware, and
     # fail-open to the original text so history never fails to load.
     _hist_lang = (language or "en").split("-")[0].lower()
-    if _hist_lang in ("es", "pt", "fr") and msgs:
+    if _hist_lang in TRANSLATED_LANGUAGES and msgs:
         try:
             import asyncio as _hist_aio
             from antar_engine.translation_middleware import translate_dict as _hist_td
@@ -33707,7 +33814,7 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
         # hex/swatch strings elsewhere). Translate the color subdict DIRECTLY —
         # its inner keys (why/wear) are not skipped — for every non-en language.
         _cw_lang = (language or "en").split("-")[0].lower()
-        if _cw_lang in ("es", "pt", "fr") and signals:
+        if _cw_lang in TRANSLATED_LANGUAGES and signals:
             try:
                 from antar_engine.translation_middleware import translate_dict as _cw_td
                 for _i in range(len(signals)):
@@ -35641,7 +35748,7 @@ async def get_executive_summary(chart_id: str, language: str = "en"):
         # enums the FE switches on (key, id, signal_status, phase, verdict,
         # domain, status_color, score) are deliberately NOT listed so they stay
         # byte-stable and can't break FE logic.
-        if language in ("es", "pt", "fr"):
+        if language in TRANSLATED_LANGUAGES:
             try:
                 from antar_engine.translation_middleware import translate_dict as _ex_td
                 result = await _ex_td(
@@ -37412,7 +37519,7 @@ async def get_focus(chart_id: str, language: str = "en"):
     # leaking English on a Spanish UI. Translate the user-visible prose for
     # es/pt/fr (cached via translation_middleware); leave structural keys alone.
     _lang = (language or "en").split("-")[0].lower()
-    if _lang in ("es", "pt", "fr"):
+    if _lang in TRANSLATED_LANGUAGES:
         try:
             from antar_engine.translation_middleware import translate_dict as _focus_td
             payload = await _focus_td(
@@ -37726,7 +37833,7 @@ async def get_personal_remedies(
     # colour list ("White, pink, cream, pastels"). Translate it via a RENAMED key
     # (not "color") so the skip doesn't apply — for every non-en language.
     _rem_lang = (language or "en").split("-")[0].lower()
-    if _rem_lang in ("es", "pt", "fr") and remedies:
+    if _rem_lang in TRANSLATED_LANGUAGES and remedies:
         try:
             from antar_engine.translation_middleware import translate_dict as _rc_td
             _colors = {f"c{_i}": (r.get("color") or "")
@@ -38849,7 +38956,7 @@ async def get_dashboard(chart_id: str, language: str = 'en'):
         # [loc-3 2026-07-04] dashboard had NO language path at all —
         # translate prose keys at response time; jaimini/lal_kitab
         # subtrees (raw chart data) are never descended into.
-        if isinstance(_w5_result, dict) and language in ("es", "pt", "fr"):
+        if isinstance(_w5_result, dict) and language in TRANSLATED_LANGUAGES:
             try:
                 from antar_engine.translation_middleware import translate_dict as _db_td
                 _w5_result = await _db_td(
@@ -39547,7 +39654,7 @@ async def update_preferences(request: Request):
             )
 
         # Validate language
-        valid_languages = {"en", "hi", "hinglish", "es", "pt"}
+        valid_languages = set(_LANG_REGISTRY)   # [hi 2026-10-07] one registry (adds fr)
         language = body.get("language")
         if language and language not in valid_languages:
             return JSONResponse(
@@ -39979,7 +40086,7 @@ async def get_prediction_history(chart_id: str, limit: int = 20, language: str =
         # English to es users. Translate the generated prose on read (NOT `query`,
         # which is the user's own words; NOT concern/all_domains/confidence enums).
         _lang = (language or "en").split("-")[0].lower()
-        if _lang in ("es", "pt", "fr") and predictions:
+        if _lang in TRANSLATED_LANGUAGES and predictions:
             try:
                 from antar_engine.translation_middleware import translate_dict as _ph_td
                 _wrapped = await _ph_td(
@@ -40032,7 +40139,7 @@ async def get_domain_signals(chart_id: str, language: str = "en"):
         # [es-loc 2026-09-09] signal_line/timing_window come from English stored
         # rows — translate on read for non-en (per-domain signals leaked English).
         _lang = (language or "en").split("-")[0].lower()
-        if _lang in ("es", "pt", "fr") and signals:
+        if _lang in TRANSLATED_LANGUAGES and signals:
             try:
                 from antar_engine.translation_middleware import translate_dict as _ds_td
                 _wrapped = await _ds_td(
@@ -40161,6 +40268,8 @@ async def get_welcome(chart_id: str, language: str = "en", force_refresh: bool =
     # [loc-1] Normalize locale codes (es-CO -> es, pt-BR -> pt). The query
     # param is the source of truth - NOT the chart's stored language_preference.
     language = (language or "en").split("-")[0].lower()
+    if language == "hi":
+        language = _pt_gate("welcome", "hi")   # [hi] not Hindi-ready: explicit, logged English
     if language not in ("en", "es", "pt"):
         language = "en"
     language = _pt_gate("welcome", language)  # [pt-gate]
@@ -40314,6 +40423,8 @@ async def get_weekly_briefing(chart_id: str, refresh: bool = False, language: st
     """
     # [loc-2] normalize locale codes (es-CO -> es); query param is source of truth
     language = (language or "en").split("-")[0].lower()
+    if language == "hi":
+        language = _pt_gate("weekly-briefing", "hi")   # [hi] not Hindi-ready: explicit, logged English
     if language not in ("en", "es", "pt"):
         language = "en"
     language = _pt_gate("weekly-briefing", language)  # [pt-gate]
@@ -41635,7 +41746,7 @@ async def get_practice_schedule_endpoint(chart_id: str, language: str = "es", re
                 # [es-loc 2026-06-09] Loc-4 backstop — the hand-rolled dict only
                 # covers known phrases; PLANET_PRACTICE_META + REMEDIES can ship
                 # new EN strings the dict doesn't know. translate_dict catches them.
-                if language in ("es", "pt", "fr"):
+                if language in TRANSLATED_LANGUAGES:
                     try:
                         from antar_engine.translation_middleware import translate_dict as _pr_td
                         _sched = await _pr_td(
@@ -41772,7 +41883,7 @@ async def get_practice_schedule_endpoint(chart_id: str, language: str = "es", re
         if language == "es": _sched = _translate_practice_schedule_es(_sched)
         _sched = _gem_localize_why(_sched, language)
         # [es-loc 2026-06-09] Loc-4 backstop for the generated path.
-        if language in ("es", "pt", "fr"):
+        if language in TRANSLATED_LANGUAGES:
             try:
                 from antar_engine.translation_middleware import translate_dict as _pr_td
                 _sched = await _pr_td(
@@ -44815,8 +44926,8 @@ async def get_daily_week(chart_id: str, tz_offset: float = None, language: str =
                         )
             except Exception as _dwes_e:
                 print(f"[daily-week] es why-layer translate failed (non-fatal): {_dwes_e}")
-        elif language in ("pt", "fr"):
-            # [loc-3 2026-07-04] no hand-rolled dict for pt/fr — route
+        elif language in ("pt", "fr", "hi"):
+            # [loc-3 2026-07-04] no hand-rolled dict for pt/fr (hi: Devanagari, script-gated) — route
             # the signal prose through the gated translation middleware
             # so the energy layer never collapses to raw planet names.
             try:
@@ -44897,7 +45008,7 @@ async def get_daily_week(chart_id: str, tz_offset: float = None, language: str =
             _bw_days = signals if isinstance(signals, list) else []
             _bw_per = [_bw("weekday", language, _d) if isinstance(_d, dict) else [] for _d in _bw_days]
             _bw_agg = _bw("week", language, {"days": _bw_days, "dasha_md": _bw_md, "dasha_ad": _bw_ad})
-            if language in ("es", "pt", "fr"):
+            if language in TRANSLATED_LANGUAGES:
                 try:
                     from antar_engine.translation_middleware import translate_dict as _bwt
                     _bw_bundle = await _bwt({"agg": _bw_agg, "per": _bw_per}, language=language,
@@ -45296,7 +45407,7 @@ async def _compose_next_year_payload(chart_id, chart_data, birth_date, language,
     if _nx_start:
         payload["period_start"] = _nx_start.isoformat()
         payload["period_end"] = _nx_end.isoformat()
-    if language in ("es", "pt", "fr"):
+    if language in TRANSLATED_LANGUAGES:
         try:
             payload = await _translate_dict(
                 payload, language=language,
@@ -45334,6 +45445,9 @@ async def predict_year_attention(request: dict, language: str = None):
         raise HTTPException(status_code=400, detail="chart_id required")
     tz_offset = int((request or {}).get("tz_offset") or 0)
     language = (language or (request or {}).get("language") or "en").split("-")[0].lower()
+    # [hi 2026-10-07] the body composes in English for any non-es/pt language; Hindi is
+    # produced by the script-gated translation pass at the end of this handler.
+    _tx_hi = language == "hi"
     if language not in ("en", "es", "pt"):
         language = "en"
     # [lk-engine] engine-led This Year toggle (default off)
@@ -45757,11 +45871,11 @@ async def predict_year_attention(request: dict, language: str = None):
         print(f"[year-attention] layered domains failed (non-blocking): {_lf_ye}")
 
     # ── translate at response time (English source; planet/name/key/colour kept) ──
-    if language in ("es", "pt", "fr"):
+    if _tx_hi or language in TRANSLATED_LANGUAGES:
         try:
             payload = await _translate_dict(
                 payload,
-                language=language,
+                language="hi" if _tx_hi else language,
                 fields_to_translate=[
                     "headline", "gist", "use", "remedy", "issue", "watch",
                     "note", "text", "governs", "steps", "best", "worst",
@@ -45909,6 +46023,7 @@ async def predict_day_deep(request: DeepReadRequest, refresh: int = 0, force_ref
     from antar_engine.home_composer import _safe_json as _hsj
 
     language = (request.language or "en").split("-")[0].lower()
+    _tx_hi = language == "hi"   # [hi 2026-10-07] composed in English, translated to Devanagari below
     if language not in ("en", "es", "pt"):
         language = "en"
     language = _pt_gate("day-deep", language)  # [pt-gate]
@@ -46064,11 +46179,11 @@ async def predict_day_deep(request: DeepReadRequest, refresh: int = 0, force_ref
             payload.setdefault("highlights", [])
 
     # ── translate at response time (English is the source of truth) ──
-    if language in ("es", "pt", "fr"):
+    if _tx_hi or language in TRANSLATED_LANGUAGES:
         try:
             from antar_engine.translation_middleware import translate_dict as _tdict
             payload = await _tdict(
-                payload, language=language,
+                payload, language="hi" if _tx_hi else language,
                 fields_to_translate=["opening", "closing", "paragraph", "note",
                                      "headline", "gist", "do", "dont", "use",
                                      "cause", "title", "body_part", "text"],
@@ -49027,7 +49142,7 @@ async def get_life_arc(
                     # [es-loc 2026-06-09] cache-hit localization backstop. translate_dict
                     # recurses into diagnostic.* + highlights[] + current_stuckness_sources[]
                     # because their container keys are in the allowlist.
-                    if language in ("es", "pt", "fr"):
+                    if language in TRANSLATED_LANGUAGES:
                         try:
                             from antar_engine.translation_middleware import translate_dict as _la_td
                             life_arc = await _la_td(
@@ -49327,7 +49442,7 @@ async def _alias_predict_monthly(request: dict, language: str = "en"):
     # user-visible prose here for es/pt/fr (cached via translation_middleware;
     # structural enums stay via GLOBAL_SKIP). Fail-open to whatever we have.
     _m_lang = (_req_lang or "en").split("-")[0].lower()
-    if _m_lang in ("es", "pt", "fr") and isinstance(_r_monthly, dict):
+    if _m_lang in TRANSLATED_LANGUAGES and isinstance(_r_monthly, dict):
         try:
             from antar_engine.translation_middleware import translate_dict as _m_td
             _r_monthly = await _m_td(

@@ -336,9 +336,13 @@ for _n, (_b, _btn) in _HINGLISH.items():
 
 def wa_lang(lang: str) -> str:
     """Antar language → template language ('en' | 'es' | 'pt_BR' | 'hinglish'; anything else → English)."""
-    l = (lang or "en").lower()
+    l = (lang or "en").lower().replace("_", "-")
+    # [hi 2026-10-07] ONLY Roman-script Hinglish takes the Hinglish template. Devanagari "hi" used to match
+    # startswith("hi") and silently get the Roman-script one. No Hindi template is submitted to Meta yet
+    # (it would need locale "hi"), so a Devanagari reader gets the ENGLISH template — explicit, and listed
+    # in the PR as the follow-up — never Hinglish.
     return ("es" if l.startswith("es") else "pt_BR" if l.startswith("pt")
-            else "hinglish" if l.startswith(("hinglish", "hi")) else "en")
+            else "hinglish" if l.startswith("hinglish") or l == "hi-latn" else "en")
 
 
 def env_key(name: str, lang: str) -> str:

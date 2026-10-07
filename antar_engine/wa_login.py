@@ -45,6 +45,10 @@ T = {
                    "hinglish": "Is number ka abhi koi account nahi hai. *hi* bhejiye, main yahin chat mein bana dunga."},
 }
 
+from antar_engine import wa_hi as _wa_hi   # [hi 2026-10-07]
+for _k, _v in _wa_hi.LOGIN_HI.items():
+    T[_k]["hi"] = _v
+
 
 def text(key: str, lang: str) -> str:
     return T[key].get(lang) or T[key]["en"]
