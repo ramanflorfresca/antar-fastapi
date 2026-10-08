@@ -20,21 +20,42 @@ from antar_engine import compatibility_reasons as _R
 # "business" is not listed: business_partner is the same reading under the same
 # label, so offering both would show two identical "Business partner" rows.
 TYPE_ORDER = (
-    "mother", "father", "daughter", "son", "girlfriend", "boyfriend", "spouse",
+    "mother", "father", "daughter", "son", "girlfriend", "boyfriend", "husband", "wife",
     "employee", "business_partner", "cofounder", "friend",
-    "sibling", "family", "romantic", "parent", "child", "advisor", "boss-or-manager",
+    "spouse", "sibling", "family", "romantic", "parent", "child", "advisor", "boss-or-manager",
 )
-OWNER_FIRST = TYPE_ORDER[:11]
+OWNER_FIRST = TYPE_ORDER[:12]
 NOT_LISTED = ("business",)
 
+# Headings the add flow groups the choices under: Parent (mother, father), Kids (son,
+# daughter), Spouse (husband, wife), Partner (girlfriend, boyfriend) ...
 TYPE_GROUP = {
-    "mother": "family", "father": "family", "daughter": "family", "son": "family",
-    "sibling": "family", "family": "family", "parent": "family", "child": "family",
-    "girlfriend": "partner", "boyfriend": "partner", "spouse": "partner", "romantic": "partner",
+    "mother": "parent", "father": "parent", "parent": "parent",
+    "daughter": "kids", "son": "kids", "child": "kids",
+    "sibling": "family", "family": "family",
+    "husband": "spouse", "wife": "spouse", "spouse": "spouse",
+    "girlfriend": "partner", "boyfriend": "partner", "romantic": "partner",
     "employee": "work", "business_partner": "work", "cofounder": "work",
     "boss-or-manager": "work", "business": "work",
     "friend": "friends", "advisor": "guidance",
 }
+
+GROUP_LABELS = {
+    "parent":   {"en": "Parent", "es": "Padre o madre", "pt": "Pai ou mãe", "hinglish": "Mummy / Papa"},
+    "kids":     {"en": "Kids", "es": "Hijos", "pt": "Filhos", "hinglish": "Bachche"},
+    "spouse":   {"en": "Spouse", "es": "Cónyuge", "pt": "Cônjuge", "hinglish": "Pati / Patni"},
+    "partner":  {"en": "Partner", "es": "Pareja", "pt": "Parceiro(a)", "hinglish": "Partner"},
+    "family":   {"en": "Family", "es": "Familia", "pt": "Família", "hinglish": "Parivaar"},
+    "work":     {"en": "Work", "es": "Trabajo", "pt": "Trabalho", "hinglish": "Kaam"},
+    "friends":  {"en": "Friends", "es": "Amistades", "pt": "Amizades", "hinglish": "Dost"},
+    "guidance": {"en": "Guidance", "es": "Guía", "pt": "Orientação", "hinglish": "Margdarshan"},
+}
+
+
+def group_label(group: str, language="en") -> str:
+    lang = _R.label_lang(language)
+    return GROUP_LABELS[group][lang]
+
 
 # Types whose add flow asks "what position?" (free text, display only).
 NEEDS_POSITION = ("employee",)
@@ -55,6 +76,7 @@ def types_directory(language: str = "en") -> list:
             "id": tid,
             "label": _R.label_for(tid, language),
             "group": TYPE_GROUP[tid],
+            "group_label": group_label(TYPE_GROUP[tid], language),
             "romantic": is_romantic(tid),
             "needs_role": bool(_R.REASON_DEFINITIONS[tid]["needs_role"]),
             "needs_position": tid in NEEDS_POSITION,

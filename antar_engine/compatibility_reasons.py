@@ -33,6 +33,8 @@ REASON_DEFINITIONS = {
     "girlfriend":      {"label": "My girlfriend",           "needs_role": False, "direction": None},
     "boyfriend":       {"label": "My boyfriend",            "needs_role": False, "direction": None},
     "business_partner": {"label": "Business partner",       "needs_role": False, "direction": None},
+    "husband":         {"label": "My husband",              "needs_role": False, "direction": None},
+    "wife":            {"label": "My wife",                 "needs_role": False, "direction": None},
 }
 
 # ── engine reuse for the newer types ──────────────────────────────────────────
@@ -48,6 +50,7 @@ REASON_ENGINE_BASE = {
     "daughter": "child", "son": "child",
     "girlfriend": "romantic", "boyfriend": "romantic",
     "business_partner": "business",
+    "husband": "spouse", "wife": "spouse",     # the marriage path, same as spouse
 }
 
 
@@ -116,7 +119,7 @@ V2_LAYER_SOURCES = {
 # Yoni (physical compatibility) are classical MARRIAGE-matching factors. They
 # say nothing about a parent, a sibling, a cofounder or a mentor, so they
 # contribute to the score only for these reasons.
-MARRIAGE_KUTA_REASONS = ("romantic", "spouse")
+MARRIAGE_KUTA_REASONS = ("romantic", "spouse", "husband", "wife")   # husband / wife ARE the spouse reading
 MARRIAGE_ONLY_SOURCES = ("yoni", "bhakoot", "nadi_dosha")
 # Ashtakoot dimensions (Compatibility.py `dimension` strings) that are
 # marriage-only; growth_areas_count ignores them for every other reason.
@@ -250,8 +253,7 @@ _ALIASES = {
     "relationship": "romantic", "partner": "romantic", "dating": "romantic",
     "lover": "romantic",
     # Marriage is its own reading (classical marriage factors apply), not dating.
-    "marriage": "spouse", "married": "spouse", "husband": "spouse",
-    "wife": "spouse", "marriage-partner": "spouse",
+    "marriage": "spouse", "married": "spouse", "marriage-partner": "spouse",
     "co-founder": "cofounder", "co_founder": "cofounder",
     "mom": "mother", "mum": "mother", "mama": "mother", "dad": "father", "papa": "father",
     "parents": "parent", "parent-child": "parent",
@@ -305,6 +307,7 @@ _REASON_I18N = {
             "mother": "Mi madre", "father": "Mi padre", "daughter": "Mi hija", "son": "Mi hijo",
             "girlfriend": "Mi novia", "boyfriend": "Mi novio",
             "business_partner": "Socio o socia de negocios",
+            "husband": "Mi esposo", "wife": "Mi esposa",
         },
         "question": {
             "romantic": "¿Cómo somos como pareja?",
@@ -325,6 +328,7 @@ _REASON_I18N = {
             "son": "¿Qué sostiene este vínculo con mi hijo?",
             "girlfriend": "¿Cómo somos como pareja?", "boyfriend": "¿Cómo somos como pareja?",
             "business_partner": "¿Funcionará esta sociedad?",
+            "husband": "¿Qué sostiene nuestro matrimonio?", "wife": "¿Qué sostiene nuestro matrimonio?",
         },
         "sublabel": {
             "romantic": "Noviazgo, una relación en construcción",
@@ -343,6 +347,7 @@ _REASON_I18N = {
             "girlfriend": "Noviazgo, una relación en construcción",
             "boyfriend": "Noviazgo, una relación en construcción",
             "business_partner": "Tu socio o socia de negocios",
+            "husband": "Tu esposo", "wife": "Tu esposa",
         },
         "role_label": {
             "sales": "Ventas / Desarrollo", "marketing": "Marketing",
@@ -367,6 +372,7 @@ _REASON_I18N = {
             "mother": "Minha mãe", "father": "Meu pai", "daughter": "Minha filha", "son": "Meu filho",
             "girlfriend": "Minha namorada", "boyfriend": "Meu namorado",
             "business_partner": "Sócio ou sócia de negócios",
+            "husband": "Meu marido", "wife": "Minha esposa",
         },
         "question": {
             "romantic": "Como somos como casal?",
@@ -387,6 +393,7 @@ _REASON_I18N = {
             "son": "O que sustenta este vínculo com meu filho?",
             "girlfriend": "Como somos como casal?", "boyfriend": "Como somos como casal?",
             "business_partner": "Esta sociedade vai funcionar?",
+            "husband": "O que sustenta o nosso casamento?", "wife": "O que sustenta o nosso casamento?",
         },
         "sublabel": {
             "romantic": "Namoro, uma relação em construção",
@@ -405,6 +412,7 @@ _REASON_I18N = {
             "girlfriend": "Namoro, uma relação em construção",
             "boyfriend": "Namoro, uma relação em construção",
             "business_partner": "Seu sócio ou sua sócia de negócios",
+            "husband": "Seu marido", "wife": "Sua esposa",
         },
         "role_label": {
             "sales": "Vendas / BD", "marketing": "Marketing",
@@ -432,7 +440,7 @@ _HINGLISH_LABELS = {
     "sibling": "Mere bhai ya behen", "friend": "Dost",
     "family": "Parivaar ka sadasya", "boss-or-manager": "Mere boss ya manager",
     "employee": "Mere saath kaam karne wala (employee)", "business": "Business partner",
-    "business_partner": "Business partner",
+    "business_partner": "Business partner", "husband": "Mere pati", "wife": "Meri patni",
     "cofounder": "Cofounder", "advisor": "Advisor ya mentor",
 }
 
@@ -497,6 +505,8 @@ def reasons_directory(language: str = "en") -> dict:
         "girlfriend":      ("How are we as a couple?",                "Dating, a relationship still taking shape"),
         "boyfriend":       ("How are we as a couple?",                "Dating, a relationship still taking shape"),
         "business_partner": ("Will this partnership work?",           "Your business partner"),
+        "husband":         ("What holds our marriage together?",      "Your husband"),
+        "wife":            ("What holds our marriage together?",      "Your wife"),
     }
     role_dir = [
         {"key": "sales",      "label": "Sales / BD",    "sublabel": "Revenue, deals, pipeline"},
@@ -514,7 +524,7 @@ def reasons_directory(language: str = "en") -> dict:
     ]
     # Stable display order (employer/report last, per the picker design).
     order = ["romantic", "spouse", "cofounder", "business", "advisor", "friend", "family", "sibling", "parent", "child",
-             "mother", "father", "daughter", "son", "girlfriend", "boyfriend", "business_partner",
+             "mother", "father", "daughter", "son", "girlfriend", "boyfriend", "business_partner", "husband", "wife",
              "employee", "boss-or-manager"]
     out = []
     for key in order:

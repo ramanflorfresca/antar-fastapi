@@ -1213,7 +1213,7 @@ def _derive_reason(new: str, base: str) -> None:
 
 for _new, _base in (("mother", "parent"), ("father", "parent"), ("daughter", "child"),
                     ("son", "child"), ("girlfriend", "romantic"), ("boyfriend", "romantic"),
-                    ("business_partner", "business")):
+                    ("business_partner", "business"), ("husband", "spouse"), ("wife", "spouse")):
     _derive_reason(_new, _base)
 
 

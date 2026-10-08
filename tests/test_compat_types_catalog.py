@@ -24,8 +24,8 @@ from antar_engine import people_links as PL
 HERE = os.path.dirname(__file__)
 ORIGINAL = ["romantic", "spouse", "business", "cofounder", "friend", "family", "sibling",
             "parent", "child", "advisor", "employee", "boss-or-manager"]
-NEW = ["mother", "father", "daughter", "son", "girlfriend", "boyfriend", "business_partner"]
-OWNER_FIRST = ["mother", "father", "daughter", "son", "girlfriend", "boyfriend", "spouse",
+NEW = ["mother", "father", "daughter", "son", "girlfriend", "boyfriend", "business_partner", "husband", "wife"]
+OWNER_FIRST = ["mother", "father", "daughter", "son", "girlfriend", "boyfriend", "husband", "wife",
                "employee", "business_partner", "cofounder", "friend"]
 LANGS = ("en", "es", "pt", "hinglish")
 
@@ -132,16 +132,16 @@ def test_types_endpoint_is_public_and_ordered(client):
     assert body["count"] == len(types) == len(CT.TYPE_ORDER)
     assert [t["id"] for t in types] == list(CT.TYPE_ORDER)
     for t in types:
-        assert set(t) == {"id", "label", "group", "romantic", "needs_role", "needs_position"}
+        assert set(t) == {"id", "label", "group", "group_label", "romantic", "needs_role", "needs_position"}
         assert t["label"] and t["group"] and isinstance(t["romantic"], bool)
     # the owner's eleven choices come first, in this order; legacy types follow
-    assert [t["id"] for t in types[:11]] == OWNER_FIRST
+    assert [t["id"] for t in types[:12]] == OWNER_FIRST
     assert "business" not in [t["id"] for t in types]       # business_partner is its twin
 
 
 def test_romantic_role_and_position_flags(client):
     types = client.get("/api/v1/compatibility/types").json()["types"]
-    assert {t["id"] for t in types if t["romantic"]} == {"girlfriend", "boyfriend", "spouse", "romantic"}
+    assert {t["id"] for t in types if t["romantic"]} == {"girlfriend", "boyfriend", "husband", "wife", "spouse", "romantic"}
     assert {t["id"] for t in types if t["needs_role"]} == {"employee", "boss-or-manager"}
     assert {t["id"] for t in types if t["needs_position"]} == {"employee"}
 
@@ -271,7 +271,7 @@ def test_ask_resolver_knows_the_new_types():
 
 # ── 4. each newer type is a normal session result on an existing engine ──────
 
-SAME_NUMBERS = ["mother", "father", "daughter", "son", "business_partner"]
+SAME_NUMBERS = ["mother", "father", "daughter", "son", "business_partner", "husband", "wife"]
 DATING = ["girlfriend", "boyfriend"]
 
 
@@ -292,9 +292,18 @@ def test_new_type_uses_its_base_engine(tid):
         assert R.sources_for_reason(tid) == R.sources_for_reason(base)
 
 
+def test_groups_match_the_owner_headings(client):
+    types = {t["id"]: t for t in client.get("/api/v1/compatibility/types").json()["types"]}
+    assert {types[i]["group"] for i in ("mother", "father")} == {"parent"}
+    assert {types[i]["group"] for i in ("son", "daughter")} == {"kids"}
+    assert {types[i]["group"] for i in ("husband", "wife", "spouse")} == {"spouse"}
+    es = {t["id"]: t for t in client.get("/api/v1/compatibility/types?language=es").json()["types"]}
+    assert types["son"]["group_label"] == "Kids" and es["son"]["group_label"] == "Hijos"
+
+
 def test_marriage_factors_only_for_spouse_and_the_older_romantic():
-    assert {r for r in R.VALID_REASONS if R.uses_marriage_kutas(r)} == {"romantic", "spouse"}
-    for tid in NEW + ["employee", "friend", "cofounder", "business_partner"]:
+    assert {r for r in R.VALID_REASONS if R.uses_marriage_kutas(r)} == {"romantic", "spouse", "husband", "wife"}
+    for tid in [t for t in NEW if t not in ("husband", "wife")] + ["employee", "friend", "cofounder", "business_partner"]:
         names = {n for layer in R.sources_for_reason(tid).values() for n, _ in layer}
         assert not names & set(R.MARRIAGE_ONLY_SOURCES), tid
     names = {n for layer in R.sources_for_reason("spouse").values() for n, _ in layer}
@@ -318,6 +327,8 @@ def test_new_type_produces_a_normal_session_result(tid):
 
 @pytest.mark.parametrize("tid", NEW)
 def test_new_type_has_no_marriage_only_factors(tid):
+    if tid in ("husband", "wife"):
+        pytest.skip("husband / wife are the spouse (marriage) reading")
     assert not R.uses_marriage_kutas(tid)
     # a Nadi / Moon-sign difference between the two people must not move the score
     a = _chart("Aries", "Ashwini")
@@ -331,11 +342,12 @@ def test_new_type_has_no_marriage_only_factors(tid):
         assert not NON_ROMANTIC_WORDS.search(text), NON_ROMANTIC_WORDS.search(text)
 
 
-def test_spouse_still_uses_marriage_factors():
+@pytest.mark.parametrize("tid", ["spouse", "husband", "wife"])
+def test_spouse_still_uses_marriage_factors(tid):
     a = _chart("Aries", "Ashwini")
     same, diff = _chart("Gemini", "Ardra"), _chart("Gemini", "Bharani")
     diff["planets"]["Moon"]["sign"] = same["planets"]["Moon"]["sign"]
-    assert _read("spouse", a, same)["score"] != _read("spouse", a, diff)["score"]
+    assert _read(tid, a, same)["score"] != _read(tid, a, diff)["score"]
 
 
 def test_family_wording_names_the_person():
