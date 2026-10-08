@@ -87,3 +87,41 @@ def reason_for(relation: str, people_links) -> str:
     """What the OTHER person is to the viewer -> the compatibility reason key (employee/boss-or-manager keep
     their direction from the viewer's side)."""
     return people_links.relation_to_compat_type(relation)
+
+
+def symmetrize(v: dict, w: dict, pass_threshold: float, badge_fn) -> dict:
+    """The engine reads A->B and B->A slightly differently (63 vs 66 for the same two people), but a
+    pair should see ONE set of numbers. `v` is the viewer's own order (its text is kept), `w` the
+    swapped order; score and every area's score become the mean of the two (mean is symmetric, so both
+    people get identical numbers), and the badge and each area's status are re-derived from those
+    means with the engine's own pass threshold. Pure; returns a new dict. Not used for directional
+    relations (manager / team member), which are read from each side on purpose."""
+    out = dict(v)
+    try:
+        sc = round((float(v["score"]) + float(w["score"])) / 2)
+    except (KeyError, TypeError, ValueError):
+        return out
+    out["score"] = sc
+    try:
+        out["badge"] = badge_fn(int(sc))
+    except Exception:
+        pass
+    wl = {l.get("key"): l for l in (w.get("layers") or [])}
+    layers = []
+    for l in v.get("layers") or []:
+        l = dict(l)
+        o = wl.get(l.get("key"))
+        try:
+            if o is not None:
+                l["score"] = round((float(l["score"]) + float(o["score"])) / 2)
+                l["status"] = layer_status({"passed": l["score"] >= pass_threshold, "score": l["score"]})
+                lang_labels = {x: STATUS_LABEL[x] for x in STATUS_LABEL}
+                for lang_tbl in lang_labels.values():
+                    if l.get("status_label") in lang_tbl.values():
+                        l["status_label"] = lang_tbl[l["status"]]
+                        break
+        except (KeyError, TypeError, ValueError):
+            pass
+        layers.append(l)
+    out["layers"] = layers
+    return out

@@ -50671,7 +50671,8 @@ _CIRCLE_READ_TTL = 6 * 3600
 
 
 def _circle_reading_build(ca: dict, da: dict, cb: dict, db_: dict, birth_a: str, birth_b: str,
-                          gender_a, gender_b, reason: str, name_a: str, name_b: str, lang: str) -> dict:
+                          gender_a, gender_b, reason: str, name_a: str, name_b: str, lang: str,
+                          _swapped: bool = False) -> dict:
     """Pure (no DB, no writes): the SAME scoring steps /compatibility/start runs, on two loaded charts."""
     from antar_engine import compatibility_reasons as _R, compatibility_layers as _CL
     from antar_engine.Compatibility import calculate_compatibility as _calc
@@ -50710,7 +50711,16 @@ def _circle_reading_build(ca: dict, da: dict, cb: dict, db_: dict, birth_a: str,
         print(f"[circle][reading] d10 skipped: {e}")
     v2 = _CL.compose_compat_v2(raw, ca, cb, reason, role, a_name=name_a, b_name=name_b,
                                strip_fn=apply_user_facing_strips)
-    return _CR.shape(v2, lang)
+    out = _CR.shape(v2, lang)
+    if _R.REASON_DEFINITIONS[reason]["direction"] is None and not _swapped:
+        # symmetric relation: both people must see the same numbers, so average with the swapped read
+        try:
+            sw = _circle_reading_build(cb, db_, ca, da, birth_b, birth_a, gender_b, gender_a, reason,
+                                       name_b, name_a, lang, _swapped=True)
+            out = _CR.symmetrize(out, sw, _R.LAYER_PASS_THRESHOLD, _R.badge)
+        except Exception as e:
+            print(f"[circle][reading] symmetric average skipped: {str(e)[:160]}")
+    return out
 
 
 def _circle_reading_compute(me: str, other: str, relation: str, today) -> Optional[dict]:
