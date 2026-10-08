@@ -760,6 +760,14 @@ def detect_concern(question: str) -> str:
         "growing the business", "business growth", "cofounder", "co-founder",
         "my team is", "hiring", "burn rate", "runway",
         "mi startup", "mi empresa", "mi negocio", "clientes", "ventas",
+        # [i18n-es-pt 2026-10-08] ES / PT: run / open / grow a business (phrases, never bare "negocio")
+        "abrir un negocio", "abrir mi negocio", "abrir una empresa", "abrir mi empresa",
+        "iniciar un negocio", "comenzar un negocio", "empezar un negocio", "mi emprendimiento",
+        "nuestro negocio", "nuestra empresa", "mi socio", "cofundador",
+        "abrir um negócio", "abrir um negocio", "abrir meu negócio", "abrir meu negocio",
+        "abrir uma empresa", "abrir minha empresa", "começar um negócio", "comecar um negocio",
+        "meu negócio", "meu negocio", "minha empresa", "nosso negócio", "nosso negocio",
+        "meu empreendimento", "meu sócio", "meu socio",
         # People name their company ("tezopsai growth is slow") and describe
         # selling without ever using the word "sales team", so match the SHAPE
         # of the complaint too, not just the nouns.
@@ -869,7 +877,9 @@ def detect_concern(question: str) -> str:
                   "amor","romance","pareja","novia","novio","cita","enamorar",
                   "enamorad","alma gemela","encontrar el amor","mi ex",
                   "namorad","paixão","paixao","alma gêmea","alma gemea","meu ex",
-                  "pyaar","ishq"]
+                  "pyaar","ishq",
+                  # [i18n-es-pt 2026-10-08]
+                  "relacionamento","namoro","namorar"]
     if any(w in q for w in love_words) and not _has_biz:
         return "love"
 
@@ -877,6 +887,8 @@ def detect_concern(question: str) -> str:
     # OVERRIDE: skip if business keywords also present
     marriage_words = ["marriage","married","wedding","husband","wife","spouse",
                       "my relationship","my marriage","my partner",
+                      # [i18n-es-pt 2026-10-08] "casar" covers casarme/casarse/me casar/vou me casar
+                      "casar","boda","casamiento",
                       # [i18n] ES / PT / Hinglish
                       "matrimonio","esposa","esposo","marido","mi relación",
                       "mi relacion","mi matrimonio","mi pareja","casado","casada",
@@ -910,6 +922,8 @@ def detect_concern(question: str) -> str:
     funding_words = ["funding","investor","investors","capital","raise money","cashflow","cash flow","cash-flow",
                      "raise funds","vc","venture","angel invest","grant","loan",
                      "borrow","bank loan","credit","debt","opm","seed round",
+                     # [i18n-es-pt 2026-10-08]
+                     "deuda","préstamo","prestamo","dívida","empréstimo","emprestimo",
                      "series a","series b","crowdfund","get funded","get investment"]
     if any(w in q for w in funding_words):
         return "finance"
@@ -942,6 +956,9 @@ def detect_concern(question: str) -> str:
                     "money problem","money situation","financial situation",
                     "profit","billionaire","millionaire","fortune","abundance",
                     "prosperity","crore","lakh","net worth","affluent","opulent",
+                    # [i18n-es-pt 2026-10-08] money / income / savings in ES + PT
+                    "dinero","dinheiro","sueldo","salario","salário","ingresos","renda ",
+                    "riqueza","ahorros","poupança","poupanca","patrimonio","patrimônio",
                     # [deal-routing 2026-09-13] business-deal / acquisition questions
                     # (commission, equity, gold-mine/real-estate deals) were falling
                     # through to `general`/`foreign`; route them to the money houses.
@@ -962,7 +979,12 @@ def detect_concern(question: str) -> str:
                     "stress","anxiety","mental health","depression","healing",
                     "sleep","exhaustion","chronic","doctor","medication",
                     "therapy","wellbeing","well-being","fitness","weight",
-                    "diet","insomnia","burnout","headache","migraine"]
+                    "diet","insomnia","burnout","headache","migraine",
+                    # [i18n-es-pt 2026-10-08]
+                    "salud","saúde","saude","enfermedad","enfermo","enferm","doença","doenca",
+                    "cirugía","cirugia","cirurgia","dolor","estrés","estres","estresse",
+                    "ansiedad","ansiedade","insomnio","depresión","depresion","depressão","depressao",
+                    "cansad","cansaç","cansac","agotamiento","esgotamento","médico","medico"]
     if any(w in q for w in health_words):
         return "health"
 
@@ -973,7 +995,11 @@ def detect_concern(question: str) -> str:
                     "interview","opportunity","recognition","success","achieve",
                     "entrepreneur","leadership","power","authority","founder",
                     "ceo","cto","coo","corporate","advancement","raise",
-                    "appraisal","designation","transfer","posting"]
+                    "appraisal","designation","transfer","posting",
+                    # [i18n-es-pt 2026-10-08]
+                    "trabajo","trabalho","empleo","emprego","carrera","carreira","ascenso",
+                    "promoción","promocion","promoção","promocao","ascender","jefe","chefe","despido",
+                    "demitido","renunciar","entrevista","profesión","profesion","profissão","profissao"]
     if any(w in q for w in career_words):
         return "career"
 
@@ -982,7 +1008,10 @@ def detect_concern(question: str) -> str:
                        "meaning","soul","life purpose","why am i here","destiny",
                        "higher self","awakening","consciousness","enlightenment",
                        "mission","calling","divine","prayer","mantra","sadhana",
-                       "inner peace","detachment","renunciation","self-realization"]
+                       "inner peace","detachment","renunciation","self-realization",
+                       # [i18n-es-pt 2026-10-08]
+                       "meditaci","meditaç","meditac","propósito","proposito","sentido da vida",
+                       "sentido de la vida","paz interior"]
     if any(w in q for w in spiritual_words):
         return "spiritual"
 
