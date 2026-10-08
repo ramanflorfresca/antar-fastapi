@@ -14914,6 +14914,69 @@ def _assert_birth_jd_consistent(
 
 
 
+def _normalise_dashas(raw) -> list:
+    """
+    Dasha modules return {mahadashas:[{lord, start_date, end_date, ...}], antardashas:[...]}
+    OR a flat list (Jaimini). Normalise to flat list with keys:
+    {lord_or_sign, start, end, duration_years, level, planet_or_sign}
+    """
+    if isinstance(raw, list):
+        # Jaimini returns flat list with "sign" key — normalize keys
+        normalized = []
+        for item in raw:
+            if isinstance(item, dict):
+                _lord_v = item.get("lord_or_sign", "") or item.get("lord", "") or item.get("sign", "") or item.get("planet_or_sign", "")
+                _sd = str(item.get("start_date", "") or item.get("start", ""))[:10]
+                _ed = str(item.get("end_date", "") or item.get("end", ""))[:10]
+                normalized.append({
+                    "lord_or_sign":   _lord_v,
+                    "planet_or_sign": _lord_v,
+                    "start":          _sd,
+                    "end":            _ed,
+                    "start_date":     _sd,
+                    "end_date":       _ed,
+                    "duration_years": item.get("duration_years", 0),
+                    "level":          item.get("level", "mahadasha"),
+                    "parent_lord":    item.get("parent_lord", ""),
+                })
+            else:
+                normalized.append(item)
+        return normalized
+    if not isinstance(raw, dict):
+        return []
+    flat = []
+    for p in raw.get("mahadashas", []):
+        sd = str(p.get("start_date", "") or "")[:10]
+        ed = str(p.get("end_date",   "") or "")[:10]
+        _lord_val = p.get("lord", "") or p.get("sign", "") or p.get("lord_or_sign", "")
+        flat.append({
+            "lord_or_sign":   _lord_val,
+            "planet_or_sign": _lord_val,
+            "start":          sd,
+            "end":            ed,
+            "start_date":     sd,
+            "end_date":       ed,
+            "duration_years": p.get("duration_years", 0),
+            "level":          "mahadasha",
+        })
+    for p in raw.get("antardashas", []):
+        sd = str(p.get("start_date", "") or "")[:10]
+        ed = str(p.get("end_date",   "") or "")[:10]
+        _lord_val_ad = p.get("lord", "") or p.get("sign", "") or p.get("lord_or_sign", "")
+        flat.append({
+            "lord_or_sign":   _lord_val_ad,
+            "planet_or_sign": _lord_val_ad,
+            "start":          sd,
+            "end":            ed,
+            "start_date":     sd,
+            "end_date":       ed,
+            "duration_years": p.get("duration_years", 0),
+            "level":          "antardasha",
+            "parent_lord":    p.get("parent_lord", ""),
+        })
+    return flat
+
+
 @app.post("/api/v1/chart/create")
 async def create_chart(
     request: ChartCreateRequest,
@@ -14983,67 +15046,6 @@ async def _create_chart_for_user(request: "ChartCreateRequest", user_id: Optiona
     except Exception as e:
         raise HTTPException(500, f"Chart calculation failed: {e}")
 
-    def _normalise_dashas(raw) -> list:
-        """
-        Dasha modules return {mahadashas:[{lord, start_date, end_date, ...}], antardashas:[...]}
-        OR a flat list (Jaimini). Normalise to flat list with keys:
-        {lord_or_sign, start, end, duration_years, level, planet_or_sign}
-        """
-        if isinstance(raw, list):
-            # Jaimini returns flat list with "sign" key — normalize keys
-            normalized = []
-            for item in raw:
-                if isinstance(item, dict):
-                    _lord_v = item.get("lord_or_sign", "") or item.get("lord", "") or item.get("sign", "") or item.get("planet_or_sign", "")
-                    _sd = str(item.get("start_date", "") or item.get("start", ""))[:10]
-                    _ed = str(item.get("end_date", "") or item.get("end", ""))[:10]
-                    normalized.append({
-                        "lord_or_sign":   _lord_v,
-                        "planet_or_sign": _lord_v,
-                        "start":          _sd,
-                        "end":            _ed,
-                        "start_date":     _sd,
-                        "end_date":       _ed,
-                        "duration_years": item.get("duration_years", 0),
-                        "level":          item.get("level", "mahadasha"),
-                        "parent_lord":    item.get("parent_lord", ""),
-                    })
-                else:
-                    normalized.append(item)
-            return normalized
-        if not isinstance(raw, dict):
-            return []
-        flat = []
-        for p in raw.get("mahadashas", []):
-            sd = str(p.get("start_date", "") or "")[:10]
-            ed = str(p.get("end_date",   "") or "")[:10]
-            _lord_val = p.get("lord", "") or p.get("sign", "") or p.get("lord_or_sign", "")
-            flat.append({
-                "lord_or_sign":   _lord_val,
-                "planet_or_sign": _lord_val,
-                "start":          sd,
-                "end":            ed,
-                "start_date":     sd,
-                "end_date":       ed,
-                "duration_years": p.get("duration_years", 0),
-                "level":          "mahadasha",
-            })
-        for p in raw.get("antardashas", []):
-            sd = str(p.get("start_date", "") or "")[:10]
-            ed = str(p.get("end_date",   "") or "")[:10]
-            _lord_val_ad = p.get("lord", "") or p.get("sign", "") or p.get("lord_or_sign", "")
-            flat.append({
-                "lord_or_sign":   _lord_val_ad,
-                "planet_or_sign": _lord_val_ad,
-                "start":          sd,
-                "end":            ed,
-                "start_date":     sd,
-                "end_date":       ed,
-                "duration_years": p.get("duration_years", 0),
-                "level":          "antardasha",
-                "parent_lord":    p.get("parent_lord", ""),
-            })
-        return flat
 
     vim_dashas, jai_dashas, ash_dashas = [], [], []
     try: vim_dashas = _normalise_dashas(
@@ -18319,6 +18321,166 @@ async def settings_charts_create(request: Request, authorization: Optional[str] 
     return {"chart": _st_chart_shape(row, p.get("primary_chart_id"))}
 
 
+# [edit-birth-rederive 2026-10-08] Everything DERIVED from the natal chart. A birth
+# edit used to rebuild only chart_data, leaving dasha_periods, jaimini_data,
+# lal_kitab_data, yogas and every cached reading describing the OLD birth.
+# Registered separately from _CHART_DERIVED_TABLES on purpose: that list is for
+# DELETE and includes user content (predictions, questions, messages) which a
+# birth edit must NOT wipe. This is only what is recomputable from the chart.
+_BIRTH_EDIT_PURGE_TABLES = (
+    "dasha_periods", "chart_yogas",
+    "daily_signals", "welcome_signals", "weekly_briefings", "monthly_briefings",
+    "monthly_deepdives", "life_arc_cache",
+    "today_narration_cache", "home_cache", "deep_read_cache", "predict_week_cache",
+    "practice_schedule_cache", "daily_signals_cache", "daily_surface_cache",
+    "chart_daily_headlines", "chart_transits", "layered_domains_cache",
+    "year_narration_cache", "translation_cache",
+    "lal_kitab_varshphal_charts",
+)
+
+
+def _rederive_after_birth_edit(chart_id: str, chart_data: dict, birth_date: str) -> dict:
+    """Rebuild every layer derived from the natal chart after a birth edit and drop
+    the stale caches. BLOCKING (many Supabase round trips): call via
+    run_in_threadpool. Each step is isolated; returns {step: "ok" | error} so the
+    caller can report a partial rebuild instead of claiming success."""
+    bd = str(birth_date)[:10]
+    status: dict = {}
+
+    # 1. purge stale derived rows/caches (dashas are re-inserted below)
+    purged_bad = []
+    for t in _BIRTH_EDIT_PURGE_TABLES:
+        try:
+            supabase.table(t).delete().eq("chart_id", chart_id).execute()
+        except Exception as e:
+            purged_bad.append(t)
+            print(f"[edit-birth] purge {t} failed chart={chart_id[:8]}: {e}")
+    status["purge"] = "ok" if not purged_bad else f"failed: {','.join(purged_bad)}"
+    try:
+        supabase.table("charts").update({"daily_wow_cache": None}).eq("id", chart_id).execute()
+    except Exception as e:
+        print(f"[edit-birth] daily_wow_cache reset failed: {e}")
+    try:
+        invalidate_dasha_cache(chart_id)
+    except Exception:
+        pass
+
+    # 2. dashas (same three systems chart/create writes)
+    try:
+        vim, jai, ash = [], [], []
+        try:
+            vim = _normalise_dashas(vimsottari.calculate_vimsottari_from_chart(chart_data, chart_data.get("birth_jd")))
+        except Exception as e:
+            print(f"[edit-birth] vimsottari: {e}")
+        try:
+            from antar_engine.jaimini import build_planet_map
+            import datetime as _dt
+            _SIGNS = ["Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo", "Libra",
+                      "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"]
+            _lg = chart_data.get("lagna", {})
+            _lg_sign = _lg.get("sign", "Aries") if isinstance(_lg, dict) else "Aries"
+            _lg_idx = _SIGNS.index(_lg_sign) if _lg_sign in _SIGNS else 0
+            _longs = {pn: (_SIGNS.index(d.get("sign", "Aries")) * 30 + d.get("degree", 0))
+                      for pn, d in chart_data.get("planets", {}).items()
+                      if d.get("sign", "") in _SIGNS}
+            jai = _normalise_dashas(jaimini.compute_jaimini_dashas(
+                _lg_idx, build_planet_map(_longs), _dt.date.fromisoformat(bd)))
+        except Exception as e:
+            print(f"[edit-birth] jaimini dasha: {e}")
+        try:
+            ash = _normalise_dashas(ashtottari.calculate_ashtottari_from_chart(chart_data, chart_data.get("birth_jd")))
+        except Exception as e:
+            print(f"[edit-birth] ashtottari: {e}")
+        rows = []
+        for system, periods in (("vimsottari", vim), ("jaimini", jai), ("ashtottari", ash)):
+            for i, p in enumerate(periods):
+                lord = p.get("lord") or p.get("lord_or_sign") or p.get("planet_or_sign", "")
+                lvl = p.get("level", "mahadasha")
+                rows.append({
+                    "chart_id": chart_id, "system": system, "type": lvl,
+                    "level": 1 if lvl == "mahadasha" else (2 if lvl == "antardasha" else 3),
+                    "planet_or_sign": lord,
+                    "start_date": str(p.get("start_date") or p.get("start", ""))[:10],
+                    "end_date": str(p.get("end_date") or p.get("end", ""))[:10],
+                    "duration_years": p.get("duration_years", 0), "sequence": i,
+                    "parent_id": None,
+                    "metadata": {"parent_lord": p.get("parent_lord", ""), "type": lvl},
+                })
+        if not any(r["system"] == "vimsottari" for r in rows):
+            raise RuntimeError("no vimsottari rows computed")
+        for i in range(0, len(rows), 100):
+            supabase.table("dasha_periods").insert(rows[i:i + 100]).execute()
+        invalidate_dasha_cache(chart_id)
+        status["dashas"] = "ok"
+    except Exception as e:
+        status["dashas"] = f"failed: {e}"
+        print(f"[edit-birth] dashas failed chart={chart_id[:8]}: {e}")
+
+    # 3. jaimini_data
+    try:
+        from antar_engine.jaimini_engine import calculate_jaimini_analysis
+        _lo = chart_data.get("lagna", {})
+        _li = _sign_name_to_idx(_lo.get("sign_num", _lo.get("sign_index", _lo.get("sign", 0)))) if isinstance(_lo, dict) else 0
+        _dc = chart_data.get("divisional_charts", {}) or {}
+        _d9 = (_dc.get("d9") or _dc.get("D9") or {}).get("planets", {}) or chart_data.get("d9_planets", {}) or {}
+        _pl = {k: v for k, v in chart_data.get("planets", {}).items() if isinstance(v, dict)}
+        _jr = calculate_jaimini_analysis(lagna_sign=_li, planets_dict=_pl,
+                                         d9_planets_dict=_d9, birth_date_str=bd)
+        _jdb = _jr["db_json"]
+        _jdb.pop("computed_at", None)
+        supabase.table("charts").update({"jaimini_data": _jdb}).eq("id", chart_id).execute()
+        status["jaimini"] = "ok"
+    except Exception as e:
+        status["jaimini"] = f"failed: {e}"
+        print(f"[edit-birth] jaimini failed chart={chart_id[:8]}: {e}")
+
+    # 4. lal_kitab_data (mirror of chart/create, single write incl. `advanced`)
+    try:
+        from antar_engine.varshaphal_table import get_annual_house
+        from datetime import date as _date
+        from antar_engine.lal_kitab_advanced import (
+            detect_sleeping_planets, calculate_comprehensive_rin,
+            detect_enemy_houses, year_lord_for)
+        _age = (_date.today() - _date.fromisoformat(bd)).days // 365
+        _pls = chart_data.get("planets", {})
+        _lg = chart_data.get("lagna", {})
+        lk = {
+            "age": _age,
+            "placements": {pn: get_annual_house(d.get("house", 1), _age)
+                           for pn, d in _pls.items() if 1 <= (d.get("house") or 0) <= 12},
+            "natal_planets": {pn: {"house": d.get("house"), "sign": d.get("sign")} for pn, d in _pls.items()},
+            "lagna_sign": _lg.get("sign", "") if isinstance(_lg, dict) else str(_lg),
+            "birth_date": bd, "is_special_cycle": False, "cycle_significance": None,
+            "advanced": {"sleeping_planets": detect_sleeping_planets(_pls),
+                         "rin_debts": calculate_comprehensive_rin(_pls)},
+            "enemy_houses": detect_enemy_houses(_pls),
+        }
+        _yl = year_lord_for(bd)
+        if _yl:
+            lk["year_lord"] = _yl
+            lk["year_lord_house"] = (_pls.get(_yl, {}) or {}).get("house", 0)
+        supabase.table("charts").update({"lal_kitab_data": lk}).eq("id", chart_id).execute()
+        status["lal_kitab"] = "ok"
+    except Exception as e:
+        status["lal_kitab"] = f"failed: {e}"
+        print(f"[edit-birth] lal_kitab failed chart={chart_id[:8]}: {e}")
+
+    # 5. yogas table
+    try:
+        yogas = chart_data.get("yogas", []) or []
+        if yogas:
+            supabase.table("chart_yogas").insert([{
+                "chart_id": chart_id, "yoga_name": y.get("name", ""),
+                "strength": y.get("strength", ""), "category": y.get("category", ""),
+                "planets": y.get("planets", []), "effect": y.get("effect", ""),
+            } for y in yogas]).execute()
+        status["yogas"] = "ok"
+    except Exception as e:
+        status["yogas"] = f"failed: {e}"
+        print(f"[edit-birth] yogas failed chart={chart_id[:8]}: {e}")
+    return status
+
+
 @app.patch("/api/v1/me/charts/{chart_id}")
 async def settings_charts_update(chart_id: str, request: Request, authorization: Optional[str] = Header(None)):
     from fastapi.responses import JSONResponse
@@ -18347,6 +18509,7 @@ async def settings_charts_update(chart_id: str, request: Request, authorization:
     if "current_country" in body:
         updates["current_country"] = (body.get("current_country") or "").strip() or None
 
+    _rederive_pending = None
     birth_changed = any(k in body for k in ("birth_date", "birth_time", "birth_place", "birth_city"))
     if birth_changed:
         try:
@@ -18380,7 +18543,7 @@ async def settings_charts_update(chart_id: str, request: Request, authorization:
                 "geocode_source":  _geo_source,
                 "needs_reconfirm": False,
             })
-            # NOTE: jaimini_data / lal_kitab_data are NOT re-derived on edit (deferred).
+            _rederive_pending = (bd, new_chart)
         except Exception as e:
             return JSONResponse(status_code=500, content={"error": "recompute failed", "detail": str(e)})
 
@@ -18396,11 +18559,22 @@ async def settings_charts_update(chart_id: str, request: Request, authorization:
             )
         supabase.table("charts").update(updates).eq("id", chart_id).execute()
 
+    # [edit-birth-rederive 2026-10-08] natal row is saved; now rebuild everything
+    # derived from it (dashas, jaimini, lal kitab, yogas) and drop stale caches.
+    _rebuild = None
+    if _rederive_pending is not None:
+        _rebuild = await run_in_threadpool(
+            _rederive_after_birth_edit, chart_id, _rederive_pending[1], _rederive_pending[0])
+
     p = _st_get_profile(user_id)
     row = supabase.table("charts").select(
         "id, first_name, name, birth_date, birth_time, birth_city"
     ).eq("id", chart_id).single().execute().data
-    return {"chart": _st_chart_shape(row, p.get("primary_chart_id"))}
+    out = {"chart": _st_chart_shape(row, p.get("primary_chart_id"))}
+    if _rebuild is not None:
+        out["rebuild"] = _rebuild
+        out["rebuild_complete"] = all(v == "ok" for v in _rebuild.values())
+    return out
 
 
 # [tombstone-cols 2026-09-10] The natal / PII columns nulled when a chart is
