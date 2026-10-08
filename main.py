@@ -50319,6 +50319,18 @@ class _CircleInviteIn(BaseModel):
     position: Optional[int] = None
 
 
+def _circle_is_my_person(chart_id: str, person_chart_id: str) -> bool:
+    """True when `person_chart_id` is one of the inviter's own People. Fails closed (False) on any error."""
+    try:
+        if _compat_partner_allowed(chart_id, person_chart_id):
+            return True
+        r = (supabase.table("compatibility_sessions").select("id").eq("chart_id_a", chart_id)
+             .eq("chart_id_b", person_chart_id).limit(1).execute().data) or []
+        return bool(r)
+    except Exception:
+        return False
+
+
 @app.post("/api/v1/circle/invites")
 def circle_create_invite(body: _CircleInviteIn, authorization: Optional[str] = Header(None)):
     """Invite a person. Returns the link to share FROM YOUR OWN PHONE - Antar never contacts the
@@ -50333,11 +50345,16 @@ def circle_create_invite(body: _CircleInviteIn, authorization: Optional[str] = H
         raise HTTPException(status_code=422, detail={"error": "first_name_required"})
     if _circle.is_demo(supabase, body.chart_id):
         raise HTTPException(status_code=403, detail={"error": "demo_chart"})
-    if body.private_chart_id and not _compat_partner_allowed(body.chart_id, body.private_chart_id):
-        raise HTTPException(status_code=403, detail={"error": "not_your_person"})
+    # The private-person link is only a hint for merging two rows on screen, so it must never block an invite: it is kept
+    # only when the person is really in the inviter's own People (a sub-chart of theirs, or one of their compatibility
+    # sessions - which also covers a person who is a real Antar user), and silently dropped otherwise.
+    priv = body.private_chart_id
+    if priv and not _circle_is_my_person(body.chart_id, priv):
+        print(f"[circle] invite: private_chart_id ignored (not in the inviter's People) cid={str(body.chart_id)[:8]}")
+        priv = None
     try:
         out = _circle.create_invite(supabase, body.chart_id, row.get("user_id"), rel, name,
-                                    _circle_lang(body.language, row), body.private_chart_id, body.position)
+                                    _circle_lang(body.language, row), priv, body.position)
     except (_circle.CircleError, _circle.CircleUnavailable) as e:
         raise _circle_err(e)
     return {"invite_id": out["invite_id"], "link": out["link"], "expires_at": out["expires_at"]}
