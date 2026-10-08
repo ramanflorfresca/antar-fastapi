@@ -51146,6 +51146,58 @@ async def get_circle_reading(chart_id: str, other_chart_id: str, language: Optio
     return out
 
 
+class _CircleFeedbackIn(BaseModel):
+    item: str
+    answer: str
+
+
+async def _circle_feedback_context(chart_id: str, other_chart_id: str, language, tz_offset, authorization, x_claim_token):
+    """(reading, pair, lang) for the viewer when the reading is ON, else (None, pair, lang). Same auth as the reading."""
+    out = await get_circle_reading(chart_id, other_chart_id, language, tz_offset, authorization, x_claim_token)
+    pair = await run_in_threadpool(_circle.pair_for, supabase, chart_id, other_chart_id)
+    if not pair or out.get("state") != "on" or not out.get("reading"):
+        return None, pair, out.get("language")
+    return out["reading"], pair, out.get("language")
+
+
+@app.get("/api/v1/circle/{chart_id}/pair/{other_chart_id}/feedback")
+async def get_circle_feedback(chart_id: str, other_chart_id: str, language: Optional[str] = None,
+                              tz_offset: Optional[int] = None, authorization: Optional[str] = Header(None),
+                              x_claim_token: Optional[str] = Header(None)):
+    """The ONE next 'does this fit?' question for this person on this pair, or `item: null` (nothing to ask / reading not on /
+    already answered). Items: call | me | reading. Answers: yes | partly | no (POST the same path). Fails open."""
+    from antar_engine import circle_feedback as _fb
+    reading, pair, lang = await _circle_feedback_context(chart_id, other_chart_id, language, tz_offset, authorization, x_claim_token)
+    if not reading or await run_in_threadpool(_circle.is_demo, supabase, chart_id):
+        return {"item": None}
+    item = await run_in_threadpool(_fb.next_item, supabase, chart_id, pair["id"], reading, _prac_local_date(tz_offset))
+    if not item:
+        return {"item": None}
+    return _fb.prompt(item, reading, lang)
+
+
+@app.post("/api/v1/circle/{chart_id}/pair/{other_chart_id}/feedback")
+async def post_circle_feedback(chart_id: str, other_chart_id: str, body: _CircleFeedbackIn, language: Optional[str] = None,
+                               tz_offset: Optional[int] = None, authorization: Optional[str] = Header(None),
+                               x_claim_token: Optional[str] = Header(None)):
+    """Record one answer (yes | partly | no) for item call | me | reading. Idempotent: the first answer in a ~90-day period is
+    kept. Only while the reading is on (409 `not_on` otherwise). Returns {saved, already_answered, outcome, thanks, next}."""
+    from antar_engine import circle_feedback as _fb
+    reading, pair, lang = await _circle_feedback_context(chart_id, other_chart_id, language, tz_offset, authorization, x_claim_token)
+    if not reading or not pair:
+        raise HTTPException(status_code=409, detail={"error": "not_on"})
+    if await run_in_threadpool(_circle.is_demo, supabase, chart_id):
+        raise HTTPException(status_code=403, detail={"error": "demo_chart"})
+    today = _prac_local_date(tz_offset)
+    try:
+        res = await run_in_threadpool(_fb.record, supabase, chart_id, pair["id"], (body.item or "").strip().lower(),
+                                      (body.answer or "").strip().lower(), reading, lang, today)
+    except _fb.FeedbackError as e:
+        raise HTTPException(status_code=e.status, detail={"error": e.code})
+    nxt = await run_in_threadpool(_fb.next_item, supabase, chart_id, pair["id"], reading, today)
+    return {**res, "thanks": _fb.thanks(lang), "next": _fb.prompt(nxt, reading, lang) if nxt else None}
+
+
 def _circle_brief_compute(me: str, other: str, lens: str, lang: str, reading: dict, today) -> Optional[dict]:
     """Sync (threadpool): both REAL charts -> two profiles in their roles for this lens + the pair's season windows -> the brief."""
     from antar_engine import circle_brief as _cb, circle_lens as _cl
