@@ -20,6 +20,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 from antar_engine import compatibility_reasons as _R
+from antar_engine import compatibility_types as _CT
 from antar_engine.ask_subject import norm_name
 
 RELATIONS = ("child", "spouse", "romantic", "parent", "sibling", "family",
@@ -67,6 +68,8 @@ def normalise_relation(relation: Any, detail: Any = None) -> Optional[Tuple[str,
     reason = _R.resolve_reason(key)          # strict, alias-tolerant
     if not reason:
         return None
+    if reason in _CT.STORED_RELATION:        # business_partner: no relation of its own
+        return _CT.STORED_RELATION[reason], reason
     rel = _REASON_TO_RELATION.get(reason, reason)
     if rel not in RELATIONS:
         return None
@@ -77,8 +80,11 @@ def normalise_relation(relation: Any, detail: Any = None) -> Optional[Tuple[str,
     return rel, det
 
 
-def relation_to_compat_type(relation: str) -> str:
-    """person_links.relation -> compatibility reason key."""
+def relation_to_compat_type(relation: str, detail: Any = None) -> str:
+    """person_links.relation (+ relation_detail) -> compatibility reason key. The
+    detail only matters for business_partner (stored under 'business')."""
+    if relation == "business" and str(detail or "").strip().lower() == "business_partner":
+        return "business_partner"
     return "boss-or-manager" if relation == "boss" else relation
 
 
@@ -284,7 +290,7 @@ def list_current_links(sb, owner_chart_id: str, with_scores: bool = True) -> Lis
                             for a in list_aliases(sb, owner_chart_id, pid)]}
         if with_scores:
             item["score"] = latest_score(sb, owner_chart_id, pid,
-                                         relation_to_compat_type(l["relation"]))
+                                         relation_to_compat_type(l["relation"], l.get("relation_detail")))
         out.append(item)
     return out
 
@@ -312,7 +318,7 @@ def load_people_for_ask(sb, owner_chart_id: str) -> Optional[list]:
             continue
         aliases = [a.get("alias") for a in list_aliases(sb, owner_chart_id, pid) if a.get("alias")]
         people.append({"chart_id_b": pid, "name_b": name,
-                       "compat_type": relation_to_compat_type(l["relation"]),
+                       "compat_type": relation_to_compat_type(l["relation"], l.get("relation_detail")),
                        "relation": l["relation"], "relation_detail": l.get("relation_detail"),
                        "gender": norm_gender(ch.get("gender"))
                        or gender_from_detail(l.get("relation_detail")),

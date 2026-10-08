@@ -142,3 +142,22 @@ Removes a saved partner chart.
 - Translate `headline`, `detail`, `badge`, `line`, layer `detail` at
   response time from English source. `label` is a token — translate it too.
 - Cache per `(chart_a, chart_b, relationship, language, dasha_boundary)`.
+
+
+## Relationship types for the "add a person" flow (additive)
+
+`GET /api/v1/compatibility/types?language=en|es|pt|hinglish` (public, no auth; Hindi and any
+other language fall back to English) returns `{types: [{id, label, group, romantic, needs_role,
+needs_position}], count}` in display order: mother, father, daughter, son, girlfriend,
+boyfriend, spouse, employee, business_partner, cofounder, friend, then the older types.
+Every `id` is accepted as `compat_type` on `POST /api/v1/compatibility/start`.
+
+`POST /api/v1/compatibility/start` also accepts an optional `position` (free text, trimmed,
+max 60 chars). It is stored in the session's existing `score_breakdown` JSON (no new column),
+used only for display and wording, and returned as `position` on the start response, the
+session read, the sessions list and `/api/v1/network/{chart_id}` (per relationship).
+For `employee`, a `position` stands in for `role` (role defaults to `managerial`).
+
+`/network` relationships, `/compatibility/session/{id}`, `/compatibility/sessions/{chart_id}`
+(new optional `language` query) and the start response now carry `compat_type_label` next to
+`compat_type`, in the requested language.

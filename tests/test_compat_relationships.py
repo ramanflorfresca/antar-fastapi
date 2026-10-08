@@ -45,12 +45,12 @@ def test_all_new_types_registered():
 
 
 @pytest.mark.parametrize("raw,expected", [
-    ("husband", "spouse"), ("wife", "spouse"), ("spouse", "spouse"),
+    ("husband", "husband"), ("wife", "wife"), ("spouse", "spouse"),
     ("married", "spouse"), ("marriage", "spouse"),
     ("brother", "sibling"), ("sister", "sibling"), ("sibling", "sibling"),
     ("mentor", "advisor"), ("guide", "advisor"), ("advisor", "advisor"),
-    ("son", "child"), ("daughter", "child"),
-    ("mother", "parent"), ("father", "parent"),
+    ("son", "son"), ("daughter", "daughter"),
+    ("mother", "mother"), ("father", "father"),
     ("partner", "romantic"), ("romantic", "romantic"), ("dating", "romantic"),
     ("Co-Founder", "cofounder"), ("boss", "boss-or-manager"),
 ])
@@ -114,7 +114,7 @@ def test_dasha_specs_for_new_types():
 def test_separation_penalty_only_for_romantic_and_spouse():
     import main
     on = {k for k, v in main._FWD_REL_SPEC.items() if v["sep"]}
-    assert on <= {"romantic", "spouse", "marriage"}, on
+    assert on <= {"romantic", "spouse", "marriage", "husband", "wife"}, on
     for t in ("parent", "child", "sibling", "friend", "advisor", "business", "cofounder",
               "family", "employee", "boss-or-manager"):
         assert main._FWD_REL_SPEC[t]["sep"] is False, t
@@ -257,7 +257,7 @@ def test_sources_for_reason_gate():
     for r in R.VALID_REASONS:
         srcs = R.sources_for_reason(r)
         names = {n for layer in srcs.values() for n, _ in layer}
-        if r in ("romantic", "spouse"):
+        if r in ("romantic", "spouse", "husband", "wife"):
             assert {"yoni", "bhakoot", "nadi_dosha"} <= names, r
         else:
             assert not (names & {"yoni", "bhakoot", "nadi_dosha"}), r

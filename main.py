@@ -21773,6 +21773,16 @@ _FWD_REL_SPEC = {
     "employee":        {"pos": [10, 6, 3, 11], "neg": [8, 12],    "good": ["Saturn", "Sun", "Mercury", "Mars"], "bad": ["Ketu"], "sep": False},
     "boss-or-manager": {"pos": [10, 6, 9, 11], "neg": [8, 12],    "good": ["Saturn", "Sun", "Mercury"], "bad": ["Ketu"], "sep": False},
 }
+# The newer People types (mother, son, business_partner, ...) are read by an existing type's
+# engine; they share that type's spec object, so nothing about how it scores changes.
+from antar_engine import compatibility_reasons as _R_FWD
+for _nt, _nb in _R_FWD.REASON_ENGINE_BASE.items():
+    _FWD_REL_SPEC[_nt] = _FWD_REL_SPEC[_nb]
+# girlfriend / boyfriend: the dating path. Same houses and planets as "romantic" but
+# WITHOUT the separation-timing penalty, which is a marriage-durability signal kept to
+# romantic + spouse only.
+for _nt in ("girlfriend", "boyfriend"):
+    _FWD_REL_SPEC[_nt] = {**_FWD_REL_SPEC["romantic"], "sep": False}
 
 
 def _d10_synastry(chart_a, chart_b):
@@ -22307,6 +22317,33 @@ def get_compatibility_reasons(
     return _R.reasons_directory(lang)
 
 
+@app.get("/api/v1/compatibility/types")
+def get_compatibility_types(language: Optional[str] = None,
+                            accept_language: Optional[str] = Header(None)):
+    """The relationship choices for the People "add a person" flow, in the order a
+    person most often adds them. PUBLIC: no auth and no user data (like /languages),
+    because the add flow can open before an account exists.
+
+    Every id here is one the compatibility engine can compute and the add endpoints
+    accept; tests/test_compat_types_catalog.py fails if the list and the engine ever
+    drift. `label` is in the requested language (en/es/pt/hinglish; Hindi and any
+    other language fall back to English). `romantic` is true only for the types that
+    use marriage-matching factors. `needs_role` is true for the two work-direction
+    types, which also need a role (sales / marketing / finance / managerial) sent
+    with the add call.
+    """
+    from antar_engine import compatibility_types as _CT
+    lang = language
+    if not lang and accept_language:
+        try:
+            _base = accept_language.split(",")[0].strip().lower().split("-")[0]
+            lang = _base if _base in ("es", "pt") else "en"
+        except Exception:
+            lang = "en"
+    types = _CT.types_directory(lang or "en")
+    return {"types": types, "count": len(types)}
+
+
 @app.post("/api/v1/timing/windows")
 def get_timing_windows(request: dict):
     """
@@ -22349,6 +22386,26 @@ def get_timing_windows(request: dict):
 # COMPATIBILITY SESSION ENDPOINTS
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _clean_position(v) -> Optional[str]:
+    """Trim, drop control characters, collapse spaces, cap at 60. Empty -> None.
+    Never raises (a bad value is ignored, not a 422)."""
+    try:
+        t = re.sub(r"[\x00-\x1f\x7f]+", " ", str(v or ""))
+        t = re.sub(r"\s+", " ", t).strip()[:60].strip()
+        return t or None
+    except Exception:
+        return None
+
+
+def _apply_position(summary, b_name, reason, position):
+    """Prefix the plain 'who they are to you' sentence for an employee with a
+    position. Wording only; the score never sees the position."""
+    pos = _clean_position(position)
+    if not pos or reason != "employee" or not summary:
+        return summary
+    return f"Here {b_name} is read as your {pos}. {summary}"
+
+
 class CompatibilityStartRequest(BaseModel):
     chart_id_a:         str
     chart_id_b:         Optional[str] = None
@@ -22369,6 +22426,14 @@ class CompatibilityStartRequest(BaseModel):
     timezone_b:         Optional[str] = None
     gender_b:           Optional[str] = None   # [people-links] stored on a NEW person chart
     language:           Optional[str] = "en"
+    # "Employee at a specific position" (e.g. CTO, sales manager). Free text, trimmed,
+    # at most 60 characters; used ONLY for display and wording, never for scoring.
+    position:           Optional[str] = None
+
+    @_chart_field_validator("position", mode="before")
+    @classmethod
+    def _clean_position_field(cls, v):
+        return _clean_position(v)
 
 
 class CompatibilityContinueRequest(BaseModel):
@@ -22640,6 +22705,8 @@ async def compatibility_start(request: CompatibilityStartRequest,
         _v2_reason = _R.normalize_reason(None, None, default=(request.compatibility_type or "cofounder"))
     _v2_def = _R.REASON_DEFINITIONS[_v2_reason]
     _v2_role = (request.role or request.employee_role or None)
+    if _v2_def["needs_role"] and not _v2_role and request.position and _v2_reason == "employee":
+        _v2_role = "managerial"   # the add flow collects a position instead of a role
     if _v2_def["needs_role"]:
         if not _v2_role:
             raise HTTPException(422, {"error": "role_required", "message": f"reason '{_v2_reason}' requires a role: {_R.VALID_ROLES}"})
@@ -22885,7 +22952,7 @@ async def compatibility_start(request: CompatibilityStartRequest,
     _compat_raw = _calc_compat(
         chart_a=_ca, chart_b=_cb, name_a=name_a, name_b=_name_b,
         birth_date_a=birth_a, birth_date_b=(birth_b if request.chart_id_b else request.birth_date_b) or "",
-        compatibility_type=_v2_reason, language=request.language or "en",
+        compatibility_type=_R.engine_reason(_v2_reason), language=request.language or "en",
     )
     # [forward-dasha 2026-09-13] Replace the current-only dasha_timing score with
     # the forward, relationship-aware two-chart runway (+ separation penalty for
@@ -22947,6 +23014,7 @@ async def compatibility_start(request: CompatibilityStartRequest,
         print(f"[compat] field_mode (decorative) non-fatal: {_fe2}")
 
     increment_usage(request.chart_id_a, "compat", supabase)
+    _v2["summary"] = _apply_position(_v2.get("summary"), _name_b, _v2_reason, request.position)
     _sid = str(_uuid2.uuid4())
     _layer_scores = {l["layer_key"]: l["score"] for l in _v2["layers"]}
     _v2_breakdown = {
@@ -22954,6 +23022,10 @@ async def compatibility_start(request: CompatibilityStartRequest,
         "compat_type": _v2_reason, "role": _v2_role, "direction": _v2_direction,
         "headline": _v2["headline"], "v2_layers": _layer_scores, "v2": True,
     }
+    if request.position:
+        # kept in the existing score_breakdown JSON (no new column), read back by the
+        # session read and /network; absent for every other type
+        _v2_breakdown["position"] = request.position
 
     try:
         supabase.table("compatibility_sessions").insert({
@@ -23002,6 +23074,8 @@ async def compatibility_start(request: CompatibilityStartRequest,
         "session_id": _sid, "chart_id_a": request.chart_id_a, "chart_id_b": chart_id_b,
         "name_a": name_a, "name_b": _name_b,
         "compat_type": _v2_reason, "role": _v2_role, "direction": _v2_direction,
+        "compat_type_label": _label_for_type(_v2_reason, request.language or "en"),
+        **({"position": request.position} if request.position else {}),
         "score": _v2["score"], "badge": _v2["badge"], "passed": _v2["passed"],
         "headline": _v2["headline"], "summary": _v2["summary"],
         "layers": _v2["layers"], "watch_points": _v2["watch_points"], "catalysts": _v2["catalysts"],
@@ -23016,7 +23090,7 @@ async def compatibility_start(request: CompatibilityStartRequest,
     if _dm_line:
         _resp["dasha_timing_note"] = _dm_line
     _d10_line = (_compat_raw.get("d10_synastry") or {}).get("line")
-    if _d10_line and _v2_reason in ("business", "cofounder", "employee", "boss-or-manager", "advisor"):
+    if _d10_line and _R.engine_reason(_v2_reason) in ("business", "cofounder", "employee", "boss-or-manager", "advisor"):
         _resp["career_fit_note"] = _d10_line
     if (request.language or "en") in ("es", "pt"):
         try:
@@ -23045,7 +23119,7 @@ async def compatibility_start(request: CompatibilityStartRequest,
     if _compat_preview:
         from antar_engine.entitlements import upgrade_block as _ent_upg_fn
         _keep = {"session_id", "chart_id_a", "chart_id_b", "name_a", "name_b",
-                 "compat_type", "role", "direction", "score", "badge",
+                 "compat_type", "compat_type_label", "position", "role", "direction", "score", "badge",
                  "headline", "language"}
         _locked = sorted(set(_resp.keys()) - _keep)
         _resp = {k: v for k, v in _resp.items() if k in _keep}
@@ -23415,6 +23489,7 @@ async def get_compatibility_session(session_id: str, language: str = "en"):
         "has_time_a":    s.get("has_time_a", True),
         "has_time_b":    s.get("has_time_b", True),
         "compat_type":   s.get("compat_type"),
+        "compat_type_label": _label_for_type(s.get("compat_type"), language),
         "name_a":        s.get("name_a"),
         "name_b":        s.get("name_b"),
         # [lk-enemy-markdone 2026-09-15] the FE marks a People-reading enemy remedy
@@ -23424,6 +23499,9 @@ async def get_compatibility_session(session_id: str, language: str = "en"):
         "chart_id_a":    s.get("chart_id_a"),
         "chart_id_b":    s.get("chart_id_b"),
     }
+    _s_pos = (await asyncio.to_thread(_positions_for_sessions, [session_id])).get(session_id)
+    if _s_pos:
+        out["position"] = _s_pos
     # [session-rich 2026-09-13] The result screen renders the SAME rich shape as
     # /compatibility/start (score, badge, headline, summary, layers, catalysts,
     # watch_points). This GET used to return only the layer text + names, so
@@ -23469,7 +23547,7 @@ async def get_compatibility_session(session_id: str, language: str = "en"):
                     name_b=s.get("name_b") or "Partner",
                     birth_date_a=_ra.data[0].get("birth_date", ""),
                     birth_date_b=_rb.data[0].get("birth_date", ""),
-                    compatibility_type=_reason, language="en",
+                    compatibility_type=_R.engine_reason(_reason), language="en",
                 )
                 try:
                     _fwd = _forward_dasha_support(_ca, _da, _cb, _db, _reason,
@@ -23521,12 +23599,15 @@ async def get_compatibility_session(session_id: str, language: str = "en"):
                                         "v2_layers": {l["layer_key"]: l["score"] for l in _v2.get("layers", [])},
                                         "v2": True},
                 })
+                if _s_pos:
+                    out["summary"] = _apply_position(out.get("summary"), s.get("name_b") or "Partner",
+                                                     _reason, _s_pos)
                 # [why-lines 2026-10-02] same two card notes as /start.
                 _dm_line = (_raw.get("_dasha_maitri") or {}).get("line")
                 if _dm_line:
                     out["dasha_timing_note"] = _dm_line
                 _d10_line = (_raw.get("d10_synastry") or {}).get("line")
-                if _d10_line and _reason in ("business", "cofounder", "employee", "boss-or-manager", "advisor"):
+                if _d10_line and _R.engine_reason(_reason) in ("business", "cofounder", "employee", "boss-or-manager", "advisor"):
                     out["career_fit_note"] = _d10_line
     except Exception as _sre:
         print(f"[compat][session-rich] recompose non-fatal: {_sre}")
@@ -37965,19 +38046,53 @@ async def get_personal_remedies(
 
 # ── Compatibility Sessions List ───────────────────────────────────
 
+def _positions_for_sessions(session_ids) -> dict:
+    """{session_id: position} from the score_breakdown JSON /start writes to
+    chart_connections. Fail-open: any problem -> {} (the position is display-only)."""
+    out = {}
+    try:
+        ids = [i for i in (session_ids or []) if i]
+        if not ids:
+            return out
+        rows = (supabase.table("chart_connections").select("session_id,score_breakdown")
+                .in_("session_id", ids).execute().data) or []
+        for r in rows:
+            sb = r.get("score_breakdown")
+            if isinstance(sb, str):
+                sb = json.loads(sb)
+            pos = _clean_position((sb or {}).get("position")) if isinstance(sb, dict) else None
+            if pos and r.get("session_id"):
+                out[r["session_id"]] = pos
+    except Exception as _pe:
+        print(f"[compat] position lookup non-fatal: {_pe}")
+    return out
+
+
+def _label_for_type(compat_type, language="en") -> str:
+    """User-facing relationship name in the reader's language; never raises."""
+    try:
+        from antar_engine import compatibility_reasons as _Rl
+        return _Rl.label_for(compat_type, language)
+    except Exception:
+        return ""
+
+
 @app.get("/api/v1/compatibility/sessions/{chart_id}")
-def list_compatibility_sessions(chart_id: str):
+def list_compatibility_sessions(chart_id: str, language: str = "en"):
     """List all past compatibility checks for a user."""
     res = supabase.table("compatibility_sessions").select(
         "id,name_a,name_b,compat_type,score,current_layer,created_at,has_time_a,has_time_b"
     ).eq("chart_id_a", chart_id).order("created_at", desc=True).limit(20).execute()
 
     sessions = []
+    _positions = _positions_for_sessions([r.get("id") for r in (res.data or [])])
     for s in (res.data or []):
         sessions.append({
+            **({"position": _positions[s["id"]]} if _positions.get(s["id"]) else {}),
             "session_id":   s["id"],
             "name_b":       s.get("name_b",""),
             "compat_type":  s.get("compat_type","relationship"),
+            "compat_type_label": _label_for_type(s.get("compat_type") or "relationship", language),
             "score":        s.get("score"),
             "layers_done":  s.get("current_layer", 1),
             "confidence":   90 if s.get("has_time_a") and s.get("has_time_b") else 65,
@@ -38100,6 +38215,7 @@ def get_network(chart_id: str, language: str = "en"):
         print(f"[network] sessions read failed cid={str(chart_id)[:8]}: {_e}")
         return {"available": False, "people": [], "count": 0}
 
+    _positions = _positions_for_sessions([r.get("id") for r in rows])
     by_cid, order = {}, []
     for s in rows:
         cid_b = s.get("chart_id_b")
@@ -38109,6 +38225,9 @@ def get_network(chart_id: str, language: str = "en"):
         rel = {
             "session_id":  s.get("id"),
             "compat_type": s.get("compat_type") or "relationship",
+            "compat_type_label": (_R.label_for(s.get("compat_type") or "relationship", lang)
+                                  if _R else ""),
+            **({"position": _positions[s.get("id")]} if _positions.get(s.get("id")) else {}),
             "score":       _score,
             "badge":       (_R.badge(int(_score)) if (_R and isinstance(_score, (int, float))) else None),
         }
@@ -38328,7 +38447,8 @@ def _people_item_sync(link: dict) -> dict:
 
 
 async def _people_run_compat(owner_chart_id: str, person_chart_id: str, name: str,
-                             relation: str, role: Optional[str], language: Optional[str]) -> dict:
+                             relation: str, role: Optional[str], language: Optional[str],
+                             detail: Optional[str] = None) -> dict:
     """Score owner x person with the relationship's own compat type by calling the
     canonical compatibility_start (ownership checks, forward-dasha, per-type weights,
     chart_connections upsert) - not a copy of it."""
@@ -38340,7 +38460,7 @@ async def _people_run_compat(owner_chart_id: str, person_chart_id: str, name: st
     needs_role = relation in ("employee", "boss")
     req = CompatibilityStartRequest(
         chart_id_a=owner_chart_id, chart_id_b=person_chart_id, name_a=name_a, name_b=name,
-        compat_type=_PL.relation_to_compat_type(relation),
+        compat_type=_PL.relation_to_compat_type(relation, detail),
         role=(role or _PL.DEFAULT_ROLE) if needs_role else None, language=language or "en")
     out = await compatibility_start(req, None)
     return {"score": out.get("score"), "badge": out.get("badge"),
@@ -38368,7 +38488,7 @@ async def people_create(body: PersonCreateRequest, authorization: Optional[str] 
         birth_time_b=body.birth_time, birth_city_b=body.birth_city,
         birth_country_b=body.birth_country, latitude_b=body.latitude,
         longitude_b=body.longitude, timezone_b=body.timezone, gender_b=gender,
-        compat_type=_PL.relation_to_compat_type(relation),
+        compat_type=_PL.relation_to_compat_type(relation, detail),
         role=(body.role or _PL.DEFAULT_ROLE) if relation in ("employee", "boss") else None,
         language=body.language or "en")
     out = await compatibility_start(req, None)
@@ -38490,7 +38610,8 @@ async def people_edit(link_id: str, body: PersonEditRequest,
         name = new_name or (row.get("name") or "")
         try:
             score = await _people_run_compat(link["owner_chart_id"], row["id"], name,
-                                             link["relation"], body.role, body.language)
+                                             link["relation"], body.role, body.language,
+                                             detail=link.get("relation_detail"))
         except HTTPException:
             raise
         except Exception as e:
@@ -38528,7 +38649,8 @@ async def people_change_relation(link_id: str, body: PersonRelationRequest,
                 lambda: supabase.table("charts").update({"gender": g}).eq("id", row["id"]).execute())
         try:
             score = await _people_run_compat(new_link["owner_chart_id"], row["id"],
-                                             row.get("name") or "", relation, body.role, body.language)
+                                             row.get("name") or "", relation, body.role, body.language,
+                                             detail=detail)
         except HTTPException:
             raise
         except Exception as e:
