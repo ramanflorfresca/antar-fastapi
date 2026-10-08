@@ -50808,7 +50808,7 @@ async def get_circle_reading(chart_id: str, other_chart_id: str, language: Optio
                                                 reading, today)
                 if brief and lang in TRANSLATED_LANGUAGES:
                     from antar_engine.translation_middleware import translate_dict
-                    brief = await translate_dict(brief, language=lang, fields_to_translate={"effect"},
+                    brief = await translate_dict(brief, language=lang, fields_to_translate={"effect", "trait"},
                                                  endpoint_name="circle_brief", chart_id=chart_id)
                 reading["brief"] = brief
         except Exception as e:
@@ -50832,7 +50832,16 @@ def _circle_brief_compute(me: str, other: str, lens: str, lang: str, reading: di
              for c in (me, other)]
     page = _circle_pair_compute(me, other, "season", lang, today) or {"topics": []}
     fit = {"badge": reading.get("badge"), "score": reading.get("score"), "headline": reading.get("headline")}
-    return _cb.build(profs[0], profs[1], lens, page.get("topics") or [], fit, reading.get("moves"), lang, today)
+    phase = None
+    try:   # the two running seasons and the first stretch in which neither is in a heavy one
+        from antar_engine import circle_fit as _cf
+        cds = [_safe_jsonb(rows[c]["chart_data"]) for c in (me, other)]
+        packs = [(cds[0], get_dashas_for_chart(me).get("vimsottari")), (cds[1], get_dashas_for_chart(other).get("vimsottari"))]
+        phase = _cf.phase(_cf.season_at(cds[0], packs[0][1], today), _cf.season_at(cds[1], packs[1][1], today),
+                          profs[0]["first_name"], profs[1]["first_name"], packs[0], packs[1], lang, today)
+    except Exception as e:
+        print(f"[circle][brief] phase skipped: {str(e)[:160]}")
+    return _cb.build(profs[0], profs[1], lens, page.get("topics") or [], fit, reading.get("moves"), lang, today, phase)
 
 
 @app.post("/api/v1/circle/{chart_id}/pair/{other_chart_id}/leave")

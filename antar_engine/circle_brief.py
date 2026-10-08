@@ -213,6 +213,24 @@ def role_of(pace: str, stems: List[str]) -> str:
     return "driver" if drv > anc else "anchor" if anc > drv else "steady"
 
 
+def _fit_parts(cd: dict, dashas: dict, lang: str, today: date) -> dict:
+    """temperament, partnership lean (with plain reasons) and the running season, from circle_fit."""
+    from antar_engine import circle_fit as F
+    t = F.temperament(cd)
+    out = {"temperament": {"trait": t["trait"]} if t else None, "partnership": None, "season": None}   # the star name is never shown
+    try:
+        pl = F.partnership_lean(cd)
+        out["partnership"] = {"lean": pl["lean"], "label": CC.pick(F.LEAN_LABEL[pl["lean"]], lang),
+                              "reasons": [CC.pick(F.REASON[k], lang) for k in pl["reasons"]][:3]}
+        se = F.season_at(cd, (dashas or {}).get("vimsottari"), today)
+        if se:
+            out["season"] = {"theme": se["theme"], "label": CC.pick(F.THEME_LABEL, lang)[se["theme"]], "heavy": se["heavy"],
+                             "ends": se["ends"].isoformat(), "ends_label": C.day_label_y(se["ends"], lang)}
+    except Exception:
+        pass
+    return out
+
+
 def profile(cd: dict, dashas: dict, name: str, lang: str = "en", today: Optional[date] = None) -> dict:
     """One person's working profile. `strong_at` / `watch_for` are [{title, effect}] ( `effect` is English and is
     translated by the route; titles are localized); `watch_for` is [] when nothing is flagged."""
@@ -250,7 +268,9 @@ def profile(cd: dict, dashas: dict, name: str, lang: str = "en", today: Optional
     except Exception:
         shift = None
     strip = lambda rows: [{"title": r["title"], "effect": r["effect"]} for r in rows]
+    fit = _fit_parts(cd, dashas, lang, today or date.today())
     return {"first_name": name, "role": role, "role_label": CC.pick(ROLE_LABEL, lang)[role],
+            "temperament": fit["temperament"], "partnership": fit["partnership"], "season": fit["season"],
             "role_line": CC.pick(ROLE_LINE, lang)[role], "pace": pace, "how_you_work": how,
             "strong_at": strip(strong[:3]), "watch_for": strip(watch[:2]),
             "watch_for_none": CC.pick(NOTHING_FLAGGED, lang) if not watch else None, "shift": shift}
@@ -314,13 +334,16 @@ def donts(careful: List[dict], profiles: List[dict], lang: str = "en") -> List[s
 
 
 def build(me: dict, other: dict, lens: str, topics: List[dict], fit: Optional[dict], moves: Optional[list],
-          lang: str = "en", today: Optional[date] = None) -> dict:
+          lang: str = "en", today: Optional[date] = None, phase: Optional[dict] = None) -> dict:
     """The whole brief from two profiles + the pair page's topics. `me` first. Pure."""
+    from antar_engine import circle_fit as F
     lang = CC.lang_of(lang)
+    leans = [{"first_name": p["first_name"], "lean": (p.get("partnership") or {}).get("lean", "either")} for p in (me, other)]
+    verdict = F.verdict(leans[0], leans[1], {me["role"], other["role"]} == {"driver", "anchor"}, lang)
     tm = timing(topics, lens, lang, today)
     shifts = [{"first_name": p["first_name"], **p["shift"],
                "line": CC.pick(SHIFT, lang).format(name=p["first_name"], to=p["shift"]["to"], on=p["shift"]["label"])}
               for p in (me, other) if p.get("shift")]
-    return {"lens": lens, "fit": fit, "people": [me, other], "balance": balance(me, other, lens, lang),
+    return {"lens": lens, "verdict": verdict, "phase": phase, "fit": fit, "people": [me, other], "balance": balance(me, other, lens, lang),
             "timing": dict(tm, shifts=shifts), "donts": donts(tm["careful"], [me, other], lang),
             "moves": moves or [], "note": CC.pick(NOTE, lang)}
