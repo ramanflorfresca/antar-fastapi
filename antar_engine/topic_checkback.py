@@ -29,6 +29,7 @@ thread, never bare inside an async def).
 from __future__ import annotations
 
 import logging
+import re
 import uuid
 from datetime import date, datetime, timedelta, timezone
 from typing import Optional
@@ -234,7 +235,71 @@ _THANKS = {
     "pt": "Obrigado — anotado. Acertos e erros nos ajudam a melhorar.",
     "hinglish": "Shukriya — note kar liya. Sahi aur galat, dono se hum behtar hote hain.",
 }
-TEXTS = (_QUESTION, _LABELS, _REASK_LEAD, _THANKS)    # for the jargon guard
+# [personal-name 2026-10-08] The asker's first name opens a few high-value moments only
+# (this question, the re-ask, the thanks) — never the readings. Each variant is written
+# by hand per language so the grammar is right; nothing is spliced at runtime. {name} is
+# the only slot. Without a usable name the plain tables above are served unchanged.
+_QUESTION_NAMED = {
+    "best": {
+        "en": "{name}, your {topic} window, {range}, has passed. Did it hold?",
+        "es": "{name}, tu ventana de {topic}, {range}, ya pasó. ¿Se cumplió?",
+        "pt": "{name}, sua janela de {topic}, {range}, já passou. Ela se confirmou?",
+        "hinglish": "{name}, aapka {topic} ka window, {range}, nikal gaya. Kya woh sahi nikla?",
+    },
+    "watch": {
+        "en": "{name}, the caution we flagged for your {topic}, {range}, has passed. Did it turn out to matter?",
+        "es": "{name}, la precaución que marcamos para tu {topic}, {range}, ya pasó. ¿Resultó importar?",
+        "pt": "{name}, o cuidado que apontamos para seu {topic}, {range}, já passou. Ele fez diferença?",
+        "hinglish": "{name}, aapke {topic} ke liye jo savdhaani batayi thi, {range}, nikal gayi. Kya woh sach mein matter kiya?",
+    },
+}
+_REASK_LEAD_NAMED = {
+    "en": "{name}, last time you weren't sure yet.",
+    "es": "{name}, la última vez aún no estabas seguro.",
+    "pt": "{name}, da última vez você ainda não tinha certeza.",
+    "hinglish": "{name}, pichhli baar aapko pakka nahi tha.",
+}
+_THANKS_NAMED = {
+    "en": "Thanks, {name}. Hits and misses both help us get this right.",
+    "es": "Gracias, {name}. Los aciertos y los fallos nos ayudan a acertar.",
+    "pt": "Obrigado, {name}. Acertos e erros nos ajudam a melhorar.",
+    "hinglish": "Shukriya, {name}. Sahi aur galat, dono se hum behtar hote hain.",
+}
+TEXTS = (_QUESTION, _LABELS, _REASK_LEAD, _THANKS,
+         _QUESTION_NAMED, _REASK_LEAD_NAMED, _THANKS_NAMED)    # for the jargon guard
+
+NAME_MAX = 20
+_PLACEHOLDER_NAMES = {"guest", "user", "test", "demo", "anonymous", "anon", "unknown", "me", "myself",
+                      "none", "null", "undefined", "name", "n/a", "na", "tester", "default"}
+
+
+def first_name(raw) -> Optional[str]:
+    """The asker's first name for a vocative opener, or None. First token, title-cased,
+    max NAME_MAX chars. None for empty, email-like, numeric/symbolic or placeholder names.
+    Never infers anything else (no gender, no pronouns) from it."""
+    parts = str(raw or "").strip().split()
+    if not parts:
+        return None
+    tok = parts[0].strip(".,;:!?\"'()[]")
+    if not tok or "@" in tok or len(tok) > NAME_MAX or len(tok) < 2:
+        return None
+    if not re.fullmatch(r"[^\W\d_]+(?:[-'’][^\W\d_]+)*", tok):      # letters only (accents ok)
+        return None
+    if tok.lower() in _PLACEHOLDER_NAMES:
+        return None
+    return tok[:1].upper() + tok[1:].lower() if tok.islower() or tok.isupper() else tok
+
+
+def name_for(sb, chart_id) -> Optional[str]:
+    """The usable first name on this chart, or None. None for the public demo chart (it is
+    shared, so a name would be wrong) and on any read error (fail-open to the no-name copy)."""
+    try:
+        if is_demo(sb, chart_id):
+            return None
+        rows = sb.table("charts").select("name").eq("id", chart_id).limit(1).execute().data or []
+        return first_name((rows[0] if rows else {}).get("name"))
+    except Exception:
+        return None
 
 
 def _lang(raw) -> str:
@@ -258,11 +323,14 @@ def option_labels(kind: str, language) -> dict:
     return _LABELS[kind if kind in KINDS else "best"][_lang(language)]
 
 
-def thanks(language) -> str:
-    return _THANKS[_lang(language)]
+def thanks(language, name: Optional[str] = None) -> str:
+    lang = _lang(language)
+    if name:
+        return _THANKS_NAMED[lang].format(name=name)
+    return _THANKS[lang]
 
 
-def build_item(row: dict, language=None, reask: bool = False) -> Optional[dict]:
+def build_item(row: dict, language=None, reask: bool = False, name: Optional[str] = None) -> Optional[dict]:
     """One check-back card from a claim row, in plain words. None if the row is unusable."""
     kind = _meta(row).get("kind")
     topic = row.get("topic")
@@ -274,10 +342,18 @@ def build_item(row: dict, language=None, reask: bool = False) -> Optional[dict]:
     if _meta(row).get("joint"):          # [circle] a window two people share
         from antar_engine import circle_copy as CC
         q = CC.JOINT_QUESTION[kind][lang].format(topic=C.LABEL[lang][topic].lower(), range=rng)
+        name = None                      # a sentence about two people: no single name fits
+    elif name:
+        q = _QUESTION_NAMED[kind][lang].format(name=name, topic=C.LABEL[lang][topic].lower(), range=rng)
     else:
         q = _QUESTION[kind][lang].format(topic=C.LABEL[lang][topic].lower(), range=rng)
     if reask:
-        q = f"{_REASK_LEAD[lang]} {q}"
+        # the named lead carries the name, so the question after it stays the plain one
+        if name:
+            q = _QUESTION[kind][lang].format(topic=C.LABEL[lang][topic].lower(), range=rng)
+            q = f"{_REASK_LEAD_NAMED[lang].format(name=name)} {q}"
+        else:
+            q = f"{_REASK_LEAD[lang]} {q}"
     labels = option_labels(kind, lang)
     return {
         "id": row["id"],
@@ -359,8 +435,10 @@ def due_items(sb, chart_id: str, language=None, now: Optional[datetime] = None,
     gone = _pairs_gone(sb, claims)
     if gone:                                   # [circle] someone left: stop asking about the shared window
         claims = [c for c in claims if _meta(c).get("pair_id") not in gone]
-    for c, reask in select_due(claims, outs, now, limit):
-        it = build_item(c, language, reask)
+    due = select_due(claims, outs, now, limit)
+    name = name_for(sb, chart_id) if due else None
+    for c, reask in due:
+        it = build_item(c, language, reask, name)
         if it:
             items.append(it)
             mark_shown(sb, c, reask, now)

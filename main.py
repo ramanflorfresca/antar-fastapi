@@ -50570,7 +50570,7 @@ def answer_topic_checkback(chart_id: str, checkback_id: str, body: _TopicCheckba
     except _tcb.StoreUnavailable as e:
         print(f"[topic-checkback] answer not saved: {e}")
         raise HTTPException(503, "could not save the answer")
-    return {**res, "id": checkback_id, "thanks": _tcb.thanks(language)}
+    return {**res, "id": checkback_id, "thanks": _tcb.thanks(language, _tcb.name_for(supabase, chart_id))}
 
 
 @app.get("/api/v1/chart/{chart_id}/reveal-lines")
