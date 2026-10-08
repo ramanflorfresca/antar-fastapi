@@ -79,6 +79,17 @@ def test_a_chapter_that_just_began_says_so():
     assert F.season_at({}, [], TODAY) is None and F.season_at({}, [{"level": "antardasha", "lord_or_sign": "Zzz", "start_date": "2026-01-01", "end_date": "2030-01-01"}], TODAY) is None
 
 
+def test_a_chart_with_only_the_big_chapter_still_reads():
+    only_md = [{"level": "mahadasha", "lord_or_sign": "Rahu", "start_date": "2027-01-01", "end_date": "2045-01-01"}]
+    only_md[0]["start_date"] = "2020-01-01"
+    se = F.season_at({}, only_md, TODAY)
+    assert se["ad"] is None and se["tone"] == "clouded"
+    d = F.describe(se, "en")
+    assert d["label"] == "A long chapter of ambition and chasing the unfamiliar (to Jan 1, 2045)." and d["position"] is None and d["effect"]
+    assert F.better_from(({}, only_md), ({}, only_md), TODAY) is None          # clouded for the whole horizon
+    assert F.phase(se, se, "A", "B", ({}, only_md), ({}, only_md), "en", TODAY)["call"] == "not_now"
+
+
 def test_tone_rules():
     assert F._tone("Jupiter", "Rahu") == "clouded" and F._tone("Venus", "Ketu") == "clouded"
     assert F._tone("Jupiter", "Saturn") == "testing" and F._tone("Venus", "Mars") == "testing"

@@ -199,6 +199,11 @@ def season_at(chart: dict, vim_rows: list, on: date) -> Optional[dict]:
         elif lvl in ("antardasha", "bhukti"):
             ad, ad_s, ad_e = lord, s, e
     if ad not in TONE or not ad_e:
+        # the stretch rows are missing but the big chapter is known: say the chapter, not nothing
+        if md in TONE and md_e:
+            tone = TONE[md]
+            return {"md": md, "ad": None, "md_start": md_s, "md_end": md_e, "ad_start": None, "ends": md_e, "pos": "mid",
+                    "next_md": None, "tone": tone, "heavy": tone == "clouded"}
         return None
     if md_e:
         for r in rows:
@@ -216,8 +221,13 @@ def describe(se: dict, lang: str = "en") -> dict:
     (first / middle / last stretch, with the stretch's end date) and, in the last stretch, what comes next; plus
     what the stretch does to a partnership now."""
     lang = CC.lang_of(lang)
-    ad = CC.pick(AD_PHRASE, lang)[se["ad"]]
     ends_label = C.day_label_y(se["ends"], lang)
+    if not se.get("ad"):                      # chapter only (no stretch rows for this chart)
+        label = CC.pick(CHAPTER_TMPL, lang).format(md=CC.pick(MD_PHRASE, lang)[se["md"]], md_end=ends_label)
+        label = label[0].upper() + label[1:] + "."
+        return {"label": label, "effect": CC.pick(EFFECT, lang)[se["md"]], "tone": se["tone"], "heavy": se["heavy"],
+                "position": None, "ends": se["ends"].isoformat(), "ends_label": ends_label, "chapter_ends": se["md_end"].isoformat()}
+    ad = CC.pick(AD_PHRASE, lang)[se["ad"]]
     stretch = CC.pick(STRETCH_TMPL[se.get("pos") or "mid"], lang).format(ad=ad, ad_end=ends_label)
     if se.get("md") in TONE and se.get("md_end"):
         chapter = CC.pick(CHAPTER_TMPL, lang).format(md=CC.pick(MD_PHRASE, lang)[se["md"]], md_end=C.day_label_y(se["md_end"], lang))
