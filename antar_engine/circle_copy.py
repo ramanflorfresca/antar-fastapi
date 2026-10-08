@@ -53,7 +53,7 @@ REL_NOUN: Dict[str, Dict[str, str]] = {
 
 # what A is to B, given what B is to A
 INVERSE = {"parent": "child", "child": "parent", "employee": "boss", "boss": "employee",
-           "advisor": "advisee"}
+           "advisor": "advisee", "advisee": "advisor"}
 
 
 def inverse_relation(rel: str) -> str:

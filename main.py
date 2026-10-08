@@ -50818,8 +50818,8 @@ async def get_circle_reading(chart_id: str, other_chart_id: str, language: Optio
 
 
 def _circle_brief_compute(me: str, other: str, lens: str, lang: str, reading: dict, today) -> Optional[dict]:
-    """Sync (threadpool): both REAL charts -> two working profiles + the pair's season windows -> the brief."""
-    from antar_engine import circle_brief as _cb
+    """Sync (threadpool): both REAL charts -> two profiles in their roles for this lens + the pair's season windows -> the brief."""
+    from antar_engine import circle_brief as _cb, circle_lens as _cl
     rows = {}
     for cid in (me, other):
         r = (supabase.table("charts").select("chart_data,name,first_name").eq("id", cid)
@@ -50827,9 +50827,11 @@ def _circle_brief_compute(me: str, other: str, lens: str, lang: str, reading: di
         if not r:
             return None
         rows[cid] = r[0]
+    wp = _cb.family_of(lens) == "work_partner"
+    roles = (None, None) if wp else _cl.roles_for(lens)
     profs = [_cb.profile(_safe_jsonb(rows[c]["chart_data"]), get_dashas_for_chart(c),
-                         _circle.first_name_of(rows[c]) or ("You" if c == me else "They"), lang, today)
-             for c in (me, other)]
+                         _circle.first_name_of(rows[c]) or ("You" if c == me else "They"), lang, today, bond_role=roles[i])
+             for i, c in enumerate((me, other))]
     page = _circle_pair_compute(me, other, "season", lang, today) or {"topics": []}
     fit = {"badge": reading.get("badge"), "score": reading.get("score"), "headline": reading.get("headline")}
     phase = None
@@ -50838,7 +50840,8 @@ def _circle_brief_compute(me: str, other: str, lens: str, lang: str, reading: di
         cds = [_safe_jsonb(rows[c]["chart_data"]) for c in (me, other)]
         packs = [(cds[0], get_dashas_for_chart(me).get("vimsottari")), (cds[1], get_dashas_for_chart(other).get("vimsottari"))]
         phase = _cf.phase(_cf.season_at(cds[0], packs[0][1], today), _cf.season_at(cds[1], packs[1][1], today),
-                          profs[0]["first_name"], profs[1]["first_name"], packs[0], packs[1], lang, today)
+                          profs[0]["first_name"], profs[1]["first_name"], packs[0], packs[1], lang, today,
+                          _cl.LENSES[lens]["phase"])
     except Exception as e:
         print(f"[circle][brief] phase skipped: {str(e)[:160]}")
     return _cb.build(profs[0], profs[1], lens, page.get("topics") or [], fit, reading.get("moves"), lang, today, phase)
