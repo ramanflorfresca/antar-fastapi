@@ -179,3 +179,75 @@ def test_auto_row_actions_need_ownership_and_a_real_claim(api, monkeypatch):
     with pytest.raises(HTTPException) as e:
         main.decisions_delete("claim:c1", authorization="Bearer x")
     assert e.value.status_code == 404 and db.t["saved_decisions"] == []
+
+
+# ── topic on every row (additive; drives the FE icon) ──────────────
+
+def _saved(i, q, **kw):
+    base = dict(id=f"s{i}", chart_id="ch1", question=q, window_start="2026-10-01", window_end="2026-12-31",
+                archived_at=None, created_at=f"2026-10-0{i}T00:00:00Z", claim_id=None)
+    base.update(kw)
+    return base
+
+
+def test_ask_claims_map_their_stored_concern_to_a_topic():
+    rows = sd.claims_to_decisions([
+        claim(1, "Raise?", "2026-10-01", "2026-12-31", topic="finance"),
+        claim(2, "Marry?", "2026-10-01", "2026-12-31", topic="marriage"),
+        claim(3, "Promotion?", "2026-10-01", "2026-12-31", topic="career"),
+        claim(4, "Surgery?", "2026-10-01", "2026-12-31", topic="health"),
+        claim(5, "Gamble?", "2026-10-01", "2026-12-31", topic="speculation"),
+        claim(6, "Other?", "2026-10-01", "2026-12-31", topic="general"),
+        claim(7, "No topic?", "2026-10-01", "2026-12-31"),
+    ], [], today=TODAY)
+    by = {r["question"]: r["topic"] for r in rows}
+    assert by == {"Raise?": "money", "Marry?": "love", "Promotion?": "career", "Surgery?": "health",
+                  "Gamble?": None, "Other?": None, "No topic?": None}
+
+
+def test_topic_read_claim_topic_is_used_directly_by_a_saved_row():
+    rows = [_saved(1, "whatever", claim_id="t1")]
+    sd.attach_topics(rows, [{"id": "t1", "source": "topic_read", "topic": "business"}])
+    assert rows[0]["topic"] == "business"
+
+
+@pytest.mark.parametrize("q,topic", [
+    ("Should I ask for a promotion at my job?", "career"),
+    ("¿Me va bien con el matrimonio este año?", "love"),
+    ("Como vai ficar minha renda este ano?", "money"),
+    ("Meri shaadi kab hogi?", "love"),
+    ("¿Cómo estará mi salud?", "health"),
+    ("Cuándo abrir mi negocio?", "business"),
+])
+def test_manual_row_question_text_is_classified_across_languages(q, topic):
+    rows = [_saved(1, q)]
+    sd.attach_topics(rows, [])
+    assert rows[0]["topic"] == topic
+
+
+def test_unknown_question_is_null():
+    rows = [_saved(1, "hello there")]
+    sd.attach_topics(rows, [])
+    assert rows[0]["topic"] is None
+
+
+def test_linked_claim_wins_even_when_its_topic_is_unmappable():
+    rows = [_saved(1, "Should I ask for a promotion at my job?", claim_id="c1")]
+    sd.attach_topics(rows, [{"id": "c1", "topic": "general"}])
+    assert rows[0]["topic"] is None
+
+
+def test_list_rows_all_carry_topic_and_materialized_row_keeps_it(api):
+    main, db = api([claim(1, "Raise?", "2026-10-01", "2026-12-31", topic="finance"),
+                    claim(2, "Plain?", "2026-10-01", "2026-12-31", topic="general")],
+                   saved=[_saved(3, "x", claim_id="t9")])
+    db.t["prediction_claims"].append({"id": "t9", "chart_id": "ch1", "source": "topic_read", "topic": "peace"})
+    out = main.decisions_list("ch1", authorization="Bearer x")
+    by = {d["id"]: d["topic"] for d in out["decisions"]}
+    assert by == {"claim:c1": "money", "claim:c2": None, "s3": "peace"}
+    main.decisions_update("claim:c1", main._DecisionPatch(note="n"), authorization="Bearer x")
+    out = main.decisions_list("ch1", authorization="Bearer x")
+    by = {d["id"]: d["topic"] for d in out["decisions"]}
+    assert out["count"] == 3 and by["claim:c2"] is None
+    mat = [d for d in out["decisions"] if d.get("claim_id") == "c1"]
+    assert len(mat) == 1 and mat[0]["topic"] == "money"

@@ -26,6 +26,50 @@ from typing import Dict, Optional
 
 TOPIC_KEYS = ("money", "career", "love", "health", "business", "peace", "family")
 SCALES = ("today", "month", "season", "year")
+
+# [decisions-topic 2026-10-08] ONE table from the words other engines store for a question's
+# area (Ask's detect_concern output, prediction_claims.topic, plain domain words) onto the seven
+# topic keys. Anything not listed — general, speculation, loss, legal, property, foreign,
+# fame — is null: the icon is a courtesy, a wrong one is worse than none.
+CONCERN_TO_TOPIC = {
+    **{k: k for k in TOPIC_KEYS},
+    "finance": "money", "wealth": "money", "income": "money", "salary": "money",
+    "work": "career", "job": "career", "promotion": "career",
+    "marriage": "love", "relationship": "love", "relationships": "love", "romance": "love",
+    "divorce": "love", "reconciliation": "love",
+    "body": "health", "energy": "health",
+    "venture": "business", "startup": "business", "partnership": "business", "cofounder": "business",
+    "spiritual": "peace", "spirituality": "peace", "mind": "peace", "stress": "peace", "sleep": "peace",
+    "parents": "family", "children": "family", "home": "family",
+    # understand.explicit_area() labels (the multilingual single-topic matcher Ask already runs)
+    "separation": "love", "health_self": "health", "income_money": "money", "marriage": "love",
+}
+
+
+def topic_for_concern(raw) -> Optional[str]:
+    """A topic key for a stored concern/domain/topic word, else None (never a guess)."""
+    return CONCERN_TO_TOPIC.get(str(raw or "").strip().lower())
+
+
+def topic_for_question(question) -> Optional[str]:
+    """Topic key for free question text via the Ask pipeline's own routers, no new classifier:
+    understand.explicit_area (EN/ES/PT/Hinglish, fires only on ONE unambiguous topic word),
+    then detect_concern. None when neither is sure."""
+    q = str(question or "").strip()
+    if not q:
+        return None
+    try:
+        from antar_engine.understand import explicit_area
+        t = topic_for_concern(explicit_area(q))
+        if t:
+            return t
+    except Exception:
+        pass
+    try:
+        from antar_engine.astrological_rules import detect_concern
+        return topic_for_concern(detect_concern(q))
+    except Exception:
+        return None
 COPY_LANGUAGES = ("en", "es", "pt", "hinglish")
 
 
