@@ -179,6 +179,32 @@ def range_label(start: date, end: date, lang: str) -> str:
     return f"{day_label(start, lang)} – {day_label(end, lang)}"
 
 
+# ── segmented-control chips + rung order ─────────────────────────────────────
+# `period.chip` is the short chip text; `period.rung` names the rung. Year chip
+# is "To <birthday>" (the day the next solar-return year starts); never "this
+# year" / "365" / "season".
+RUNG_BY_SCALE = {"today": "now", "month": "30d", "year": "year", "season": "stretch"}
+CHIP: Dict[str, Dict[str, str]] = {
+    "en": {"today": "Right now", "month": "Next 30 days", "season": "This chapter"},
+    "es": {"today": "Ahora", "month": "Próximos 30 días", "season": "Este capítulo"},
+    "pt": {"today": "Agora", "month": "Próximos 30 dias", "season": "Este capítulo"},
+    "hinglish": {"today": "Abhi", "month": "Agle 30 din", "season": "Yeh chapter"},
+}
+CHIP_YEAR: Dict[str, str] = {"en": "To {end}", "es": "Hasta {end}", "pt": "Até {end}",
+                             "hinglish": "{end} tak"}
+
+
+def year_chip(end: date, today: date, lang: str) -> str:
+    far = end > add_months(today, 11)
+    return pick(CHIP_YEAR, lang).format(end=day_label_y(end, lang) if far else day_label(end, lang))
+
+
+def rung_order(year_end: Optional[date], stretch_end: Optional[date]) -> list:
+    """now, 30d, then year/stretch by end date ascending (year first on a tie), chapter."""
+    mid = sorted([r for r in (("year", year_end), ("stretch", stretch_end)) if r[1]],
+                 key=lambda r: (r[1], r[0] != "year"))
+    return ["now", "30d"] + [r[0] for r in mid] + ["chapter"]
+
 # ── time-scale lead-ins ──────────────────────────────────────────────────────
 SPAN_LEAD: Dict[str, Dict[str, str]] = {
     "en": {"today": "Today", "month": "This month", "season": "Over this stretch", "year": "This year"},
@@ -189,13 +215,13 @@ SPAN_LEAD: Dict[str, Dict[str, str]] = {
 
 PERIOD_LABEL: Dict[str, Dict[str, str]] = {
     "en": {"today": "Today", "month": "Next 30 days", "season": "The next few months",
-           "year": "Your year, {start} – {end}"},
+           "year": "Your year · {start} to {end} (your birthday)"},
     "es": {"today": "Hoy", "month": "Próximos 30 días", "season": "Los próximos meses",
-           "year": "Tu año, {start} – {end}"},
+           "year": "Tu año · del {start} al {end} (tu cumpleaños)"},
     "pt": {"today": "Hoje", "month": "Próximos 30 dias", "season": "Os próximos meses",
-           "year": "O seu ano, {start} – {end}"},
+           "year": "O seu ano · de {start} a {end} (o seu aniversário)"},
     "hinglish": {"today": "Aaj", "month": "Agle 30 din", "season": "Agle kuch mahine",
-                 "year": "Aapka saal, {start} – {end}"},
+                 "year": "Aapka saal · {start} se {end} tak (aapka janamdin)"},
 }
 
 # ── the "season" scale, framed by its real length ────────────────────────────

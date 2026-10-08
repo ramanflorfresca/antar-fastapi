@@ -506,16 +506,37 @@ def _period(ctx: TopicContext, scale: str, today: date, lang: str) -> dict:
         label = C.season_text(C.SPAN_TEXT, lang, span)
         if far:   # long stretch: the end date is secondary info
             label = C.pick(C.SPAN_END, lang).format(span=label, end=C.month_year_short(e, lang))
-        return {"start": s, "end": e, "approximate": approx, "label": label, "span": span}
+        return {"start": s, "end": e, "approximate": approx, "label": label, "span": span,
+                "chip": C.pick(C.CHIP, lang)["season"], "rung": "stretch"}
     if scale == "year":
-        label = pl.format(end=C.day_label_y(e, lang), start=C.day_label_y(s, lang))
+        bday = e + timedelta(days=1)   # the year runs birthday to the day before the next one
+        yrs = s.year != bday.year or bday > C.add_months(today, LABEL_YEAR_MONTHS)   # birthday to birthday: same day twice, so name the years
+        dl = C.day_label_y if yrs else C.day_label
+        label = pl.format(start=dl(s, lang), end=dl(bday, lang))
+        return {"start": s, "end": e, "approximate": approx, "label": label, "span": None,
+                "chip": C.year_chip(bday, today, lang), "rung": "year"}
     else:
         # a deadline in another calendar year (or > 11 months out) carries its year:
         # "to Apr 25" would read as next April when the season runs to 2029
         far = e.year != today.year or e > C.add_months(today, LABEL_YEAR_MONTHS)
         label = pl.format(end=C.month_year_short(e, lang) if far else C.day_label(e, lang),
                           start=C.day_label_y(s, lang))
-    return {"start": s, "end": e, "approximate": approx, "label": label, "span": span}
+    return {"start": s, "end": e, "approximate": approx, "label": label, "span": span,
+            "chip": C.pick(C.CHIP, lang)[scale], "rung": C.RUNG_BY_SCALE[scale]}
+
+
+def _period_extra(per: dict) -> dict:
+    return {"chip": per.get("chip"), "rung": per.get("rung")}
+
+
+def _rung_order(ctx: TopicContext, today: date, lang: str) -> list:
+    ends = {}
+    for sc in ("year", "season"):
+        try:
+            ends[sc] = _period(ctx, sc, today, lang)["end"]
+        except Exception:
+            ends[sc] = None
+    return C.rung_order(ends["year"], ends["season"])
 
 
 def _scan(ctx: TopicContext, key: str, scale: str, per: dict, today: date) -> List[Tuple[Tuple[date, date], dict]]:
@@ -686,10 +707,12 @@ def read_topic(ctx: TopicContext, key: str, scale: str, today: date, language: s
         try:
             per = per_fb = _period(ctx, scale, today, lang)
             period = {"start": per["start"].isoformat(), "end": per["end"].isoformat(),
-                      "label": per["label"], "approximate": True, "span": _span_out(per)}
+                      "label": per["label"], "approximate": True, "span": _span_out(per),
+                      **_period_extra(per)}
         except Exception:
             period = {"start": today.isoformat(), "end": today.isoformat(),
-                      "label": C.PERIOD_LABEL[lang]["today"], "approximate": True}
+                      "label": C.PERIOD_LABEL[lang]["today"], "approximate": True,
+                      "chip": C.pick(C.CHIP, lang)["today"], "rung": "now"}
         note = C.pick(C.CONFIDENCE_NOTE, lang)["low"]
         try:
             remedy = build_remedy(ctx, key, today, lang)
@@ -769,8 +792,10 @@ def _read_topic(ctx: TopicContext, key: str, scale: str, today: date, language: 
     out = {
         "chart_id": ctx.chart_id, "topic": key, "label": C.LABEL[lang][key],
         "scale": scale, "language": lang, "as_of": today.isoformat(),
+        "rung_order": _rung_order(ctx, today, lang),
         "period": {"start": per["start"].isoformat(), "end": per["end"].isoformat(),
-                   "label": per["label"], "approximate": per["approximate"], "span": _span_out(per)},
+                   "label": per["label"], "approximate": per["approximate"], "span": _span_out(per),
+                   **_period_extra(per)},
         "tone": mode,
         "claim": claim,
         "best_window": best,
