@@ -22505,10 +22505,28 @@ def _apply_position(summary, b_name, reason, position):
     return f"Here {b_name} is read as your {pos}. {summary}"
 
 
+_COMPAT_PLACEHOLDER_NAMES = {"", "person a", "person b", "partner", "the other person"}
+
+
+def _compat_display_name(raw, chart_row=None, fallback: str = "You") -> str:
+    """A real first name for a side of a compatibility reading. A client that sends no name (or a stored
+    placeholder like 'Person A') must not put the placeholder on screen: use the chart's own first name,
+    then its name, else 'You'."""
+    n = (raw or "").strip()
+    if n.lower() not in _COMPAT_PLACEHOLDER_NAMES:
+        return n
+    r = chart_row or {}
+    for k in ("first_name", "name"):
+        v = (r.get(k) or "").strip()
+        if v and v.lower() not in _COMPAT_PLACEHOLDER_NAMES:
+            return v.split()[0]
+    return fallback
+
+
 class CompatibilityStartRequest(BaseModel):
     chart_id_a:         str
     chart_id_b:         Optional[str] = None
-    name_a:             str = "Person A"
+    name_a:             Optional[str] = None   # [name-a] was "Person A": truthy, so it always beat the chart's own name
     name_b:             str = "Person B"
     language:           Optional[str] = "en"
     compatibility_type: str = "cofounder"
@@ -22815,13 +22833,13 @@ async def compatibility_start(request: CompatibilityStartRequest,
         _v2_role = None
     _v2_direction = _v2_def["direction"]
 
-    res_a = supabase.table("charts").select("chart_data,birth_date,name,gender").eq("id", request.chart_id_a).execute()
+    res_a = supabase.table("charts").select("chart_data,birth_date,name,first_name,gender").eq("id", request.chart_id_a).execute()
     if not res_a.data:
         raise HTTPException(404, f"Chart {request.chart_id_a} not found")
     chart_a  = res_a.data[0]["chart_data"]
     gender_a = res_a.data[0].get("gender")
     birth_a  = res_a.data[0].get("birth_date","")
-    name_a   = request.name_a or (res_a.data[0].get("name","") or "").split()[0] or "Person A"
+    name_a   = _compat_display_name(request.name_a, res_a.data[0])
     dashas_a = get_dashas_for_chart(request.chart_id_a)
     has_time_a = not detect_no_birth_time_chart(chart_a)
 
@@ -23579,6 +23597,13 @@ async def get_compatibility_session(session_id: str, language: str = "en"):
     if not res.data:
         raise HTTPException(404, "Session not found")
     s = res.data[0]
+    try:   # sessions saved with the placeholder 'Person A' read with the chart's own first name (in memory only)
+        if (s.get("name_a") or "").strip().lower() in _COMPAT_PLACEHOLDER_NAMES and s.get("chart_id_a"):
+            _ra = (await run_in_threadpool(lambda: supabase.table("charts").select("first_name,name")
+                                           .eq("id", s["chart_id_a"]).limit(1).execute().data)) or [{}]
+            s["name_a"] = _compat_display_name(s.get("name_a"), _ra[0])
+    except Exception as _ne:
+        print(f"[compat] name_a heal skipped: {_ne}")
     out = {
         "session_id":    session_id,
         "current_layer": s.get("current_layer", 1),
