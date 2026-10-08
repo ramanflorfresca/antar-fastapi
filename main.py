@@ -2054,6 +2054,9 @@ def _become_scheduler_leader() -> bool:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global _MAIN_LOOP
+    import asyncio as _lp_aio
+    _MAIN_LOOP = _lp_aio.get_running_loop()
     if _become_scheduler_leader():
         scheduler.start()
         print("[startup] Scheduler started (leader worker) — daily jobs active")
@@ -2180,6 +2183,24 @@ def _language_for_request(request: Request) -> str:
     except Exception:
         pass
     return _accept_language_base(request.headers.get("accept-language") or "") or "en"
+
+
+@app.middleware("http")
+async def _slow_request_log(request: Request, call_next):
+    """[perf-visibility 2026-10-08] Railway's access log has no durations, so a slow
+    login could only be guessed at from request spacing. Log any API request over
+    700 ms with its server time, and expose X-Process-Ms so the browser Network tab
+    (and Lovable) can separate server time from network/queueing."""
+    t0 = _time.perf_counter()
+    response = await call_next(request)
+    ms = (_time.perf_counter() - t0) * 1000
+    try:
+        response.headers["X-Process-Ms"] = str(int(ms))
+        if ms >= 700 and request.url.path.startswith("/api/"):
+            print(f"[slow] {request.method} {request.url.path} {response.status_code} {int(ms)}ms")
+    except Exception:
+        pass
+    return response
 
 
 @app.middleware("http")
@@ -2752,11 +2773,25 @@ from antar_engine import dasha_cache as _dasha_cache
 # Route handlers should prefer FastAPI's BackgroundTasks. This is for the places
 # that have no request to hang the work on (in-process callers, schedulers).
 _BG_TASKS: set = set()
+_MAIN_LOOP = None  # set in lifespan; lets sync (threadpool) routes schedule background work
 
 
 def _spawn_bg(coro, label: str = ""):
     """Fire-and-forget a coroutine, holding a strong reference until it ends."""
     import asyncio as _bg_aio
+    try:
+        _bg_aio.get_running_loop()
+    except RuntimeError:
+        # [bg-from-thread 2026-10-08] Sync `def` routes run in the threadpool, which has
+        # no event loop: create_task raised "no running event loop" and the coroutine
+        # was never awaited — so the network / life-arc prewarms silently never ran and
+        # every People/Ask load paid the cold path. Hand the coroutine to the server
+        # loop instead (it creates the task there, so the strong ref below still holds).
+        if _MAIN_LOOP is not None and _MAIN_LOOP.is_running():
+            _MAIN_LOOP.call_soon_threadsafe(_spawn_bg, coro, label)
+        else:
+            coro.close()
+        return None
     task = _bg_aio.create_task(coro)
     _BG_TASKS.add(task)
 
@@ -49329,9 +49364,7 @@ def _dispatch_life_arc_prewarm(chart_id, language="es", horizon_months=12):
     """Schedule _prewarm_life_arc without blocking the caller (async endpoints only)."""
     try:
         _lang = (str(language or "es").lower() or "es")[:2]
-        _t = asyncio.create_task(_prewarm_life_arc(chart_id, _lang, horizon_months))
-        _life_arc_prewarm_tasks.add(_t)
-        _t.add_done_callback(_life_arc_prewarm_tasks.discard)
+        _spawn_bg(_prewarm_life_arc(chart_id, _lang, horizon_months), "life-arc-prewarm")
     except Exception as _d_e:
         print(f"[life_arc] Prewarm dispatch failed (non-blocking) for {chart_id}: {_d_e}")
 
