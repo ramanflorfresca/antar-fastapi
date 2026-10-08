@@ -13927,6 +13927,24 @@ _LE_DOMAIN = {
     "household": "family",
     "health": "health", "body": "health", "illness": "health", "medical": "health",
     "wellness": "health",
+    "vehicle": "vehicle", "car": "vehicle", "auto": "vehicle", "vehicles": "vehicle",
+}
+# [vehicle events] Buy-vs-lease study: a vehicle event carries metadata.vehicle =
+# {acquisition, outcome}. Free-form input is canonicalised; unknown values pass through.
+_LE_VEHICLE_ACQ = {
+    "buy": "bought", "bought": "bought", "purchase": "bought", "purchased": "bought",
+    "own": "bought", "owned": "bought", "financed": "bought", "finance": "bought",
+    "lease": "leased", "leased": "leased", "leasing": "leased",
+    "sell": "sold", "sold": "sold", "sale": "sold",
+    "return": "returned", "returned": "returned", "lease return": "returned",
+    "totaled": "totaled", "totalled": "totaled", "written off": "totaled",
+}
+_LE_VEHICLE_OUTCOME = {
+    "smooth": "smooth", "fine": "smooth", "good": "smooth", "no issues": "smooth",
+    "accident": "accident", "crash": "accident", "collision": "accident",
+    "repair": "repair", "repairs": "repair", "breakdown": "repair", "problems": "repair",
+    "problem": "repair", "mechanical": "repair",
+    "stolen": "theft", "theft": "theft",
 }
 
 
@@ -13970,6 +13988,15 @@ def _normalize_life_event_meta(meta, user_id):
     dom = str(meta.get("domain", "")).strip().lower()
     if dom:
         meta["domain"] = _LE_DOMAIN.get(dom, dom)
+    veh = meta.get("vehicle")
+    if isinstance(veh, dict):
+        veh = dict(veh)
+        for key, table in (("acquisition", _LE_VEHICLE_ACQ), ("outcome", _LE_VEHICLE_OUTCOME)):
+            v = str(veh.get(key, "")).strip().lower()
+            if v:
+                veh[key] = table.get(v, v)
+        meta["vehicle"] = veh
+        meta.setdefault("domain", "vehicle")
     if meta.get("magnitude") not in (None, ""):
         try:
             meta["magnitude"] = min(3, max(1, int(meta["magnitude"])))
