@@ -5835,6 +5835,14 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
     # chart's saved language; otherwise the last language used here.
     _saved = await asyncio.to_thread(_wa_saved_lang, (link or {}).get("chart_id")) if link else None
     _fb = _saved or ctx.get("lang") or "en"
+    if not _saved and not ctx.get("lang"):
+        # [wa-consent-lang] nothing known about this person yet (first message, e.g. the connect
+        # code, which is always English): a Colombian / Brazilian number or user ID gets es / pt
+        try:
+            from antar_engine import wa_numbers as _wn0
+            _fb = _wn0.country_lang(number) or _fb
+        except Exception:
+            pass
     try:   # [wa-numbers] the number this person last wrote to is who writes back (24h window + proactive sends)
         from antar_engine import wa_numbers as _wn
         _cur = _wn.current_sender.get()
@@ -5919,6 +5927,11 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
                 send(_wa_text("bad_code", lang))
                 return
             _WA_BAD_CODES.pop(number, None)
+            # [wa-consent-lang] the connect text is always English; the language the chart was
+            # saved in (the app setting) decides the Terms/Privacy prompt and the welcome
+            _clang = await asyncio.to_thread(_wa_saved_lang, _row.get("chart_id"))
+            if _clang:
+                lang = _clang
             _pol0 = await asyncio.to_thread(_msg.policy_state, sb, number, None)
             if not _row.get("consent_at") and _pol0 != "ok":
                 # [wa-qr-consent] scanned, not accepted yet: hold the code and ask for Terms + Privacy here
@@ -5942,6 +5955,8 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
             _pol = await asyncio.to_thread(_msg.policy_state, sb, number, link)
             if _pol == "needed":
                 _dec = _msg.parse_policy_reply(body, choice_id)
+                if _fb in ("es", "pt") and (_dec in ("yes", "no") or _dec is None) and len((body or "").split()) <= 2:
+                    lang = _fb      # [wa-consent-lang] a bare ACCEPT / NO must not flip a Spanish chat to English
                 if _dec in ("yes", "no"):
                     await asyncio.to_thread(_msg.record_policy, sb, number, _dec, lang, link)
                     print(f"[wa-policy] {_dec} …{number[-4:]}")
