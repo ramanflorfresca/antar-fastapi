@@ -937,8 +937,8 @@ def _season_ctx(end):
     return ctx
 
 
-_SEASON_FAR = {"en": "The next 3 years · to Apr 2029", "es": "Los próximos 3 años · hasta abr 2029",
-               "pt": "Os próximos 3 anos · até abr 2029", "hinglish": "Agle 3 saal · Apr 2029 tak"}
+_SEASON_FAR = {"en": "The next 2½ years · to Apr 2029", "es": "Los próximos 2½ años · hasta abr 2029",
+               "pt": "Os próximos 2½ anos · até abr 2029", "hinglish": "Agle 2½ saal · Apr 2029 tak"}
 
 
 @pytest.mark.parametrize("lang", LANGS)
@@ -949,7 +949,7 @@ def test_observed_season_label_carries_the_year_when_it_runs_to_2029(lang):
 
 def test_hindi_season_label_falls_back_to_english_with_the_year():
     r = T.read_topic(_season_ctx("2029-04-25"), "career", "season", TODAY, "hi", with_best_fit=False)
-    assert r["period"]["label"] == "The next 3 years · to Apr 2029"
+    assert r["period"]["label"] == "The next 2½ years · to Apr 2029"
 
 
 @pytest.mark.parametrize("end,label", [
@@ -1194,8 +1194,12 @@ _SPAN_CASES = [  # months out -> (bucket, en label, es, pt, hinglish)
     (6, "months", "The next 6 months", "Los próximos 6 meses", "Os próximos 6 meses", "Agle 6 mahine"),
     (12, "1y", "The next year · to Oct 2027", "El próximo año · hasta oct 2027",
      "O próximo ano · até out 2027", "Agla saal · Oct 2027 tak"),
+    (18, "1.5y", "The next 1½ years · to Apr 2028", "Los próximos 1½ años · hasta abr 2028",
+     "Os próximos 1½ anos · até abr 2028", "Agle 1½ saal · Apr 2028 tak"),
     (24, "2y", "The next 2 years · to Oct 2028", "Los próximos 2 años · hasta oct 2028",
      "Os próximos 2 anos · até out 2028", "Agle 2 saal · Oct 2028 tak"),
+    (30, "2.5y", "The next 2½ years · to Apr 2029", "Los próximos 2½ años · hasta abr 2029",
+     "Os próximos 2½ anos · até abr 2029", "Agle 2½ saal · Apr 2029 tak"),
     (36, "3y", "The next 3 years · to Oct 2029", "Los próximos 3 años · hasta oct 2029",
      "Os próximos 3 anos · até out 2029", "Agle 3 saal · Oct 2029 tak"),
 ]
@@ -1242,5 +1246,22 @@ def test_span_rounding_boundaries():
     assert C.span_info(TODAY, TODAY + timedelta(days=91))["bucket"] == "few"
     assert C.span_info(TODAY, TODAY + timedelta(days=125))["bucket"] == "months"
     assert C.span_info(TODAY, TODAY + timedelta(days=335))["bucket"] == "1y"
-    assert C.span_info(TODAY, TODAY + timedelta(days=550))["bucket"] == "2y"
-    assert C.span_info(TODAY, TODAY + timedelta(days=930))["bucket"] == "3y"
+    assert C.span_info(TODAY, TODAY + timedelta(days=550))["bucket"] == "1.5y"
+    assert C.span_info(TODAY, TODAY + timedelta(days=700))["bucket"] == "2y"
+    assert C.span_info(TODAY, TODAY + timedelta(days=930))["bucket"] == "2.5y"
+    assert C.span_info(TODAY, TODAY + timedelta(days=1100))["bucket"] == "3y"
+
+
+@pytest.mark.parametrize("months,bucket", [
+    (1, "few"), (3, "few"), (4, "months"), (10, "months"), (11, "1y"), (14, "1y"),
+    (15, "1.5y"), (20, "1.5y"), (21, "2y"), (26, "2y"), (27, "2.5y"), (32, "2.5y"),
+    (33, "3y"), (40, "3y")])
+def test_span_bucket_month_boundaries(months, bucket):
+    end = TODAY + timedelta(days=round(months * 30.44))
+    assert C.span_info(TODAY, end) == {"months": months, "bucket": bucket}
+
+
+def test_half_year_labels_exist_in_every_language():
+    for tbl in (C.SPAN_TEXT, C.SPAN_LEAD_SEASON, C.WHOLE_SEASON):
+        for lang in LANGS:
+            assert "½" in tbl[lang]["1.5y"] and "½" in tbl[lang]["2.5y"]

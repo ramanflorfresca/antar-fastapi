@@ -50501,7 +50501,7 @@ def _topic_read_compute(chart_id: str, topic: str, scale: str, language, tz_offs
         return None
     lang = _topic_lang(language, row)
     today = _prac_local_date(tz_offset)
-    ck = ("topic-read", "v3-span", chart_id, topic, scale, lang, today.isoformat())
+    ck = ("topic-read", "v4-half", chart_id, topic, scale, lang, today.isoformat())
     hit = _te.cache_get(ck)
     if hit is not None:
         return hit
@@ -50551,7 +50551,8 @@ _TOPIC_SHARED_PAIRS_MAX = 12
 _TOPIC_SHARED_PER_WINDOW = 5
 
 
-def _topic_shared_with(chart_id: str, out: dict, tz_offset, authorization, claim_token):
+def _topic_shared_with(chart_id: str, out: dict, tz_offset, authorization, claim_token,
+                       authorized: bool = False):
     """{"best_window": [...], "watch_window": [...]} of people in the asker's ACTIVE Circle pairs
     whose own window for this topic overlaps. Same gate as the pair page (an accepted pair, the
     other chart still alive), the same cached per-chart windows and the same intersect helper.
@@ -50559,7 +50560,8 @@ def _topic_shared_with(chart_id: str, out: dict, tz_offset, authorization, claim
     Needs the owner's credentials (names are Circle data): anonymous reads never get the field."""
     from antar_engine import circle_overlap as _co
     try:
-        _circle_authorize(chart_id, authorization, claim_token)
+        if not authorized:      # the Windows feed authorizes once, then asks per topic
+            _circle_authorize(chart_id, authorization, claim_token)
         if _circle.is_demo(supabase, chart_id):
             return None
         topic, scale = out.get("topic"), out.get("scale")
@@ -50592,6 +50594,87 @@ def _topic_shared_with(chart_id: str, out: dict, tz_offset, authorization, claim
     except Exception as e:
         print(f"[topic-shared-with] skipped: {e!r}")
         return None
+
+
+# ── Windows feed: a cross-topic list of dated windows, from the same engine as topic-read ──
+_WINDOWS_FEED_VERSION = "v1"
+
+
+def _windows_compute(chart_id: str, language, tz_offset, horizon_months):
+    import antar_engine.topic_engine as _te
+    from antar_engine import windows_feed as _wf
+    ctx, row = _topic_ctx_load(chart_id)
+    if ctx is None:
+        return None
+    lang = _topic_lang(language, row)
+    today = _prac_local_date(tz_offset)
+    hm = _wf.clamp_horizon(horizon_months)
+    ck = ("windows-feed", _WINDOWS_FEED_VERSION, chart_id, lang, today.isoformat(), hm)
+    hit = _te.cache_get(ck)
+    if hit is not None:
+        return hit
+    # the dates (language-free, the costly part) are cached once per chart per day
+    rk = ("windows-raw", _WINDOWS_FEED_VERSION, chart_id, today.isoformat())
+    raw_json = _te.cache_get(rk)
+    complete = True
+    if raw_json is not None:
+        raw = _wf.raw_from_json(raw_json)
+    else:
+        raw = _wf.raw_windows(ctx, today)
+        complete = all(v is not None for v in raw.values())
+        if complete:
+            _te.cache_put(rk, _wf.raw_to_json(raw), _TOPIC_READ_TTL)
+    out = _wf.assemble(ctx, raw, today, lang, hm)
+    if complete:
+        _te.cache_put(ck, out, _TOPIC_READ_TTL)
+    return out
+
+
+def _windows_shared_with(chart_id: str, out: dict, tz_offset, authorization, claim_token):
+    """{topic: {"open": [...], "care": [...]}} of Circle people whose own window overlaps the
+    soonest open / care window of that topic. Owner-only, same guards as topic-read."""
+    _circle_authorize(chart_id, authorization, claim_token)
+    res = {}
+    for tr in out.get("tracks") or []:
+        first = {}
+        for w in tr.get("windows") or []:
+            first.setdefault(w["kind"], w)
+        probe = {"topic": tr["topic"], "scale": "season",
+                 "best_window": first.get("open"), "watch_window": first.get("care")}
+        sw = _topic_shared_with(chart_id, probe, tz_offset, authorization, claim_token, authorized=True)
+        if sw:
+            res[tr["topic"]] = {("open" if k == "best_window" else "care"): v for k, v in sw.items()}
+    return res
+
+
+@app.get("/api/v1/chart/{chart_id}/windows")
+async def get_chart_windows(chart_id: str, language: Optional[str] = None,
+                            tz_offset: Optional[int] = None, horizon_months: int = 30,
+                            authorization: Optional[str] = Header(None),
+                            x_claim_token: Optional[str] = Header(None)):
+    """The Windows view: every dated window across the seven topics, from the same scans the
+    topic reads use. now (running today) / next (upcoming, max 12, 2 per topic) / care (upcoming
+    care, max 6) / tracks (one row per topic for a timeline) / big_picture / quiet_topics.
+    Timing only. Any engine trouble degrades to an empty feed, never an error (404 only for an
+    unknown chart). `tracks[].shared_with` appears only for the owner's own authenticated request."""
+    from antar_engine import windows_feed as _wf
+    try:
+        out = await run_in_threadpool(_windows_compute, chart_id, language, tz_offset, horizon_months)
+    except Exception as e:
+        print(f"[windows-feed] failed -> empty feed: {e!r}")
+        return _wf.empty_feed(chart_id, _prac_local_date(tz_offset), language or "en", horizon_months)
+    if out is None:
+        raise HTTPException(status_code=404, detail="Chart not found")
+    if authorization or x_claim_token:
+        try:
+            sw = await run_in_threadpool(_windows_shared_with, chart_id, out, tz_offset, authorization, x_claim_token)
+        except Exception as e:
+            print(f"[windows-shared-with] skipped: {e!r}")
+            sw = None
+        if sw:
+            out = dict(out, tracks=[dict(t, shared_with=sw[t["topic"]]) if t["topic"] in sw else t
+                                    for t in out["tracks"]])
+    return out
 
 
 def _topic_read_record(out, chart_id, today):
