@@ -375,27 +375,32 @@ COPY_TABLES = (MD_PHRASE, AD_PHRASE, CHAPTER_TMPL, STRETCH_TMPL["first"], STRETC
 
 
 def phase(a: Optional[dict], b: Optional[dict], a_name: str, b_name: str, a_pack: Tuple[dict, list], b_pack: Tuple[dict, list],
-          lang: str, today: date) -> dict:
+          lang: str, today: date, family: str = "work") -> dict:
     """The pair's chapters now -> a direct call (not now / possible with structure / a good time) + the first clear date.
     a / b are season_at results (or None)."""
     lang = CC.lang_of(lang)
+    if family == "close":
+        from antar_engine import circle_lens as _L
+        lines, calls = _L.PHASE_CLOSE, _L.CALL_CLOSE
+    else:
+        lines, calls = PHASE_LINE, CALL
     ha, hb = bool(a and a["heavy"]), bool(b and b["heavy"])
     testing = any(x and x["tone"] == "testing" for x in (a, b))
     status = "both_heavy" if ha and hb else "one_heavy" if ha or hb else "testing" if testing else "clear"
     if status == "one_heavy":
         who, se = (a_name, a) if ha else (b_name, b)
         d = describe(se, lang)
-        line = CC.pick(PHASE_LINE["one_heavy"], lang).format(name=who, until=d["ends_label"], effect=d["effect"])
+        line = CC.pick(lines["one_heavy"], lang).format(name=who, until=d["ends_label"], effect=d["effect"])
     else:
-        line = CC.pick(PHASE_LINE[status], lang)
+        line = CC.pick(lines[status], lang)
     call = {"both_heavy": "not_now", "one_heavy": "not_now", "testing": "with_structure", "clear": "good_now"}[status]
     better = None
     if status in ("both_heavy", "one_heavy"):
         d = better_from(a_pack, b_pack, today)
         if d:
             better = {"on": d.isoformat(), "label": C.day_label_y(d, lang),
-                      "line": CC.pick(PHASE_LINE["better"], lang).format(on=C.day_label_y(d, lang))}
-    return {"status": status, "call": call, "call_title": CC.pick(CALL[call], lang), "line": line, "better": better}
+                      "line": CC.pick(lines["better"], lang).format(on=C.day_label_y(d, lang))}
+    return {"status": status, "call": call, "call_title": CC.pick(calls[call], lang), "line": line, "better": better}
 
 
 def verdict(a: dict, b: dict, complementary: bool, lang: str = "en") -> dict:

@@ -179,8 +179,14 @@ TEXTS = (NOTE, ROLE_LABEL, ROLE_LINE, PACE_LINE, MODE_LINE, NOTHING_FLAGGED, BAL
 
 
 def lens_for(relation: Optional[str]) -> Optional[str]:
-    """What the other person is to the viewer -> a brief lens, or None (no brief for other relations yet)."""
-    return {"cofounder": "cofounder", "business": "business"}.get(str(relation or ""))
+    """What the other person is to the viewer -> the brief lens (every relation type has one), else None."""
+    from antar_engine import circle_lens as L
+    return str(relation) if str(relation or "") in L.LENSES else None
+
+
+def family_of(lens: str) -> str:
+    from antar_engine import circle_lens as L
+    return (L.LENSES.get(lens) or {}).get("family", "work_partner")
 
 
 def _stem(name) -> str:
@@ -230,7 +236,8 @@ def _fit_parts(cd: dict, dashas: dict, lang: str, today: date) -> dict:
     return out
 
 
-def profile(cd: dict, dashas: dict, name: str, lang: str = "en", today: Optional[date] = None) -> dict:
+def profile(cd: dict, dashas: dict, name: str, lang: str = "en", today: Optional[date] = None,
+            bond_role: Optional[str] = None) -> dict:
     """One person's working profile. `strong_at` / `watch_for` are [{title, effect}] ( `effect` is English and is
     translated by the route; titles are localized); `watch_for` is [] when nothing is flagged."""
     from antar_engine.yogas import plain_yoga
@@ -268,9 +275,15 @@ def profile(cd: dict, dashas: dict, name: str, lang: str = "en", today: Optional
         shift = None
     strip = lambda rows: [{"title": r["title"], "effect": r["effect"]} for r in rows]
     fit = _fit_parts(cd, dashas, lang, today or date.today())
-    return {"first_name": name, "role": role, "role_label": CC.pick(ROLE_LABEL, lang)[role],
-            "temperament": fit["temperament"], "partnership": fit["partnership"], "season": fit["season"],
-            "role_line": CC.pick(ROLE_LINE, lang)[role], "pace": pace, "how_you_work": how,
+    work_partner = bond_role is None
+    bond = None
+    if not work_partner:
+        from antar_engine import circle_lens as L
+        bond = L.bond_for(cd, bond_role, lang)
+    return {"first_name": name, "role": role, "role_label": CC.pick(ROLE_LABEL, lang)[role] if work_partner else None,
+            "temperament": fit["temperament"], "partnership": fit["partnership"] if work_partner else None, "bond": bond,
+            "season": fit["season"],
+            "role_line": CC.pick(ROLE_LINE, lang)[role] if work_partner else None, "pace": pace, "how_you_work": how,
             "strong_at": strip(strong[:3]), "watch_for": strip(watch[:2]),
             "watch_for_none": CC.pick(NOTHING_FLAGGED, lang) if not watch else None, "shift": shift}
 
@@ -278,6 +291,10 @@ def profile(cd: dict, dashas: dict, name: str, lang: str = "en", today: Optional
 def balance(a: dict, b: dict, lens: str, lang: str = "en") -> dict:
     """The split line for two profiles (any order) + the lens-specific tail."""
     lang = CC.lang_of(lang)
+    if family_of(lens) != "work_partner":                       # no driver/anchor split outside a venture: just the pace
+        from antar_engine import circle_lens as L
+        kind = "differs" if {a.get("pace"), b.get("pace")} == {"fast", "slow"} else "close"
+        return {"kind": "pace_" + kind, "line": CC.pick(L.PACE[kind], lang), "tail": ""}
     ra, rb = a["role"], b["role"]
     if {ra, rb} == {"driver", "anchor"}:
         d, n = (a, b) if ra == "driver" else (b, a)
@@ -300,7 +317,8 @@ def timing(topics: List[dict], lens: str, lang: str = "en", today: Optional[date
     """From the pair page's topics: the shared open windows and the careful stretches for money / business
     (+ career for cofounders), earliest first. No overlap -> the plain 'none' line."""
     lang = CC.lang_of(lang)
-    want = {"money", "business"} | ({"career"} if lens == "cofounder" else set())
+    from antar_engine import circle_lens as L
+    want = set((L.LENSES.get(lens) or {}).get("topics") or ("money", "business"))
     open_, care = [], []
     for tp in topics or []:
         if tp.get("topic") not in want:
@@ -318,31 +336,40 @@ def timing(topics: List[dict], lens: str, lang: str = "en", today: Optional[date
     return {"line": line, "shared_open": open_[:MAX_CAREFUL], "careful": care[:MAX_CAREFUL]}
 
 
-def donts(careful: List[dict], profiles: List[dict], lang: str = "en") -> List[str]:
+def donts(careful: List[dict], profiles: List[dict], lang: str = "en", lens: str = "cofounder") -> List[str]:
+    from antar_engine import circle_lens as L
     lang = CC.lang_of(lang)
+    fam = family_of(lens)
+    ranges = "; ".join(f"{w['range']} ({w['label'].lower()})" for w in careful[:MAX_CAREFUL]) if careful else ""
     out = []
-    if careful:
-        ranges = "; ".join(f"{w['range']} ({w['label'].lower()})" for w in careful[:MAX_CAREFUL])
+    if fam == "close":
+        out.append(CC.pick(L.DONT["close_careful"], lang).format(ranges=ranges) if careful else CC.pick(L.DONT["close_careful_none"], lang))
+    elif careful:
         out.append(CC.pick(DONT["careful"], lang).format(ranges=ranges))
     else:
         out.append(CC.pick(DONT["careful_none"], lang))
     if any(p["watch_for"] for p in profiles) or any(p["role"] == "driver" for p in profiles):
         out.append(CC.pick(DONT["heat"], lang))
-    out.append(CC.pick(DONT["titles"], lang))
+    out.append(CC.pick({"close": L.DONT["keepscore"], "counsel": L.DONT["advice_own"], "work_hier": L.DONT["hier_scope"]}.get(fam, DONT["titles"]), lang))
     return out[:3]
 
 
 def build(me: dict, other: dict, lens: str, topics: List[dict], fit: Optional[dict], moves: Optional[list],
           lang: str = "en", today: Optional[date] = None, phase: Optional[dict] = None) -> dict:
-    """The whole brief from two profiles + the pair page's topics. `me` first. Pure."""
-    from antar_engine import circle_fit as F
+    """The whole brief from two profiles + the pair page's topics. `me` first. Pure. Every relation type has a lens
+    (circle_lens.LENSES): cofounder / business get the venture verdict and role split; the rest get a bond verdict
+    from each person's capacity for that kind of bond."""
+    from antar_engine import circle_fit as F, circle_lens as L
     lang = CC.lang_of(lang)
-    leans = [{"first_name": p["first_name"], "lean": (p.get("partnership") or {}).get("lean", "either")} for p in (me, other)]
-    verdict = F.verdict(leans[0], leans[1], {me["role"], other["role"]} == {"driver", "anchor"}, lang)
+    if family_of(lens) == "work_partner":
+        leans = [{"first_name": p["first_name"], "lean": (p.get("partnership") or {}).get("lean", "either")} for p in (me, other)]
+        verdict = F.verdict(leans[0], leans[1], {me["role"], other["role"]} == {"driver", "anchor"}, lang)
+    else:
+        verdict = L.bond_verdict(lens, (me.get("bond") or {}).get("level"), (other.get("bond") or {}).get("level"), lang)
     tm = timing(topics, lens, lang, today)
     shifts = [{"first_name": p["first_name"], **p["shift"],
                "line": CC.pick(SHIFT, lang).format(name=p["first_name"], to=p["shift"]["to"], on=p["shift"]["label"])}
               for p in (me, other) if p.get("shift")]
-    return {"lens": lens, "verdict": verdict, "phase": phase, "fit": fit, "people": [me, other], "balance": balance(me, other, lens, lang),
-            "timing": dict(tm, shifts=shifts), "donts": donts(tm["careful"], [me, other], lang),
-            "moves": moves or [], "note": CC.pick(NOTE, lang)}
+    return {"lens": lens, "family": family_of(lens), "verdict": verdict, "phase": phase, "fit": fit, "people": [me, other],
+            "balance": balance(me, other, lens, lang), "timing": dict(tm, shifts=shifts),
+            "donts": donts(tm["careful"], [me, other], lang, lens), "moves": moves or [], "note": CC.pick(NOTE, lang)}

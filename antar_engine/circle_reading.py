@@ -86,6 +86,8 @@ def shape(v2: dict, lang: str = "en") -> dict:
 def reason_for(relation: str, people_links) -> str:
     """What the OTHER person is to the viewer -> the compatibility reason key (employee/boss-or-manager keep
     their direction from the viewer's side)."""
+    if relation == "advisee":                       # display-only inverse of advisor; the engine reads it as advisor
+        relation = "advisor"
     return people_links.relation_to_compat_type(relation)
 
 

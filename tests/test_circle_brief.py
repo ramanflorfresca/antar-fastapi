@@ -70,15 +70,16 @@ def test_donts_are_three_at_most_and_honest():
 def test_build_shape_and_the_honesty_note_never_predicts():
     me, other = prof("Raman", "driver"), prof("Andres", "anchor", shift={"on": "2027-06-05", "label": "Jun 5, 2027", "to": "discipline and time"})
     b = CB.build(me, other, "cofounder", [], {"badge": "MIXED", "score": 58, "headline": "h"}, [{"area": "communication"}], "en", TODAY)
-    assert set(b) == {"lens", "verdict", "phase", "fit", "people", "balance", "timing", "donts", "moves", "note"}
+    assert set(b) == {"lens", "family", "verdict", "phase", "fit", "people", "balance", "timing", "donts", "moves", "note"}
     assert [p["first_name"] for p in b["people"]] == ["Raman", "Andres"]
     assert b["timing"]["shifts"][0]["line"] == "Andres moves into a season of discipline and time on Jun 5, 2027."
     assert "does not predict funding" in b["note"]
 
 
-def test_lens_for_is_cofounder_and_business_only():
-    assert CB.lens_for("cofounder") == "cofounder" and CB.lens_for("business") == "business"
-    for rel in ("friend", "spouse", "employee", "boss", "advisor", "parent", None):
+def test_lens_for_covers_every_relation_and_nothing_else():
+    for rel in ("cofounder", "business", "friend", "spouse", "employee", "boss", "advisor", "advisee", "parent", "child", "sibling", "family", "romantic"):
+        assert CB.lens_for(rel) == rel
+    for rel in (None, "", "zzz"):
         assert CB.lens_for(rel) is None
 
 
@@ -157,12 +158,12 @@ def test_brief_only_for_cofounder_and_business_and_only_when_both_on(env, monkey
     c.post(f"/api/v1/circle/{A}/pair/{B}/leave", headers=AUTH["uA"])
 
 
-def test_other_relations_get_no_brief_and_a_failing_brief_never_breaks_the_reading(env, monkeypatch):
+def test_every_relation_gets_a_brief_and_a_failing_brief_never_breaks_the_reading(env, monkeypatch):
     c, db, main = env
     monkeypatch.setattr(main, "_circle_reading_compute", lambda *a: dict(STUB))
     monkeypatch.setattr(main, "_circle_brief_compute", lambda *a: dict(BRIEF))
     make_pair(c, db, relation="friend"); both_on(c)
-    assert "brief" not in c.get(f"/api/v1/circle/{A}/pair/{B}/reading", headers=AUTH["uA"]).json()["reading"]
+    assert c.get(f"/api/v1/circle/{A}/pair/{B}/reading", headers=AUTH["uA"]).json()["reading"]["brief"]["lens"] == "cofounder"   # the stub
     c.post(f"/api/v1/circle/{A}/pair/{B}/leave", headers=AUTH["uA"])
     make_pair(c, db, relation="business"); both_on(c)
     def boom(*a): raise RuntimeError("down")
