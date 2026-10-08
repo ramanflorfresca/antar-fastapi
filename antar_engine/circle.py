@@ -177,7 +177,9 @@ def compat_type_label(relation: str, language) -> str:
 def relation_view(relation: str, language) -> dict:
     lang = CC.lang_of(language)
     return {"key": relation, "label": CC.rel_noun(relation, lang),
-            "compat_type_label": compat_type_label(relation, lang)}
+            "compat_type_label": compat_type_label(relation, lang),
+            "group_heading": CC.group_heading(relation, lang),
+            "group_order": CC.group_order(relation)}
 
 
 # ── status vocabulary ────────────────────────────────────────────────────────

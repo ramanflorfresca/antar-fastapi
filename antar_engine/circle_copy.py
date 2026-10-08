@@ -51,6 +51,40 @@ REL_NOUN: Dict[str, Dict[str, str]] = {
                  "boss": "Manager"},
 }
 
+# The personal heading each relation sits under on the Circle home ("My parents", "My team"),
+# in display order. Parent/child etc. are the relation keys the circle stores.
+GROUP_ORDER = ("spouse", "romantic", "child", "parent", "sibling", "family", "cofounder",
+               "business", "employee", "boss", "friend", "advisor", "advisee")
+GROUP_HEADING: Dict[str, Dict[str, str]] = {
+    "en": {"spouse": "My spouse", "romantic": "My partner", "child": "My kids", "parent": "My parents",
+           "sibling": "My siblings", "family": "My family", "cofounder": "My co-founder",
+           "business": "My business partner", "employee": "My team", "boss": "My manager",
+           "friend": "My friends", "advisor": "My guides", "advisee": "People I mentor"},
+    "es": {"spouse": "Mi esposo o esposa", "romantic": "Mi pareja", "child": "Mis hijos", "parent": "Mis padres",
+           "sibling": "Mis hermanos", "family": "Mi familia", "cofounder": "Mi cofundador",
+           "business": "Mi socio de negocio", "employee": "Mi equipo", "boss": "Mi jefe",
+           "friend": "Mis amigos", "advisor": "Mis guías", "advisee": "Quienes oriento"},
+    "pt": {"spouse": "Meu marido ou esposa", "romantic": "Meu parceiro", "child": "Meus filhos", "parent": "Meus pais",
+           "sibling": "Meus irmãos", "family": "Minha família", "cofounder": "Meu cofundador",
+           "business": "Meu sócio de negócio", "employee": "Minha equipe", "boss": "Meu chefe",
+           "friend": "Meus amigos", "advisor": "Meus guias", "advisee": "Quem eu oriento"},
+    "hinglish": {"spouse": "Mera jeevansathi", "romantic": "Mera partner", "child": "Mere bachche",
+                 "parent": "Mere mummy-papa", "sibling": "Mere bhai-behen", "family": "Mera parivaar",
+                 "cofounder": "Mera cofounder", "business": "Mera business partner", "employee": "Meri team",
+                 "boss": "Mera manager", "friend": "Mere dost", "advisor": "Mere margdarshak",
+                 "advisee": "Jinhe main guide karta hoon"},
+}
+
+
+def group_heading(rel: str, lang: str) -> str:
+    t = pick(GROUP_HEADING, lang)
+    return t.get(rel) or GROUP_HEADING["en"].get(rel) or "My people"
+
+
+def group_order(rel: str) -> int:
+    return GROUP_ORDER.index(rel) if rel in GROUP_ORDER else len(GROUP_ORDER)
+
+
 # what A is to B, given what B is to A
 INVERSE = {"parent": "child", "child": "parent", "employee": "boss", "boss": "employee",
            "advisor": "advisee", "advisee": "advisor"}
@@ -204,6 +238,6 @@ JOINT_QUESTION: Dict[str, Dict[str, str]] = {
     },
 }
 
-TEXTS = (REL_NOUN, BULLET, BASED_ON_BOTH, NONE_BEST, NONE_ALL, CARE_NOTE, HEADLINE_BEST,
+TEXTS = (REL_NOUN, GROUP_HEADING, BULLET, BASED_ON_BOTH, NONE_BEST, NONE_ALL, CARE_NOTE, HEADLINE_BEST,
          HEADLINE_NONE, DAY_UNSHARED, CHIPS, ASK_BEST, ASK_NONE, ASK_CARE, ASK_NEXT,
          JOINT_QUESTION["best"], JOINT_QUESTION["watch"])    # for the jargon guard
