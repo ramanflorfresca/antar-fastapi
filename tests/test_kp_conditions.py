@@ -243,3 +243,14 @@ def test_every_question_type_reads_differently():
                 c = explain(k, lang, qs.get(qt, "q"))["condition"]
                 assert c not in seen or seen[c] == qt, (lang, qt, seen.get(c), c)
                 seen[c] = qt
+
+
+def test_car_lease_does_not_get_house_buying_words():
+    from antar_engine.kp.kp_conditions import explain
+    kp = {"question_type": "property", "lean": "conditional",
+          "debug": {"favour_hit": [4], "against_hit": [3], "gate_ok": True}}
+    for q in ("Can I lease a car this month?", "¿Puedo alquilar un coche este mes?", "Posso fazer leasing de um carro?"):
+        c = explain(kp, "en", q)["condition"]
+        assert "clean title" not in c and "rushed paperwork" not in c
+    assert "terms you've read in full" in explain(kp, "en", "Can I lease a car?")["condition"]
+    assert "clean title" in explain(kp, "en", "Can I buy a house?")["condition"]

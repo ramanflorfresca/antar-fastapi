@@ -253,6 +253,28 @@ _PARTNER_Q = re.compile(r"(?i)(\bwith (?:other people|others|partners?|my partne
                         r"\bcon otr[oa]s\b|\bcom outr[oa]s\b)")
 
 
+# [vehicle-condition 2026-10-08] KP files a car/vehicle purchase or lease under "property" (4th
+# house), so "Can I lease a car?" was told it hinges on "the right place with a clean title" and
+# "rushed paperwork" — house-buying words. The KP maths is unchanged; only the plain meanings change.
+_HOUSE["en"]["vehicle"] = {
+    3: "signing in a rush", 4: "the right car on terms you've read in full",
+    8: "fine print (mileage caps, end-of-lease charges, hidden fees)",
+    11: "a dealer or lender you already trust closing it",
+    12: "the total cost (fees, insurance, deposit) outrunning the value"}
+_HOUSE["es"]["vehicle"] = {
+    3: "firmar con prisa", 4: "el coche adecuado con condiciones que leíste completas",
+    8: "la letra pequeña (límite de kilometraje, cargos al final del contrato, comisiones ocultas)",
+    11: "un concesionario o financiador de confianza que lo cierre",
+    12: "que el costo total (comisiones, seguro, depósito) supere el valor"}
+_HOUSE["pt"]["vehicle"] = {
+    3: "assinar com pressa", 4: "o carro certo com condições que você leu por inteiro",
+    8: "as letras miúdas (limite de quilometragem, cobranças no fim do contrato, taxas ocultas)",
+    11: "uma concessionária ou financiadora de confiança fechando",
+    12: "o custo total (taxas, seguro, entrada) passar do valor"}
+_VEHICLE_Q = re.compile(r"(?<!\w)(car|cars|vehicle|suv|truck|van|motorcycle|bike|scooter|"
+                        r"coche|auto|autom[oó]vil|moto|carro|ve[ií]culo|gaadi|gadi|gaadee)(?!\w)", re.I)
+
+
 def _money_family(question: str) -> str:
     """KP files funding, clients and income under one 'gain' type; the reader's
     words decide which plain meanings fit (a clients question isn't about loans)."""
@@ -301,6 +323,8 @@ def explain(kp: dict, language: str = "en", question: str = "") -> dict:
         T = _TEMPLATES[lang]
         return {"supports": [], "blocks": [], "close_ok": dbg.get("gate_ok", True) is not False,
                 "condition": T["generic"], "label": T["generic_label"], "generic": True}
+    if family == "property" and _VEHICLE_Q.search(question or kp.get("question") or ""):
+        family = "vehicle"
     if family == "money" and qt != "speculation":
         family = _money_family(question or kp.get("question") or "")
     sup = [_phrase(h, family, lang) for h in (dbg.get("favour_hit") or [])]
