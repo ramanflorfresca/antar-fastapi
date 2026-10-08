@@ -628,3 +628,16 @@ def test_a_window_in_another_calendar_year_carries_its_year():
     assert tp["best"][0]["label"] == "Jul 5, 2027 – Jul 20, 2027" or "2027" in tp["best"][0]["label"]
     near = {"open": [{"start": d(8), "end": d(12), "confidence": "high"}], "care": []}
     assert "2026" not in CO.build_topic("money", near, near, "month", "en", today=TODAY)["best"][0]["label"]
+
+
+def test_every_relation_has_a_personal_group_heading_in_every_language():
+    from antar_engine import circle_copy as CC
+    from antar_engine.circle import relation_view
+    for lang in CC.LANGS:
+        for rel in CC.REL_NOUN["en"]:
+            v = relation_view(rel, lang)
+            assert v["group_heading"] and v["group_heading"] != "My people" or lang == "en" and rel not in CC.GROUP_HEADING["en"]
+            assert rel in CC.GROUP_HEADING[lang], (lang, rel)
+    assert relation_view("parent", "en")["group_heading"] == "My parents"
+    assert relation_view("employee", "en")["group_heading"] == "My team"
+    assert relation_view("spouse", "en")["group_order"] < relation_view("friend", "en")["group_order"]
