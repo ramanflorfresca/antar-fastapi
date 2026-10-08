@@ -42,47 +42,70 @@ def test_no_chart_term_or_prediction_in_any_user_string():
                 assert set(entry) >= set(LANGS), entry
 
 
-def test_season_theme_from_the_houses_a_lord_rules():
-    chart = {"lagna": {"sign_index": 0}, "planets": {}}            # Aries rising: Mars rules 1+8, Venus 2+7, Mercury 3+6, Moon 4, Sun 5, Jupiter 9+12, Saturn 10+11
-    assert F.lord_theme(chart, "Moon") == "consolidation"          # 4th only
-    assert F.lord_theme(chart, "Sun") == "expansion"               # 5th only
-    assert F.lord_theme(chart, "Saturn") == "action"               # 10th + 11th, both supportive: the first of equals wins
-    assert F.lord_theme(chart, "Mars") == "transformation"
-    assert F.lord_theme(chart, "zzz") is None
+ROWS_RAMAN = [{"level": "mahadasha", "lord_or_sign": "Rahu", "start_date": "2026-08-13", "end_date": "2044-08-13"},
+              {"level": "antardasha", "lord_or_sign": "Rahu", "start_date": "2026-08-13", "end_date": "2029-04-25"},
+              {"level": "antardasha", "lord_or_sign": "Jupiter", "start_date": "2029-04-25", "end_date": "2032-01-01"}]
+ROWS_ANDRES = [{"level": "mahadasha", "lord_or_sign": "Jupiter", "start_date": "2011-06-05", "end_date": "2027-06-05"},
+               {"level": "antardasha", "lord_or_sign": "Rahu", "start_date": "2025-01-10", "end_date": "2027-06-05"},
+               {"level": "antardasha", "lord_or_sign": "Saturn", "start_date": "2027-06-05", "end_date": "2030-01-01"},
+               {"level": "mahadasha", "lord_or_sign": "Saturn", "start_date": "2027-06-05", "end_date": "2046-06-05"}]
 
 
-def test_mercury_example_is_friction_when_net_is_negative():
-    chart = {"lagna": {"sign_index": 0}, "planets": {}}
-    assert F.lord_theme(chart, "Mercury") == "friction"
+def test_the_running_chapter_and_stretch_in_plain_words():
+    se = F.season_at({}, ROWS_ANDRES, TODAY)
+    assert (se["md"], se["ad"], se["tone"], se["heavy"]) == ("Jupiter", "Rahu", "clouded", True) and se["ends"] == date(2027, 6, 5)
+    d = F.describe(se, "en")
+    assert d["label"] == "a long chapter of growth and wisdom, and inside it a stretch of illusion and chasing the unfamiliar"
+    assert "Illusion is strong here" in d["effect"] and "real opportunities get missed unless there is discipline" in d["effect"]
+    assert d["ends_label"] == "Jun 5, 2027" and d["heavy"] is True
+    core = F.describe(F.season_at({}, ROWS_RAMAN, TODAY), "en")                       # same lord twice: the core of the chapter
+    assert core["label"] == "a stretch of illusion and chasing the unfamiliar, right at the core of this chapter"
+    es = F.describe(se, "es")
+    assert es["label"].startswith("una larga etapa de crecimiento y sabiduría, y dentro de ella") and es["ends_label"] == "5 jun 2027"
+    assert F.season_at({}, [], TODAY) is None and F.season_at({}, [{"level": "antardasha", "lord_or_sign": "Zzz", "start_date": "2026-01-01", "end_date": "2030-01-01"}], TODAY) is None
 
 
-def test_seasons_and_the_first_clear_stretch():
-    chart = {"lagna": {"sign_index": 0}, "planets": {}}
-    rows = [{"level": "antardasha", "lord_or_sign": "Mars", "start_date": "2026-01-01", "end_date": "2027-03-01"},     # heavy (transformation)
-            {"level": "antardasha", "lord_or_sign": "Sun", "start_date": "2027-03-01", "end_date": "2028-03-01"}]     # expansion
-    se = F.season_at(chart, rows, TODAY)
-    assert se["theme"] == "transformation" and se["heavy"] and se["ends"] == date(2027, 3, 1)
-    clear_rows = [{"level": "antardasha", "lord_or_sign": "Sun", "start_date": "2026-01-01", "end_date": "2030-01-01"}]
-    d = F.better_from((chart, rows), (chart, clear_rows), TODAY)
-    assert date(2027, 3, 1) <= d <= date(2027, 3, 20)               # first step after the heavy season ends
-    assert F.better_from((chart, clear_rows), (chart, clear_rows), TODAY) == TODAY
-    forever = [{"level": "antardasha", "lord_or_sign": "Mars", "start_date": "2026-01-01", "end_date": "2040-01-01"}]
-    assert F.better_from((chart, forever), (chart, clear_rows), TODAY) is None
+def test_tone_rules():
+    assert F._tone("Jupiter", "Rahu") == "clouded" and F._tone("Venus", "Ketu") == "clouded"
+    assert F._tone("Jupiter", "Saturn") == "testing" and F._tone("Venus", "Mars") == "testing"
+    assert F._tone("Jupiter", "Venus") == "favorable" and F._tone("Venus", "Moon") == "steady"
+    assert F._tone("Rahu", "Jupiter") == "testing"                                     # good stretch inside a clouded chapter
+    assert F._tone("Rahu", "Rahu") == "clouded"
 
 
-def test_phase_lines():
-    chart = {"lagna": {"sign_index": 0}, "planets": {}}
-    heavy = [{"level": "antardasha", "lord_or_sign": "Mars", "start_date": "2026-01-01", "end_date": "2027-03-01"},
-             {"level": "antardasha", "lord_or_sign": "Sun", "start_date": "2027-03-01", "end_date": "2031-03-01"}]
-    ok = [{"level": "antardasha", "lord_or_sign": "Sun", "start_date": "2026-01-01", "end_date": "2031-03-01"}]
-    sh, so = F.season_at(chart, heavy, TODAY), F.season_at(chart, ok, TODAY)
-    one = F.phase(sh, so, "Raman", "Andres", (chart, heavy), (chart, ok), "en", TODAY)
-    assert one["status"] == "one_heavy" and "Raman is in a season of transformation until Mar 1, 2027" in one["line"]
-    assert one["better"]["on"].startswith("2027-03") and "What doesn't work now can work later" in one["better"]["line"]
-    both = F.phase(sh, sh, "A", "B", (chart, heavy), (chart, heavy), "es", TODAY)
-    assert both["status"] == "both_heavy" and "no es el momento" in both["line"]
-    clear = F.phase(so, so, "A", "B", (chart, ok), (chart, ok), "en", TODAY)
-    assert clear["status"] == "clear" and clear["better"] is None
+def test_the_first_clear_stretch():
+    d = F.better_from(({}, ROWS_RAMAN), ({}, ROWS_ANDRES), TODAY)
+    assert d is not None and d > date(2029, 4, 24)                                      # Raman clouded until Apr 2029
+    clear = [{"level": "antardasha", "lord_or_sign": "Venus", "start_date": "2026-01-01", "end_date": "2031-01-01"}]
+    assert F.better_from(({}, clear), ({}, clear), TODAY) == TODAY
+    forever = [{"level": "antardasha", "lord_or_sign": "Rahu", "start_date": "2026-01-01", "end_date": "2040-01-01"}]
+    assert F.better_from(({}, forever), ({}, clear), TODAY) is None
+
+
+def test_phase_is_a_direct_call():
+    sr, sa = F.season_at({}, ROWS_RAMAN, TODAY), F.season_at({}, ROWS_ANDRES, TODAY)
+    both = F.phase(sr, sa, "Raman", "Andres", ({}, ROWS_RAMAN), ({}, ROWS_ANDRES), "en", TODAY)
+    assert both["status"] == "both_heavy" and both["call"] == "not_now" and both["call_title"] == "Not now"
+    assert both["line"].startswith("Not now. You are both in clouded stretches") and both["better"]["on"] > "2029-04"
+    assert "What doesn't work now can work later" in both["better"]["line"]
+    ok = [{"level": "antardasha", "lord_or_sign": "Venus", "start_date": "2026-01-01", "end_date": "2031-01-01"}]
+    so = F.season_at({}, ok, TODAY)
+    one = F.phase(sa, so, "Andres", "Sam", ({}, ROWS_ANDRES), ({}, ok), "en", TODAY)
+    assert one["status"] == "one_heavy" and one["call"] == "not_now"
+    assert "Not now. Andres is in a long chapter of growth and wisdom, and inside it a stretch of illusion" in one["line"]
+    assert "until Jun 5, 2027" in one["line"] and "Illusion is strong here" in one["line"] and one["better"]["on"].startswith("2027-06")
+    clear = F.phase(so, so, "A", "B", ({}, ok), ({}, ok), "en", TODAY)
+    assert clear["status"] == "clear" and clear["call"] == "good_now" and clear["better"] is None
+    sat = [{"level": "antardasha", "lord_or_sign": "Saturn", "start_date": "2026-01-01", "end_date": "2031-01-01"}]
+    t = F.phase(F.season_at({}, sat, TODAY), so, "A", "B", ({}, sat), ({}, ok), "es", TODAY)
+    assert t["status"] == "testing" and t["call"] == "with_structure" and "estructura" in t["line"]
+
+
+def test_every_planet_has_every_phrase_in_every_language():
+    for lang in LANGS:
+        for table in (F.MD_PHRASE, F.AD_PHRASE, F.EFFECT):
+            assert set(table[lang]) == set(F.PLANETS)
+    assert set(F.TONE.values()) == {"clouded", "testing", "steady", "favorable"}
 
 
 def test_verdict_picks_the_structure():
@@ -114,7 +137,7 @@ def test_real_charts_lean_is_deterministic_and_reasons_are_plain_and_neutral(two
                 assert not _JARGON.search(line)
                 assert not re.search(r"\b(you|your|tú|tu|você|aap)\b", line, re.I) or lang == "hinglish"
         se = F.season_at(c.chart_data, c.dashas["vimsottari"], TODAY)
-        assert se is None or se["theme"] in F.THEMES
+        assert se is None or (se["ad"] in F.TONE and se["tone"] in ("clouded", "testing", "steady", "favorable"))
 
 
 def test_brief_carries_verdict_phase_and_per_person_fit_without_chart_terms():

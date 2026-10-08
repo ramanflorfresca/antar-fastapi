@@ -74,59 +74,91 @@ def temperament(chart: dict) -> Optional[dict]:
         return None
 
 
-# ── 3. seasons ───────────────────────────────────────────────────────────────────────────────
-THEMES = ("expansion", "gains", "action", "partnership", "initiative", "consolidation", "friction", "transformation", "release")
-HEAVY = {"friction", "transformation", "release"}
-THEME_LABEL = {
-    "en": {"expansion": "a season of expansion", "gains": "a season of building gains", "action": "a season of action and visibility",
-           "partnership": "a season of partnership", "initiative": "a season of taking initiative", "consolidation": "a season of consolidating",
-           "friction": "a season of effort and friction", "transformation": "a season of transformation", "release": "a season of letting go"},
-    "es": {"expansion": "una etapa de expansión", "gains": "una etapa de construir ganancias", "action": "una etapa de acción y visibilidad",
-           "partnership": "una etapa de alianzas", "initiative": "una etapa de tomar la iniciativa", "consolidation": "una etapa de consolidar",
-           "friction": "una etapa de esfuerzo y fricción", "transformation": "una etapa de transformación", "release": "una etapa de soltar"},
-    "pt": {"expansion": "uma fase de expansão", "gains": "uma fase de construir ganhos", "action": "uma fase de ação e visibilidade",
-           "partnership": "uma fase de parcerias", "initiative": "uma fase de tomar a iniciativa", "consolidation": "uma fase de consolidar",
-           "friction": "uma fase de esforço e atrito", "transformation": "uma fase de transformação", "release": "uma fase de soltar"},
-    "hinglish": {"expansion": "vistaar ka daur", "gains": "laabh banane ka daur", "action": "karm aur drishyata ka daur",
-                 "partnership": "saajhedaari ka daur", "initiative": "pehal karne ka daur", "consolidation": "majboot karne ka daur",
-                 "friction": "mehnat aur takraav ka daur", "transformation": "badlaav ka daur", "release": "chhodne ka daur"},
+# ── 3. chapters: the running big chapter and the stretch inside it, in plain words ───────────
+# Each person is in one big chapter and one stretch inside it. Both have a plain nature, and the stretch has a
+# direct effect on how that person handles a partnership right now. tone: clouded (judgment on big commitments is
+# unreliable: illusion, detachment), testing (delay, heat, ego: workable only with structure), steady, favorable.
+TONE = {"Rahu": "clouded", "Ketu": "clouded", "Saturn": "testing", "Mars": "testing", "Sun": "testing",
+        "Moon": "steady", "Mercury": "favorable", "Venus": "favorable", "Jupiter": "favorable"}
+PLANETS = tuple(TONE)
+MD_PHRASE = {
+    "en": {"Sun": "a long chapter of authority and visibility", "Moon": "a long chapter of feeling and change", "Mars": "a long chapter of drive and conflict",
+           "Mercury": "a long chapter of business and communication", "Jupiter": "a long chapter of growth and wisdom", "Venus": "a long chapter of relationships and comfort",
+           "Saturn": "a long chapter of discipline and delay", "Rahu": "a long chapter of ambition and chasing the unfamiliar", "Ketu": "a long chapter of detachment and letting go"},
+    "es": {"Sun": "una larga etapa de autoridad y visibilidad", "Moon": "una larga etapa de emociones y cambio", "Mars": "una larga etapa de impulso y conflicto",
+           "Mercury": "una larga etapa de negocios y comunicación", "Jupiter": "una larga etapa de crecimiento y sabiduría", "Venus": "una larga etapa de relaciones y comodidad",
+           "Saturn": "una larga etapa de disciplina y demora", "Rahu": "una larga etapa de ambición y de perseguir lo desconocido", "Ketu": "una larga etapa de desapego y de soltar"},
+    "pt": {"Sun": "uma longa fase de autoridade e visibilidade", "Moon": "uma longa fase de emoções e mudança", "Mars": "uma longa fase de impulso e conflito",
+           "Mercury": "uma longa fase de negócios e comunicação", "Jupiter": "uma longa fase de crescimento e sabedoria", "Venus": "uma longa fase de relacionamentos e conforto",
+           "Saturn": "uma longa fase de disciplina e atraso", "Rahu": "uma longa fase de ambição e de perseguir o desconhecido", "Ketu": "uma longa fase de desapego e de soltar"},
+    "hinglish": {"Sun": "adhikaar aur drishyata ka lamba daur", "Moon": "bhaavna aur badlaav ka lamba daur", "Mars": "josh aur takraav ka lamba daur",
+                 "Mercury": "vyapar aur sanvaad ka lamba daur", "Jupiter": "vikas aur gyaan ka lamba daur", "Venus": "rishton aur aaram ka lamba daur",
+                 "Saturn": "anushasan aur deri ka lamba daur", "Rahu": "mahatvakanksha aur anjaan ke peeche bhaagne ka lamba daur", "Ketu": "vairagya aur chhodne ka lamba daur"},
 }
-_POS = {1: 1.0, 5: 1.0, 9: 1.0, 10: 1.0, 11: 1.0, 2: 1.0, 7: 0.5, 3: 0.5, 4: 0.5}
-_POS_THEME = {1: "expansion", 5: "expansion", 9: "expansion", 11: "gains", 2: "gains", 10: "action", 7: "partnership", 3: "initiative", 4: "consolidation"}
-_HEAVY_W = {8: 1.5, 12: 1.5, 6: 1.0}
-_HEAVY_THEME = {8: "transformation", 12: "release", 6: "friction"}
-HEAVY_NET = -0.5
+AD_PHRASE = {
+    "en": {"Sun": "a stretch of ego and authority", "Moon": "a stretch of mood and change", "Mars": "a stretch of heat and haste", "Mercury": "a stretch of deals and talk",
+           "Jupiter": "a stretch of growth and counsel", "Venus": "a stretch of comfort and harmony", "Saturn": "a stretch of delay and heavy responsibility",
+           "Rahu": "a stretch of illusion and chasing the unfamiliar", "Ketu": "a stretch of detachment"},
+    "es": {"Sun": "un tramo de ego y autoridad", "Moon": "un tramo de ánimo y cambio", "Mars": "un tramo de calor y prisa", "Mercury": "un tramo de tratos y charla",
+           "Jupiter": "un tramo de crecimiento y consejo", "Venus": "un tramo de comodidad y armonía", "Saturn": "un tramo de demora y mucha responsabilidad",
+           "Rahu": "un tramo de ilusión y de perseguir lo desconocido", "Ketu": "un tramo de desapego"},
+    "pt": {"Sun": "um trecho de ego e autoridade", "Moon": "um trecho de humor e mudança", "Mars": "um trecho de calor e pressa", "Mercury": "um trecho de negócios e conversa",
+           "Jupiter": "um trecho de crescimento e conselho", "Venus": "um trecho de conforto e harmonia", "Saturn": "um trecho de atraso e muita responsabilidade",
+           "Rahu": "um trecho de ilusão e de perseguir o desconhecido", "Ketu": "um trecho de desapego"},
+    "hinglish": {"Sun": "ahankaar aur adhikaar ka daur", "Moon": "mizaaj aur badlaav ka daur", "Mars": "garmi aur jaldbaazi ka daur", "Mercury": "sauda aur baatcheet ka daur",
+                 "Jupiter": "vikas aur salah ka daur", "Venus": "aaram aur tal-mel ka daur", "Saturn": "deri aur bhaari zimmedaari ka daur",
+                 "Rahu": "bhram aur anjaan ke peeche bhaagne ka daur", "Ketu": "vairagya ka daur"},
+}
+LABEL_TMPL = {
+    "en": "{md}, and inside it {ad}", "es": "{md}, y dentro de ella {ad}", "pt": "{md}, e dentro dela {ad}", "hinglish": "{md}, aur uske andar {ad}",
+}
+LABEL_CORE = {
+    "en": "{ad}, right at the core of this chapter", "es": "{ad}, justo en el centro de esta etapa", "pt": "{ad}, bem no centro desta fase",
+    "hinglish": "{ad}, is daur ke theek beech mein",
+}
+EFFECT = {
+    "en": {"Rahu": "Illusion is strong here: big promises look better than they are, and real opportunities get missed unless there is discipline.",
+           "Ketu": "Detachment is strong here: interest fades, commitments get dropped and decisions go quiet.",
+           "Saturn": "Delay and heavy responsibility: everything moves slower than planned and needs patience and structure.",
+           "Mars": "Heat and haste: quick decisions and conflict, so act on a plan and not on impulse.",
+           "Sun": "Ego and authority: clashes over who leads and who gets the credit.",
+           "Moon": "Mood-driven: decisions follow feelings and change often.",
+           "Mercury": "Deals and talk: good for contracts and ideas, with a risk of overthinking and mixed signals.",
+           "Venus": "Comfort and harmony: good for working together, with a risk of indulgence and avoiding hard conversations.",
+           "Jupiter": "Growth and good counsel: favorable, with a risk of overpromising."},
+    "es": {"Rahu": "Aquí la ilusión es fuerte: las grandes promesas parecen mejores de lo que son y se pierden oportunidades reales si falta disciplina.",
+           "Ketu": "Aquí el desapego es fuerte: el interés se apaga, los compromisos se sueltan y las decisiones se quedan en silencio.",
+           "Saturn": "Demora y mucha responsabilidad: todo avanza más lento de lo planeado y pide paciencia y estructura.",
+           "Mars": "Calor y prisa: decisiones rápidas y conflicto, así que actúa con un plan y no por impulso.",
+           "Sun": "Ego y autoridad: choques sobre quién lidera y quién se lleva el crédito.",
+           "Moon": "Guiado por el ánimo: las decisiones siguen los sentimientos y cambian a menudo.",
+           "Mercury": "Tratos y charla: bueno para contratos e ideas, con riesgo de pensar demasiado y de señales mezcladas.",
+           "Venus": "Comodidad y armonía: bueno para trabajar juntos, con riesgo de indulgencia y de evitar conversaciones difíciles.",
+           "Jupiter": "Crecimiento y buen consejo: favorable, con riesgo de prometer de más."},
+    "pt": {"Rahu": "Aqui a ilusão é forte: grandes promessas parecem melhores do que são e oportunidades reais se perdem sem disciplina.",
+           "Ketu": "Aqui o desapego é forte: o interesse some, compromissos são largados e as decisões ficam em silêncio.",
+           "Saturn": "Atraso e muita responsabilidade: tudo anda mais devagar que o planejado e pede paciência e estrutura.",
+           "Mars": "Calor e pressa: decisões rápidas e conflito, então aja com um plano e não por impulso.",
+           "Sun": "Ego e autoridade: choques sobre quem lidera e quem leva o crédito.",
+           "Moon": "Guiado pelo humor: as decisões seguem os sentimentos e mudam com frequência.",
+           "Mercury": "Negócios e conversa: bom para contratos e ideias, com risco de pensar demais e de sinais misturados.",
+           "Venus": "Conforto e harmonia: bom para trabalhar junto, com risco de indulgência e de evitar conversas difíceis.",
+           "Jupiter": "Crescimento e bom conselho: favorável, com risco de prometer demais."},
+    "hinglish": {"Rahu": "Yahan bhram prabal hai: bade vaade asliyat se behtar dikhte hain aur anushasan na ho to asli mauke haath se nikal jaate hain.",
+                 "Ketu": "Yahan vairagya prabal hai: ruchi ghat jaati hai, commitments chhoot jaate hain aur faisle thande pad jaate hain.",
+                 "Saturn": "Deri aur bhaari zimmedaari: sab kuch plan se dheere chalta hai aur sabr aur dhaanche ki zaroorat hoti hai.",
+                 "Mars": "Garmi aur jaldbaazi: tez faisle aur takraav, isliye plan par chalein, impulse par nahin.",
+                 "Sun": "Ahankaar aur adhikaar: kaun lead kare aur credit kiska ho, is par takraav.",
+                 "Moon": "Mizaaj se chalne wala: faisle bhaavna ke hisaab se hote aur badalte rehte hain.",
+                 "Mercury": "Sauda aur baatcheet: contract aur ideas ke liye achha, par zyada sochne aur ulajhe signal ka khatra.",
+                 "Venus": "Aaram aur tal-mel: saath kaam ke liye achha, par bhog-vilas aur kathin baat taalne ka khatra.",
+                 "Jupiter": "Vikas aur achhi salah: anukool, par zyada vaade karne ka khatra."},
+}
 
 
 def _co():
     from antar_engine import career_mode as CM
     return CM
-
-
-def lord_theme(chart: dict, planet: str) -> Optional[str]:
-    """The season a running sub-period lord brings, from the houses it rules (nodes act through the lord of
-    the sign they sit in). net = +1 per supportive house (0.5 for 7/3/4), -1.5 for 8/12, -1 for 6, +-0.5 for
-    a strong / weak planet; net <= -0.5 -> the heaviest house's theme, otherwise the best supportive theme."""
-    CM = _co()
-    try:
-        p = planet
-        if p in ("Rahu", "Ketu"):
-            p = CM._dispositor(chart, p) or p
-        ruled = [h for h in range(1, 13) if CM._lord_of(chart, h) == p]
-        if not ruled:
-            return None
-        net = sum(_POS.get(h, 0) for h in ruled) - sum(_HEAVY_W.get(h, 0) for h in ruled)
-        st = CM._strength(chart, planet)
-        net += 0.5 if st >= 1.0 else -0.5 if st <= -1.0 else 0.0
-        heavy = [h for h in ruled if h in _HEAVY_W]
-        if net <= HEAVY_NET and heavy:
-            return _HEAVY_THEME[max(heavy, key=lambda h: _HEAVY_W[h])]
-        pos = [h for h in ruled if h in _POS]
-        if pos:
-            return _POS_THEME[max(pos, key=lambda h: _POS[h])]
-        return _HEAVY_THEME[max(heavy, key=lambda h: _HEAVY_W[h])] if heavy else None
-    except Exception:
-        return None
 
 
 def _day(v) -> Optional[date]:
@@ -136,20 +168,49 @@ def _day(v) -> Optional[date]:
         return None
 
 
+def _tone(md: Optional[str], ad: Optional[str]) -> str:
+    t = TONE.get(ad or "", "steady")
+    if TONE.get(md or "") == "clouded" and t in ("favorable", "steady"):
+        return "testing"          # a good stretch inside a clouded chapter still needs structure
+    return t
+
+
 def season_at(chart: dict, vim_rows: list, on: date) -> Optional[dict]:
-    """{theme, ends (date), heavy}: the sub-period running on `on`."""
+    """The running chapter (maha) and the stretch inside it (antar) on `on`:
+    {md, ad, tone, heavy (= clouded), ends (end of the stretch)}. `chart` is unused here (kept for the callers)."""
+    md = ad = None
+    ends = None
     for r in vim_rows or []:
-        if str(r.get("level") or "").lower() not in ("antardasha", "bhukti"):
-            continue
+        lvl = str(r.get("level") or "").lower()
         s, e = _day(r.get("start_date") or r.get("start")), _day(r.get("end_date") or r.get("end"))
-        if s and e and s <= on <= e:
-            th = lord_theme(chart, r.get("lord_or_sign") or r.get("planet_or_sign") or "")
-            return {"theme": th, "ends": e, "heavy": th in HEAVY} if th else None
-    return None
+        if not (s and e and s <= on <= e):
+            continue
+        lord = r.get("lord_or_sign") or r.get("planet_or_sign")
+        if lvl == "mahadasha":
+            md = lord
+        elif lvl in ("antardasha", "bhukti"):
+            ad, ends = lord, e
+    if ad not in TONE or not ends:
+        return None
+    tone = _tone(md, ad)
+    return {"md": md, "ad": ad, "tone": tone, "heavy": tone == "clouded", "ends": ends}
+
+
+def describe(se: dict, lang: str = "en") -> dict:
+    """Plain words for one season: label (the chapter and the stretch inside it), effect (what it does to a
+    partnership now), tone, end date."""
+    lang = CC.lang_of(lang)
+    ad = CC.pick(AD_PHRASE, lang)[se["ad"]]
+    if se.get("md") == se["ad"] or se.get("md") not in TONE:
+        label = CC.pick(LABEL_CORE, lang).format(ad=ad)
+    else:
+        label = CC.pick(LABEL_TMPL, lang).format(md=CC.pick(MD_PHRASE, lang)[se["md"]], ad=ad)
+    return {"label": label, "effect": CC.pick(EFFECT, lang)[se["ad"]], "tone": se["tone"], "heavy": se["heavy"],
+            "ends": se["ends"].isoformat(), "ends_label": C.day_label_y(se["ends"], lang)}
 
 
 def better_from(a: Tuple[dict, list], b: Tuple[dict, list], today: date, horizon_days: int = 1825) -> Optional[date]:
-    """First day (stepping 15 days) on which NEITHER person is in a heavy season, or None within the horizon."""
+    """First day (stepping 15 days) on which NEITHER person is in a clouded stretch, or None within the horizon."""
     d = today
     while (d - today).days <= horizon_days:
         sa, sb = season_at(a[0], a[1], d), season_at(b[0], b[1], d)
@@ -249,47 +310,59 @@ VERDICT = {
     },
 }
 PHASE_LINE = {
-    "clear": {"en": "Neither of you is in a heavy season right now, so this is a workable time to formalize.",
-              "es": "Ninguno de los dos está en una etapa pesada ahora, así que es un buen momento para formalizar.",
-              "pt": "Nenhum dos dois está numa fase pesada agora, então é um bom momento para formalizar.",
-              "hinglish": "Abhi aap dono mein se koi bhaari daur mein nahin hai, isliye formalize karne ka achha samay hai."},
-    "one_heavy": {"en": "{name} is in {theme} until {until}. Go step by step: start with a trial project before you formalize.",
-                  "es": "{name} está en {theme} hasta el {until}. Vayan paso a paso: empiecen con un proyecto de prueba antes de formalizar.",
-                  "pt": "{name} está em {theme} até {until}. Vão passo a passo: comecem com um projeto de teste antes de formalizar.",
-                  "hinglish": "{name} {until} tak {theme} mein hai. Kadam-dar-kadam chalein: formalize karne se pehle ek trial project se shuru karein."},
-    "both_heavy": {"en": "You are both in heavy seasons right now, so this is not the moment to formalize.",
-                   "es": "Los dos están en etapas pesadas ahora, así que no es el momento de formalizar.",
-                   "pt": "Os dois estão em fases pesadas agora, então não é o momento de formalizar.",
-                   "hinglish": "Abhi aap dono bhaari daur mein hain, isliye formalize karne ka ye samay nahin hai."},
-    "better": {"en": "What doesn't work now can work later: from {on} neither of you is in a heavy season.",
-               "es": "Lo que no funciona ahora puede funcionar después: desde el {on} ninguno de los dos está en una etapa pesada.",
-               "pt": "O que não funciona agora pode funcionar depois: a partir de {on} nenhum dos dois está numa fase pesada.",
-               "hinglish": "Jo abhi nahin chalta wo baad mein chal sakta hai: {on} se aap dono mein se koi bhaari daur mein nahin hoga."},
+    "clear": {"en": "A workable time to formalize: neither of you is in a clouded or testing stretch.",
+              "es": "Un buen momento para formalizar: ninguno de los dos está en un tramo nublado ni de prueba.",
+              "pt": "Um bom momento para formalizar: nenhum dos dois está num trecho nublado ou de prova.",
+              "hinglish": "Formalize karne ka achha samay: aap dono mein se koi dhundhle ya pariksha wale daur mein nahin hai."},
+    "testing": {"en": "Possible, with structure. At least one of you is in a testing stretch (delay, heat or ego), so put roles, money and decisions in writing before you start.",
+                "es": "Posible, con estructura. Al menos uno está en un tramo de prueba (demora, calor o ego), así que pongan por escrito los roles, el dinero y las decisiones antes de empezar.",
+                "pt": "Possível, com estrutura. Pelo menos um está num trecho de prova (atraso, calor ou ego), então coloquem por escrito os papéis, o dinheiro e as decisões antes de começar.",
+                "hinglish": "Possible, structure ke saath. Aap mein se kam se kam ek pariksha wale daur (deri, garmi ya ahankaar) mein hai, isliye shuru karne se pehle roles, paise aur faisle likhit mein rakhein."},
+    "one_heavy": {"en": "Not now. {name} is in {label}, until {until}. {effect} Hold off on formalizing and start with a small trial project.",
+                  "es": "Ahora no. {name} está en {label}, hasta el {until}. {effect} Esperen para formalizar y empiecen con un pequeño proyecto de prueba.",
+                  "pt": "Agora não. {name} está em {label}, até {until}. {effect} Esperem para formalizar e comecem com um pequeno projeto de teste.",
+                  "hinglish": "Abhi nahin. {name} {until} tak {label} mein hai. {effect} Formalize karna rok dein aur ek chhote trial project se shuru karein."},
+    "both_heavy": {"en": "Not now. You are both in clouded stretches, where judgment on big commitments gets unreliable and deals look better than they are. Wait, and test with something small.",
+                   "es": "Ahora no. Los dos están en tramos nublados, donde el criterio sobre grandes compromisos se vuelve poco confiable y los tratos parecen mejores de lo que son. Esperen y prueben con algo pequeño.",
+                   "pt": "Agora não. Os dois estão em trechos nublados, em que o julgamento sobre grandes compromissos fica pouco confiável e os negócios parecem melhores do que são. Esperem e testem com algo pequeno.",
+                   "hinglish": "Abhi nahin. Aap dono dhundhle daur mein hain, jahan bade commitments par nirnay bharosemand nahin rehta aur sauda asliyat se behtar dikhta hai. Ruk jaayein aur kuch chhota karke parakhein."},
+    "better": {"en": "What doesn't work now can work later: from {on} neither of you is in a clouded stretch.",
+               "es": "Lo que no funciona ahora puede funcionar después: desde el {on} ninguno de los dos está en un tramo nublado.",
+               "pt": "O que não funciona agora pode funcionar depois: a partir de {on} nenhum dos dois está num trecho nublado.",
+               "hinglish": "Jo abhi nahin chalta wo baad mein chal sakta hai: {on} se aap dono mein se koi dhundhle daur mein nahin hoga."},
+}
+CALL = {
+    "not_now": {"en": "Not now", "es": "Ahora no", "pt": "Agora não", "hinglish": "Abhi nahin"},
+    "with_structure": {"en": "Possible, with structure", "es": "Posible, con estructura", "pt": "Possível, com estrutura", "hinglish": "Possible, structure ke saath"},
+    "good_now": {"en": "A good time", "es": "Un buen momento", "pt": "Um bom momento", "hinglish": "Achha samay"},
 }
 TEXTS = (TEMPERAMENT_EN,)       # English-only trait lines are translated by the route (like the yoga effects)
-COPY_TABLES = (THEME_LABEL, {k: v for k, v in REASON.items()}, LEAN_LABEL,
-               {k: v["title"] for k, v in VERDICT.items()}, {k: v["line"] for k, v in VERDICT.items()}, PHASE_LINE)
+COPY_TABLES = (MD_PHRASE, AD_PHRASE, LABEL_TMPL, LABEL_CORE, EFFECT, {k: v for k, v in REASON.items()}, LEAN_LABEL,
+               {k: v["title"] for k, v in VERDICT.items()}, {k: v["line"] for k, v in VERDICT.items()}, PHASE_LINE, CALL)
 
 
-def phase(a: dict, b: dict, a_name: str, b_name: str, a_pack: Tuple[dict, list], b_pack: Tuple[dict, list],
+def phase(a: Optional[dict], b: Optional[dict], a_name: str, b_name: str, a_pack: Tuple[dict, list], b_pack: Tuple[dict, list],
           lang: str, today: date) -> dict:
-    """The pair's seasons now and the first clear stretch. a / b are season dicts (or None)."""
+    """The pair's chapters now -> a direct call (not now / possible with structure / a good time) + the first clear date.
+    a / b are season_at results (or None)."""
     lang = CC.lang_of(lang)
-    lab = CC.pick(THEME_LABEL, lang)
     ha, hb = bool(a and a["heavy"]), bool(b and b["heavy"])
-    status = "both_heavy" if ha and hb else "one_heavy" if ha or hb else "clear"
+    testing = any(x and x["tone"] == "testing" for x in (a, b))
+    status = "both_heavy" if ha and hb else "one_heavy" if ha or hb else "testing" if testing else "clear"
     if status == "one_heavy":
         who, se = (a_name, a) if ha else (b_name, b)
-        line = CC.pick(PHASE_LINE["one_heavy"], lang).format(name=who, theme=lab[se["theme"]], until=C.day_label_y(se["ends"], lang))
+        d = describe(se, lang)
+        line = CC.pick(PHASE_LINE["one_heavy"], lang).format(name=who, label=d["label"], until=d["ends_label"], effect=d["effect"])
     else:
         line = CC.pick(PHASE_LINE[status], lang)
+    call = {"both_heavy": "not_now", "one_heavy": "not_now", "testing": "with_structure", "clear": "good_now"}[status]
     better = None
-    if status != "clear":
+    if status in ("both_heavy", "one_heavy"):
         d = better_from(a_pack, b_pack, today)
         if d:
             better = {"on": d.isoformat(), "label": C.day_label_y(d, lang),
                       "line": CC.pick(PHASE_LINE["better"], lang).format(on=C.day_label_y(d, lang))}
-    return {"status": status, "line": line, "better": better}
+    return {"status": status, "call": call, "call_title": CC.pick(CALL[call], lang), "line": line, "better": better}
 
 
 def verdict(a: dict, b: dict, complementary: bool, lang: str = "en") -> dict:
