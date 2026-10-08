@@ -338,3 +338,18 @@ def test_inviting_a_private_person_keeps_the_inviters_own_read_reachable(env):
     theirs = next(i for i in c.get(f"/api/v1/circle/{B}", headers=AUTH["uB"]).json()["circle"] if i["state"] == "in_circle")
     assert theirs["private_read"] is None                                  # never the invitee's side
     assert "met at the summit" not in str(c.get(f"/api/v1/circle/{B}/pair/{A}", headers=AUTH["uB"]).json())
+
+
+def test_a_private_person_who_is_a_real_user_does_not_block_the_invite(env, monkeypatch):
+    """Live bug: Andres is in the inviter's People as his REAL chart (not a sub-chart), the strict check returned 403
+    not_your_person and the whole invite failed. The link is only a hint: keep it when the person is in the inviter's
+    People (a compat session exists), drop it silently otherwise, never refuse the invite."""
+    c, db, main = env
+    monkeypatch.setattr(main, "_compat_partner_allowed", lambda a, b: False)
+    db.t["compatibility_sessions"] = [{"id": "s1", "chart_id_a": A, "chart_id_b": "realAndres", "name_b": "Andres"}]
+    r = c.post("/api/v1/circle/invites", json={"chart_id": A, "relation": "advisor", "first_name": "Andres", "private_chart_id": "realAndres"}, headers=AUTH["uA"])
+    assert r.status_code == 200
+    assert db.rows("circle_invites")[0]["private_chart_id"] == "realAndres"                 # in the inviter's own People: kept
+    r2 = c.post("/api/v1/circle/invites", json={"chart_id": A, "relation": "friend", "first_name": "Zed", "private_chart_id": "someone-elses"}, headers=AUTH["uA"])
+    assert r2.status_code == 200
+    assert [i for i in db.rows("circle_invites") if i["invitee_first_name"] == "Zed"][0]["private_chart_id"] is None   # not theirs: dropped, no 403
