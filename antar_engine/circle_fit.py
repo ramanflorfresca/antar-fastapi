@@ -239,7 +239,8 @@ def describe(se: dict, lang: str = "en") -> dict:
     label = label[0].upper() + label[1:]
     return {"label": label, "effect": CC.pick(EFFECT, lang)[se["ad"]], "tone": se["tone"], "heavy": se["heavy"],
             "position": se.get("pos"), "ends": se["ends"].isoformat(), "ends_label": ends_label,
-            "chapter_ends": se["md_end"].isoformat() if se.get("md_end") else None}
+            "chapter_ends": se["md_end"].isoformat() if se.get("md_end") else None,
+            "confidence": ({"level": se["confidence"]["level"], "line": se["confidence"]["line"]} if se.get("confidence") else None)}
 
 
 def better_from(a: Tuple[dict, list], b: Tuple[dict, list], today: date, horizon_days: int = 1825) -> Optional[date]:
@@ -251,6 +252,97 @@ def better_from(a: Tuple[dict, list], b: Tuple[dict, list], today: date, horizon
             return d
         d += timedelta(days=15)
     return None
+
+
+# ── 3b. cross-check: the same moment read by two more timing systems ───────────────────────────
+# Vimshottari (above) is the lead. Yogini (a Moon-nakshatra cycle, so partly correlated with it) and Jaimini chara
+# (a sign-based cycle read through the soul and career karakas, which is independent of it) each vote on one thing:
+# is this person in a heavy stretch right now? Agreement raises confidence; when neither confirms a clouded stretch it is
+# noted in the person's line and the call carries a lower confidence. The lead system's call is NEVER overridden.
+# Today only; never invents.
+CHARA_HEAVY, CHARA_GOOD = -0.3, 0.3
+# OFF on purpose. Measured over all 174 real charts with dasha rows (2026-10-08): chara reads heavy in 1% of charts (median
+# strength +0.73; it grades how well a period DELIVERS, not whether judgment is clouded) and Yogini agrees with a clouded
+# Vimshottari stretch in 3 of 39 cases against ~10 expected by chance. Confirmation would read "low" ~90% of the time and
+# undercut the lead read for no reason. Re-enable only after the other systems are calibrated against their own question.
+SHOW_CROSSCHECK = False
+CONF_LINE = {
+    "high": {"en": "Two other ways of reading the timeline point the same way.", "es": "Otras dos formas de leer la línea de tiempo apuntan en la misma dirección.",
+             "pt": "Outras duas formas de ler a linha do tempo apontam na mesma direção.", "hinglish": "Timeline padhne ke do aur tareeke isi taraf ishara karte hain."},
+    "medium_one": {"en": "One other way of reading the timeline points the same way.", "es": "Otra forma de leer la línea de tiempo apunta en la misma dirección.",
+                   "pt": "Outra forma de ler a linha do tempo aponta na mesma direção.", "hinglish": "Timeline padhne ka ek aur tareeka isi taraf ishara karta hai."},
+    "medium": {"en": "One other way of reading the timeline points the same way, one doesn't.", "es": "Una forma de leer la línea de tiempo apunta en la misma dirección y otra no.",
+               "pt": "Uma forma de ler a linha do tempo aponta na mesma direção e outra não.", "hinglish": "Timeline padhne ka ek tareeka isi taraf ishara karta hai, ek nahin."},
+    "low": {"en": "The other ways of reading the timeline don't confirm this, so hold it more lightly.",
+            "es": "Las otras formas de leer la línea de tiempo no lo confirman, así que tómalo con más ligereza.",
+            "pt": "As outras formas de ler a linha do tempo não confirmam isso, então leve com mais leveza.",
+            "hinglish": "Timeline padhne ke baaki tareeke ise confirm nahin karte, isliye ise halke mein lein."},
+    "split_clear": {"en": "Another way of reading the timeline sees a heavier stretch than this does, so take care.",
+                    "es": "Otra forma de leer la línea de tiempo ve un tramo más pesado que este, así que ten cuidado.",
+                    "pt": "Outra forma de ler a linha do tempo vê um trecho mais pesado que este, então tenha cuidado.",
+                    "hinglish": "Timeline padhne ka ek aur tareeka ise zyada bhaari dekhta hai, isliye savdhaan rahein."},
+}
+
+
+def yogini_at(dashas: dict, on: date) -> Optional[dict]:
+    """{lord, heavy, ends}: the running Yogini chapter (1 to 8 years) on `on`; None without rows."""
+    for r in (dashas or {}).get("yogini") or []:
+        if str(r.get("level") or r.get("type") or "").lower() != "mahadasha":
+            continue
+        s, e = _day(r.get("start_date") or r.get("start")), _day(r.get("end_date") or r.get("end"))
+        if s and e and s <= on <= e:
+            lord = r.get("lord_or_sign") or r.get("planet_or_sign")
+            if lord in TONE:
+                return {"lord": lord, "heavy": TONE[lord] == "clouded", "ends": e}
+    return None
+
+
+def chara_at(chart: dict, jaimini_data: Optional[dict], dashas: dict, on: date) -> Optional[dict]:
+    """{strength, heavy, good}: the running Jaimini chara sign read through the soul and career karakas
+    (antar_engine.chara_dasha.chara_activation); None when unavailable."""
+    try:
+        from antar_engine.chara_dasha import chara_activation
+        li = ((chart or {}).get("lagna") or {}).get("sign_index")
+        r = chara_activation(chart, jaimini_data or {}, dashas or {}, li if isinstance(li, int) else 0, on.isoformat())
+        if not r.get("available"):
+            return None
+        st = float(r.get("strength") or 0.0)
+        return {"strength": st, "heavy": st <= CHARA_HEAVY, "good": st >= CHARA_GOOD}
+    except Exception:
+        return None
+
+
+def crosscheck(vim_heavy: bool, yogini: Optional[dict], chara: Optional[dict], lang: str = "en") -> Optional[dict]:
+    """How many of the OTHER systems agree with the lead's heavy / not-heavy call. Returns None when neither other
+    system is available. level: high (all agree) | medium (some) | low (none; only meaningful for a heavy call)."""
+    lang = CC.lang_of(lang)
+    votes = [v for v in ((yogini or {}).get("heavy") if yogini else None, (chara or {}).get("heavy") if chara else None) if v is not None]
+    if not votes:
+        return None
+    agree = sum(1 for v in votes if v == vim_heavy)
+    level = "high" if agree == len(votes) else "medium" if agree else "low"
+    if level == "high" and len(votes) < 2:
+        key = "medium_one"
+    elif level == "high":
+        key = "high"
+    elif level == "medium":
+        key = "medium"
+    elif vim_heavy:
+        key = "low"
+    else:
+        key = "split_clear"                      # lead says fine, the others see a heavy stretch
+    return {"level": level, "agree": agree, "of": len(votes), "line": CC.pick(CONF_LINE[key], lang), "key": key}
+
+
+def season_checked(chart: dict, vim_rows: list, dashas: dict, jaimini_data: Optional[dict], on: date, lang: str = "en") -> Optional[dict]:
+    """The lead season (season_at) plus the cross-check as `confidence`. The lead's tone and call are never changed."""
+    se = season_at(chart, vim_rows, on)
+    if not se:
+        return None
+    if not SHOW_CROSSCHECK:
+        return dict(se, confidence=None)
+    cc = crosscheck(se["heavy"], yogini_at(dashas, on), chara_at(chart, jaimini_data, dashas, on), lang)
+    return dict(se, confidence=cc)
 
 
 # ── 2. partnership lean ──────────────────────────────────────────────────────────────────────
@@ -370,7 +462,7 @@ CALL = {
     "good_now": {"en": "A good time", "es": "Un buen momento", "pt": "Um bom momento", "hinglish": "Achha samay"},
 }
 TEXTS = (TEMPERAMENT_EN,)       # English-only trait lines are translated by the route (like the yoga effects)
-COPY_TABLES = (MD_PHRASE, AD_PHRASE, CHAPTER_TMPL, STRETCH_TMPL["first"], STRETCH_TMPL["last"], STRETCH_TMPL["mid"], NEXT_TMPL, EFFECT, {k: v for k, v in REASON.items()}, LEAN_LABEL,
+COPY_TABLES = (CONF_LINE["high"], CONF_LINE["medium_one"], CONF_LINE["medium"], CONF_LINE["low"], CONF_LINE["split_clear"], MD_PHRASE, AD_PHRASE, CHAPTER_TMPL, STRETCH_TMPL["first"], STRETCH_TMPL["last"], STRETCH_TMPL["mid"], NEXT_TMPL, EFFECT, {k: v for k, v in REASON.items()}, LEAN_LABEL,
                {k: v["title"] for k, v in VERDICT.items()}, {k: v["line"] for k, v in VERDICT.items()}, PHASE_LINE, CALL)
 
 
@@ -400,7 +492,14 @@ def phase(a: Optional[dict], b: Optional[dict], a_name: str, b_name: str, a_pack
         if d:
             better = {"on": d.isoformat(), "label": C.day_label_y(d, lang),
                       "line": CC.pick(lines["better"], lang).format(on=C.day_label_y(d, lang))}
-    return {"status": status, "call": call, "call_title": CC.pick(calls[call], lang), "line": line, "better": better}
+    conf = None
+    order = {"low": 0, "medium": 1, "high": 2}
+    for se in (a, b):
+        c = (se or {}).get("confidence")
+        if se and se.get("heavy") and c and (conf is None or order[c["level"]] < order[conf["level"]]):
+            conf = {"level": c["level"], "line": c["line"]}
+    return {"status": status, "call": call, "call_title": CC.pick(calls[call], lang), "line": line, "better": better,
+            "confidence": conf}
 
 
 def verdict(a: dict, b: dict, complementary: bool, lang: str = "en") -> dict:

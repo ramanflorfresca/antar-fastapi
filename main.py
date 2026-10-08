@@ -50822,7 +50822,7 @@ def _circle_brief_compute(me: str, other: str, lens: str, lang: str, reading: di
     from antar_engine import circle_brief as _cb, circle_lens as _cl
     rows = {}
     for cid in (me, other):
-        r = (supabase.table("charts").select("chart_data,name,first_name").eq("id", cid)
+        r = (supabase.table("charts").select("chart_data,jaimini_data,name,first_name").eq("id", cid)
              .is_("deleted_at", "null").limit(1).execute().data or [])
         if not r:
             return None
@@ -50830,7 +50830,8 @@ def _circle_brief_compute(me: str, other: str, lens: str, lang: str, reading: di
     wp = _cb.family_of(lens) == "work_partner"
     roles = (None, None) if wp else _cl.roles_for(lens)
     profs = [_cb.profile(_safe_jsonb(rows[c]["chart_data"]), get_dashas_for_chart(c),
-                         _circle.first_name_of(rows[c]) or ("You" if c == me else "They"), lang, today, bond_role=roles[i])
+                         _circle.first_name_of(rows[c]) or ("You" if c == me else "They"), lang, today, bond_role=roles[i],
+                         jaimini=_safe_jsonb(rows[c].get("jaimini_data")) or None)
              for i, c in enumerate((me, other))]
     page = _circle_pair_compute(me, other, "season", lang, today) or {"topics": []}
     fit = {"badge": reading.get("badge"), "score": reading.get("score"), "headline": reading.get("headline")}
@@ -50838,9 +50839,11 @@ def _circle_brief_compute(me: str, other: str, lens: str, lang: str, reading: di
     try:   # the two running seasons and the first stretch in which neither is in a heavy one
         from antar_engine import circle_fit as _cf
         cds = [_safe_jsonb(rows[c]["chart_data"]) for c in (me, other)]
-        packs = [(cds[0], get_dashas_for_chart(me).get("vimsottari")), (cds[1], get_dashas_for_chart(other).get("vimsottari"))]
-        phase = _cf.phase(_cf.season_at(cds[0], packs[0][1], today), _cf.season_at(cds[1], packs[1][1], today),
-                          profs[0]["first_name"], profs[1]["first_name"], packs[0], packs[1], lang, today,
+        dsh = [get_dashas_for_chart(me), get_dashas_for_chart(other)]
+        packs = [(cds[0], dsh[0].get("vimsottari")), (cds[1], dsh[1].get("vimsottari"))]
+        jds = [_safe_jsonb(rows[c].get("jaimini_data")) or None for c in (me, other)]
+        seas = [_cf.season_checked(cds[i], packs[i][1], dsh[i], jds[i], today, lang) for i in (0, 1)]   # same cross-check as the cards
+        phase = _cf.phase(seas[0], seas[1], profs[0]["first_name"], profs[1]["first_name"], packs[0], packs[1], lang, today,
                           _cl.LENSES[lens]["phase"])
     except Exception as e:
         print(f"[circle][brief] phase skipped: {str(e)[:160]}")

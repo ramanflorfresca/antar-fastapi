@@ -177,3 +177,67 @@ def test_brief_carries_verdict_phase_and_per_person_fit_without_chart_terms():
     assert br["phase"]["status"] == "clear"
     blob = json.dumps({k: v for k, v in br.items() if k != "note"}, ensure_ascii=False)
     assert not _JARGON.search(blob), _JARGON.search(blob).group(0)
+
+
+# ── cross-check by Yogini and Jaimini chara: confidence only, the lead call is never overridden ──
+def test_yogini_reads_the_running_chapter():
+    rows = [{"level": "mahadasha", "planet_or_sign": "Rahu", "start_date": "2026-01-01", "end_date": "2027-01-01"},
+            {"level": "antardasha", "planet_or_sign": "Mars", "start_date": "2026-09-01", "end_date": "2026-10-14"},
+            {"level": "mahadasha", "planet_or_sign": "Moon", "start_date": "2027-01-01", "end_date": "2028-01-01"}]
+    y = F.yogini_at({"yogini": rows}, TODAY)
+    assert y == {"lord": "Rahu", "heavy": True, "ends": date(2027, 1, 1)}
+    assert F.yogini_at({"yogini": rows}, date(2027, 6, 1))["heavy"] is False
+    assert F.yogini_at({}, TODAY) is None and F.yogini_at({"yogini": []}, TODAY) is None
+
+
+def test_chara_reads_strength_and_degrades_to_none(monkeypatch):
+    import antar_engine.chara_dasha as CD
+    monkeypatch.setattr(CD, "chara_activation", lambda *a: {"available": True, "strength": -0.6})
+    assert F.chara_at({"lagna": {"sign_index": 3}}, {}, {}, TODAY) == {"strength": -0.6, "heavy": True, "good": False}
+    monkeypatch.setattr(CD, "chara_activation", lambda *a: {"available": True, "strength": 0.5})
+    assert F.chara_at({}, {}, {}, TODAY)["good"] is True
+    monkeypatch.setattr(CD, "chara_activation", lambda *a: {"available": False})
+    assert F.chara_at({}, {}, {}, TODAY) is None
+    monkeypatch.setattr(CD, "chara_activation", lambda *a: (_ for _ in ()).throw(RuntimeError("x")))
+    assert F.chara_at({}, {}, {}, TODAY) is None
+
+
+def test_crosscheck_levels_and_lines():
+    heavy_y, ok_y = {"heavy": True}, {"heavy": False}
+    heavy_c, ok_c = {"heavy": True}, {"heavy": False}
+    assert F.crosscheck(True, heavy_y, heavy_c)["level"] == "high" and F.crosscheck(True, heavy_y, heavy_c)["key"] == "high"
+    mid = F.crosscheck(True, heavy_y, ok_c)
+    assert (mid["level"], mid["agree"], mid["of"], mid["key"]) == ("medium", 1, 2, "medium")
+    low = F.crosscheck(True, ok_y, ok_c)
+    assert low["level"] == "low" and "don't confirm this, so hold it more lightly" in low["line"]
+    assert F.crosscheck(True, heavy_y, None)["key"] == "medium_one"                      # only one other system available
+    assert F.crosscheck(True, None, None) is None
+    split = F.crosscheck(False, heavy_y, ok_c)                                           # the lead says fine, another sees heavy
+    assert split["level"] == "medium" and F.crosscheck(False, heavy_y, heavy_c)["key"] == "split_clear"
+    assert F.crosscheck(False, ok_y, ok_c)["level"] == "high"
+    assert "Otras dos formas" in F.crosscheck(True, heavy_y, heavy_c, "es")["line"]
+
+
+def test_the_cross_check_is_off_by_default_so_nothing_reaches_the_product():
+    assert F.SHOW_CROSSCHECK is False
+    yog = {"yogini": [{"level": "mahadasha", "planet_or_sign": "Moon", "start_date": "2026-01-01", "end_date": "2028-01-01"}]}
+    se = F.season_checked({}, ROWS_RAMAN, yog, {}, TODAY)
+    assert se["confidence"] is None and se["heavy"] is True and F.describe(se, "en")["confidence"] is None
+    ok = [{"level": "antardasha", "lord_or_sign": "Venus", "start_date": "2026-01-01", "end_date": "2031-01-01"}]
+    assert F.phase(se, F.season_at({}, ok, TODAY), "R", "S", ({}, ROWS_RAMAN), ({}, ok), "en", TODAY)["confidence"] is None
+
+
+def test_the_lead_call_is_never_overridden_by_the_cross_check(monkeypatch):
+    monkeypatch.setattr(F, "SHOW_CROSSCHECK", True)
+    import antar_engine.chara_dasha as CD
+    monkeypatch.setattr(CD, "chara_activation", lambda *a: {"available": True, "strength": 0.9})
+    yog = {"yogini": [{"level": "mahadasha", "planet_or_sign": "Moon", "start_date": "2026-01-01", "end_date": "2028-01-01"}]}
+    se = F.season_checked({}, ROWS_RAMAN, yog, {}, TODAY)
+    assert se["heavy"] is True and se["tone"] == "clouded"                                 # Vimshottari still leads
+    assert se["confidence"]["level"] == "low"
+    d = F.describe(se, "en")
+    assert d["tone"] == "clouded" and d["confidence"]["level"] == "low" and "hold it more lightly" in d["confidence"]["line"]
+    ok = [{"level": "antardasha", "lord_or_sign": "Venus", "start_date": "2026-01-01", "end_date": "2031-01-01"}]
+    ph = F.phase(se, F.season_at({}, ok, TODAY), "Raman", "Sam", ({}, ROWS_RAMAN), ({}, ok), "en", TODAY)
+    assert ph["call"] == "not_now" and ph["confidence"]["level"] == "low"                  # same call, lower confidence
+    assert F.phase(F.season_at({}, ok, TODAY), F.season_at({}, ok, TODAY), "A", "B", ({}, ok), ({}, ok), "en", TODAY)["confidence"] is None
