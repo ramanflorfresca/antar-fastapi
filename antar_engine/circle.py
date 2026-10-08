@@ -455,7 +455,14 @@ def accept_invite(sb, code: str, invitee_chart_id: str, share_day: bool = False,
                 pair = (sb.table(PAIRS).insert(row).execute().data or [None])[0]
             except Exception as e:             # unique index lost a race
                 pair = get_pair(sb, inviter_id, invitee_chart_id)
-                if not pair:
+                if not pair:                   # a real failure: give the link back, don't burn it
+                    try:
+                        (sb.table(INVITES).update({"status": "pending", "accepted_chart_id": None,
+                                                   "updated_at": _iso(now)})
+                         .eq("id", inv["id"]).eq("status", "accepted")
+                         .eq("accepted_chart_id", invitee_chart_id).execute())
+                    except Exception as e2:
+                        _handle(e2, "accept_invite_release")
                     raise
         if share_day:
             set_share(sb, invitee_chart_id, inviter_id, True, now)

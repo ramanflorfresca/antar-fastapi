@@ -50285,19 +50285,18 @@ def _circle_authorize(chart_id: str, authorization: Optional[str], claim_token: 
                       allow_claim: bool = True) -> dict:
     """The caller must own `chart_id`: a signed-in user whose chart it is, or (allow_claim) the
     holder of the guest claim token for a still-unowned chart. 401 no credentials, 403 not the
-    owner, 404 unknown chart. Returns the chart row."""
+    owner or unknown chart (indistinguishable). Returns the chart row."""
+    if not authorization and not claim_token:     # decide before touching the DB: no existence oracle
+        raise HTTPException(status_code=401, detail={"error": "auth_required"})
     row = _circle.chart_row(supabase, chart_id)
-    if not row:
-        raise HTTPException(status_code=404, detail={"error": "chart_not_found"})
     uid, _ = _st_identity(authorization) if authorization else (None, None)
-    if uid and row.get("user_id") == uid:
+    if row and uid and row.get("user_id") == uid:
         return row
-    if allow_claim and claim_token and not row.get("user_id"):
+    if row and allow_claim and claim_token and not row.get("user_id"):
         from antar_engine import chart_claim as _cc
         if _cc.claim_token_ok(chart_id, claim_token):
             return row
-    if not authorization and not claim_token:
-        raise HTTPException(status_code=401, detail={"error": "auth_required"})
+    # unknown chart and someone else's chart look identical to the caller
     raise HTTPException(status_code=403, detail={"error": "not_your_chart"})
 
 
