@@ -727,6 +727,34 @@ def _read_topic(ctx: TopicContext, key: str, scale: str, today: date, language: 
     return out
 
 
+def windows_for(ctx: TopicContext, key: str, scale: str, today: date) -> dict:
+    """[circle] EVERY dated open / care run for one topic at one scale - the same scan,
+    bucketing, run-merging and never-in-the-past clamp `read_topic` uses, but returning all
+    the runs instead of only the strongest. The Circle pair page intersects two charts'
+    runs, so it needs more than each chart's single best window. No new astrology: this
+    only exposes what `_read_topic` already computes. Never raises (degrades to no runs).
+
+    -> {"period_end": date, "approximate": bool,
+        "open": [{"start": date, "end": date, "confidence": "high|medium|low"}],
+        "care": [...same...]}"""
+    out = {"period_end": today, "approximate": True, "open": [], "care": []}
+    try:
+        per = _period(ctx, scale, today, "en")
+        out["period_end"], out["approximate"] = per["end"], per["approximate"]
+        results = _scan(ctx, key, scale, per, today)
+        for mode, name in (("open", "open"), ("care", "care")):
+            for r in _runs(results, mode):
+                c = clamp_window(r["start"], r["end"], today)
+                if c is None:
+                    continue
+                a = max(r["assessments"], key=lambda x: x["score"])
+                out[name].append({"start": c[0], "end": c[1], "confidence": _confidence(ctx, a)})
+    except Exception:
+        logger.exception("[topic-windows] scan failed -> no runs")
+        out["open"], out["care"] = [], []
+    return out
+
+
 def _best_fit(ctx: TopicContext, key: str, today: date) -> Tuple[str, Optional[dict]]:
     """(scale, that scale's read): the nearest scale with a real dated window, preferring
     one that starts within 12 months over a far one. With none anywhere, an honest steady season read."""

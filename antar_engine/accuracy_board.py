@@ -36,10 +36,14 @@ from antar_engine.outcomes import parse_window
 MIN_N = 30
 MIN_ANSWER_RATE = 0.30
 SCORE = {"yes": 1.0, "partly": 0.5, "no": 0.0}
-SOURCES = ("ask_explore", "ask_yesno", "decoy", "topic_read")
+SOURCES = ("ask_explore", "ask_yesno", "decoy", "topic_read", "circle_window")
 # [topic-checkback] topic-read windows: asked after the window ENDS, answered yes / no /
 # not_sure. A best window that held and a watch window that mattered are both "yes" = hit.
 TOPIC_READ = "topic_read"
+# [circle] a window two people share, answered by each of them. The two answers are NOT two
+# independent observations of one prediction (same window, same events, often talked over), so the
+# board collapses them to ONE window: its hit is the mean of the answers given.
+CIRCLE_WINDOW = "circle_window"
 _DENIALS = {"NO", "DENIED", "DENIAL", "NOT_PROMISED"}
 
 
@@ -151,13 +155,44 @@ def _suppress_small_n(row: dict) -> dict:
 
 
 def _row_for(row: dict, name: str) -> dict:
-    return _suppress_small_n(row) if str(name).startswith(TOPIC_READ) else row
+    return _suppress_small_n(row) if str(name).startswith((TOPIC_READ, CIRCLE_WINDOW)) else row
+
+
+def _collapse_circle(claims: list, outs: dict) -> list:
+    """One synthetic claim per shared window (grouped by engines.topic_read.window_id), with a merged
+    outcome written into `outs`: mean of the yes/no answers (0.5 = split -> "partly"); "not_sure"
+    only when nobody gave a real answer; none while unanswered. Pure; mutates `outs` only."""
+    groups, rest = {}, []
+    for c in claims:
+        if c.get("source") != CIRCLE_WINDOW:
+            rest.append(c)
+            continue
+        wid = ((c.get("engines") or {}).get("topic_read") or {}).get("window_id") or c["id"]
+        groups.setdefault(wid, []).append(c)
+    for wid, cs in groups.items():
+        cs.sort(key=lambda c: str(c.get("chart_id")))
+        head = dict(cs[0])
+        head["checkin_sent_at"] = next((c["checkin_sent_at"] for c in cs if c.get("checkin_sent_at")), None)
+        answers = [outs[c["id"]] for c in cs if c["id"] in outs]
+        scored = [SCORE[a["outcome"]] for a in answers if a.get("outcome") in SCORE]
+        if scored:
+            m = sum(scored) / len(scored)
+            outs[head["id"]] = {"claim_id": head["id"], "outcome": "yes" if m == 1 else "no" if m == 0 else "partly",
+                                "answered_at": max(str(a.get("answered_at") or "") for a in answers)}
+        elif answers:
+            outs[head["id"]] = {"claim_id": head["id"], "outcome": "not_sure",
+                                "answered_at": answers[0].get("answered_at")}
+        else:
+            outs.pop(head["id"], None)
+        rest.append(head)
+    return rest
 
 
 def build(claims: list, outcomes: list) -> dict:
     """The whole board from raw rows (pure function — easy to test)."""
     outs = {o["claim_id"]: o for o in outcomes}
     claims = [c for c in claims if c.get("source") in SOURCES]
+    claims = _collapse_circle(claims, outs)
 
     # decoy base rates per topic (none until decoys exist)
     decoy = defaultdict(lambda: [0.0, 0])
@@ -196,12 +231,12 @@ def build(claims: list, outcomes: list) -> dict:
         elif outcome == "not_sure":
             health["not_sure"] += 1
         _add(final[(c.get("source"), topic)], c, outcome, hit)
-        if c.get("source") == TOPIC_READ:
+        if c.get("source") in (TOPIC_READ, CIRCLE_WINDOW):
             tr = (c.get("engines") or {}).get("topic_read") or {}
             if tr.get("kind") in ("best", "watch"):
                 # its own engine row per window kind: "did the good stretch hold" and
                 # "did the caution matter" are different claims and must not be blended
-                _add(engines[(f"topic_read:{tr['kind']}", topic)], c, outcome, hit)
+                _add(engines[(f"{c['source']}:{tr['kind']}", topic)], c, outcome, hit)
             continue          # not a Yes/No engine claim; the KP / event-engine scoring below is not for it
         cw = c.get("confidence_word") or ((c.get("engines") or {}).get("kp") or {}).get("lean")
         if cw:
