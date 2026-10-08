@@ -235,3 +235,19 @@ def test_real_charts_read_identically_from_either_side(two_charts):
                                     "female", "male", "friend", "Shashi", "Raman", "en")
     assert ra["score"] == rb["score"] and ra["badge"] == rb["badge"]
     assert [(l["key"], l["score"], l["status"]) for l in ra["layers"]] == [(l["key"], l["score"], l["status"]) for l in rb["layers"]]
+
+
+def test_reading_endpoint_returns_practical_moves_in_the_viewers_language(env, monkeypatch):
+    c, db, main = env
+    stub = dict(STUB, layers=[
+        {"key": "communication", "label": "Communication", "score": 23, "status": "friction", "status_label": "Friction",
+         "headline": "h", "detail": "d"},
+        {"key": "friction", "label": "Friction", "score": 84, "status": "flows", "status_label": "Flows",
+         "headline": "h", "detail": "d"}])
+    monkeypatch.setattr(main, "_circle_reading_compute", lambda *a: dict(stub))
+    make_pair(c, db, relation="business")
+    put(c, A, B, {"share_reading": True}, "uA"); put(c, B, A, {"share_reading": True}, "uB")
+    r = c.get(f"/api/v1/circle/{A}/pair/{B}/reading?language=en", headers=AUTH["uA"]).json()["reading"]
+    assert [m["area"] for m in r["moves"]] == ["communication"] and "writing" in r["moves"][0]["text"]
+    es = c.get(f"/api/v1/circle/{A}/pair/{B}/reading?language=es", headers=AUTH["uA"]).json()["reading"]
+    assert es["moves"][0]["text"].startswith("Dejen las decisiones por escrito") or es["moves"][0]["text"].startswith("Cuando")
