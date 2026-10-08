@@ -1024,16 +1024,16 @@ def is_yesno_question(text: str) -> bool:
 
 _LEAN_HEAD = {
     "en": {"yes": "Leaning yes.", "not_now": "Not right now — the timing isn't there yet.",
-           "conditional": "Possible — on one condition.", "no": "Leaning no."},
+           "conditional": "Possible — but it takes effort.", "no": "Leaning no."},
     "es": {"yes": "Inclina a que sí.", "not_now": "Ahora no — el momento aún no llega.",
-           "conditional": "Posible — con una condición.", "no": "Inclina a que no."},
+           "conditional": "Posible — pero exige esfuerzo.", "no": "Inclina a que no."},
     "pt": {"yes": "Tende a sim.", "not_now": "Agora não — o momento ainda não chegou.",
-           "conditional": "Possível — com uma condição.", "no": "Tende a não."},
+           "conditional": "Possível — mas exige esforço.", "no": "Tende a não."},
     "hinglish": {"yes": "Haan ki taraf jhukav hai.", "not_now": "Abhi nahi — sahi waqt abhi nahi aaya.",
-                 "conditional": "Ho sakta hai — ek shart par.",
+                 "conditional": "Ho sakta hai — par mehnat lagegi.",
                  "no": "Na ki taraf jhukav hai."},
     "hi": {"yes": "झुकाव हाँ की ओर है।", "not_now": "अभी नहीं — सही समय अभी नहीं आया।",
-           "conditional": "संभव है — एक शर्त पर।", "no": "झुकाव ना की ओर है।"},
+           "conditional": "संभव है — पर मेहनत लगेगी।", "no": "झुकाव ना की ओर है।"},
 }
 _CHECKBACK = {"en": "_I'll check back after {d} to ask if it happened._",
               "es": "_Te preguntaré después del {d} si pasó._",
