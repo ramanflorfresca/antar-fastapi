@@ -835,7 +835,7 @@ def test_yesno_asks_for_the_kp_number_then_answers(m, monkeypatch):
     assert req.question == "Will I raise funding by March?"
     out = cv.sent[-1]
     assert out.startswith("*→ Will I raise funding by March?*\n_Yes/No reading · #74_")
-    assert "*Possible — on one condition.*" in out
+    assert "*Possible — but it takes effort.*" in out
     assert "check back after Jan 31" in out and "kp_pending" not in link["context"]
 
 
@@ -1081,7 +1081,7 @@ def test_yesno_shows_the_specific_condition():
                       "steer clear of money with heavy strings attached.",
          "condition_label": "What it hinges on"}
     out, _ = msg.format_ask_whatsapp_v2(p, "en", compact=True)
-    assert out.startswith("*Possible — on one condition.*")
+    assert out.startswith("*Possible — but it takes effort.*")
     assert "*What it hinges on:* It can come through people who already know your work" in out
 
 

@@ -166,7 +166,7 @@ _HOUSE = {
 _TEMPLATES = {
     "en": {"and": " and ",
            "yes": "It's carried by {sup}.", "yes_drag": " Keep an eye on {blk}.",
-           "cond": "It can come through {sup}, but watch for {blk}.",
+           "cond": "Go ahead only if you're ready for the effort — the main risk is {blk}.",
            "gate": "The route is {sup}, but the final yes isn't locked in, so get a clear, written commitment before you count on it.",
            "gate_work": "The route is {sup}, but the final yes isn't locked in, so count on it only once the offer is in writing.",
            "gate_union": "The route is {sup}, but the final yes isn't locked in, so count on it only once you've both said a clear yes.",
@@ -189,7 +189,7 @@ _TEMPLATES = {
            "generic_label": "Note"},
     "es": {"and": " y ",
            "yes": "Lo sostiene {sup}.", "yes_drag": " Vigila {blk}.",
-           "cond": "Puede llegar a través de {sup}, pero cuidado con {blk}.",
+           "cond": "Sigue adelante solo si estás listo para el esfuerzo — el mayor riesgo es {blk}.",
            "gate": "La vía es {sup}, pero el sí final no está asegurado: consigue un compromiso claro y por escrito antes de contar con ello.",
            "gate_work": "La vía es {sup}, pero el sí final no está asegurado: cuenta con ello solo cuando tengas la oferta por escrito.",
            "gate_union": "La vía es {sup}, pero el sí final no está asegurado: cuenta con ello solo cuando ambos hayan dicho un sí claro.",
@@ -212,7 +212,7 @@ _TEMPLATES = {
            "generic_label": "Nota"},
     "pt": {"and": " e ",
            "yes": "Quem sustenta isso é {sup}.", "yes_drag": " Fique de olho em {blk}.",
-           "cond": "Pode vir através de {sup}, mas atenção a {blk}.",
+           "cond": "Siga em frente só se estiver pronto para o esforço — o maior risco é {blk}.",
            "gate": "O caminho é {sup}, mas o sim final não está garantido: consiga um compromisso claro e por escrito antes de contar com isso.",
            "gate_work": "O caminho é {sup}, mas o sim final não está garantido: conte com isso só quando a oferta estiver por escrito.",
            "gate_union": "O caminho é {sup}, mas o sim final não está garantido: conte com isso só quando os dois tiverem dito um sim claro.",
@@ -271,6 +271,26 @@ _HOUSE["pt"]["vehicle"] = {
     8: "as letras miúdas (limite de quilometragem, cobranças no fim do contrato, taxas ocultas)",
     11: "uma concessionária de confiança",
     12: "o custo total (taxas, seguro, entrada) passar do valor"}
+_HOUSE["es"]["work"].update({
+    2: "el sueldo que ofrecen", 5: "un cambio arriesgado y vistoso",
+    8: "la política de oficina o un proceso detenido", 9: "una opción lejana que te tira hacia otro lado",
+    12: "un cambio que cuesta más de lo que paga"})
+_HOUSE["pt"]["work"].update({
+    2: "o salário oferecido", 5: "uma mudança arriscada e vistosa",
+    8: "a política do escritório ou um processo parado", 9: "uma opção distante que te puxa para outro lado",
+    12: "uma mudança que custa mais do que paga"})
+_HOUSE["es"]["property"] = {3: "firmar los papeles con prisa", 4: "el lugar adecuado con título limpio",
+                            8: "condiciones del préstamo o legales", 11: "el contacto adecuado que lo cierre",
+                            12: "que los costos superen el valor"}
+_HOUSE["pt"]["property"] = {3: "assinar a papelada com pressa", 4: "o lugar certo com escritura limpa",
+                            8: "condições do empréstimo ou jurídicas", 11: "o contato certo fechando",
+                            12: "os custos passarem do valor"}
+_HOUSE["es"]["income"] = {2: "tus ingresos actuales", 5: "una apuesta especulativa", 6: "trabajo extra o un ingreso adicional",
+                          8: "dinero atado a condiciones de otros", 11: "gente que ya conoce tu trabajo",
+                          12: "que los gastos superen los ingresos"}
+_HOUSE["pt"]["income"] = {2: "sua renda atual", 5: "uma aposta especulativa", 6: "trabalho extra ou uma renda adicional",
+                          8: "dinheiro preso às condições de outros", 11: "gente que já conhece seu trabalho",
+                          12: "os gastos passarem da renda"}
 _VEHICLE_Q = re.compile(r"(?<!\w)(car|cars|vehicle|suv|truck|van|motorcycle|bike|scooter|"
                         r"coche|auto|autom[oó]vil|moto|carro|ve[ií]culo|gaadi|gadi|gaadee)(?!\w)", re.I)
 
@@ -357,7 +377,7 @@ def explain(kp: dict, language: str = "en", question: str = "") -> dict:
     elif lean in ("conditional", "not_now") and b1:
         # [simple-condition 2026-10-08] owner: "THE ANSWER SHOULD BE VERY SIMPLE" — one watch-out,
         # one short sentence, no planets or houses (competitors say it in a line).
-        text = T["cond"].format(sup=s, blk=b1)
+        text = T["cond"].format(blk=b1)
     else:
         text = T["yes"].format(sup=s) + (T["yes_drag"].format(blk=b1) if b1 else "")
     # [condition-label 2026-10-08] "Possible — on one condition." must be followed by a line that
