@@ -264,3 +264,16 @@ def test_conditional_lean_labels_the_line_the_condition():
                               ("pt", "A condição", "Do que depende")):
         assert explain({**base, "lean": "conditional"}, lang, "Can I lease a car?")["label"] == cond
         assert explain({**base, "lean": "yes"}, lang, "Can I lease a car?")["label"] == other
+
+
+def test_condition_opens_with_the_deciding_planet_and_houses():
+    from antar_engine.kp.kp_conditions import explain
+    kp = {"question_type": "property", "lean": "conditional",
+          "debug": {"csl": "Venus", "favour_hit": [4, 11], "against_hit": [3], "gate_ok": True}}
+    c = explain(kp, "en", "Can I lease a car this month?")["condition"]
+    assert c.startswith("Venus decides this: it backs it through your 4th and 11th house and works against it through your 3rd house.")
+    assert "terms you've read in full" in c
+    assert explain(kp, "es", "¿Puedo alquilar un coche?")["condition"].startswith("Venus decide esto: lo respalda por tu casa 4 y 11 y lo frena por tu casa 3.")
+    assert explain(kp, "pt", "Posso alugar um carro?")["condition"].startswith("Vênus decide isto:")
+    kp["debug"].pop("csl")
+    assert not explain(kp, "en", "Can I lease a car?")["condition"].startswith("Venus")

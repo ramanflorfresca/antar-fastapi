@@ -306,6 +306,57 @@ def _join(items: list, lang: str) -> str:
     return ", ".join(items[:-1]) + _TEMPLATES[lang]["and"] + items[-1]
 
 
+# [astro-basis 2026-10-08] Owner, on a live answer whose condition read "…the right car on terms you've
+# read in full; what could stop it is signing in a rush": "THAT'S NOT AN ASTROLOGICAL PREDICTION".
+# The plain-language meaning stays, but the condition now opens with the actual chart fact behind
+# it: the deciding planet (the cuspal sub-lord) and which houses it backs the matter through and
+# which it works against it through.
+_PLANET = {
+    "es": {"Sun": "el Sol", "Moon": "la Luna", "Mars": "Marte", "Mercury": "Mercurio", "Jupiter": "Júpiter",
+           "Venus": "Venus", "Saturn": "Saturno", "Rahu": "Rahu", "Ketu": "Ketu"},
+    "pt": {"Sun": "o Sol", "Moon": "a Lua", "Mars": "Marte", "Mercury": "Mercúrio", "Jupiter": "Júpiter",
+           "Venus": "Vênus", "Saturn": "Saturno", "Rahu": "Rahu", "Ketu": "Ketu"},
+}
+_BASIS = {
+    "en": {"head": "{p} decides this:", "back": " it backs it through your {h} house",
+           "against": " and works against it through your {h} house.", "against_only": " it works against it through your {h} house.",
+           "back_end": ".", "and": " and "},
+    "es": {"head": "{p} decide esto:", "back": " lo respalda por tu casa {h}",
+           "against": " y lo frena por tu casa {h}.", "against_only": " lo frena por tu casa {h}.",
+           "back_end": ".", "and": " y "},
+    "pt": {"head": "{p} decide isto:", "back": " apoia pela sua casa {h}",
+           "against": " e freia pela sua casa {h}.", "against_only": " freia pela sua casa {h}.",
+           "back_end": ".", "and": " e "},
+}
+
+
+def _ord(n: int, lang: str) -> str:
+    if lang != "en":
+        return str(n)
+    return f"{n}{'th' if 10 <= n % 100 <= 20 else {1: 'st', 2: 'nd', 3: 'rd'}.get(n % 10, 'th')}"
+
+
+def _astro_basis(csl, fav: list, ag: list, lang: str) -> str:
+    """'Venus decides this: it backs it through your 4th and 11th house and works against it
+    through your 3rd house.' Empty when the chart gave no deciding planet or no houses."""
+    csl = str(csl or "").strip()
+    if not csl or not (fav or ag):
+        return ""
+    B = _BASIS[lang]
+    planet = _PLANET.get(lang, {}).get(csl, csl)
+    if lang == "en":
+        planet = planet
+    hs = lambda hh: _join([_ord(h, lang) for h in hh], lang)  # noqa: E731
+    out = B["head"].format(p=planet[:1].upper() + planet[1:])
+    if fav and ag:
+        out += B["back"].format(h=hs(fav)) + B["against"].format(h=hs(ag))
+    elif fav:
+        out += B["back"].format(h=hs(fav)) + B["back_end"]
+    else:
+        out += B["against_only"].format(h=hs(ag))
+    return out
+
+
 def explain(kp: dict, language: str = "en", question: str = "") -> dict:
     """{'supports': [...], 'blocks': [...], 'close_ok': bool, 'condition': str,
     'label': str} — empty dict when the KP result has no usable debug."""
@@ -360,5 +411,10 @@ def explain(kp: dict, language: str = "en", question: str = "") -> dict:
         text = T["yes"].format(sup=s) + (T["yes_drag"].format(blk=b1) if b1 else "")
     # [condition-label 2026-10-08] "Possible — on one condition." must be followed by a line that
     # calls it what it is; every other lean keeps "What it hinges on".
+    if not kp.get("generic"):
+        basis = _astro_basis(dbg.get("csl"), sorted(dbg.get("favour_hit") or []),
+                             sorted(dbg.get("against_hit") or [], key=lambda h: _rank.index(h) if h in _rank else 99), lang)
+        if basis:
+            text = basis + " " + text
     return {"supports": sup, "blocks": blk, "close_ok": gate_ok,
             "condition": text, "label": T["label_cond"] if lean == "conditional" else T["label"]}
