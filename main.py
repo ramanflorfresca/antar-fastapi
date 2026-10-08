@@ -23698,6 +23698,11 @@ async def get_compatibility_session(session_id: str, language: str = "en"):
                                         "v2_layers": {l["layer_key"]: l["score"] for l in _v2.get("layers", [])},
                                         "v2": True},
                 })
+                try:   # [moves] plain things to DO, from the weakest areas (replaces colour/day remedies on this page)
+                    from antar_engine import circle_moves as _CM
+                    out["moves"] = _CM.moves_for(_v2.get("layers"), _reason, language)
+                except Exception as _mve:
+                    print(f"[compat][moves] non-fatal: {_mve}")
                 if _s_pos:
                     out["summary"] = _apply_position(out.get("summary"), s.get("name_b") or "Partner",
                                                      _reason, _s_pos)
@@ -50788,6 +50793,12 @@ async def get_circle_reading(chart_id: str, other_chart_id: str, language: Optio
                 endpoint_name="circle_reading", chart_id=chart_id)
         except Exception as e:
             print(f"[circle][reading] translate skipped: {str(e)[:160]}")
+    if reading:
+        try:   # practical moves from the FINAL (averaged) areas, written in the viewer's language
+            from antar_engine import circle_moves as _CM, people_links as _pl2
+            reading["moves"] = _CM.moves_for(reading.get("layers"), _pl2.relation_to_compat_type(side["relation"]), lang)
+        except Exception as e:
+            print(f"[circle][reading] moves skipped: {str(e)[:160]}")
     out["reading"] = reading
     return out
 
