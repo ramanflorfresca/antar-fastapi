@@ -181,7 +181,7 @@ _TEMPLATES = {
            "gate_blk": " Watch out for {blk}.",
            "no": "No supporting route shows up for this right now.",
            "no_blk": " What stands in the way: {blk}.",
-           "label": "What it hinges on",
+           "label": "What it hinges on", "label_cond": "The condition",
            "sep_yes": "What drives the split: {sup}.", "sep_yes_hold": " What could still hold it together: {blk}.",
            "sep_cond": "It can split over {sup}, unless {blk} holds it together.",
            "sep_no": "Nothing in this reading pushes it to break right now.", "sep_no_hold": " What holds it together: {blk}.",
@@ -204,7 +204,7 @@ _TEMPLATES = {
            "gate_blk": " Cuidado con {blk}.",
            "no": "Ahora mismo no aparece una vía que lo respalde.",
            "no_blk": " Lo que se interpone: {blk}.",
-           "label": "De qué depende",
+           "label": "De qué depende", "label_cond": "La condición",
            "sep_yes": "Lo que empuja la separación: {sup}.", "sep_yes_hold": " Lo que aún podría sostenerlo: {blk}.",
            "sep_cond": "Puede romperse por {sup}, a menos que {blk} lo sostenga.",
            "sep_no": "Nada en esta lectura lo empuja a romperse ahora.", "sep_no_hold": " Lo que lo sostiene: {blk}.",
@@ -227,7 +227,7 @@ _TEMPLATES = {
            "gate_blk": " Cuidado com {blk}.",
            "no": "Agora não aparece um caminho que sustente isso.",
            "no_blk": " O que está no caminho: {blk}.",
-           "label": "Do que depende",
+           "label": "Do que depende", "label_cond": "A condição",
            "sep_yes": "O que empurra a separação: {sup}.", "sep_yes_hold": " O que ainda pode segurar: {blk}.",
            "sep_cond": "Pode romper por {sup}, a menos que {blk} segure.",
            "sep_no": "Nada nesta leitura empurra para romper agora.", "sep_no_hold": " O que segura: {blk}.",
@@ -358,5 +358,7 @@ def explain(kp: dict, language: str = "en", question: str = "") -> dict:
         text = T["cond"].format(sup=s, blk=b2)
     else:
         text = T["yes"].format(sup=s) + (T["yes_drag"].format(blk=b1) if b1 else "")
+    # [condition-label 2026-10-08] "Possible — on one condition." must be followed by a line that
+    # calls it what it is; every other lean keeps "What it hinges on".
     return {"supports": sup, "blocks": blk, "close_ok": gate_ok,
-            "condition": text, "label": T["label"]}
+            "condition": text, "label": T["label_cond"] if lean == "conditional" else T["label"]}

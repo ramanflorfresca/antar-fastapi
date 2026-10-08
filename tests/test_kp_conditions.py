@@ -254,3 +254,13 @@ def test_car_lease_does_not_get_house_buying_words():
         assert "clean title" not in c and "rushed paperwork" not in c
     assert "terms you've read in full" in explain(kp, "en", "Can I lease a car?")["condition"]
     assert "clean title" in explain(kp, "en", "Can I buy a house?")["condition"]
+
+
+def test_conditional_lean_labels_the_line_the_condition():
+    from antar_engine.kp.kp_conditions import explain
+    base = {"question_type": "property", "debug": {"favour_hit": [4], "against_hit": [3], "gate_ok": True}}
+    for lang, cond, other in (("en", "The condition", "What it hinges on"),
+                              ("es", "La condición", "De qué depende"),
+                              ("pt", "A condição", "Do que depende")):
+        assert explain({**base, "lean": "conditional"}, lang, "Can I lease a car?")["label"] == cond
+        assert explain({**base, "lean": "yes"}, lang, "Can I lease a car?")["label"] == other
