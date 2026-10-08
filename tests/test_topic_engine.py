@@ -1043,3 +1043,25 @@ def test_best_fit_prefers_a_near_window_on_a_later_scale_over_a_far_one(monkeypa
 def test_best_fit_nearest_scale_still_wins_when_its_window_is_near(monkeypatch):
     _fake_reads(monkeypatch, {"month": _open("2026-10-20"), "season": _open("2027-03-01")})
     assert T.best_fit_scale(_synth(), "business", TODAY) == "month"
+
+
+# ── [circle] windows_for exposes EVERY run the read already finds - no new astrology ──
+@pytest.mark.parametrize("scale", ["month", "season"])
+def test_windows_for_contains_the_reads_best_and_watch_windows(ctxs, scale):
+    for ctx in ctxs:
+        for key in C.TOPIC_KEYS:
+            w = T.windows_for(ctx, key, scale, TODAY)
+            r = T.read_topic(ctx, key, scale, TODAY, "en", with_best_fit=False)
+            for field, runs in (("best_window", w["open"]), ("watch_window", w["care"])):
+                if r.get(field):
+                    s, e = date.fromisoformat(r[field]["start"]), date.fromisoformat(r[field]["end"])
+                    assert any(x["start"] == s and x["end"] == e for x in runs), (key, scale, field)
+            for x in w["open"] + w["care"]:
+                assert x["start"] >= TODAY and x["end"] >= x["start"] and x["confidence"] in ("high", "medium", "low")
+
+
+def test_windows_for_never_raises_and_degrades_to_no_runs(monkeypatch):
+    ctx = T.TopicContext("c", {}, {})
+    monkeypatch.setattr(T, "_scan", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("x")))
+    out = T.windows_for(ctx, "money", "month", TODAY)
+    assert out["open"] == [] and out["care"] == []
