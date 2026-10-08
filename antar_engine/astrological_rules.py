@@ -994,13 +994,15 @@ def detect_concern(question: str) -> str:
                     "fired","resign","quit","new job","better job","professional",
                     "interview","opportunity","recognition","success","achieve",
                     "entrepreneur","leadership","power","authority","founder",
-                    "ceo","cto","coo","corporate","advancement","raise",
+                    "ceo","coo","corporate","advancement","raise",
                     "appraisal","designation","transfer","posting",
                     # [i18n-es-pt 2026-10-08]
                     "trabajo","trabalho","empleo","emprego","carrera","carreira","ascenso",
                     "promoción","promocion","promoção","promocao","ascender","jefe","chefe","despido",
                     "demitido","renunciar","entrevista","profesión","profesion","profissão","profissao"]
-    if any(w in q for w in career_words):
+    # "cto" as a whole word only: as a substring it sat inside "OCTObER" and sent every October
+    # question to career
+    if any(w in q for w in career_words) or _fre.search(r"\bcto\b", q):
         return "career"
 
     # ── Spiritual ──────────────────────────────────────────────
