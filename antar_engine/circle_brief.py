@@ -224,8 +224,7 @@ def _fit_parts(cd: dict, dashas: dict, lang: str, today: date) -> dict:
                               "reasons": [CC.pick(F.REASON[k], lang) for k in pl["reasons"]][:3]}
         se = F.season_at(cd, (dashas or {}).get("vimsottari"), today)
         if se:
-            out["season"] = {"theme": se["theme"], "label": CC.pick(F.THEME_LABEL, lang)[se["theme"]], "heavy": se["heavy"],
-                             "ends": se["ends"].isoformat(), "ends_label": C.day_label_y(se["ends"], lang)}
+            out["season"] = F.describe(se, lang)
     except Exception:
         pass
     return out
