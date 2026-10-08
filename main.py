@@ -6601,6 +6601,8 @@ async def messaging_whatsapp_webhook(http_request: Request):
     except ValueError:
         lat_lon = None
     if not number or (not body and not num_media and not lat_lon):   # status pings
+        if body or num_media or lat_lon:      # a real message we cannot attribute: never drop it silently again
+            print(f"[whatsapp] dropped a message with an unusable From ({re.sub(r'[0-9]', '9', str(params.get('From') or ''))[:30]!r})")
         return _empty
     # [whatsapp-twiml] `help` is answered INSIDE the webhook response (TwiML
     # <Message>) — instant, no DB, no REST send. Also tells us whether Twilio lets

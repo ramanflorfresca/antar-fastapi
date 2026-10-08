@@ -394,11 +394,26 @@ def consent_row(source: str) -> dict:
             "consent_version": WA_CONSENT_VERSION, "consent_source": source}
 
 
+# [wa-bsuid 2026-10-08] WhatsApp users who hide their phone number (a WhatsApp username) reach us with a business-scoped user ID
+# instead: From = "whatsapp:CO.1130884559869035369" (two-letter country, dot, id). wa_number() used to turn that into digits too
+# long to be a phone number, returned "", and the webhook dropped the message as a "status ping": the person could never
+# connect and nothing was logged. The ID is kept as-is, is a first-class identity everywhere a number is (links, consent, sends:
+# "whatsapp:CO.…" is a valid Twilio To), and its two-letter prefix is the country.
+_BSUID = re.compile(r"^([A-Za-z]{2})\.([A-Za-z0-9]{6,64})$")
+
+
+def is_bsuid(n: Optional[str]) -> bool:
+    return bool(_BSUID.match(str(n or "").strip()))
+
+
 def wa_number(addr: Optional[str]) -> str:
-    """'whatsapp:+919812345678' → '+919812345678' ('' when unusable)."""
+    """'whatsapp:+919812345678' → '+919812345678'; 'whatsapp:CO.1130…' → 'CO.1130…' ('' when unusable)."""
     s = (addr or "").strip()
     if s.lower().startswith("whatsapp:"):
         s = s[9:]
+    m = _BSUID.match(s.strip())
+    if m:
+        return f"{m.group(1).upper()}.{m.group(2)}"
     s = re.sub(r"[^\d+]", "", s)
     if s and not s.startswith("+"):
         s = "+" + s
