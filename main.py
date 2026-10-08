@@ -50497,7 +50497,9 @@ def _topic_read_compute(chart_id: str, topic: str, scale: str, language, tz_offs
 async def get_chart_topic_read(chart_id: str, topic: str, scale: str = "month",
                                language: Optional[str] = None,
                                tz_offset: Optional[int] = None,
-                               background_tasks: BackgroundTasks = None):
+                               background_tasks: BackgroundTasks = None,
+                               authorization: Optional[str] = Header(None),
+                               x_claim_token: Optional[str] = Header(None)):
     """One topic at one time scale (today|month|season|year): claim, best/watch
     window (dates never in the past), why, your_move, confidence note, reasoning
     and a remedy block. Month = rolling 30 days from today; year = the
@@ -50514,7 +50516,65 @@ async def get_chart_topic_read(chart_id: str, topic: str, scale: str = "month",
     if background_tasks is not None:
         # [topic-checkback] after the response is sent; fail-open, never slows the read
         background_tasks.add_task(_topic_read_record, out, chart_id, _prac_local_date(tz_offset))
+    # [circle] additive `shared_with`, computed OUTSIDE the cached body so a new accept / leave shows at once
+    if authorization or x_claim_token:
+        try:
+            sw = await run_in_threadpool(_topic_shared_with, chart_id, out, tz_offset, authorization, x_claim_token)
+        except Exception as e:
+            print(f"[topic-shared-with] skipped: {e!r}")
+            sw = None
+        if sw:
+            out = dict(out)
+            for k, v in sw.items():
+                out[k] = dict(out[k], shared_with=v)
     return out
+
+
+_TOPIC_SHARED_PAIRS_MAX = 12
+_TOPIC_SHARED_PER_WINDOW = 5
+
+
+def _topic_shared_with(chart_id: str, out: dict, tz_offset, authorization, claim_token):
+    """{"best_window": [...], "watch_window": [...]} of people in the asker's ACTIVE Circle pairs
+    whose own window for this topic overlaps. Same gate as the pair page (an accepted pair, the
+    other chart still alive), the same cached per-chart windows and the same intersect helper.
+    Only first name, chart id and the intersection dates leave; None on anything missing/any error.
+    Needs the owner's credentials (names are Circle data): anonymous reads never get the field."""
+    from antar_engine import circle_overlap as _co
+    try:
+        _circle_authorize(chart_id, authorization, claim_token)
+        if _circle.is_demo(supabase, chart_id):
+            return None
+        topic, scale = out.get("topic"), out.get("scale")
+        wanted = [(k, "open" if k == "best_window" else "care") for k in ("best_window", "watch_window")
+                  if isinstance(out.get(k), dict) and out[k].get("start") and out[k].get("end")]
+        if not wanted:
+            return None
+        today = _prac_local_date(tz_offset)
+        pairs = sorted(_circle.list_pairs(supabase, chart_id), key=lambda x: str(x.get("created_at") or ""))
+        others = [_circle.side_of(p, chart_id)["other"] for p in pairs][:_TOPIC_SHARED_PAIRS_MAX]
+        names = _circle_names(others)
+        found = {k: [] for k, _ in wanted}
+        for oid in others:
+            if oid not in names:
+                continue
+            w = _circle_windows_for(oid, scale, today)
+            theirs = (w[0] if w else {}).get(topic)
+            if not theirs:
+                continue
+            for k, kind in wanted:
+                mine = [(date.fromisoformat(out[k]["start"]), date.fromisoformat(out[k]["end"]), "low")]
+                hits = [r for r in _co.intersect(mine, _co._runs(theirs.get(kind))) if r[0] <= r[1] and r[1] >= today]
+                if hits:
+                    s, e, _c = min(hits)
+                    found[k].append({"chart_id": oid, "first_name": names[oid],
+                                     "start": s.isoformat(), "end": e.isoformat()})
+        res = {k: sorted(v, key=lambda x: (x["start"], x["end"], x["first_name"]))[:_TOPIC_SHARED_PER_WINDOW]
+               for k, v in found.items() if v}
+        return res or None
+    except Exception as e:
+        print(f"[topic-shared-with] skipped: {e!r}")
+        return None
 
 
 def _topic_read_record(out, chart_id, today):
