@@ -210,3 +210,28 @@ def test_a_failed_compute_returns_state_on_with_no_reading_not_a_500(env, monkey
     put(c, A, B, {"share_reading": True}, "uA"); put(c, B, A, {"share_reading": True}, "uB")
     r = c.get(f"/api/v1/circle/{A}/pair/{B}/reading", headers=AUTH["uA"])
     assert r.status_code == 200 and r.json()["state"] == "on" and r.json()["reading"] is None
+
+
+def test_symmetrize_gives_both_people_the_same_numbers_and_rederives_status():
+    from antar_engine import compatibility_reasons as R
+    mk = lambda sc, l1, l2: {"score": sc, "badge": "X", "headline": "h", "layers": [
+        {"key": "soul", "score": l1, "status": CR.layer_status({"passed": l1 >= 65, "score": l1}), "status_label": "Flows" if l1 >= 65 else "Needs care"},
+        {"key": "comm", "score": l2, "status": "friction", "status_label": "Friction"}]}
+    v, w = mk(63, 70, 30), mk(66, 62, 36)
+    a = CR.symmetrize(v, w, R.LAYER_PASS_THRESHOLD, R.badge)
+    b = CR.symmetrize(w, v, R.LAYER_PASS_THRESHOLD, R.badge)            # the other person's order
+    assert a["score"] == b["score"] == 64 and a["badge"] == b["badge"]
+    assert [l["score"] for l in a["layers"]] == [l["score"] for l in b["layers"]] == [66, 33]
+    assert [l["status"] for l in a["layers"]] == [l["status"] for l in b["layers"]] == ["flows", "friction"]
+    assert a["layers"][0]["status_label"] == "Flows" and v["score"] == 63        # input untouched
+
+
+def test_real_charts_read_identically_from_either_side(two_charts):
+    import main
+    a, b = two_charts
+    ra = main._circle_reading_build(a.chart_data, a.dashas, b.chart_data, b.dashas, "1985-03-15", "1990-10-15",
+                                    "male", "female", "friend", "Raman", "Shashi", "en")
+    rb = main._circle_reading_build(b.chart_data, b.dashas, a.chart_data, a.dashas, "1990-10-15", "1985-03-15",
+                                    "female", "male", "friend", "Shashi", "Raman", "en")
+    assert ra["score"] == rb["score"] and ra["badge"] == rb["badge"]
+    assert [(l["key"], l["score"], l["status"]) for l in ra["layers"]] == [(l["key"], l["score"], l["status"]) for l in rb["layers"]]
