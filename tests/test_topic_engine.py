@@ -356,7 +356,10 @@ def test_season_is_the_current_sub_period_with_its_end_date():
     ctx = _synth("Saturn")
     r = T.read_topic(ctx, "career", "season", TODAY, "en", with_best_fit=False)
     assert r["period"]["end"] == "2027-03-10" and not r["period"]["approximate"]
-    assert r["period"]["label"] == "This season, to Mar 2027"   # ends in another calendar year
+    # 5 months out -> a plain length, no end date, never the word "season"
+    assert r["period"]["label"] == "The next 5 months"
+    assert r["period"]["span"] == {"months": 5, "bucket": "months"}
+    assert r["claim"].startswith("Over the next 5 months, ")
 
 
 def test_season_without_sub_period_is_flagged_approximate():
@@ -934,8 +937,8 @@ def _season_ctx(end):
     return ctx
 
 
-_SEASON_FAR = {"en": "This season, to Apr 2029", "es": "Esta etapa, hasta abr 2029",
-               "pt": "Esta fase, até abr 2029", "hinglish": "Is daur mein, Apr 2029 tak"}
+_SEASON_FAR = {"en": "The next 3 years · to Apr 2029", "es": "Los próximos 3 años · hasta abr 2029",
+               "pt": "Os próximos 3 anos · até abr 2029", "hinglish": "Agle 3 saal · Apr 2029 tak"}
 
 
 @pytest.mark.parametrize("lang", LANGS)
@@ -946,14 +949,14 @@ def test_observed_season_label_carries_the_year_when_it_runs_to_2029(lang):
 
 def test_hindi_season_label_falls_back_to_english_with_the_year():
     r = T.read_topic(_season_ctx("2029-04-25"), "career", "season", TODAY, "hi", with_best_fit=False)
-    assert r["period"]["label"] == "This season, to Apr 2029"
+    assert r["period"]["label"] == "The next 3 years · to Apr 2029"
 
 
 @pytest.mark.parametrize("end,label", [
-    ("2026-12-05", "This season, to Dec 5"),        # 11 months, same year: short
-    ("2026-12-31", "This season, to Dec 2026"),     # > 11 months out: year
-    ("2027-01-05", "This season, to Jan 2027"),     # 12 months
-    ("2027-02-05", "This season, to Feb 2027"),     # 13 months
+    ("2026-12-05", "The next year"),        # 11 months, same year: short
+    ("2026-12-31", "The next year · to Dec 2026"),     # > 11 months out: year
+    ("2027-01-05", "The next year · to Jan 2027"),     # 12 months
+    ("2027-02-05", "The next year · to Feb 2027"),     # 13 months
 ])
 def test_season_label_boundary_at_11_12_13_months(end, label):
     jan = date(2026, 1, 5)
@@ -1088,7 +1091,7 @@ def test_later_window_names_its_opening_date_and_prepares():
     r = T.read_topic(_later_ctx(), "career", "season", TODAY, "en")
     assert r["tone"] == "open" and r["window_phase"] == "later"
     assert r["best_window"]["window_phase"] == "later"
-    assert r["claim"] == "This season, your best stretch for work starts Nov 6."
+    assert r["claim"] == "Over the next 5 months, your best stretch for work starts Nov 6."
     assert r["your_move"] == ("Use the time before Nov 6 to get the one ask or application ready; "
                               "make it from Nov 6.")
     assert "inside the window" not in r["your_move"]
@@ -1104,7 +1107,7 @@ def test_soon_window_month_scale():
 def test_window_running_today_keeps_the_old_strings():
     r = T.read_topic(_soon_ctx(), "career", "season", TODAY, "en")   # care window starts today
     assert r["tone"] == "care" and r["window_phase"] == "now"
-    assert r["claim"] == "This season, work asks for patience, so avoid forcing a decision and keep your record clean."
+    assert r["claim"] == "Over the next 5 months, work asks for patience, so avoid forcing a decision and keep your record clean."
     assert r["your_move"] == "Finish what is open before you start anything new."
 
 
@@ -1125,7 +1128,7 @@ def test_care_variant_for_a_window_that_has_not_opened():
     r = T.read_topic(ctx, "career", "season", TODAY, "en")
     assert r["tone"] == "care" and r["window_phase"] == "later"
     assert r["watch_window"]["window_phase"] == "later"
-    assert r["claim"] == "This season, work asks for care from Nov 6."
+    assert r["claim"] == "Over the next 5 months, work asks for care from Nov 6."
     assert r["your_move"].startswith("Until Nov 6, finish what is open")
 
 
@@ -1183,3 +1186,61 @@ def test_high_confidence_shows_three_chips_on_every_scale():
         assert two["confidence"]["level"] == "medium" and len(two["based_on"]) == 2
         one = T._reasoning(ctx, "career", dict(full, chara_confirm=False, n_signals=0), scale, "en", TODAY, TODAY)
         assert one["confidence"]["level"] == "low" and len(one["based_on"]) == 1
+
+
+# ── the long-stretch scale is framed by its real length, never "season" ──────
+_SPAN_CASES = [  # months out -> (bucket, en label, es, pt, hinglish)
+    (3, "few", "The next few months", "Los próximos meses", "Os próximos meses", "Agle kuch mahine"),
+    (6, "months", "The next 6 months", "Los próximos 6 meses", "Os próximos 6 meses", "Agle 6 mahine"),
+    (12, "1y", "The next year · to Oct 2027", "El próximo año · hasta oct 2027",
+     "O próximo ano · até out 2027", "Agla saal · Oct 2027 tak"),
+    (24, "2y", "The next 2 years · to Oct 2028", "Los próximos 2 años · hasta oct 2028",
+     "Os próximos 2 anos · até out 2028", "Agle 2 saal · Oct 2028 tak"),
+    (36, "3y", "The next 3 years · to Oct 2029", "Los próximos 3 años · hasta oct 2029",
+     "Os próximos 3 anos · até out 2029", "Agle 3 saal · Oct 2029 tak"),
+]
+
+
+def _span_ctx(months):
+    end = C.add_months(TODAY, months).isoformat()
+    ctx = _synth("Saturn")
+    ctx.dashas["vimsottari"][1].update(start_date="2026-06-01", start="2026-06-01", end_date=end, end=end)
+    return ctx
+
+
+@pytest.mark.parametrize("case", _SPAN_CASES)
+def test_season_label_follows_the_real_length(case):
+    months, bucket, *labels = case
+    for lang, want in zip(LANGS, labels):
+        r = T.read_topic(_span_ctx(months), "money", "season", TODAY, lang, with_best_fit=False)
+        got = r["period"]["label"]
+        end = C.add_months(TODAY, months)
+        want = want.replace("oct 20", C.month_year_short(end, lang)[:-4] + "20").replace("Oct 20", C.month_year_short(end, lang)[:-4] + "20")
+        assert got == want, (lang, got)
+        assert r["period"]["span"]["bucket"] == bucket
+        assert "season" not in got.lower() and not _JARGON.search(got)
+        assert r["period"]["end"] == C.add_months(TODAY, months).isoformat()
+
+
+def test_season_lead_sentence_grammar():
+    r = T.read_topic(_span_ctx(24), "money", "season", TODAY, "en", with_best_fit=False)
+    assert r["claim"].startswith("Over the next 2 years, ") and "season" not in r["claim"].lower()
+    r = T.read_topic(_span_ctx(24), "money", "season", TODAY, "es", with_best_fit=False)
+    assert r["claim"].startswith("Durante los próximos 2 años, ")
+    r = T.read_topic(_span_ctx(24), "money", "season", TODAY, "hinglish", with_best_fit=False)
+    assert r["claim"].startswith("Agle 2 saal mein ")
+
+
+def test_season_approximate_fallback_says_six_months():
+    r = T.read_topic(_synth(), "career", "season", TODAY, "en", with_best_fit=False)
+    assert r["period"]["approximate"] is True and r["period"]["label"] == "The next 6 months"
+    assert r["period"]["span"] == {"months": 6, "bucket": "months"}
+    assert r["period"]["end"] == (TODAY + timedelta(days=180)).isoformat()
+
+
+def test_span_rounding_boundaries():
+    assert C.span_info(TODAY, TODAY + timedelta(days=91))["bucket"] == "few"
+    assert C.span_info(TODAY, TODAY + timedelta(days=125))["bucket"] == "months"
+    assert C.span_info(TODAY, TODAY + timedelta(days=335))["bucket"] == "1y"
+    assert C.span_info(TODAY, TODAY + timedelta(days=550))["bucket"] == "2y"
+    assert C.span_info(TODAY, TODAY + timedelta(days=930))["bucket"] == "3y"

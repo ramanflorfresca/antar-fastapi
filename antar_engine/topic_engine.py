@@ -464,6 +464,16 @@ def _best_run(runs: List[dict]) -> Optional[dict]:
     return max(runs, key=lambda r: (r["score"], -r["start"].toordinal())) if runs else None
 
 
+def _span_out(per: dict) -> Optional[dict]:
+    return dict(per["span"]) if per.get("span") else None
+
+
+def _lead(lang: str, scale: str, per: Optional[dict]) -> str:
+    if scale == "season" and per and per.get("span"):
+        return C.season_text(C.SPAN_LEAD_SEASON, lang, per["span"])
+    return C.pick(C.SPAN_LEAD, lang)[scale]
+
+
 def _period(ctx: TopicContext, scale: str, today: date, lang: str) -> dict:
     """The dated frame for a scale (always >= today at its start for windows)."""
     approx = False
@@ -489,6 +499,14 @@ def _period(ctx: TopicContext, scale: str, today: date, lang: str) -> dict:
         except Exception:
             s, e, approx = today, today + timedelta(days=364), True
     pl = C.PERIOD_LABEL[lang][scale]
+    span = None
+    if scale == "season":
+        span = C.span_info(today, e)
+        far = e > C.add_months(today, LABEL_YEAR_MONTHS)
+        label = C.season_text(C.SPAN_TEXT, lang, span)
+        if far:   # long stretch: the end date is secondary info
+            label = C.pick(C.SPAN_END, lang).format(span=label, end=C.month_year_short(e, lang))
+        return {"start": s, "end": e, "approximate": approx, "label": label, "span": span}
     if scale == "year":
         label = pl.format(end=C.day_label_y(e, lang), start=C.day_label_y(s, lang))
     else:
@@ -497,7 +515,7 @@ def _period(ctx: TopicContext, scale: str, today: date, lang: str) -> dict:
         far = e.year != today.year or e > C.add_months(today, LABEL_YEAR_MONTHS)
         label = pl.format(end=C.month_year_short(e, lang) if far else C.day_label(e, lang),
                           start=C.day_label_y(s, lang))
-    return {"start": s, "end": e, "approximate": approx, "label": label}
+    return {"start": s, "end": e, "approximate": approx, "label": label, "span": span}
 
 
 def _scan(ctx: TopicContext, key: str, scale: str, per: dict, today: date) -> List[Tuple[Tuple[date, date], dict]]:
@@ -640,11 +658,14 @@ def window_phase(start: date, end: date, today: date) -> str:
     return "soon" if (start - today).days <= SOON_DAYS else "later"
 
 
-def _window_obj(ctx, key, run, scale, lang, kind, whole_label: bool = False, today: Optional[date] = None) -> dict:
+def _window_obj(ctx, key, run, scale, lang, kind, whole_label: bool = False, today: Optional[date] = None,
+                span: Optional[dict] = None) -> dict:
     s, e = run["start"], run["end"]
     a = max(run["assessments"], key=lambda x: x["score"])
     a = dict(a, n_signals=sum(x["n_signals"] for x in run["assessments"]))
-    label = (C.pick(C.WINDOW_LABEL, lang)["whole"].format(span=C.pick(C.WHOLE_SPAN, lang)[scale])
+    whole = (C.season_text(C.WHOLE_SEASON, lang, span) if scale == "season" and span
+             else C.pick(C.WHOLE_SPAN, lang)[scale])
+    label = (C.pick(C.WINDOW_LABEL, lang)["whole"].format(span=whole)
              if whole_label else C.range_label(s, e, lang))
     return {"start": s.isoformat(), "end": e.isoformat(), "label": label,
             "window_phase": window_phase(s, e, today) if today else None,
@@ -661,10 +682,11 @@ def read_topic(ctx: TopicContext, key: str, scale: str, today: date, language: s
     except Exception:
         logger.exception("[topic-read] engine failed → steady fallback")
         lang = C.serve_language(language)
+        per_fb = None
         try:
-            per = _period(ctx, scale, today, lang)
+            per = per_fb = _period(ctx, scale, today, lang)
             period = {"start": per["start"].isoformat(), "end": per["end"].isoformat(),
-                      "label": per["label"], "approximate": True}
+                      "label": per["label"], "approximate": True, "span": _span_out(per)}
         except Exception:
             period = {"start": today.isoformat(), "end": today.isoformat(),
                       "label": C.PERIOD_LABEL[lang]["today"], "approximate": True}
@@ -677,7 +699,7 @@ def read_topic(ctx: TopicContext, key: str, scale: str, today: date, language: s
                 "scale": scale, "language": lang, "as_of": today.isoformat(), "period": period,
                 "tone": "steady",
                 "claim": C.pick(C.LEAD_JOIN, lang).format(
-                    lead=C.pick(C.SPAN_LEAD, lang)[scale],
+                    lead=_lead(lang, scale, per_fb),
                     core=C.pick(C.STEADY_CORE, lang).format(area=C.pick(C.AREA, lang)[key])),
                 "best_window": None, "watch_window": None,
                 "why": C.pick(C.WHY_BULLET, lang)["none_dated"],
@@ -710,10 +732,10 @@ def _read_topic(ctx: TopicContext, key: str, scale: str, today: date, language: 
         br, wr = _best_run(opens), _best_run(cares)
         whole = lambda r: (r["start"], r["end"]) == (max(per["start"], today), per["end"]) and scale != "today"
         if br:
-            best = _window_obj(ctx, key, br, scale, lang, "best", whole_label=whole(br), today=today)
+            best = _window_obj(ctx, key, br, scale, lang, "best", whole_label=whole(br), today=today, span=per.get("span"))
         a_main = max((a for _, a in results), key=lambda x: x["score"]) if results else a_main
         if wr:
-            watch = _window_obj(ctx, key, wr, scale, lang, "watch", whole_label=whole(wr), today=today)
+            watch = _window_obj(ctx, key, wr, scale, lang, "watch", whole_label=whole(wr), today=today, span=per.get("span"))
             if not br:
                 a_main = max(wr["assessments"], key=lambda x: x["score"])
         if br:
@@ -724,7 +746,7 @@ def _read_topic(ctx: TopicContext, key: str, scale: str, today: date, language: 
         best = watch = None
         mode = "steady"
 
-    lead = C.pick(C.SPAN_LEAD, lang)[scale]
+    lead = _lead(lang, scale, per)
     core = (C.pick(C.CORE, lang)[key][mode] if mode in ("open", "care")
             else C.pick(C.STEADY_CORE, lang).format(area=area))
     primary = best if mode == "open" else watch if mode == "care" else None
@@ -748,7 +770,7 @@ def _read_topic(ctx: TopicContext, key: str, scale: str, today: date, language: 
         "chart_id": ctx.chart_id, "topic": key, "label": C.LABEL[lang][key],
         "scale": scale, "language": lang, "as_of": today.isoformat(),
         "period": {"start": per["start"].isoformat(), "end": per["end"].isoformat(),
-                   "label": per["label"], "approximate": per["approximate"]},
+                   "label": per["label"], "approximate": per["approximate"], "span": _span_out(per)},
         "tone": mode,
         "claim": claim,
         "best_window": best,
