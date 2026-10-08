@@ -264,3 +264,40 @@ def test_pair_aware_ask_answers_from_the_overlap_only_for_circle_members(env):
     assert main._ask_pair_answer("When should Dinesh and I sign?", A, "en", None) is None
     c.post(f"/api/v1/circle/{A}/pair/{B}/leave", headers=AUTH["uA"])
     assert main._ask_pair_answer("When should Aarav and I sign?", A, "en", None) is None
+
+
+def test_unknown_and_foreign_charts_are_indistinguishable(env):
+    c, db, _ = env
+    ghost = "00000000-0000-0000-0000-000000000000"
+    # no credentials: the same 401 whether or not the chart exists
+    for cid in (A, ghost):
+        r = c.get(f"/api/v1/circle/{cid}")
+        assert r.status_code == 401 and r.json()["detail"]["error"] == "auth_required"
+    # credentials for someone else: the same 403 for a real chart and a made-up one
+    real = c.get(f"/api/v1/circle/{A}", headers=AUTH["uB"])
+    fake = c.get(f"/api/v1/circle/{ghost}", headers=AUTH["uB"])
+    assert real.status_code == fake.status_code == 403
+    assert real.json() == fake.json()
+
+
+def test_failed_pair_creation_gives_the_link_back(env, monkeypatch):
+    c, db, _ = env
+    r = c.post("/api/v1/circle/invites", json={"chart_id": A, "relation": "friend", "first_name": "Aarav"}, headers=AUTH["uA"])
+    code = r.json()["link"].rsplit("/", 1)[1]
+    real_table = db.table
+
+    def flaky(name):
+        q = real_table(name)
+        if name == "circle_pairs":
+            orig = q.insert
+            def boom(p):
+                raise Exception("db hiccup")
+            q.insert = boom
+        return q
+    monkeypatch.setattr(db, "table", flaky)
+    bad = c.post(f"/api/v1/circle/invite/{code}/accept", json={"chart_id": B}, headers=AUTH["uB"])
+    assert bad.status_code >= 500
+    monkeypatch.setattr(db, "table", real_table)
+    # the link is still good: the same person can try again
+    ok = c.post(f"/api/v1/circle/invite/{code}/accept", json={"chart_id": B}, headers=AUTH["uB"])
+    assert ok.status_code == 200, ok.text
