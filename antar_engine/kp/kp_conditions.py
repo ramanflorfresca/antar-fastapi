@@ -166,7 +166,7 @@ _HOUSE = {
 _TEMPLATES = {
     "en": {"and": " and ",
            "yes": "It's carried by {sup}.", "yes_drag": " Keep an eye on {blk}.",
-           "cond": "It can come through {sup}; what could stop it is {blk}.",
+           "cond": "It can come through {sup}, but watch for {blk}.",
            "gate": "The route is {sup}, but the final yes isn't locked in, so get a clear, written commitment before you count on it.",
            "gate_work": "The route is {sup}, but the final yes isn't locked in, so count on it only once the offer is in writing.",
            "gate_union": "The route is {sup}, but the final yes isn't locked in, so count on it only once you've both said a clear yes.",
@@ -189,7 +189,7 @@ _TEMPLATES = {
            "generic_label": "Note"},
     "es": {"and": " y ",
            "yes": "Lo sostiene {sup}.", "yes_drag": " Vigila {blk}.",
-           "cond": "Puede llegar a través de {sup}; lo que podría frenarlo: {blk}.",
+           "cond": "Puede llegar a través de {sup}, pero cuidado con {blk}.",
            "gate": "La vía es {sup}, pero el sí final no está asegurado: consigue un compromiso claro y por escrito antes de contar con ello.",
            "gate_work": "La vía es {sup}, pero el sí final no está asegurado: cuenta con ello solo cuando tengas la oferta por escrito.",
            "gate_union": "La vía es {sup}, pero el sí final no está asegurado: cuenta con ello solo cuando ambos hayan dicho un sí claro.",
@@ -212,7 +212,7 @@ _TEMPLATES = {
            "generic_label": "Nota"},
     "pt": {"and": " e ",
            "yes": "Quem sustenta isso é {sup}.", "yes_drag": " Fique de olho em {blk}.",
-           "cond": "Pode vir através de {sup}; o que pode impedir: {blk}.",
+           "cond": "Pode vir através de {sup}, mas atenção a {blk}.",
            "gate": "O caminho é {sup}, mas o sim final não está garantido: consiga um compromisso claro e por escrito antes de contar com isso.",
            "gate_work": "O caminho é {sup}, mas o sim final não está garantido: conte com isso só quando a oferta estiver por escrito.",
            "gate_union": "O caminho é {sup}, mas o sim final não está garantido: conte com isso só quando os dois tiverem dito um sim claro.",
@@ -259,17 +259,17 @@ _PARTNER_Q = re.compile(r"(?i)(\bwith (?:other people|others|partners?|my partne
 _HOUSE["en"]["vehicle"] = {
     3: "signing in a rush", 4: "the right car on terms you've read in full",
     8: "fine print (mileage caps, end-of-lease charges, hidden fees)",
-    11: "a dealer or lender you already trust closing it",
+    11: "a dealer you already trust",
     12: "the total cost (fees, insurance, deposit) outrunning the value"}
 _HOUSE["es"]["vehicle"] = {
     3: "firmar con prisa", 4: "el coche adecuado con condiciones que leíste completas",
     8: "la letra pequeña (límite de kilometraje, cargos al final del contrato, comisiones ocultas)",
-    11: "un concesionario o financiador de confianza que lo cierre",
+    11: "un concesionario de confianza",
     12: "que el costo total (comisiones, seguro, depósito) supere el valor"}
 _HOUSE["pt"]["vehicle"] = {
     3: "assinar com pressa", 4: "o carro certo com condições que você leu por inteiro",
     8: "as letras miúdas (limite de quilometragem, cobranças no fim do contrato, taxas ocultas)",
-    11: "uma concessionária ou financiadora de confiança fechando",
+    11: "uma concessionária de confiança",
     12: "o custo total (taxas, seguro, entrada) passar do valor"}
 _VEHICLE_Q = re.compile(r"(?<!\w)(car|cars|vehicle|suv|truck|van|motorcycle|bike|scooter|"
                         r"coche|auto|autom[oó]vil|moto|carro|ve[ií]culo|gaadi|gadi|gaadee)(?!\w)", re.I)
@@ -304,57 +304,6 @@ def _join(items: list, lang: str) -> str:
     if len(items) <= 1:
         return items[0] if items else ""
     return ", ".join(items[:-1]) + _TEMPLATES[lang]["and"] + items[-1]
-
-
-# [astro-basis 2026-10-08] Owner, on a live answer whose condition read "…the right car on terms you've
-# read in full; what could stop it is signing in a rush": "THAT'S NOT AN ASTROLOGICAL PREDICTION".
-# The plain-language meaning stays, but the condition now opens with the actual chart fact behind
-# it: the deciding planet (the cuspal sub-lord) and which houses it backs the matter through and
-# which it works against it through.
-_PLANET = {
-    "es": {"Sun": "el Sol", "Moon": "la Luna", "Mars": "Marte", "Mercury": "Mercurio", "Jupiter": "Júpiter",
-           "Venus": "Venus", "Saturn": "Saturno", "Rahu": "Rahu", "Ketu": "Ketu"},
-    "pt": {"Sun": "o Sol", "Moon": "a Lua", "Mars": "Marte", "Mercury": "Mercúrio", "Jupiter": "Júpiter",
-           "Venus": "Vênus", "Saturn": "Saturno", "Rahu": "Rahu", "Ketu": "Ketu"},
-}
-_BASIS = {
-    "en": {"head": "{p} decides this:", "back": " it backs it through your {h} house",
-           "against": " and works against it through your {h} house.", "against_only": " it works against it through your {h} house.",
-           "back_end": ".", "and": " and "},
-    "es": {"head": "{p} decide esto:", "back": " lo respalda por tu casa {h}",
-           "against": " y lo frena por tu casa {h}.", "against_only": " lo frena por tu casa {h}.",
-           "back_end": ".", "and": " y "},
-    "pt": {"head": "{p} decide isto:", "back": " apoia pela sua casa {h}",
-           "against": " e freia pela sua casa {h}.", "against_only": " freia pela sua casa {h}.",
-           "back_end": ".", "and": " e "},
-}
-
-
-def _ord(n: int, lang: str) -> str:
-    if lang != "en":
-        return str(n)
-    return f"{n}{'th' if 10 <= n % 100 <= 20 else {1: 'st', 2: 'nd', 3: 'rd'}.get(n % 10, 'th')}"
-
-
-def _astro_basis(csl, fav: list, ag: list, lang: str) -> str:
-    """'Venus decides this: it backs it through your 4th and 11th house and works against it
-    through your 3rd house.' Empty when the chart gave no deciding planet or no houses."""
-    csl = str(csl or "").strip()
-    if not csl or not (fav or ag):
-        return ""
-    B = _BASIS[lang]
-    planet = _PLANET.get(lang, {}).get(csl, csl)
-    if lang == "en":
-        planet = planet
-    hs = lambda hh: _join([_ord(h, lang) for h in hh], lang)  # noqa: E731
-    out = B["head"].format(p=planet[:1].upper() + planet[1:])
-    if fav and ag:
-        out += B["back"].format(h=hs(fav)) + B["against"].format(h=hs(ag))
-    elif fav:
-        out += B["back"].format(h=hs(fav)) + B["back_end"]
-    else:
-        out += B["against_only"].format(h=hs(ag))
-    return out
 
 
 def explain(kp: dict, language: str = "en", question: str = "") -> dict:
@@ -405,16 +354,13 @@ def explain(kp: dict, language: str = "en", question: str = "") -> dict:
         g = (T.get("gate_" + family) or T.get("gate_" + {"promotion": "work", "reunion": "union"}.get(family, ""))
              or T["gate"])
         text = g.format(sup=s) + (T["gate_blk"].format(blk=b1) if b1 else "")
-    elif lean in ("conditional", "not_now") and b2:
-        text = T["cond"].format(sup=s, blk=b2)
+    elif lean in ("conditional", "not_now") and b1:
+        # [simple-condition 2026-10-08] owner: "THE ANSWER SHOULD BE VERY SIMPLE" — one watch-out,
+        # one short sentence, no planets or houses (competitors say it in a line).
+        text = T["cond"].format(sup=s, blk=b1)
     else:
         text = T["yes"].format(sup=s) + (T["yes_drag"].format(blk=b1) if b1 else "")
     # [condition-label 2026-10-08] "Possible — on one condition." must be followed by a line that
     # calls it what it is; every other lean keeps "What it hinges on".
-    if not kp.get("generic"):
-        basis = _astro_basis(dbg.get("csl"), sorted(dbg.get("favour_hit") or []),
-                             sorted(dbg.get("against_hit") or [], key=lambda h: _rank.index(h) if h in _rank else 99), lang)
-        if basis:
-            text = basis + " " + text
     return {"supports": sup, "blocks": blk, "close_ok": gate_ok,
             "condition": text, "label": T["label_cond"] if lean == "conditional" else T["label"]}
