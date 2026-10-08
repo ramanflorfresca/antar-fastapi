@@ -18394,6 +18394,10 @@ def settings_charts_delete(chart_id: str, authorization: Optional[str] = Header(
     _pc = _purge_proxy_cache(chart_id)
     if _pc:
         _log.info(f"[chart-delete] purged {_pc} proxy_cache rows cid={chart_id}")
+    # [circle] invitations + pairs + sharing choices naming this chart, either side. The other
+    # person's chart is never touched.
+    for _ce in _circle_purge(chart_id):
+        _purge_errors.append(_ce)
 
     # ── 3. Strip PII from compatibility_sessions / chart_connections ─────
     # Sessions stay so the OTHER party's history is intact, but the deleted
@@ -18657,6 +18661,16 @@ def _purge_proxy_cache(chart_id: str) -> int:
 _ACCOUNT_DELETE_TABLES = _CHART_DERIVED_TABLES + _ACCOUNT_ONLY_TABLES
 
 
+def _circle_purge(chart_id: str) -> list:
+    """[circle] Drop every circle_invites / circle_pairs / circle_sharing row that mentions this
+    chart (either side). Non-fatal errors only; a missing table is fine."""
+    try:
+        from antar_engine import circle as _c
+        return _c.purge_chart(supabase, chart_id)
+    except Exception as e:
+        return [{"table": "circle_*", "error": str(e)[:160]}]
+
+
 def _compat_partner_allowed(chart_id_a: str, chart_id_b: str) -> bool:
     """[people-privacy] True when chart B may be read as a partner of chart A:
     B is a People sub-chart whose parent is A (or another chart of A's owner),
@@ -18777,6 +18791,8 @@ def delete_account(chart_id: str, authorization: Optional[str] = Header(None)):
                 _purge_errors.append({"table": _tbl, "chart_id": _cid, "error": str(_ce)})
         # Path-keyed, so no chart_id column for the loop to match on.
         _purge_proxy_cache(_cid)
+        for _ce in _circle_purge(_cid):      # [circle] invitations, pairs, sharing
+            _purge_errors.append(_ce)
 
     # 2. Remove this user's side from shared compatibility tables.
     for _cid in chart_ids:
@@ -26500,6 +26516,32 @@ def _ask_load_person_sync(person_chart_id: str, asker_chart_id: str):
     return _safe_jsonb(prow.get("chart_data")), pdash, acd
 
 
+def _ask_pair_answer(question: str, chart_id: str, language, tz_offset):
+    """Sync. The pair-aware Ask payload, or None (not a pair question / no tables / any error)."""
+    try:
+        from antar_engine import circle_ask as _ca
+        pairs = _circle.list_pairs(supabase, chart_id)
+        if not pairs:
+            return None
+        others = {_circle.side_of(p, chart_id)["other"]: p for p in pairs}
+        names = _circle_names(list(others))
+        partners = [{"chart_id": c, "name": n} for c, n in names.items()]
+        hit = _ca.detect(question, partners)
+        if not hit or not hit["topic"]:
+            return None
+        row = _circle.chart_row(supabase, chart_id)
+        lang = _circle_lang(language, row)
+        today = _prac_local_date(tz_offset)
+        pages = {sc: _circle_pair_compute(chart_id, hit["partner"]["chart_id"], sc, lang, today)
+                 for sc in ("month", "season")}
+        if not any(pages.values()):
+            return None
+        return _ca.answer(hit["partner"]["name"], hit["topic"], pages, lang)
+    except Exception as e:
+        print(f"[ask][circle] pair answer skipped: {str(e)[:160]}")
+        return None
+
+
 async def _ask_subject_gate(question: str, chart_id: str, language: str, tz_offset):
     """[ask-subject 2026-10-06] Who is this question ABOUT? Returns (None) for the
     asker themself (the normal pipeline continues untouched) or a finished payload
@@ -26510,6 +26552,14 @@ async def _ask_subject_gate(question: str, chart_id: str, language: str, tz_offs
     try:
         from antar_engine import ask_subject as _as
         from antar_engine import ask_subject_person as _asp
+        # [circle] "When should Aarav and I sign?" - an ACTIVE circle pair + a joint marker is
+        # answered from the pair's shared windows. Private People never take this path.
+        try:
+            _pq = await asyncio.to_thread(_ask_pair_answer, question, chart_id, language, tz_offset)
+        except Exception:      # never let the circle hook abort the normal person flow
+            _pq = None
+        if _pq:
+            return _pq, False
         people = await asyncio.to_thread(_ask_load_people_sync, chart_id)
         res = _as.resolve_subject(question, chart_id, people)
         if res.get("subject") == "self":
@@ -50002,3 +50052,390 @@ async def get_chart_reveal_lines(chart_id: str, language: Optional[str] = None,
     if lines is None:
         raise HTTPException(status_code=404, detail="Chart not found")
     return {"lines": lines}
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# CIRCLE — the two-sided People tab  (spec: PR description; SQL: sql_circle.sql)
+# A user INVITES a person; the invitee opens the link, consents, enters their OWN birth
+# details; both then see a shared "Between us" page of dated windows where their two charts
+# OVERLAP. Logic lives in antar_engine/circle*.py; these routes are thin and all `def`
+# (threadpool), so the blocking supabase calls never run bare inside an async def.
+# Consent/privacy rules are enforced in circle.py; every read fails open without the tables.
+# ═════════════════════════════════════════════════════════════════════════════
+from antar_engine import circle as _circle
+_circle.install_access_log_redaction()      # the raw invite code must never reach access logs
+
+
+def _circle_err(e):
+    """CircleError / CircleUnavailable -> HTTPException with a stable machine code."""
+    if isinstance(e, _circle.CircleError):
+        return HTTPException(status_code=e.status, detail={"error": e.code, **(e.extra or {})})
+    return HTTPException(status_code=503, detail={"error": "circle_unavailable"})
+
+
+def _circle_authorize(chart_id: str, authorization: Optional[str], claim_token: Optional[str] = None,
+                      allow_claim: bool = True) -> dict:
+    """The caller must own `chart_id`: a signed-in user whose chart it is, or (allow_claim) the
+    holder of the guest claim token for a still-unowned chart. 401 no credentials, 403 not the
+    owner, 404 unknown chart. Returns the chart row."""
+    row = _circle.chart_row(supabase, chart_id)
+    if not row:
+        raise HTTPException(status_code=404, detail={"error": "chart_not_found"})
+    uid, _ = _st_identity(authorization) if authorization else (None, None)
+    if uid and row.get("user_id") == uid:
+        return row
+    if allow_claim and claim_token and not row.get("user_id"):
+        from antar_engine import chart_claim as _cc
+        if _cc.claim_token_ok(chart_id, claim_token):
+            return row
+    if not authorization and not claim_token:
+        raise HTTPException(status_code=401, detail={"error": "auth_required"})
+    raise HTTPException(status_code=403, detail={"error": "not_your_chart"})
+
+
+def _circle_lang(language, row):
+    from antar_engine import circle_copy as _cc
+    return _cc.lang_of(language or (row or {}).get("language_preference") or (row or {}).get("language") or "en")
+
+
+class _CircleInviteIn(BaseModel):
+    chart_id: str
+    relation: str
+    first_name: str
+    language: Optional[str] = None
+    private_chart_id: Optional[str] = None
+    position: Optional[int] = None
+
+
+@app.post("/api/v1/circle/invites")
+def circle_create_invite(body: _CircleInviteIn, authorization: Optional[str] = Header(None)):
+    """Invite a person. Returns the link to share FROM YOUR OWN PHONE - Antar never contacts the
+    invitee. Needs a signed-in owner of `chart_id`. 422 unknown relation, 429 rate limits
+    (10 live invites, 20/day), 409 already_invited (carries invite_id), 503 tables missing."""
+    row = _circle_authorize(body.chart_id, authorization, allow_claim=False)
+    rel = _circle.normalise_relation(body.relation)
+    if not rel:
+        raise HTTPException(status_code=422, detail={"error": "unknown_relation"})
+    name = _circle.norm_first_name(body.first_name)
+    if not name:
+        raise HTTPException(status_code=422, detail={"error": "first_name_required"})
+    if _circle.is_demo(supabase, body.chart_id):
+        raise HTTPException(status_code=403, detail={"error": "demo_chart"})
+    if body.private_chart_id and not _compat_partner_allowed(body.chart_id, body.private_chart_id):
+        raise HTTPException(status_code=403, detail={"error": "not_your_person"})
+    try:
+        out = _circle.create_invite(supabase, body.chart_id, row.get("user_id"), rel, name,
+                                    _circle_lang(body.language, row), body.private_chart_id, body.position)
+    except (_circle.CircleError, _circle.CircleUnavailable) as e:
+        raise _circle_err(e)
+    return {"invite_id": out["invite_id"], "link": out["link"], "expires_at": out["expires_at"]}
+
+
+@app.delete("/api/v1/circle/{chart_id}/invites/{invite_id}")
+def circle_cancel_invite(chart_id: str, invite_id: str, authorization: Optional[str] = Header(None),
+                         x_claim_token: Optional[str] = Header(None)):
+    """Withdraw an invite you sent (its link stops working). Idempotent."""
+    _circle_authorize(chart_id, authorization, x_claim_token)
+    try:
+        done = _circle.cancel_invite(supabase, chart_id, invite_id)
+    except _circle.CircleUnavailable as e:
+        raise _circle_err(e)
+    return {"cancelled": bool(done)}
+
+
+@app.post("/api/v1/circle/{chart_id}/invites/{invite_id}/resend")
+def circle_resend_invite(chart_id: str, invite_id: str, authorization: Optional[str] = Header(None),
+                         x_claim_token: Optional[str] = Header(None)):
+    """New link, fresh 14 days; the old link stops working. Up to 3 resends per invite."""
+    _circle_authorize(chart_id, authorization, x_claim_token)
+    try:
+        out = _circle.resend_invite(supabase, chart_id, invite_id)
+    except (_circle.CircleError, _circle.CircleUnavailable) as e:
+        raise _circle_err(e)
+    if not out:
+        raise HTTPException(status_code=404, detail={"error": "invite_not_found"})
+    return {"invite_id": out["invite_id"], "link": out["link"], "expires_at": out["expires_at"]}
+
+
+def _circle_their_day(me: str, other: str, lang: str) -> dict:
+    """The one-line glance for the OTHER person - only if THEY turned it on for ME."""
+    from antar_engine import circle_copy as _cc
+    if not _circle.get_share(supabase, other, me):
+        return {"available": False, "shared": False}
+    g = _network_today_glance(other, lang if lang in ("en", "es", "pt") else "en")
+    return dict(g, shared=True)
+
+
+def _circle_names(ids: list) -> dict:
+    out = {}
+    try:
+        for r in (supabase.table("charts").select("id,name,first_name").in_("id", ids)
+                  .is_("deleted_at", "null").execute().data or []) if ids else []:
+            out[r["id"]] = _circle.first_name_of(r)
+    except Exception as e:
+        print(f"[circle] name lookup failed: {e}")
+    return out
+
+
+@app.get("/api/v1/circle/{chart_id}")
+def get_circle(chart_id: str, language: Optional[str] = None,
+               authorization: Optional[str] = Header(None), x_claim_token: Optional[str] = Header(None)):
+    """The Circle home: one list, three states - in_circle (accepted pairs), invite_sent
+    (pending / expired invites you sent; a decline looks like silence) and private (today's
+    People, unchanged), merged. Fails open to what it can read."""
+    row = _circle_authorize(chart_id, authorization, x_claim_token)
+    from antar_engine import circle_copy as _cc
+    lang = _circle_lang(language, row)
+    pairs = _circle.list_pairs(supabase, chart_id)
+    invites = _circle.list_invites(supabase, chart_id)
+    try:
+        net = get_network(chart_id, lang)
+        private = [p for p in (net.get("people") or [])]
+    except Exception as e:
+        print(f"[circle] private people unavailable: {e}")
+        private = []
+    names = _circle_names([ _circle.side_of(p, chart_id)["other"] for p in pairs])
+    invite_priv = {i.get("private_chart_id") for i in invites if i.get("private_chart_id")}
+    pair_priv = set()
+    items = []
+    # privacy: a pair whose other chart no longer exists simply isn't listed
+    for p in sorted(pairs, key=lambda x: str(x.get("created_at") or "")):
+        s = _circle.side_of(p, chart_id)
+        if s["other"] not in names:
+            continue
+        rel = _circle.relation_view(s["relation"], lang)
+        priv_id = None
+        if s["i_invited"] and p.get("invite_id"):
+            for i in _circle_invite_rows(p["invite_id"]):
+                priv_id = i.get("private_chart_id")
+        if priv_id:
+            pair_priv.add(priv_id)
+        items.append({"state": "in_circle", "first_name": names[s["other"]], "chart_id": s["other"],
+                      "pair_id": p["id"], "since": p.get("created_at"), "relation": rel,
+                      "compat_type_label": rel["compat_type_label"], "status": "active",
+                      "i_invited": s["i_invited"], "private_chart_id": priv_id,
+                      "their_day": _circle_their_day(chart_id, s["other"], lang),
+                      "my_sharing": {"share_day": _circle.get_share(supabase, chart_id, s["other"])}})
+    for i in invites:
+        rel = _circle.relation_view(i.get("relation_type") or "friend", lang)
+        items.append({"state": "invite_sent", "first_name": i.get("invitee_first_name") or "",
+                      "invite_id": i["id"], "status": i["_status"], "relation": rel,
+                      "compat_type_label": rel["compat_type_label"], "expires_at": i.get("expires_at"),
+                      "created_at": i.get("created_at"), "position": i.get("position"),
+                      "private_chart_id": i.get("private_chart_id"),
+                      "can_resend": int(i.get("resend_count") or 0) < _circle.MAX_RESENDS})
+    from antar_engine import people_links as _pl
+    for pp in private:
+        cid = pp.get("connection_chart_id")
+        if cid in invite_priv or cid in pair_priv:      # shown as the invite / pair instead
+            continue
+        ctype = ((pp.get("primary") or {}).get("compat_type")) or "relationship"
+        rkey = _pl.compat_type_to_relation(ctype) or "friend"
+        rel = _circle.relation_view(rkey, lang)
+        items.append({"state": "private", "first_name": _circle.norm_first_name(pp.get("name")),
+                      "full_name": pp.get("name"), "chart_id": cid, "relation": rel,
+                      "compat_type": ctype, "compat_type_label": rel["compat_type_label"],
+                      "status": "private", "score": (pp.get("primary") or {}).get("score"),
+                      "badge": (pp.get("primary") or {}).get("badge"),
+                      "session_id": (pp.get("primary") or {}).get("session_id"),
+                      "today": pp.get("today"), "note": pp.get("note", "")})
+    counts = {s: sum(1 for x in items if x["state"] == s) for s in ("in_circle", "invite_sent", "private")}
+    return {"chart_id": chart_id, "language": lang, "circle": items, "count": len(items),
+            "counts": counts,
+            "limits": {"max_pending_invites": _circle.MAX_PENDING_INVITES,
+                       "invite_valid_days": _circle.INVITE_TTL_DAYS}}
+
+
+def _circle_invite_rows(invite_id: str) -> list:
+    try:
+        return supabase.table("circle_invites").select("id,private_chart_id").eq("id", invite_id).limit(1).execute().data or []
+    except Exception:
+        return []
+
+
+# ── invitee side: public landing, accept, decline ────────────────────────────
+@app.get("/api/v1/circle/invite/{code}")
+def circle_invite_landing(code: str):
+    """Public (no auth): ONLY who invited you, the relation, the link's state and the language.
+    status: valid | used | expired. Nothing else, ever."""
+    out = _circle.peek_invite(supabase, code)
+    if out is None:
+        raise HTTPException(status_code=404, detail={"error": "invite_not_found"})
+    return out
+
+
+class _CircleAcceptIn(BaseModel):
+    chart_id: str
+    claim_token: Optional[str] = None
+    share_day: bool = False
+
+
+@app.post("/api/v1/circle/invite/{code}/accept")
+def circle_accept_invite(code: str, body: _CircleAcceptIn, authorization: Optional[str] = Header(None)):
+    """Consent + bind. `chart_id` is the invitee's OWN chart: a signed-in owner (Authorization)
+    or a guest holding that chart's claim token (they claim it on sign-in later). Creates the
+    pair; `share_day` is the invitee's choice to share their one-line day (default off).
+    Idempotent for the same chart. 404 unknown, 410 expired, 409 used / own invite."""
+    _circle_authorize(body.chart_id, authorization, body.claim_token)
+    try:
+        out = _circle.accept_invite(supabase, code, body.chart_id, body.share_day)
+    except (_circle.CircleError, _circle.CircleUnavailable) as e:
+        raise _circle_err(e)
+    return {"status": "accepted", **out}
+
+
+@app.post("/api/v1/circle/invite/{code}/decline")
+def circle_decline_invite(code: str):
+    """Decline. Needs no account and records nothing about who you are; the inviter keeps
+    seeing 'invite sent' until it expires. Always 200."""
+    _circle.decline_invite(supabase, code)
+    return {"status": "ok"}
+
+
+# ── the shared page ──────────────────────────────────────────────────────────
+_CIRCLE_WIN_TTL = 3 * 3600
+
+
+def _circle_windows_for(chart_id: str, scale: str, today):
+    """{topic: windows_for} for one chart (cached per chart/day/scale) + the scan horizon."""
+    import antar_engine.topic_engine as _te
+    from antar_engine import topic_checkback as _tcb
+    from antar_engine.topic_copy import TOPIC_KEYS as _TK
+    ck = ("circle-win", chart_id, scale, today.isoformat())
+    hit = _te.cache_get(ck)
+    if hit is not None:
+        return hit
+    ctx, _row = _topic_ctx_load(chart_id)
+    if ctx is None:
+        return None
+    wins = {t: _te.windows_for(ctx, t, scale, today) for t in _TK}
+    ends = [w["period_end"] for w in wins.values()]
+    horizon = None
+    if ends:
+        hs = [h for h in (_tcb._rolling_horizon(scale, e, today) for e in ends) if h]
+        horizon = min(hs) if hs else None
+    out = (wins, horizon)
+    _te.cache_put(ck, out, _CIRCLE_WIN_TTL)
+    return out
+
+
+def _circle_pair_compute(chart_id: str, other_id: str, scale: str, lang: str, today):
+    from antar_engine import circle_overlap as _co
+    a = _circle_windows_for(chart_id, scale, today)
+    b = _circle_windows_for(other_id, scale, today)
+    if a is None or b is None:
+        return None
+    page = _co.build_page(a[0], b[0], scale, lang)
+    hs = [h for h in (a[1], b[1]) if h]
+    page["_horizon"] = min(hs) if hs else None
+    return page
+
+
+def _circle_record(pair_id: str, charts: tuple, topics: list, scale: str, horizon, today, lang: str):
+    from antar_engine import circle_overlap as _co
+    _co.record_joint(supabase, charts, pair_id, topics, scale, horizon, today, lang)
+
+
+def _circle_between_us(me: str, pair: dict, side: dict) -> dict:
+    """Reuse the INVITER's own earlier private compatibility read for this person, and show it
+    to the inviter only (it was built from what they typed; the invitee never sees it)."""
+    if not side.get("i_invited") or not pair.get("invite_id"):
+        return {"available": False}
+    try:
+        priv = (_circle_invite_rows(pair["invite_id"]) or [{}])[0].get("private_chart_id")
+        if not priv:
+            return {"available": False}
+        s = (supabase.table("compatibility_sessions").select("id,score,compat_type,created_at")
+             .eq("chart_id_a", me).eq("chart_id_b", priv).order("created_at", desc=True)
+             .limit(1).execute().data or [])
+        if not s:
+            return {"available": False}
+        from antar_engine import compatibility_reasons as _R
+        sc = s[0].get("score")
+        return {"available": True, "source": "your_notes", "session_id": s[0]["id"],
+                "compat_type": s[0].get("compat_type"), "score": sc,
+                "badge": _R.badge(int(sc)) if isinstance(sc, (int, float)) else None}
+    except Exception as e:
+        print(f"[circle] between_us skipped: {e}")
+        return {"available": False}
+
+
+@app.get("/api/v1/circle/{chart_id}/pair/{other_chart_id}")
+def get_circle_pair(chart_id: str, other_chart_id: str, scale: str = "month",
+                    language: Optional[str] = None, tz_offset: Optional[int] = None,
+                    background_tasks: BackgroundTasks = None,
+                    authorization: Optional[str] = Header(None), x_claim_token: Optional[str] = Header(None)):
+    """'Between us': the pair layer and nothing else - the relation, both first names, and the
+    dated windows where the two charts OVERLAP (best = both open; care = either needs care),
+    each with a topic-read-shaped `reasoning`. Both people get the same windows. `their_day`
+    only if the other person turned it on. 404 `not_in_circle` unless the pair is active."""
+    row = _circle_authorize(chart_id, authorization, x_claim_token)
+    from antar_engine import circle_copy as _cc, circle_overlap as _co
+    scale = (scale or "month").strip().lower()
+    if scale not in _co.SCALES:
+        raise HTTPException(status_code=422, detail={"error": "scale_must_be_month_or_season"})
+    pair = _circle.pair_for(supabase, chart_id, other_chart_id)
+    if not pair:
+        raise HTTPException(status_code=404, detail={"error": "not_in_circle"})
+    side = _circle.side_of(pair, chart_id)
+    names = _circle_names([other_chart_id])
+    if other_chart_id not in names:
+        raise HTTPException(status_code=404, detail={"error": "not_in_circle"})
+    lang = _circle_lang(language, row)
+    today = _prac_local_date(tz_offset)
+    try:
+        page = _circle_pair_compute(chart_id, other_chart_id, scale, lang, today)
+    except Exception as e:
+        print(f"[circle] pair compute failed -> empty page: {e!r}")
+        page = None
+    if page is None:
+        page = {"topics": [], "headline": {"text": _cc.pick(_cc.HEADLINE_NONE, lang), "topic": None, "window": None},
+                "_horizon": None}
+    horizon = page.pop("_horizon", None)
+    if background_tasks is not None and page["topics"]:
+        background_tasks.add_task(_circle_record, pair["id"], (chart_id, other_chart_id),
+                                  page["topics"], scale, horizon, today, lang)
+    rel = _circle.relation_view(side["relation"], lang)
+    first = names[other_chart_id]
+    chips = [{"key": k, "topic": _cc.CHIP_TOPIC[k], "text": _cc.pick(_cc.CHIPS, lang)[k].format(name=first)}
+             for k in ("sign", "money", "work", "love")]
+    return {
+        "available": True, "pair_id": pair["id"], "chart_id": chart_id,
+        "other_chart_id": other_chart_id, "other_first_name": first, "relation": rel,
+        "since": pair.get("created_at"), "as_of": today.isoformat(), "scale": scale, "language": lang,
+        **page,
+        "their_day": _circle_their_day(chart_id, other_chart_id, lang),
+        "my_sharing": {"share_day": _circle.get_share(supabase, chart_id, other_chart_id)},
+        "between_us": _circle_between_us(chart_id, pair, side),
+        "ask_chips": chips,
+    }
+
+
+class _CircleShareIn(BaseModel):
+    share_day: bool
+
+
+@app.put("/api/v1/circle/{chart_id}/sharing/{other_chart_id}")
+def put_circle_sharing(chart_id: str, other_chart_id: str, body: _CircleShareIn,
+                       authorization: Optional[str] = Header(None), x_claim_token: Optional[str] = Header(None)):
+    """Turn 'share my day' on or off for ONE person. Default off; revocable any time; yours alone."""
+    _circle_authorize(chart_id, authorization, x_claim_token)
+    if not _circle.pair_for(supabase, chart_id, other_chart_id):
+        raise HTTPException(status_code=404, detail={"error": "not_in_circle"})
+    try:
+        _circle.set_share(supabase, chart_id, other_chart_id, body.share_day)
+    except _circle.CircleUnavailable as e:
+        raise _circle_err(e)
+    return {"share_day": bool(body.share_day)}
+
+
+@app.post("/api/v1/circle/{chart_id}/pair/{other_chart_id}/leave")
+def circle_leave(chart_id: str, other_chart_id: str, authorization: Optional[str] = Header(None),
+                 x_claim_token: Optional[str] = Header(None)):
+    """Leave: the shared page disappears for BOTH of you. Neither chart is touched. Idempotent."""
+    _circle_authorize(chart_id, authorization, x_claim_token)
+    try:
+        _circle.leave(supabase, chart_id, other_chart_id)
+    except _circle.CircleUnavailable as e:
+        raise _circle_err(e)
+    return {"left": True}
