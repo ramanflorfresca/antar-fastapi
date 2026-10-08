@@ -129,7 +129,9 @@ def build_claims(out: Optional[dict], chart_id: str, today: Optional[date] = Non
             "language": out.get("language") or "en",
             "channel": "app",
             "verdict": str(out.get("tone") or "")[:40] or None,
-            "engines": {"topic_read": {"kind": kind, "scale": scale, "tone": out.get("tone")}},
+            "engines": {"topic_read": {"kind": kind, "scale": scale, "tone": out.get("tone"),
+                                       **({"chara_dependent": bool((w.get("evidence") or {}).get("chara_dependent"))}
+                                          if isinstance(w.get("evidence"), dict) else {})}},
             "dedupe_key": f"{chart_id}|{topic}|topic_read:{scale}:{kind}|{s.isoformat()}|{e.isoformat()}",
             "checkin_due_at": datetime.combine(e + timedelta(days=DUE_AFTER_END_DAYS),
                                                datetime.min.time(), tzinfo=timezone.utc).isoformat(),

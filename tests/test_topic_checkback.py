@@ -530,3 +530,31 @@ def test_board_load_drops_demo_claims(monkeypatch):
     db.table = lambda name: Q2(db, name)
     claims, _ = ab.load(db)
     assert [c["chart_id"] for c in claims] == [CHART]
+
+
+# ── [audit] windows record whether they leaned on the second (chara) timeline; the board splits on it ──
+def test_chara_dependent_flag_rules():
+    from antar_engine import topic_engine as te
+    base = {"lit": True, "score": 4.0, "chara_pts": 0.0, "convergence": False, "n_signals": 2}
+    assert te.chara_dependent(base) is False                                           # lit without chara
+    assert te.chara_dependent(dict(base, score=4.4, chara_pts=1.0)) is True              # 3.4 without it: under the bar
+    assert te.chara_dependent(dict(base, score=5.0, chara_pts=1.0)) is False             # 4.0 without it: still lit
+    assert te.chara_dependent(dict(base, convergence=True, n_signals=0)) is True         # opportunity on dasha + chara alone
+    assert te.chara_dependent(dict(base, lit=False)) is False and te.chara_dependent({}) is False
+
+
+def test_the_flag_travels_with_the_claim_and_the_board_splits_on_it():
+    out = read(best=("2026-10-14", "2026-10-20"))
+    out["best_window"]["evidence"] = {"chara_dependent": True, "dated_signals": 0}
+    row = tcb.build_claims(out, CHART, TODAY)[0]
+    assert row["engines"]["topic_read"]["chara_dependent"] is True
+    plain = tcb.build_claims(read(best=("2026-10-14", "2026-10-20")), CHART, TODAY)[0]
+    assert "chara_dependent" not in plain["engines"]["topic_read"]                       # older reads: unchanged
+    mk = lambda i, dep: {"id": f"d{i}", "chart_id": f"c{i}", "source": "topic_read", "topic": "money", "window_end": "2026-10-20",
+                         "engines": {"topic_read": {"kind": "best", "scale": "month", "chara_dependent": dep}}}
+    claims = [mk(1, True), mk(2, False), mk(3, False)]
+    outs = [{"claim_id": "d1", "outcome": "no"}, {"claim_id": "d2", "outcome": "yes"}, {"claim_id": "d3", "outcome": "yes"}]
+    rows = {r["engine"]: r for r in ab.build(claims, outs)["engines"]}
+    assert {"topic_read:best", "topic_read:best:chara_dependent", "topic_read:best:independent"} <= set(rows)
+    assert rows["topic_read:best:chara_dependent"]["answered"] == 1 and rows["topic_read:best:independent"]["answered"] == 2
+    assert rows["topic_read:best:independent"]["small_n"] is True                        # still suppressed below n=30
