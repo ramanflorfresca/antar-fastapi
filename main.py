@@ -50721,7 +50721,7 @@ def _circle_names(ids: list) -> dict:
 
 
 @app.get("/api/v1/circle/{chart_id}")
-def get_circle(chart_id: str, language: Optional[str] = None,
+def get_circle(chart_id: str, language: Optional[str] = None, tz_offset: Optional[int] = None,
                authorization: Optional[str] = Header(None), x_claim_token: Optional[str] = Header(None)):
     """The Circle home: one list, three states - in_circle (accepted pairs), invite_sent
     (pending / expired invites you sent; a decline looks like silence) and private (today's
@@ -50738,6 +50738,11 @@ def get_circle(chart_id: str, language: Optional[str] = None,
         print(f"[circle] private people unavailable: {e}")
         private = []
     names = _circle_names([ _circle.side_of(p, chart_id)["other"] for p in pairs])
+    try:
+        _today = _prac_local_date(tz_offset)
+    except Exception:
+        _today = None
+    _nw_left = _CIRCLE_NEXT_WINDOW_MAX
     priv_by_id = {pp.get("connection_chart_id"): pp for pp in private}
 
     def _priv_read(pid):
@@ -50765,7 +50770,12 @@ def get_circle(chart_id: str, language: Optional[str] = None,
                 priv_id = i.get("private_chart_id")
         if priv_id:
             pair_priv.add(priv_id)
+        nw = None
+        if _today is not None and _nw_left > 0:
+            _nw_left -= 1
+            nw = _circle_next_window(chart_id, s["other"], lang, _today)
         items.append({"state": "in_circle", "first_name": names[s["other"]], "chart_id": s["other"],
+                      "next_shared_window": nw,
                       "pair_id": p["id"], "since": p.get("created_at"), "relation": rel,
                       "compat_type_label": rel["compat_type_label"], "status": "active",
                       "i_invited": s["i_invited"], "private_chart_id": priv_id,
@@ -50878,6 +50888,29 @@ def _circle_windows_for(chart_id: str, scale: str, today):
         _CIRCLE_WIN_CACHE.clear()
     _CIRCLE_WIN_CACHE[ck] = (_time.time() + _CIRCLE_WIN_TTL, out)
     return out
+
+
+_CIRCLE_NEXT_WINDOW_MAX = 12
+
+
+def _circle_next_window(chart_id: str, other_id: str, lang: str, today):
+    """Soonest shared window for an ACTIVE pair (the caller only passes accepted pairs - the
+    same gate as the pair page), via the same cached per-chart windows and overlap helpers.
+    Month scale first, then season. Intersection only; null on anything missing or any error."""
+    try:
+        from antar_engine import circle_overlap as _co
+        for scale in ("month", "season"):
+            a = _circle_windows_for(chart_id, scale, today)
+            b = _circle_windows_for(other_id, scale, today)
+            if a is None or b is None:
+                return None
+            w = _co.next_shared_window(a[0], b[0], lang, today)
+            if w:
+                return w
+        return None
+    except Exception as e:
+        print(f"[circle] next window skipped: {e!r}")
+        return None
 
 
 def _circle_pair_compute(chart_id: str, other_id: str, scale: str, lang: str, today):
