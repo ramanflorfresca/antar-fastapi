@@ -50799,8 +50799,40 @@ async def get_circle_reading(chart_id: str, other_chart_id: str, language: Optio
             reading["moves"] = _CM.moves_for(reading.get("layers"), _pl2.relation_to_compat_type(side["relation"]), lang)
         except Exception as e:
             print(f"[circle][reading] moves skipped: {str(e)[:160]}")
+    if reading and reading.get("moves") is not None:
+        try:   # Founders' brief: cofounder / business pairs only (other relations have no lens yet)
+            from antar_engine import circle_brief as _cb
+            lens = _cb.lens_for(side["relation"])
+            if lens:
+                brief = await run_in_threadpool(_circle_brief_compute, chart_id, other_chart_id, lens, lang,
+                                                reading, today)
+                if brief and lang in TRANSLATED_LANGUAGES:
+                    from antar_engine.translation_middleware import translate_dict
+                    brief = await translate_dict(brief, language=lang, fields_to_translate={"effect"},
+                                                 endpoint_name="circle_brief", chart_id=chart_id)
+                reading["brief"] = brief
+        except Exception as e:
+            print(f"[circle][brief] skipped: {str(e)[:200]}")
     out["reading"] = reading
     return out
+
+
+def _circle_brief_compute(me: str, other: str, lens: str, lang: str, reading: dict, today) -> Optional[dict]:
+    """Sync (threadpool): both REAL charts -> two working profiles + the pair's season windows -> the brief."""
+    from antar_engine import circle_brief as _cb
+    rows = {}
+    for cid in (me, other):
+        r = (supabase.table("charts").select("chart_data,name,first_name").eq("id", cid)
+             .is_("deleted_at", "null").limit(1).execute().data or [])
+        if not r:
+            return None
+        rows[cid] = r[0]
+    profs = [_cb.profile(_safe_jsonb(rows[c]["chart_data"]), get_dashas_for_chart(c),
+                         _circle.first_name_of(rows[c]) or ("You" if c == me else "They"), lang, today)
+             for c in (me, other)]
+    page = _circle_pair_compute(me, other, "season", lang, today) or {"topics": []}
+    fit = {"badge": reading.get("badge"), "score": reading.get("score"), "headline": reading.get("headline")}
+    return _cb.build(profs[0], profs[1], lens, page.get("topics") or [], fit, reading.get("moves"), lang, today)
 
 
 @app.post("/api/v1/circle/{chart_id}/pair/{other_chart_id}/leave")
