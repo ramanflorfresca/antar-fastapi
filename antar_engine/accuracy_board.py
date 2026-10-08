@@ -237,6 +237,10 @@ def build(claims: list, outcomes: list) -> dict:
                 # its own engine row per window kind: "did the good stretch hold" and
                 # "did the caution matter" are different claims and must not be blended
                 _add(engines[(f"{c['source']}:{tr['kind']}", topic)], c, outcome, hit)
+                if c["source"] == TOPIC_READ and isinstance(tr.get("chara_dependent"), bool):
+                    # [audit] does a read that leaned on the second timeline hold as often as one that did not?
+                    _add(engines[(f"topic_read:{tr['kind']}:{'chara_dependent' if tr['chara_dependent'] else 'independent'}", topic)],
+                         c, outcome, hit)
             continue          # not a Yes/No engine claim; the KP / event-engine scoring below is not for it
         cw = c.get("confidence_word") or ((c.get("engines") or {}).get("kp") or {}).get("lean")
         if cw:

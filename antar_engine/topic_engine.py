@@ -613,6 +613,20 @@ def build_remedy(ctx: TopicContext, key: str, today: date, lang: str) -> dict:
 
 
 # ── the read ─────────────────────────────────────────────────────────────────
+def chara_dependent(a: dict) -> bool:
+    """[audit 2026-10-08] True when this read leans on the second (Jaimini chara) timeline for being 'lit' at all: without its
+    points the score would fall under the activity bar, or an 'opportunity' rests on dasha-core + chara convergence with no
+    dated signal. Measured over all real charts: 56% of lit topics were lit only because of chara, and every 'high' confidence
+    depended on it. Recorded with each claim so the check-backs can say whether those reads hold as often as the rest. It
+    changes NO score, tone or wording."""
+    try:
+        if not a.get("lit"):
+            return False
+        return bool((a["score"] - a.get("chara_pts", 0.0)) < ACTIVE_MIN or (a.get("convergence") and not a.get("n_signals")))
+    except Exception:
+        return False
+
+
 def _window_obj(ctx, key, run, scale, lang, kind, whole_label: bool = False) -> dict:
     s, e = run["start"], run["end"]
     a = max(run["assessments"], key=lambda x: x["score"])
@@ -620,7 +634,8 @@ def _window_obj(ctx, key, run, scale, lang, kind, whole_label: bool = False) -> 
     label = (C.pick(C.WINDOW_LABEL, lang)["whole"].format(span=C.pick(C.WHOLE_SPAN, lang)[scale])
              if whole_label else C.range_label(s, e, lang))
     return {"start": s.isoformat(), "end": e.isoformat(), "label": label,
-            "reasoning": _reasoning(ctx, key, a, scale, lang, s, e)}
+            "reasoning": _reasoning(ctx, key, a, scale, lang, s, e),
+            "evidence": {"chara_dependent": chara_dependent(a), "dated_signals": a.get("n_signals", 0)}}
 
 
 def read_topic(ctx: TopicContext, key: str, scale: str, today: date, language: str = "en",
