@@ -543,6 +543,39 @@ def get_share(sb, chart_id: str, other_chart_id: str) -> bool:
         return False
 
 
+def get_share_reading(sb, chart_id: str, other_chart_id: str) -> bool:
+    """Has `chart_id` switched on the joint reading for `other_chart_id`? Default False. Read on its own, so
+    until sql_circle_reading.sql is run (column missing) it fails open to False without touching share_day."""
+    try:
+        rows = (sb.table(SHARING).select("share_reading").eq("chart_id", chart_id)
+                .eq("other_chart_id", other_chart_id).limit(1).execute().data or [])
+        return bool(rows and rows[0].get("share_reading"))
+    except Exception as e:
+        _handle(e, "get_share_reading")
+        return False
+
+
+def set_share_reading(sb, chart_id: str, other_chart_id: str, on: bool,
+                      now: Optional[datetime] = None) -> bool:
+    """Only the caller's own switch, only share_reading (share_day is left as it is)."""
+    try:
+        sb.table(SHARING).upsert({"chart_id": chart_id, "other_chart_id": other_chart_id,
+                                  "share_reading": bool(on), "updated_at": _iso(now or _now())},
+                                 on_conflict="chart_id,other_chart_id").execute()
+        return bool(on)
+    except Exception as e:
+        _handle(e, "set_share_reading")
+        raise CircleUnavailable(str(e)[:200])
+
+
+def reading_state(sb, me: str, other: str) -> dict:
+    """{state, mine, theirs}. `theirs` is True only when they are ON (a "no" is never visible: it reads as
+    off, exactly like "has not looked")."""
+    from antar_engine import circle_reading as CR
+    mine, theirs = get_share_reading(sb, me, other), get_share_reading(sb, other, me)
+    return {"state": CR.state_of(mine, theirs), "mine": mine, "theirs": theirs}
+
+
 def set_share(sb, chart_id: str, other_chart_id: str, share_day: bool,
               now: Optional[datetime] = None) -> bool:
     try:
