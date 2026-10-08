@@ -70,3 +70,23 @@ def _no_live_wa_policy_table(monkeypatch):
                 f"test reached the real Supabase table {name!r}; stub messaging.policy_state/policy_accepted")
         return real_table(self, name, *a, **k)
     monkeypatch.setattr(Client, "table", guarded)
+
+
+# ── [wa-log-hermetic 2026-10-08] never let a unit test write WhatsApp message rows to a REAL database ──
+# wa_log.record() is fire-and-forget on a thread pool, so a test that drives the WhatsApp handlers wrote its fake traffic
+# (+919812345678 "When will I change jobs?", ...) into the live `wa_messages` table whenever the run had the real .env
+# loaded (a developer machine without placeholder env): 134 such rows were found in production, polluting the training
+# export and the support view. Every test now gets a pool that drops the writes; a test that wants to see them replaces
+# `wa_log._write` itself (monkeypatch), which still works.
+@pytest.fixture(autouse=True)
+def _no_live_wa_log_writes(monkeypatch):
+    try:
+        from antar_engine import wa_log
+    except Exception:
+        return
+
+    class _Drop:
+        def submit(self, *a, **k):
+            return None
+
+    monkeypatch.setattr(wa_log, "_pool", _Drop())
