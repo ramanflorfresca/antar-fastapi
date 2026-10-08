@@ -599,7 +599,7 @@ def test_reasoning_object_shape(ctxs):
     r = T.read_topic(_synth("Saturn", [_ev("2026-10-20", "Jupiter", 10)]), "career", "month", TODAY, "en")
     for rs in (r["reasoning"], r["best_window"]["reasoning"]):
         assert isinstance(rs["bullets"], list) and rs["bullets"]
-        assert rs["based_on"] and all(b["view"] in ("today", "month", "year", "chapter") and b["label"]
+        assert rs["based_on"] and all(b["view"] in ("today", "month", "year", "chapter", "second", "dated") and b["label"]
                                       for b in rs["based_on"])
         assert rs["confidence"]["level"] in ("high", "medium", "low") and rs["confidence"]["note"]
     assert r["confidence_note"] == r["reasoning"]["confidence"]["note"]
@@ -1065,3 +1065,121 @@ def test_windows_for_never_raises_and_degrades_to_no_runs(monkeypatch):
     monkeypatch.setattr(T, "_scan", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("x")))
     out = T.windows_for(ctx, "money", "month", TODAY)
     assert out["open"] == [] and out["care"] == []
+
+
+# ── window phase: a window that has not opened yet must not read as "now" ───
+def _later_ctx():
+    return _synth("Saturn", [_ev("2026-12-01", "Jupiter", 10)])      # season window opens Nov 6
+
+
+def _soon_ctx():
+    return _synth("Saturn", [_ev("2026-10-20", "Jupiter", 10), _ev("2026-10-25", "Saturn", 10)])
+
+
+def test_window_phase_boundaries():
+    t = date(2026, 10, 8)
+    assert T.window_phase(t, t, t) == "now"
+    assert T.window_phase(t - timedelta(days=3), t + timedelta(days=3), t) == "now"
+    assert T.window_phase(t + timedelta(days=14), t + timedelta(days=20), t) == "soon"
+    assert T.window_phase(t + timedelta(days=15), t + timedelta(days=20), t) == "later"
+
+
+def test_later_window_names_its_opening_date_and_prepares():
+    r = T.read_topic(_later_ctx(), "career", "season", TODAY, "en")
+    assert r["tone"] == "open" and r["window_phase"] == "later"
+    assert r["best_window"]["window_phase"] == "later"
+    assert r["claim"] == "This season, your best stretch for work starts Nov 6."
+    assert r["your_move"] == ("Use the time before Nov 6 to get the one ask or application ready; "
+                              "make it from Nov 6.")
+    assert "inside the window" not in r["your_move"]
+
+
+def test_soon_window_month_scale():
+    r = T.read_topic(_soon_ctx(), "career", "month", TODAY, "en")
+    assert r["tone"] == "open" and r["window_phase"] == "soon"
+    assert r["claim"] == "This month, your best stretch for work starts Oct 14."
+    assert r["your_move"].startswith("Use the time before Oct 14")
+
+
+def test_window_running_today_keeps_the_old_strings():
+    r = T.read_topic(_soon_ctx(), "career", "season", TODAY, "en")   # care window starts today
+    assert r["tone"] == "care" and r["window_phase"] == "now"
+    assert r["claim"] == "This season, work asks for patience, so avoid forcing a decision and keep your record clean."
+    assert r["your_move"] == "Finish what is open before you start anything new."
+
+
+def test_steady_read_has_null_phase():
+    r = T.read_topic(_synth(), "career", "month", TODAY, "en")
+    assert r["tone"] == "steady" and r["window_phase"] is None
+
+
+def test_today_scale_is_never_ahead():
+    for ctx in (_soon_ctx(), _later_ctx()):
+        for key in T.TOPIC_KEYS:
+            r = T.read_topic(ctx, key, "today", TODAY, "en")
+            assert r["window_phase"] in (None, "now"), (key, r["window_phase"])
+
+
+def test_care_variant_for_a_window_that_has_not_opened():
+    ctx = _synth("Saturn", [_ev("2026-12-01", "Saturn", 10), _ev("2026-12-05", "Saturn", 10)])
+    r = T.read_topic(ctx, "career", "season", TODAY, "en")
+    assert r["tone"] == "care" and r["window_phase"] == "later"
+    assert r["watch_window"]["window_phase"] == "later"
+    assert r["claim"] == "This season, work asks for care from Nov 6."
+    assert r["your_move"].startswith("Until Nov 6, finish what is open")
+
+
+def test_ahead_copy_complete_in_every_language_and_jargon_free():
+    for table in (C.CORE_AHEAD, C.MOVE_AHEAD):
+        for lang in LANGS:
+            for key in T.TOPIC_KEYS:
+                for mode in ("open", "care"):
+                    s = table[lang][key][mode]
+                    assert s and "{date}" in s and not _JARGON.search(s), (lang, key, mode)
+    for lang in LANGS:
+        assert C.BASED_ON[lang]["second"] and C.BASED_ON[lang]["dated"]
+
+
+def test_ahead_reads_in_every_language_have_no_jargon(ctxs):
+    for lang in LANGS:
+        for ctx in (_later_ctx(), _soon_ctx()):
+            for key in T.TOPIC_KEYS:
+                for scale in ("month", "season", "year"):
+                    r = T.read_topic(ctx, key, scale, TODAY, lang)
+                    for s in _strings(r):
+                        assert not _JARGON.search(s), (lang, key, scale, s)
+                    if r["window_phase"] in ("soon", "later"):
+                        assert r["claim"] and r["your_move"] and "{" not in r["claim"] + r["your_move"]
+
+
+def test_based_on_chip_count_equals_confidence_families(ctxs):
+    counts = {}
+    synth = [_later_ctx(), _soon_ctx(), _synth("Saturn", [_ev("2026-10-20", "Jupiter", 10)])]
+    for ctx in ctxs + synth:
+        for key in T.TOPIC_KEYS:
+            for scale in T.SCALES:
+                r = T.read_topic(ctx, key, scale, TODAY, "en")
+                for rs in [r["reasoning"]] + [w["reasoning"] for w in (r["best_window"], r["watch_window"]) if w]:
+                    n = len(rs["based_on"])
+                    assert 1 <= n <= 3
+                    if ctx.time_quality in ("exact", None):   # no time-quality downgrade in play
+                        counts.setdefault((scale, rs["confidence"]["level"]), set()).add(n)
+    for (scale, lvl), ns in counts.items():
+        if lvl == "high":
+            assert ns == {3}, (scale, ns)
+        if lvl == "medium":
+            assert ns == {2}, (scale, ns)
+
+
+def test_high_confidence_shows_three_chips_on_every_scale():
+    ctx = _synth("Saturn")
+    full = {"dasha_kind": "core", "chara_confirm": True, "n_signals": 2, "mode": "open"}
+    for scale in T.SCALES:
+        rs = T._reasoning(ctx, "career", full, scale, "en", TODAY, TODAY)
+        assert rs["confidence"]["level"] == "high" and len(rs["based_on"]) == 3, scale
+        assert [b["view"] for b in rs["based_on"]][:2] == ["chapter", "second"]
+        assert all(b["label"] for b in rs["based_on"])
+        two = T._reasoning(ctx, "career", dict(full, chara_confirm=False), scale, "en", TODAY, TODAY)
+        assert two["confidence"]["level"] == "medium" and len(two["based_on"]) == 2
+        one = T._reasoning(ctx, "career", dict(full, chara_confirm=False, n_signals=0), scale, "en", TODAY, TODAY)
+        assert one["confidence"]["level"] == "low" and len(one["based_on"]) == 1

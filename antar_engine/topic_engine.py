@@ -549,14 +549,17 @@ def _reasoning(ctx: TopicContext, key: str, a: dict, scale: str, lang: str,
     elif ctx.time_quality == "unknown":
         bullets.append(B["no_time"])
     bo = C.pick(C.BASED_ON, lang)
+    # one chip per family that counted toward _confidence, so chips == the confidence's reasons
     based: List[dict] = []
-    if a["dasha_kind"]:
+    if a["dasha_kind"] == "core":
         based.append({"label": bo["chapter"], "view": "chapter"})
-    view = {"today": "today", "month": "month", "season": "chapter", "year": "year"}[scale]
-    if a["n_signals"] and view != "chapter":
-        based.append({"label": bo[view], "view": view})
+    if a["chara_confirm"]:
+        based.append({"label": bo["second"], "view": "second"})
+    if a["n_signals"] >= 1:
+        view = {"today": "today", "month": "month", "season": "dated", "year": "year"}[scale]
+        based.append({"label": bo["dated"], "view": view})
     if not based:
-        based.append({"label": bo[view if view != "chapter" else "chapter"], "view": view})
+        based.append({"label": bo["chapter"], "view": "chapter"})
     level = _confidence(ctx, a)
     return {"bullets": bullets, "based_on": based,
             "confidence": {"level": level, "note": C.pick(C.CONFIDENCE_NOTE, lang)[level]}}
@@ -627,13 +630,24 @@ def chara_dependent(a: dict) -> bool:
         return False
 
 
-def _window_obj(ctx, key, run, scale, lang, kind, whole_label: bool = False) -> dict:
+SOON_DAYS = 14   # a window starting within this many days is "soon"
+
+
+def window_phase(start: date, end: date, today: date) -> str:
+    """now = running today; soon = opens within SOON_DAYS; later = opens further out."""
+    if start <= today <= end:
+        return "now"
+    return "soon" if (start - today).days <= SOON_DAYS else "later"
+
+
+def _window_obj(ctx, key, run, scale, lang, kind, whole_label: bool = False, today: Optional[date] = None) -> dict:
     s, e = run["start"], run["end"]
     a = max(run["assessments"], key=lambda x: x["score"])
     a = dict(a, n_signals=sum(x["n_signals"] for x in run["assessments"]))
     label = (C.pick(C.WINDOW_LABEL, lang)["whole"].format(span=C.pick(C.WHOLE_SPAN, lang)[scale])
              if whole_label else C.range_label(s, e, lang))
     return {"start": s.isoformat(), "end": e.isoformat(), "label": label,
+            "window_phase": window_phase(s, e, today) if today else None,
             "reasoning": _reasoning(ctx, key, a, scale, lang, s, e),
             "evidence": {"chara_dependent": chara_dependent(a), "dated_signals": a.get("n_signals", 0)}}
 
@@ -671,7 +685,7 @@ def read_topic(ctx: TopicContext, key: str, scale: str, today: date, language: s
                 "reasoning": {"bullets": [C.pick(C.WHY_BULLET, lang)["none_dated"]],
                               "based_on": [{"label": C.pick(C.BASED_ON, lang)["chapter"], "view": "chapter"}],
                               "confidence": {"level": "low", "note": note}},
-                "remedy": remedy, "best_fit_scale": "season"}
+                "remedy": remedy, "best_fit_scale": "season", "window_phase": None}
 
 
 def _read_topic(ctx: TopicContext, key: str, scale: str, today: date, language: str,
@@ -696,10 +710,10 @@ def _read_topic(ctx: TopicContext, key: str, scale: str, today: date, language: 
         br, wr = _best_run(opens), _best_run(cares)
         whole = lambda r: (r["start"], r["end"]) == (max(per["start"], today), per["end"]) and scale != "today"
         if br:
-            best = _window_obj(ctx, key, br, scale, lang, "best", whole_label=whole(br))
+            best = _window_obj(ctx, key, br, scale, lang, "best", whole_label=whole(br), today=today)
         a_main = max((a for _, a in results), key=lambda x: x["score"]) if results else a_main
         if wr:
-            watch = _window_obj(ctx, key, wr, scale, lang, "watch", whole_label=whole(wr))
+            watch = _window_obj(ctx, key, wr, scale, lang, "watch", whole_label=whole(wr), today=today)
             if not br:
                 a_main = max(wr["assessments"], key=lambda x: x["score"])
         if br:
@@ -713,10 +727,18 @@ def _read_topic(ctx: TopicContext, key: str, scale: str, today: date, language: 
     lead = C.pick(C.SPAN_LEAD, lang)[scale]
     core = (C.pick(C.CORE, lang)[key][mode] if mode in ("open", "care")
             else C.pick(C.STEADY_CORE, lang).format(area=area))
+    primary = best if mode == "open" else watch if mode == "care" else None
+    phase = primary["window_phase"] if primary else None
+    your_move = C.pick(C.MOVE, lang)[key][mode]
+    if phase in ("soon", "later"):
+        # the window is still ahead: name when it opens and make the move a prepare step
+        when = date.fromisoformat(primary["start"])
+        dlab = C.day_label(when, lang) if when.year == today.year else C.day_label_y(when, lang)
+        core = C.pick(C.CORE_AHEAD, lang)[key][mode].format(date=dlab)
+        your_move = C.pick(C.MOVE_AHEAD, lang)[key][mode].format(date=dlab)
     claim = C.pick(C.LEAD_JOIN, lang).format(lead=lead, core=core)
     # the top-level reasoning is the PRIMARY window's own (the one `tone` names);
     # the other window keeps its own distinct reasoning
-    primary = best if mode == "open" else watch if mode == "care" else None
     if primary:
         reasoning = copy.deepcopy(primary["reasoning"])
     else:
@@ -732,7 +754,8 @@ def _read_topic(ctx: TopicContext, key: str, scale: str, today: date, language: 
         "best_window": best,
         "watch_window": watch,
         "why": why,
-        "your_move": C.pick(C.MOVE, lang)[key][mode],
+        "window_phase": phase,
+        "your_move": your_move,
         "confidence_note": reasoning["confidence"]["note"],
         "reasoning": reasoning,
         "remedy": build_remedy(ctx, key, today, lang),
