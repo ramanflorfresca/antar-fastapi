@@ -220,10 +220,10 @@ ASK_BEST: Dict[str, str] = {
     "hinglish": "{name} ke saath {topic} ke liye aap dono ki sabse achhi shared window {range} hai. {why}",
 }
 ASK_NONE: Dict[str, str] = {
-    "en": "For {topic} with {name}, your open stretches don't land on the same days in the next 30 days or this season. I won't invent a window: better to wait, or keep it light until one opens.",
-    "es": "Para {topic} con {name}, sus tramos abiertos no caen en los mismos días en los próximos 30 días ni en esta etapa. No voy a inventar una ventana: mejor esperar, o mantenerlo ligero hasta que se abra una.",
-    "pt": "Para {topic} com {name}, os trechos abertos de vocês não caem nos mesmos dias nos próximos 30 dias nem nesta fase. Não vou inventar uma janela: melhor esperar, ou manter leve até que uma se abra.",
-    "hinglish": "{name} ke saath {topic} ke liye agle 30 din ya is daur mein aap dono ke khule stretch ek hi din par nahin padte. Main koi window gadhunga nahin: behtar hai ruk jaayein, ya halka rakhein jab tak ek na khule.",
+    "en": "For {topic} with {name}, your open stretches don't land on the same days in the next 30 days or the longer stretch ahead. I won't invent a window: better to wait, or keep it light until one opens.",
+    "es": "Para {topic} con {name}, sus tramos abiertos no caen en los mismos días en los próximos 30 días ni en el tramo largo que sigue. No voy a inventar una ventana: mejor esperar, o mantenerlo ligero hasta que se abra una.",
+    "pt": "Para {topic} com {name}, os trechos abertos de vocês não caem nos mesmos dias nos próximos 30 dias nem no trecho mais longo à frente. Não vou inventar uma janela: melhor esperar, ou manter leve até que uma se abra.",
+    "hinglish": "{name} ke saath {topic} ke liye agle 30 din ya aage ke lambe stretch mein aap dono ke khule stretch ek hi din par nahin padte. Main koi window gadhunga nahin: behtar hai ruk jaayein, ya halka rakhein jab tak ek na khule.",
 }
 ASK_CARE: Dict[str, str] = {
     "en": "Be careful around {range}: at least one of you is in a stretch that asks for care.",
