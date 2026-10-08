@@ -188,3 +188,22 @@ def test_demo_chart_is_exempt_from_the_free_tier_ask_quota():
     import inspect, main
     src = inspect.getsource(main._ask_endpoint_impl)
     assert "is_demo_chart" in src and "_ask_bypass_cap" in src.split("is_demo_chart", 1)[1][:600]
+
+
+def test_access_token_gates_the_demo_entry_point():
+    """[demo-link] Unset → open (deploy changes nothing). Set → only ?k= matches."""
+    class SB(_SB):
+        def __init__(self, v): super().__init__(v)
+    dm._TOKEN_CACHE.update(v=None, at=0.0)
+    assert dm.demo_access_ok(SB(None), None) is True
+    dm._TOKEN_CACHE.update(v=None, at=0.0)
+    sb = SB("s3cret")
+    assert dm.demo_access_ok(sb, None) is False
+    assert dm.demo_access_ok(sb, "wrong") is False
+    assert dm.demo_access_ok(sb, "s3cret") is True
+
+
+def test_access_token_read_error_keeps_last_known_token():
+    dm._TOKEN_CACHE.update(v="s3cret", at=0.0)
+    assert dm.demo_access_ok(_SB(boom=True), "nope") is False
+    assert dm.demo_access_ok(_SB(boom=True), "s3cret") is True

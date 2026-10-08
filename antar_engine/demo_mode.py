@@ -32,6 +32,7 @@ from typing import Any, Dict, Optional, Tuple
 
 DEMO_KEY = "demo_chart_id"
 BASELINE_KEY = "demo_chart_baseline"
+ACCESS_TOKEN_KEY = "demo_access_token"
 ASK_PER_IP_PER_DAY_KEY = "demo_ask_per_ip_day"
 DEFAULT_ASK_PER_IP_PER_DAY = 15
 
@@ -86,6 +87,32 @@ def demo_chart_id(supabase, *, force: bool = False) -> Optional[str]:
         val = _CACHE["id"]          # keep the last known value on a read error
     _CACHE.update(id=val, at=now)
     return val
+
+
+_TOKEN_CACHE: Dict[str, Any] = {"v": None, "at": 0.0}
+
+
+def demo_access_ok(supabase, k: Optional[str]) -> bool:
+    """[demo-link 2026-10-07] The demo is reached by an UNLISTED link for the App
+    Review notes and testers, not a public button. If app_config.demo_access_token
+    is set, the entry point only reveals the demo chart to a caller presenting it
+    (?k=). Not set → open, as before (so deploying this changes nothing until the
+    token is configured). Constant-time compare; a read error keeps the last
+    known token so a blip can neither lock reviewers out nor open the door."""
+    import hmac
+    now = time.time()
+    if now - _TOKEN_CACHE["at"] >= _TTL:
+        val = _TOKEN_CACHE["v"]
+        try:
+            r = supabase.table("app_config").select("value").eq("key", ACCESS_TOKEN_KEY).limit(1).execute()
+            val = (str(r.data[0]["value"]).strip().strip('"') or None) if r.data and r.data[0].get("value") else None
+        except Exception:
+            pass
+        _TOKEN_CACHE.update(v=val, at=now)
+    tok = _TOKEN_CACHE["v"]
+    if not tok:
+        return True
+    return hmac.compare_digest(str(k or "").encode(), tok.encode())
 
 
 def is_demo_chart(chart_id) -> bool:

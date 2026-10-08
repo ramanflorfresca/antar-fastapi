@@ -49918,13 +49918,16 @@ def _support_log_write(row: dict) -> None:
 
 
 @app.get("/api/v1/demo/chart")
-async def demo_chart_info():
+async def demo_chart_info(k: Optional[str] = None):
     """[demo-mode] Public: which chart the "Try the demo" button opens, if any.
     {available:false} until scripts/seed_demo_chart.py has run — the front end then
     hides the button. Never returns anything but the id and a display name."""
-    from antar_engine.demo_mode import demo_chart_id
+    from antar_engine.demo_mode import demo_chart_id, demo_access_ok
     cid = await asyncio.to_thread(demo_chart_id, supabase)
     if not cid:
+        return {"available": False}
+    # [demo-link 2026-10-07] unlisted link: with a token configured, no ?k= -> no demo
+    if not await asyncio.to_thread(demo_access_ok, supabase, k):
         return {"available": False}
     return {"available": True, "chart_id": cid, "display_name": "Alex",
             "read_only": True, "ask_per_day": 15}
