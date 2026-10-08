@@ -96,26 +96,32 @@ MD_PHRASE = {
                  "Saturn": "anushasan aur deri ka lamba daur", "Rahu": "mahatvakanksha aur anjaan ke peeche bhaagne ka lamba daur", "Ketu": "vairagya aur chhodne ka lamba daur"},
 }
 AD_PHRASE = {
-    "en": {"Sun": "a stretch of ego and authority", "Moon": "a stretch of mood and change", "Mars": "a stretch of heat and haste", "Mercury": "a stretch of deals and talk",
-           "Jupiter": "a stretch of growth and counsel", "Venus": "a stretch of comfort and harmony", "Saturn": "a stretch of delay and heavy responsibility",
-           "Rahu": "a stretch of illusion and chasing the unfamiliar", "Ketu": "a stretch of detachment"},
-    "es": {"Sun": "un tramo de ego y autoridad", "Moon": "un tramo de ánimo y cambio", "Mars": "un tramo de calor y prisa", "Mercury": "un tramo de tratos y charla",
-           "Jupiter": "un tramo de crecimiento y consejo", "Venus": "un tramo de comodidad y armonía", "Saturn": "un tramo de demora y mucha responsabilidad",
-           "Rahu": "un tramo de ilusión y de perseguir lo desconocido", "Ketu": "un tramo de desapego"},
-    "pt": {"Sun": "um trecho de ego e autoridade", "Moon": "um trecho de humor e mudança", "Mars": "um trecho de calor e pressa", "Mercury": "um trecho de negócios e conversa",
-           "Jupiter": "um trecho de crescimento e conselho", "Venus": "um trecho de conforto e harmonia", "Saturn": "um trecho de atraso e muita responsabilidade",
-           "Rahu": "um trecho de ilusão e de perseguir o desconhecido", "Ketu": "um trecho de desapego"},
-    "hinglish": {"Sun": "ahankaar aur adhikaar ka daur", "Moon": "mizaaj aur badlaav ka daur", "Mars": "garmi aur jaldbaazi ka daur", "Mercury": "sauda aur baatcheet ka daur",
-                 "Jupiter": "vikas aur salah ka daur", "Venus": "aaram aur tal-mel ka daur", "Saturn": "deri aur bhaari zimmedaari ka daur",
-                 "Rahu": "bhram aur anjaan ke peeche bhaagne ka daur", "Ketu": "vairagya ka daur"},
+    "en": {"Sun": "ego and authority", "Moon": "mood and change", "Mars": "heat and haste", "Mercury": "deals and talk",
+           "Jupiter": "growth and counsel", "Venus": "comfort and harmony", "Saturn": "delay and heavy responsibility",
+           "Rahu": "illusion and chasing the unfamiliar", "Ketu": "detachment"},
+    "es": {"Sun": "ego y autoridad", "Moon": "ánimo y cambio", "Mars": "calor y prisa", "Mercury": "tratos y charla",
+           "Jupiter": "crecimiento y consejo", "Venus": "comodidad y armonía", "Saturn": "demora y mucha responsabilidad",
+           "Rahu": "ilusión y perseguir lo desconocido", "Ketu": "desapego"},
+    "pt": {"Sun": "ego e autoridade", "Moon": "humor e mudança", "Mars": "calor e pressa", "Mercury": "negócios e conversa",
+           "Jupiter": "crescimento e conselho", "Venus": "conforto e harmonia", "Saturn": "atraso e muita responsabilidade",
+           "Rahu": "ilusão e perseguir o desconhecido", "Ketu": "desapego"},
+    "hinglish": {"Sun": "ahankaar aur adhikaar", "Moon": "mizaaj aur badlaav", "Mars": "garmi aur jaldbaazi", "Mercury": "sauda aur baatcheet",
+                 "Jupiter": "vikas aur salah", "Venus": "aaram aur tal-mel", "Saturn": "deri aur bhaari zimmedaari",
+                 "Rahu": "bhram aur anjaan ke peeche bhaagna", "Ketu": "vairagya"},
 }
-LABEL_TMPL = {
-    "en": "{md}, and inside it {ad}", "es": "{md}, y dentro de ella {ad}", "pt": "{md}, e dentro dela {ad}", "hinglish": "{md}, aur uske andar {ad}",
+# the whole line: the big chapter with its end date, where the person is inside it, then what comes next
+CHAPTER_TMPL = {"en": "{md} (to {md_end})", "es": "{md} (hasta el {md_end})", "pt": "{md} (até {md_end})", "hinglish": "{md} ({md_end} tak)"}
+STRETCH_TMPL = {
+    "first": {"en": "now in its first stretch: {ad}, until {ad_end}", "es": "ahora en su primer tramo: {ad}, hasta el {ad_end}",
+              "pt": "agora no primeiro trecho: {ad}, até {ad_end}", "hinglish": "abhi iske pehle daur mein: {ad}, {ad_end} tak"},
+    "last": {"en": "now in its last stretch: {ad}, until {ad_end}, when this chapter closes", "es": "ahora en su último tramo: {ad}, hasta el {ad_end}, cuando se cierra esta etapa",
+             "pt": "agora no último trecho: {ad}, até {ad_end}, quando esta fase se encerra", "hinglish": "abhi iske aakhri daur mein: {ad}, {ad_end} tak, jab ye daur khatam hoga"},
+    "mid": {"en": "now in a stretch of {ad}, until {ad_end}", "es": "ahora en un tramo de {ad}, hasta el {ad_end}",
+            "pt": "agora num trecho de {ad}, até {ad_end}", "hinglish": "abhi {ad} ke daur mein, {ad_end} tak"},
 }
-LABEL_CORE = {
-    "en": "{ad}, right at the core of this chapter", "es": "{ad}, justo en el centro de esta etapa", "pt": "{ad}, bem no centro desta fase",
-    "hinglish": "{ad}, is daur ke theek beech mein",
-}
+NEXT_TMPL = {"en": "Next comes {md}.", "es": "Sigue {md}.", "pt": "Em seguida vem {md}.", "hinglish": "Aage {md} aata hai."}
+
+
 EFFECT = {
     "en": {"Rahu": "Illusion is strong here: big promises look better than they are, and real opportunities get missed unless there is discipline.",
            "Ketu": "Detachment is strong here: interest fades, commitments get dropped and decisions go quiet.",
@@ -177,36 +183,53 @@ def _tone(md: Optional[str], ad: Optional[str]) -> str:
 
 def season_at(chart: dict, vim_rows: list, on: date) -> Optional[dict]:
     """The running chapter (maha) and the stretch inside it (antar) on `on`:
-    {md, ad, tone, heavy (= clouded), ends (end of the stretch)}. `chart` is unused here (kept for the callers)."""
-    md = ad = None
-    ends = None
-    for r in vim_rows or []:
+    {md, ad, md_start, md_end, ad_start, ad_end(=ends), pos (first|mid|last), next_md, tone, heavy (= clouded)}.
+    `chart` is unused here (kept for the callers)."""
+    md = ad = next_md = None
+    md_s = md_e = ad_s = ad_e = None
+    rows = vim_rows or []
+    for r in rows:
         lvl = str(r.get("level") or "").lower()
         s, e = _day(r.get("start_date") or r.get("start")), _day(r.get("end_date") or r.get("end"))
         if not (s and e and s <= on <= e):
             continue
         lord = r.get("lord_or_sign") or r.get("planet_or_sign")
         if lvl == "mahadasha":
-            md = lord
+            md, md_s, md_e = lord, s, e
         elif lvl in ("antardasha", "bhukti"):
-            ad, ends = lord, e
-    if ad not in TONE or not ends:
+            ad, ad_s, ad_e = lord, s, e
+    if ad not in TONE or not ad_e:
         return None
+    if md_e:
+        for r in rows:
+            if str(r.get("level") or "").lower() == "mahadasha" and _day(r.get("start_date") or r.get("start")) == md_e:
+                next_md = r.get("lord_or_sign") or r.get("planet_or_sign")
+                break
+    pos = "first" if md_s and ad_s and abs((ad_s - md_s).days) <= 1 else "last" if md_e and abs((ad_e - md_e).days) <= 1 else "mid"
     tone = _tone(md, ad)
-    return {"md": md, "ad": ad, "tone": tone, "heavy": tone == "clouded", "ends": ends}
+    return {"md": md, "ad": ad, "md_start": md_s, "md_end": md_e, "ad_start": ad_s, "ends": ad_e, "pos": pos,
+            "next_md": next_md, "tone": tone, "heavy": tone == "clouded"}
 
 
 def describe(se: dict, lang: str = "en") -> dict:
-    """Plain words for one season: label (the chapter and the stretch inside it), effect (what it does to a
-    partnership now), tone, end date."""
+    """Plain words for one person's running chapter: the big chapter with its end date, where they are inside it
+    (first / middle / last stretch, with the stretch's end date) and, in the last stretch, what comes next; plus
+    what the stretch does to a partnership now."""
     lang = CC.lang_of(lang)
     ad = CC.pick(AD_PHRASE, lang)[se["ad"]]
-    if se.get("md") == se["ad"] or se.get("md") not in TONE:
-        label = CC.pick(LABEL_CORE, lang).format(ad=ad)
+    ends_label = C.day_label_y(se["ends"], lang)
+    stretch = CC.pick(STRETCH_TMPL[se.get("pos") or "mid"], lang).format(ad=ad, ad_end=ends_label)
+    if se.get("md") in TONE and se.get("md_end"):
+        chapter = CC.pick(CHAPTER_TMPL, lang).format(md=CC.pick(MD_PHRASE, lang)[se["md"]], md_end=C.day_label_y(se["md_end"], lang))
+        label = f"{chapter}, {stretch}."
     else:
-        label = CC.pick(LABEL_TMPL, lang).format(md=CC.pick(MD_PHRASE, lang)[se["md"]], ad=ad)
+        label = stretch[0].upper() + stretch[1:] + "."
+    if se.get("pos") == "last" and se.get("next_md") in TONE:
+        label += " " + CC.pick(NEXT_TMPL, lang).format(md=CC.pick(MD_PHRASE, lang)[se["next_md"]])
+    label = label[0].upper() + label[1:]
     return {"label": label, "effect": CC.pick(EFFECT, lang)[se["ad"]], "tone": se["tone"], "heavy": se["heavy"],
-            "ends": se["ends"].isoformat(), "ends_label": C.day_label_y(se["ends"], lang)}
+            "position": se.get("pos"), "ends": se["ends"].isoformat(), "ends_label": ends_label,
+            "chapter_ends": se["md_end"].isoformat() if se.get("md_end") else None}
 
 
 def better_from(a: Tuple[dict, list], b: Tuple[dict, list], today: date, horizon_days: int = 1825) -> Optional[date]:
@@ -318,10 +341,10 @@ PHASE_LINE = {
                 "es": "Posible, con estructura. Al menos uno está en un tramo de prueba (demora, calor o ego), así que pongan por escrito los roles, el dinero y las decisiones antes de empezar.",
                 "pt": "Possível, com estrutura. Pelo menos um está num trecho de prova (atraso, calor ou ego), então coloquem por escrito os papéis, o dinheiro e as decisões antes de começar.",
                 "hinglish": "Possible, structure ke saath. Aap mein se kam se kam ek pariksha wale daur (deri, garmi ya ahankaar) mein hai, isliye shuru karne se pehle roles, paise aur faisle likhit mein rakhein."},
-    "one_heavy": {"en": "Not now. {name} is in {label}, until {until}. {effect} Hold off on formalizing and start with a small trial project.",
-                  "es": "Ahora no. {name} está en {label}, hasta el {until}. {effect} Esperen para formalizar y empiecen con un pequeño proyecto de prueba.",
-                  "pt": "Agora não. {name} está em {label}, até {until}. {effect} Esperem para formalizar e comecem com um pequeno projeto de teste.",
-                  "hinglish": "Abhi nahin. {name} {until} tak {label} mein hai. {effect} Formalize karna rok dein aur ek chhote trial project se shuru karein."},
+    "one_heavy": {"en": "Not now. {name} is in a clouded stretch until {until}. {effect} Hold off on formalizing and start with a small trial project.",
+                  "es": "Ahora no. {name} está en un tramo nublado hasta el {until}. {effect} Esperen para formalizar y empiecen con un pequeño proyecto de prueba.",
+                  "pt": "Agora não. {name} está num trecho nublado até {until}. {effect} Esperem para formalizar e comecem com um pequeno projeto de teste.",
+                  "hinglish": "Abhi nahin. {name} {until} tak dhundhle daur mein hai. {effect} Formalize karna rok dein aur ek chhote trial project se shuru karein."},
     "both_heavy": {"en": "Not now. You are both in clouded stretches, where judgment on big commitments gets unreliable and deals look better than they are. Wait, and test with something small.",
                    "es": "Ahora no. Los dos están en tramos nublados, donde el criterio sobre grandes compromisos se vuelve poco confiable y los tratos parecen mejores de lo que son. Esperen y prueben con algo pequeño.",
                    "pt": "Agora não. Os dois estão em trechos nublados, em que o julgamento sobre grandes compromissos fica pouco confiável e os negócios parecem melhores do que são. Esperem e testem com algo pequeno.",
@@ -337,7 +360,7 @@ CALL = {
     "good_now": {"en": "A good time", "es": "Un buen momento", "pt": "Um bom momento", "hinglish": "Achha samay"},
 }
 TEXTS = (TEMPERAMENT_EN,)       # English-only trait lines are translated by the route (like the yoga effects)
-COPY_TABLES = (MD_PHRASE, AD_PHRASE, LABEL_TMPL, LABEL_CORE, EFFECT, {k: v for k, v in REASON.items()}, LEAN_LABEL,
+COPY_TABLES = (MD_PHRASE, AD_PHRASE, CHAPTER_TMPL, STRETCH_TMPL["first"], STRETCH_TMPL["last"], STRETCH_TMPL["mid"], NEXT_TMPL, EFFECT, {k: v for k, v in REASON.items()}, LEAN_LABEL,
                {k: v["title"] for k, v in VERDICT.items()}, {k: v["line"] for k, v in VERDICT.items()}, PHASE_LINE, CALL)
 
 
@@ -352,7 +375,7 @@ def phase(a: Optional[dict], b: Optional[dict], a_name: str, b_name: str, a_pack
     if status == "one_heavy":
         who, se = (a_name, a) if ha else (b_name, b)
         d = describe(se, lang)
-        line = CC.pick(PHASE_LINE["one_heavy"], lang).format(name=who, label=d["label"], until=d["ends_label"], effect=d["effect"])
+        line = CC.pick(PHASE_LINE["one_heavy"], lang).format(name=who, until=d["ends_label"], effect=d["effect"])
     else:
         line = CC.pick(PHASE_LINE[status], lang)
     call = {"both_heavy": "not_now", "one_heavy": "not_now", "testing": "with_structure", "clear": "good_now"}[status]

@@ -18,8 +18,8 @@ Two parts, both from `reading.brief`:
 Add, between the role line and "How you work":
 - **Temperament:** `temperament.trait` as one line (hide if `temperament` is null). Never show a name for it.
 - **Partnership:** `partnership.label` as a tag ("Built for partnership", "Could go either way", "Better leading alone"; color: partner green, either neutral, solo amber), then `partnership.reasons[]` as up to three short muted lines.
-- **Right now:** from `season` = `{label, effect, tone, heavy, ends_label}` (hide if `season` is null): one line "{label}, until {ends_label}" using the text exactly as returned, then `season.effect` as the muted line under it. Tone colors: `clouded` red/amber, `testing` amber, `steady` neutral, `favorable` green.
-Static strings to add (en/es/pt; hinglish Roman; hi falls back to English): "Right now" and "until". Everything else is returned by the API.
+- **Right now:** from `season` = `{label, effect, tone, heavy, position, ends_label, chapter_ends}` (hide if `season` is null): show `season.label` exactly as returned (it is a full sentence that already names the long chapter with its end date, where the person is inside it (first or last stretch, with the stretch's end date) and, in the last stretch, what comes next), then `season.effect` as the muted line under it. Do not add "until …" yourself. Tone colors: `clouded` red/amber, `testing` amber, `steady` neutral, `favorable` green.
+Static string to add (en/es/pt; hinglish Roman; hi falls back to English): "Right now". Everything else is returned by the API.
 
 ### Rules
 - Show strings exactly as returned. Never add astrology terms, house numbers, planet names or star names anywhere. Never show or infer a prediction that the venture will work or fail; the bottom note from Phase 9f stays.

@@ -53,15 +53,29 @@ ROWS_ANDRES = [{"level": "mahadasha", "lord_or_sign": "Jupiter", "start_date": "
 
 def test_the_running_chapter_and_stretch_in_plain_words():
     se = F.season_at({}, ROWS_ANDRES, TODAY)
-    assert (se["md"], se["ad"], se["tone"], se["heavy"]) == ("Jupiter", "Rahu", "clouded", True) and se["ends"] == date(2027, 6, 5)
+    assert (se["md"], se["ad"], se["tone"], se["heavy"], se["pos"]) == ("Jupiter", "Rahu", "clouded", True, "last")
+    assert se["ends"] == date(2027, 6, 5) and se["md_end"] == date(2027, 6, 5) and se["next_md"] == "Saturn"
     d = F.describe(se, "en")
-    assert d["label"] == "a long chapter of growth and wisdom, and inside it a stretch of illusion and chasing the unfamiliar"
+    # the big chapter with its end date, where he is inside it (the LAST stretch), when it closes, and what comes next
+    assert d["label"] == ("A long chapter of growth and wisdom (to Jun 5, 2027), now in its last stretch: illusion and chasing the unfamiliar, "
+                          "until Jun 5, 2027, when this chapter closes. Next comes a long chapter of discipline and delay.")
     assert "Illusion is strong here" in d["effect"] and "real opportunities get missed unless there is discipline" in d["effect"]
-    assert d["ends_label"] == "Jun 5, 2027" and d["heavy"] is True
-    core = F.describe(F.season_at({}, ROWS_RAMAN, TODAY), "en")                       # same lord twice: the core of the chapter
-    assert core["label"] == "a stretch of illusion and chasing the unfamiliar, right at the core of this chapter"
-    es = F.describe(se, "es")
-    assert es["label"].startswith("una larga etapa de crecimiento y sabiduría, y dentro de ella") and es["ends_label"] == "5 jun 2027"
+    assert d["position"] == "last" and d["chapter_ends"] == "2027-06-05" and d["ends_label"] == "Jun 5, 2027" and d["heavy"] is True
+
+
+def test_a_chapter_that_just_began_says_so():
+    sr = F.season_at({}, ROWS_RAMAN, TODAY)
+    assert (sr["md"], sr["ad"], sr["pos"]) == ("Rahu", "Rahu", "first") and sr["md_end"] == date(2044, 8, 13) and sr["ends"] == date(2029, 4, 25)
+    d = F.describe(sr, "en")
+    assert d["label"] == ("A long chapter of ambition and chasing the unfamiliar (to Aug 13, 2044), now in its first stretch: "
+                          "illusion and chasing the unfamiliar, until Apr 25, 2029.")
+    assert "next comes" not in d["label"].lower() and d["position"] == "first"
+    mid = [{"level": "mahadasha", "lord_or_sign": "Saturn", "start_date": "2020-01-01", "end_date": "2039-01-01"},
+           {"level": "antardasha", "lord_or_sign": "Venus", "start_date": "2025-01-01", "end_date": "2028-01-01"}]
+    dm = F.describe(F.season_at({}, mid, TODAY), "en")
+    assert dm["position"] == "mid" and "now in a stretch of comfort and harmony, until Jan 1, 2028." in dm["label"]
+    es = F.describe(F.season_at({}, ROWS_ANDRES, TODAY), "es")
+    assert es["label"].startswith("Una larga etapa de crecimiento y sabiduría (hasta el 5 jun 2027), ahora en su último tramo:") and "Sigue una larga etapa de disciplina y demora." in es["label"]
     assert F.season_at({}, [], TODAY) is None and F.season_at({}, [{"level": "antardasha", "lord_or_sign": "Zzz", "start_date": "2026-01-01", "end_date": "2030-01-01"}], TODAY) is None
 
 
@@ -92,8 +106,8 @@ def test_phase_is_a_direct_call():
     so = F.season_at({}, ok, TODAY)
     one = F.phase(sa, so, "Andres", "Sam", ({}, ROWS_ANDRES), ({}, ok), "en", TODAY)
     assert one["status"] == "one_heavy" and one["call"] == "not_now"
-    assert "Not now. Andres is in a long chapter of growth and wisdom, and inside it a stretch of illusion" in one["line"]
-    assert "until Jun 5, 2027" in one["line"] and "Illusion is strong here" in one["line"] and one["better"]["on"].startswith("2027-06")
+    assert "Not now. Andres is in a clouded stretch until Jun 5, 2027." in one["line"]
+    assert "Illusion is strong here" in one["line"] and one["better"]["on"].startswith("2027-06")
     clear = F.phase(so, so, "A", "B", ({}, ok), ({}, ok), "en", TODAY)
     assert clear["status"] == "clear" and clear["call"] == "good_now" and clear["better"] is None
     sat = [{"level": "antardasha", "lord_or_sign": "Saturn", "start_date": "2026-01-01", "end_date": "2031-01-01"}]
