@@ -103,7 +103,8 @@ def _big_picture(ctx: T.TopicContext, today: date, lang: str) -> dict:
         per = T._period(ctx, "season", today, lang)
         sp = per["span"]
         stretch = {"label": C.season_text(C.SPAN_TEXT, lang, sp), "start": per["start"].isoformat(),
-                   "end": per["end"].isoformat(), "span": dict(sp)}
+                   "end": per["end"].isoformat(), "span": dict(sp),
+                   "chip": per["chip"], "rung": per["rung"]}
     except Exception:
         logger.exception("[windows-feed] stretch skipped")
     try:
@@ -114,11 +115,12 @@ def _big_picture(ctx: T.TopicContext, today: date, lang: str) -> dict:
             re_ = str(r.get("end_date") or r.get("end") or "")[:10]
             if rs <= today.isoformat() <= re_:
                 chapter = {"label": C.pick(C.WINDOWS_CHAPTER, lang).format(
-                    end=C.month_year_short(date.fromisoformat(re_), lang)), "start": rs, "end": re_}
+                    end=C.month_year_short(date.fromisoformat(re_), lang)), "start": rs, "end": re_,
+                    "rung": "chapter"}
                 break
     except Exception:
         logger.exception("[windows-feed] chapter skipped")
-    return {"stretch": stretch, "chapter": chapter}
+    return {"stretch": stretch, "chapter": chapter, "rung_order": T._rung_order(ctx, today, lang)}
 
 
 def assemble(ctx: T.TopicContext, raw: Dict[str, Optional[dict]], today: date, language: str = "en",

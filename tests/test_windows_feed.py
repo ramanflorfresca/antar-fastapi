@@ -160,7 +160,8 @@ def test_big_picture_stretch_and_chapter():
     bp = W.assemble(_season_ctx("2029-04-25"), {k: {"open": [], "care": []} for k in KEYS}, TODAY, "en", 30)["big_picture"]
     assert bp["stretch"]["label"] == "The next 2½ years" and bp["stretch"]["end"] == "2029-04-25"
     assert bp["stretch"]["span"] == {"months": 31, "bucket": "2.5y"}
-    assert bp["chapter"] == {"label": "Your current chapter · to Jan 2040", "start": "2020-01-01", "end": "2040-01-01"}
+    assert (bp["stretch"]["chip"], bp["stretch"]["rung"]) == ("This chapter", "stretch")
+    assert bp["chapter"] == {"label": "Your current chapter · to Jan 2040", "start": "2020-01-01", "end": "2040-01-01", "rung": "chapter"}
     es = W.assemble(_season_ctx("2029-04-25"), {k: {"open": [], "care": []} for k in KEYS}, TODAY, "es", 30)["big_picture"]
     assert es["stretch"]["label"] == "Los próximos 2½ años" and es["chapter"]["label"].startswith("Tu capítulo actual")
     none = W.assemble(_synth(), {k: {"open": [], "care": []} for k in KEYS}, TODAY, "en", 30)["big_picture"]

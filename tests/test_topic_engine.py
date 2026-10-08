@@ -969,7 +969,7 @@ def test_other_scale_labels_are_unchanged():
     ctx = _season_ctx("2029-04-25")
     assert T._period(ctx, "month", TODAY, "en")["label"] == "Next 30 days"
     assert T._period(ctx, "today", TODAY, "en")["label"] == "Today"
-    assert T._period(ctx, "year", TODAY, "en")["label"].startswith("Your year, ")
+    assert T._period(ctx, "year", TODAY, "en")["label"].startswith("Your year · ")
 
 
 def _score_stub(monkeypatch, reads, opening=None, score=3.0):
@@ -1265,3 +1265,80 @@ def test_half_year_labels_exist_in_every_language():
     for tbl in (C.SPAN_TEXT, C.SPAN_LEAD_SEASON, C.WHOLE_SEASON):
         for lang in LANGS:
             assert "½" in tbl[lang]["1.5y"] and "½" in tbl[lang]["2.5y"]
+
+
+# ── period.chip / period.rung (segmented control) ────────────────────────────
+def _chip_ctx(birth="1990-10-15"):
+    ctx = _synth("Saturn")
+    ctx.birth_date = birth
+    return ctx
+
+
+_CHIPS = {"en": ("Right now", "Next 30 days", "This chapter"), "es": ("Ahora", "Próximos 30 días", "Este capítulo"),
+          "pt": ("Agora", "Próximos 30 dias", "Este capítulo"), "hinglish": ("Abhi", "Agle 30 din", "Yeh chapter")}
+
+
+@pytest.mark.parametrize("lang", LANGS)
+def test_chip_text_and_rung_per_scale(lang):
+    ctx = _chip_ctx()
+    now, m30, ch = _CHIPS[lang]
+    got = {sc: T._period(ctx, sc, TODAY, lang) for sc in ("today", "month", "season", "year")}
+    assert (got["today"]["chip"], got["today"]["rung"]) == (now, "now")
+    assert (got["month"]["chip"], got["month"]["rung"]) == (m30, "30d")
+    assert (got["season"]["chip"], got["season"]["rung"]) == (ch, "stretch")
+    assert got["year"]["rung"] == "year"
+    assert got["year"]["chip"] == {"en": "To Oct 15", "es": "Hasta 15 oct", "pt": "Até 15 out",
+                                   "hinglish": "Oct 15 tak"}[lang]
+
+
+@pytest.mark.parametrize("lang,exp", [("en", "To Sep 8, 2027"), ("es", "Hasta 8 sep 2027"),
+                                      ("pt", "Até 8 set 2027"), ("hinglish", "Sep 8, 2027 tak")])
+def test_year_chip_carries_year_only_past_eleven_months(lang, exp):
+    assert T._period(_chip_ctx("1990-09-08"), "year", TODAY, lang)["chip"] == exp          # 11 months + 1 day
+    near = T._period(_chip_ctx("1990-09-07"), "year", TODAY, lang)["chip"]                 # exactly 11 months
+    assert "2027" not in near
+
+
+def test_year_long_label_shows_start_and_birthday_end():
+    p = T._period(_chip_ctx(), "year", TODAY, "en")
+    assert p["label"] == "Your year · Oct 15, 2025 to Oct 15, 2026 (your birthday)"
+    assert (p["start"], p["end"]) == (date(2025, 10, 15), date(2026, 10, 14))
+
+
+@pytest.mark.parametrize("lang", LANGS)
+def test_chips_never_say_season_this_year_or_365(lang):
+    for birth in ("1990-10-15", "1990-09-08"):
+        for sc in ("today", "month", "season", "year"):
+            p = T._period(_chip_ctx(birth), sc, TODAY, lang)
+            for txt in (p["chip"], p["label"]):
+                assert not re.search(r"season|this year|365|next year|este año|este ano|is saal", txt, re.I), txt
+
+
+def test_period_numeric_fields_and_season_label_unchanged_by_chip():
+    p = T._period(_chip_ctx(), "season", TODAY, "en")
+    assert p["label"].startswith("The next ") and p["span"]["bucket"]
+    assert p["start"] == date(2026, 6, 1) and p["end"] == date(2027, 3, 10) and p["approximate"] is False
+    assert T._period(_chip_ctx(), "month", TODAY, "en")["label"] == "Next 30 days"
+
+
+def test_rung_order_sorts_year_and_stretch_by_end_date():
+    assert C.rung_order(date(2026, 10, 14), date(2029, 4, 1)) == ["now", "30d", "year", "stretch", "chapter"]
+    assert C.rung_order(date(2027, 9, 7), date(2027, 3, 10)) == ["now", "30d", "stretch", "year", "chapter"]
+    assert C.rung_order(None, date(2027, 3, 10)) == ["now", "30d", "stretch", "chapter"]
+
+
+def test_read_topic_period_carries_chip_rung_and_order():
+    ctx = _chip_ctx()
+    out = T.read_topic(ctx, "money", "year", TODAY, "en")
+    assert out["period"]["chip"] == "To Oct 15" and out["period"]["rung"] == "year"
+    assert out["rung_order"][0] == "now" and out["rung_order"][-1] == "chapter"
+
+
+def test_chip_copy_passes_jargon_guard():
+    for tbl in (C.CHIP, C.CHIP_YEAR, C.PERIOD_LABEL):
+        for lang in LANGS:
+            vals = tbl[lang].values() if isinstance(tbl[lang], dict) else [tbl[lang]]
+            for s in vals:
+                assert not _JARGON.search(s), (lang, s)
+    for lang in LANGS:
+        assert set(C.CHIP[lang]) == {"today", "month", "season"} and lang in C.CHIP_YEAR
