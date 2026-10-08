@@ -202,52 +202,61 @@ PERIOD_LABEL: Dict[str, Dict[str, str]] = {
 # The scale key stays `season`; it is the user's current long stretch, which can
 # run from a few months to ~3 years. Users see the length, never the word.
 # Rule: months = round(days from today to the end / 30.44), at least 1.
-#   <=3 few | 4-10 "N months" | 11-17 1 year | 18-30 2 years | >30 3 years
-SPAN_KINDS = ("few", "months", "1y", "2y", "3y")
+#   <=3 few | 4-10 "N months" | 11-14 1 year | 15-20 1½ years | 21-26 2 years
+#   | 27-32 2½ years | 33+ 3 years
+SPAN_KINDS = ("few", "months", "1y", "1.5y", "2y", "2.5y", "3y")
 SPAN_TEXT: Dict[str, Dict[str, str]] = {   # label form; "{n}" for the month count
     "en": {"few": "The next few months", "months": "The next {n} months", "1y": "The next year",
-           "2y": "The next 2 years", "3y": "The next 3 years"},
+           "1.5y": "The next 1½ years", "2y": "The next 2 years", "2.5y": "The next 2½ years", "3y": "The next 3 years"},
     "es": {"few": "Los próximos meses", "months": "Los próximos {n} meses", "1y": "El próximo año",
-           "2y": "Los próximos 2 años", "3y": "Los próximos 3 años"},
+           "1.5y": "Los próximos 1½ años", "2y": "Los próximos 2 años", "2.5y": "Los próximos 2½ años", "3y": "Los próximos 3 años"},
     "pt": {"few": "Os próximos meses", "months": "Os próximos {n} meses", "1y": "O próximo ano",
-           "2y": "Os próximos 2 anos", "3y": "Os próximos 3 anos"},
+           "1.5y": "Os próximos 1½ anos", "2y": "Os próximos 2 anos", "2.5y": "Os próximos 2½ anos", "3y": "Os próximos 3 anos"},
     "hinglish": {"few": "Agle kuch mahine", "months": "Agle {n} mahine", "1y": "Agla saal",
-                 "2y": "Agle 2 saal", "3y": "Agle 3 saal"},
+                 "1.5y": "Agle 1½ saal", "2y": "Agle 2 saal", "2.5y": "Agle 2½ saal", "3y": "Agle 3 saal"},
 }
 SPAN_LEAD_SEASON: Dict[str, Dict[str, str]] = {   # "<lead>, <core>."
     "en": {"few": "Over the next few months", "months": "Over the next {n} months", "1y": "Over the next year",
-           "2y": "Over the next 2 years", "3y": "Over the next 3 years"},
+           "1.5y": "Over the next 1½ years", "2y": "Over the next 2 years", "2.5y": "Over the next 2½ years", "3y": "Over the next 3 years"},
     "es": {"few": "Durante los próximos meses", "months": "Durante los próximos {n} meses", "1y": "Durante el próximo año",
-           "2y": "Durante los próximos 2 años", "3y": "Durante los próximos 3 años"},
+           "1.5y": "Durante los próximos 1½ años", "2y": "Durante los próximos 2 años", "2.5y": "Durante los próximos 2½ años", "3y": "Durante los próximos 3 años"},
     "pt": {"few": "Nos próximos meses", "months": "Nos próximos {n} meses", "1y": "No próximo ano",
-           "2y": "Nos próximos 2 anos", "3y": "Nos próximos 3 anos"},
+           "1.5y": "Nos próximos 1½ anos", "2y": "Nos próximos 2 anos", "2.5y": "Nos próximos 2½ anos", "3y": "Nos próximos 3 anos"},
     "hinglish": {"few": "Agle kuch mahine mein", "months": "Agle {n} mahine mein", "1y": "Agle saal mein",
-                 "2y": "Agle 2 saal mein", "3y": "Agle 3 saal mein"},
+                 "1.5y": "Agle 1½ saal mein", "2y": "Agle 2 saal mein", "2.5y": "Agle 2½ saal mein", "3y": "Agle 3 saal mein"},
 }
 SPAN_END: Dict[str, str] = {"en": "{span} · to {end}", "es": "{span} · hasta {end}",
                             "pt": "{span} · até {end}", "hinglish": "{span} · {end} tak"}
 WHOLE_SEASON: Dict[str, Dict[str, str]] = {   # "All of <this>"
     "en": {"few": "the next few months", "months": "the next {n} months", "1y": "the next year",
-           "2y": "the next 2 years", "3y": "the next 3 years"},
+           "1.5y": "the next 1½ years", "2y": "the next 2 years", "2.5y": "the next 2½ years", "3y": "the next 3 years"},
     "es": {"few": "los próximos meses", "months": "los próximos {n} meses", "1y": "el próximo año",
-           "2y": "los próximos 2 años", "3y": "los próximos 3 años"},
+           "1.5y": "los próximos 1½ años", "2y": "los próximos 2 años", "2.5y": "los próximos 2½ años", "3y": "los próximos 3 años"},
     "pt": {"few": "os próximos meses", "months": "os próximos {n} meses", "1y": "o próximo ano",
-           "2y": "os próximos 2 anos", "3y": "os próximos 3 anos"},
+           "1.5y": "os próximos 1½ anos", "2y": "os próximos 2 anos", "2.5y": "os próximos 2½ anos", "3y": "os próximos 3 anos"},
     "hinglish": {"few": "agle kuch mahine", "months": "agle {n} mahine", "1y": "agla saal",
-                 "2y": "agle 2 saal", "3y": "agle 3 saal"},
+                 "1.5y": "agle 1½ saal", "2y": "agle 2 saal", "2.5y": "agle 2½ saal", "3y": "agle 3 saal"},
 }
 
 
 def span_info(today: date, end: date) -> Dict[str, object]:
-    """{'months': N, 'bucket': 'few'|'months'|'1y'|'2y'|'3y'} for a period running today -> end."""
+    """{'months': N, 'bucket': one of SPAN_KINDS} for a period running today -> end."""
     m = max(1, round((end - today).days / 30.44))
-    bucket = "few" if m <= 3 else "months" if m <= 10 else "1y" if m <= 17 else "2y" if m <= 30 else "3y"
+    bucket = ("few" if m <= 3 else "months" if m <= 10 else "1y" if m <= 14 else "1.5y" if m <= 20
+              else "2y" if m <= 26 else "2.5y" if m <= 32 else "3y")
     return {"months": m, "bucket": bucket}
 
 
 def season_text(table: Dict[str, Dict[str, str]], lang: str, span: Dict[str, object]) -> str:
     t = table.get(lang) or table["en"]
     return t[span["bucket"]].format(n=span["months"])
+
+
+# the Windows feed's "big picture" chapter line ("{end}" = "Apr 2040")
+WINDOWS_CHAPTER: Dict[str, str] = {
+    "en": "Your current chapter · to {end}", "es": "Tu capítulo actual · hasta {end}",
+    "pt": "O seu capítulo atual · até {end}", "hinglish": "Aapka maujooda chapter · {end} tak",
+}
 
 
 WINDOW_LABEL: Dict[str, Dict[str, str]] = {
