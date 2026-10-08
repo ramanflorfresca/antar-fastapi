@@ -79,16 +79,26 @@ def test_parse_birth_endpoint(client):
 
 
 # ── where they live NOW (same screen as the birth place) ─────────────────────
-def test_current_location_columns_for_the_added_person(client):
+def _run(coro):
+    """Run a coroutine on a PRIVATE loop. _run() closes and clears the shared loop, which broke later tests that
+    use asyncio.get_event_loop() (seen in CI: test_whatsapp_channel 'Event loop is closed')."""
     import asyncio
+    loop = asyncio.new_event_loop()
+    try:
+        return loop.run_until_complete(coro)
+    finally:
+        loop.close()
+
+
+def test_current_location_columns_for_the_added_person(client):
     c, main = client
     mk = lambda **kw: main.CompatibilityStartRequest(chart_id_a="a", **kw)
-    assert asyncio.run(main._compat_current_columns(mk())) == {}
-    cols = asyncio.run(main._compat_current_columns(mk(current_city_b="Austin", current_country_b="US")))
+    assert _run(main._compat_current_columns(mk())) == {}
+    cols = _run(main._compat_current_columns(mk(current_city_b="Austin", current_country_b="US")))
     assert cols == {"current_city": "Austin", "current_country": "US", "current_latitude": 17.38, "current_longitude": 78.48,
                     "current_timezone": "Asia/Kolkata"}
-    given = asyncio.run(main._compat_current_columns(mk(current_city_b="Lima", current_latitude_b=-12.0, current_longitude_b=-77.0,
+    given = _run(main._compat_current_columns(mk(current_city_b="Lima", current_latitude_b=-12.0, current_longitude_b=-77.0,
                                                         current_timezone_b="America/Lima")))
     assert given["current_latitude"] == -12.0 and given["current_timezone"] == "America/Lima"
-    miss = asyncio.run(main._compat_current_columns(mk(current_city_b="Nowhereville", current_country_b="XX")))
+    miss = _run(main._compat_current_columns(mk(current_city_b="Nowhereville", current_country_b="XX")))
     assert miss == {"current_city": "Nowhereville", "current_country": "XX"}                # geocode failed: still stored as typed
