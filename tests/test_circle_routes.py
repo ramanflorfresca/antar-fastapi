@@ -353,3 +353,83 @@ def test_a_private_person_who_is_a_real_user_does_not_block_the_invite(env, monk
     r2 = c.post("/api/v1/circle/invites", json={"chart_id": A, "relation": "friend", "first_name": "Zed", "private_chart_id": "someone-elses"}, headers=AUTH["uA"])
     assert r2.status_code == 200
     assert [i for i in db.rows("circle_invites") if i["invitee_first_name"] == "Zed"][0]["private_chart_id"] is None   # not theirs: dropped, no 403
+
+
+# ── next_shared_window on the list ───────────────────────────────────────────
+def _nw(c, lang="en"):
+    items = c.get(f"/api/v1/circle/{A}?language={lang}", headers=AUTH["uA"]).json()["circle"]
+    return [i for i in items if i["state"] == "in_circle"][0]["next_shared_window"]
+
+
+def _set_wins(monkeypatch, main, wins):
+    def fw(chart_id, scale, today):
+        w = wins[chart_id]
+        return ({t: dict(w, period_end=d(29)) for t in ("money", "career", "love", "health", "business", "peace", "family")}, d(29))
+    monkeypatch.setattr(main, "_circle_windows_for", fw)
+
+
+def test_next_window_is_the_overlap_only(env):
+    c, db, main = env
+    make_pair(c, db)
+    nw = _nw(c)
+    assert set(nw) == {"kind", "start", "end", "label"}
+    assert nw["kind"] == "open" and nw["start"] == d(5).isoformat() and nw["end"] == d(9).isoformat()
+    assert nw["label"].startswith("Your next shared open stretch")
+
+
+def test_next_window_null_when_no_overlap_or_unscannable(env, monkeypatch):
+    c, db, main = env
+    make_pair(c, db)
+    _set_wins(monkeypatch, main, {A: WINS[A], B: {"open": [], "care": []}, X: WINS[X]})
+    assert _nw(c) is not None            # A's care run is a shared care window
+    _set_wins(monkeypatch, main, {A: {"open": [], "care": []}, B: {"open": [], "care": []}, X: WINS[X]})
+    assert _nw(c) is None
+    monkeypatch.setattr(main, "_circle_windows_for", lambda *a: None)
+    assert _nw(c) is None
+
+
+def test_next_window_null_for_non_pairs_and_private_items(env):
+    c, db, main = env
+    r = c.get(f"/api/v1/circle/{A}", headers=AUTH["uA"]).json()
+    assert all("next_shared_window" not in i for i in r["circle"])      # no pair yet
+    make_pair(c, db)
+    c.post(f"/api/v1/circle/{A}/pair/{B}/leave", headers=AUTH["uA"])
+    r = c.get(f"/api/v1/circle/{A}", headers=AUTH["uA"]).json()
+    assert not [i for i in r["circle"] if i["state"] == "in_circle"]
+
+
+def test_next_window_earliest_wins_and_ended_or_reversed_are_ignored(env, monkeypatch):
+    c, db, main = env
+    make_pair(c, db)
+    both = {"open": [{"start": d(-9), "end": d(-2), "confidence": "high"},     # ended
+                     {"start": d(20), "end": d(15), "confidence": "high"},     # reversed
+                     {"start": d(14), "end": d(18), "confidence": "high"},
+                     {"start": d(3), "end": d(6), "confidence": "high"}], "care": []}
+    _set_wins(monkeypatch, main, {A: both, B: both, X: WINS[X]})
+    nw = _nw(c)
+    assert (nw["start"], nw["end"]) == (d(3).isoformat(), d(6).isoformat())
+    only_old = {"open": [{"start": d(-9), "end": d(-2), "confidence": "high"}], "care": []}
+    _set_wins(monkeypatch, main, {A: only_old, B: only_old, X: WINS[X]})
+    assert _nw(c) is None
+
+
+def test_next_window_running_now_and_care_kind(env, monkeypatch):
+    c, db, main = env
+    make_pair(c, db)
+    wa = {"open": [], "care": [{"start": d(-3), "end": d(4), "confidence": "medium"}]}
+    _set_wins(monkeypatch, main, {A: wa, B: {"open": [], "care": []}, X: WINS[X]})
+    nw = _nw(c, "es")
+    assert nw["kind"] == "care" and nw["start"] == d(-3).isoformat() and "cuidado" in nw["label"]
+
+
+def test_next_window_labels_exist_in_every_language_and_are_jargon_free():
+    from antar_engine import circle_copy as CC, circle_overlap as CO
+    from test_circle import _JARGON
+    wa = {t: {"open": [{"start": d(2), "end": d(9), "confidence": "high"}], "care": [{"start": d(20), "end": d(22), "confidence": "low"}]}
+          for t in ("money", "career")}
+    for kind in ("open", "care"):
+        assert set(CC.NEXT_WINDOW[kind]) >= set(CC.LANGS)
+    for lang in CC.LANGS:
+        for runs in (wa, {t: {"open": [], "care": w["care"]} for t, w in wa.items()}):
+            w = CO.next_shared_window(runs, runs, lang, TODAY)
+            assert w and not _JARGON.search(w["label"]) and "{" not in w["label"]

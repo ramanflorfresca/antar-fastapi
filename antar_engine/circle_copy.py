@@ -175,6 +175,22 @@ DAY_UNSHARED: Dict[str, str] = {
     "hinglish": "Unhone apna din share karna on nahin kiya hai.",
 }
 
+# ── the one-line "next shared window" on the Circle list ──
+NEXT_WINDOW: Dict[str, Dict[str, str]] = {
+    "open": {
+        "en": "Your next shared open stretch: {range}.",
+        "es": "Su próximo tramo abierto compartido: {range}.",
+        "pt": "O próximo trecho aberto de vocês: {range}.",
+        "hinglish": "Aap dono ka agla shared khula stretch: {range}.",
+    },
+    "care": {
+        "en": "A shared stretch that asks for care: {range}.",
+        "es": "Un tramo compartido que pide cuidado: {range}.",
+        "pt": "Um trecho compartilhado que pede cuidado: {range}.",
+        "hinglish": "Ek shared stretch jo savdhaani maangta hai: {range}.",
+    },
+}
+
 # ── Ask chips on the pair page (each names the person + a joint marker the Ask resolver reads) ──
 CHIPS: Dict[str, Dict[str, str]] = {
     "en": {"sign": "When should {name} and I sign something?",
@@ -240,4 +256,4 @@ JOINT_QUESTION: Dict[str, Dict[str, str]] = {
 
 TEXTS = (REL_NOUN, GROUP_HEADING, BULLET, BASED_ON_BOTH, NONE_BEST, NONE_ALL, CARE_NOTE, HEADLINE_BEST,
          HEADLINE_NONE, DAY_UNSHARED, CHIPS, ASK_BEST, ASK_NONE, ASK_CARE, ASK_NEXT,
-         JOINT_QUESTION["best"], JOINT_QUESTION["watch"])    # for the jargon guard
+         JOINT_QUESTION["best"], JOINT_QUESTION["watch"], NEXT_WINDOW["open"], NEXT_WINDOW["care"])    # for the jargon guard

@@ -144,6 +144,27 @@ def build_page(windows_a: Dict[str, dict], windows_b: Dict[str, dict], scale: st
     return {"topics": topics, "headline": headline}
 
 
+def next_shared_window(windows_a: Dict[str, dict], windows_b: Dict[str, dict], lang: str,
+                       today: date) -> Optional[dict]:
+    """The soonest upcoming (or running) shared window across all topics, from the same
+    `shared_runs` the pair page uses. Only the intersection is returned; ended or reversed
+    runs are ignored; on a tie an open stretch wins over a care one. None if nothing."""
+    cands = []
+    for t in C.TOPIC_KEYS:
+        if t not in windows_a or t not in windows_b:
+            continue
+        sr = shared_runs(windows_a[t], windows_b[t])
+        for kind, key in (("open", "best"), ("care", "care")):
+            for s, e, _c in sr[key]:
+                if s <= e and e >= today:
+                    cands.append((max(s, today), 0 if kind == "open" else 1, s, e, kind))
+    if not cands:
+        return None
+    _, _, s, e, kind = min(cands)
+    text = CC.pick(CC.NEXT_WINDOW[kind], lang).format(range=_range(s, e, lang, today))
+    return {"kind": kind, "start": s.isoformat(), "end": e.isoformat(), "label": text}
+
+
 # ── joint check-back claims ──────────────────────────────────────────────────
 def window_id(pair_id: str, topic: str, scale: str, kind: str, s: str, e: str) -> str:
     return hashlib.sha1(f"{pair_id}|{topic}|{scale}|{kind}|{s}|{e}".encode()).hexdigest()[:16]
