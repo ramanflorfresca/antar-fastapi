@@ -50501,7 +50501,7 @@ def _topic_read_compute(chart_id: str, topic: str, scale: str, language, tz_offs
         return None
     lang = _topic_lang(language, row)
     today = _prac_local_date(tz_offset)
-    ck = ("topic-read", "v3-span", chart_id, topic, scale, lang, today.isoformat())
+    ck = ("topic-read", "v4-half", chart_id, topic, scale, lang, today.isoformat())
     hit = _te.cache_get(ck)
     if hit is not None:
         return hit
