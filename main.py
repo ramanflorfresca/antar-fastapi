@@ -50501,6 +50501,7 @@ def circle_decline_invite(code: str):
 
 # ── the shared page ──────────────────────────────────────────────────────────
 _CIRCLE_WIN_TTL = 3 * 3600
+_CIRCLE_WIN_CACHE: dict = {}
 
 
 def _circle_windows_for(chart_id: str, scale: str, today):
@@ -50509,9 +50510,10 @@ def _circle_windows_for(chart_id: str, scale: str, today):
     from antar_engine import topic_checkback as _tcb
     from antar_engine.topic_copy import TOPIC_KEYS as _TK
     ck = ("circle-win", chart_id, scale, today.isoformat())
-    hit = _te.cache_get(ck)
-    if hit is not None:
-        return hit
+    # topic_engine's cache JSON-serialises its values; these hold dates, so keep our own small TTL cache
+    hit = _CIRCLE_WIN_CACHE.get(ck)
+    if hit and hit[0] > _time.time():
+        return hit[1]
     ctx, _row = _topic_ctx_load(chart_id)
     if ctx is None:
         return None
@@ -50522,7 +50524,9 @@ def _circle_windows_for(chart_id: str, scale: str, today):
         hs = [h for h in (_tcb._rolling_horizon(scale, e, today) for e in ends) if h]
         horizon = min(hs) if hs else None
     out = (wins, horizon)
-    _te.cache_put(ck, out, _CIRCLE_WIN_TTL)
+    if len(_CIRCLE_WIN_CACHE) > 400:
+        _CIRCLE_WIN_CACHE.clear()
+    _CIRCLE_WIN_CACHE[ck] = (_time.time() + _CIRCLE_WIN_TTL, out)
     return out
 
 
@@ -50532,7 +50536,7 @@ def _circle_pair_compute(chart_id: str, other_id: str, scale: str, lang: str, to
     b = _circle_windows_for(other_id, scale, today)
     if a is None or b is None:
         return None
-    page = _co.build_page(a[0], b[0], scale, lang)
+    page = _co.build_page(a[0], b[0], scale, lang, today)
     hs = [h for h in (a[1], b[1]) if h]
     page["_horizon"] = min(hs) if hs else None
     return page

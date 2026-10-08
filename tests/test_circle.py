@@ -620,3 +620,11 @@ def test_pair_answer_uses_the_shared_window_or_says_none():
     assert none["window"] is None and "won't invent" in none["read"]
     for lang in LANGS:
         assert not _JARGON.search(CA.answer("Aarav", "money", pages, lang)["read"])
+
+
+def test_a_window_in_another_calendar_year_carries_its_year():
+    far = {"open": [{"start": date(2027, 7, 5), "end": date(2027, 7, 20), "confidence": "high"}], "care": []}
+    tp = CO.build_topic("money", far, far, "season", "en", today=TODAY)
+    assert tp["best"][0]["label"] == "Jul 5, 2027 – Jul 20, 2027" or "2027" in tp["best"][0]["label"]
+    near = {"open": [{"start": d(8), "end": d(12), "confidence": "high"}], "care": []}
+    assert "2026" not in CO.build_topic("money", near, near, "month", "en", today=TODAY)["best"][0]["label"]
