@@ -19,6 +19,8 @@ Call it ONCE as soon as `chart_id` is known, and seed the react-query cache from
 
 **4. Render from cache first.** Render the Today card as soon as daily-signal returns; do not block it on entitlements/subscription/streak/accuracy/alerts/WhatsApp status. Those fill in afterward with skeletons, never a full-page spinner.
 
-**5. Defer the non-critical.** `alerts`, `messaging/whatsapp/status`, `/me`, `/me/charts` load after first paint (e.g. `requestIdleCallback` or after the Today card renders), once each.
+**5. Defer the non-critical.** `alerts`, `messaging/whatsapp/status`, `/me`, `/me/charts`, `chart/{id}/topic-read`, `chart/{id}/topic-checkbacks`, `chart/{id}/topics`, `circle/{id}` and `people/{id}` load after first paint (e.g. `requestIdleCallback` or after the Today card renders), once each. In prod logs `alerts` fired 82× and `whatsapp/status` 75× in 6 hours: poll `alerts` at most every 5 minutes and only while the tab is visible, and fetch `whatsapp/status` once per session (refetch only after the user connects/disconnects). `topic-read` and `topic-checkbacks` must be fetched only when the user opens that topic, not for every topic on mount.
 
-**Acceptance:** with the Network tab open on a fresh login, each endpoint appears at most once, bootstrap + link-chart + daily-signal start together, and the Today card paints without waiting on the others.
+**6. Fix the missing auth header.** `GET /api/v1/outcomes/due/{chart_id}` returns 422 because the request is sent WITHOUT the `Authorization: Bearer <supabase access token>` header (4 failures in one session). Send it like the other authenticated calls (`/me`, `/me/charts`).
+
+**Acceptance:** `outcomes/due` returns 200; with the Network tab open on a fresh login, each endpoint appears at most once, bootstrap + link-chart + daily-signal start together, and the Today card paints without waiting on the others.
