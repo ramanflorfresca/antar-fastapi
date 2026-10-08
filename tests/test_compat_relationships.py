@@ -49,8 +49,8 @@ def test_all_new_types_registered():
     ("married", "spouse"), ("marriage", "spouse"),
     ("brother", "sibling"), ("sister", "sibling"), ("sibling", "sibling"),
     ("mentor", "advisor"), ("guide", "advisor"), ("advisor", "advisor"),
-    ("son", "child"), ("daughter", "child"),
-    ("mother", "parent"), ("father", "parent"),
+    ("son", "son"), ("daughter", "daughter"),
+    ("mother", "mother"), ("father", "father"),
     ("partner", "romantic"), ("romantic", "romantic"), ("dating", "romantic"),
     ("Co-Founder", "cofounder"), ("boss", "boss-or-manager"),
 ])

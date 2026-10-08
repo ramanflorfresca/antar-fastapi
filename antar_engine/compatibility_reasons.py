@@ -24,7 +24,36 @@ REASON_DEFINITIONS = {
     "advisor":         {"label": "Advisor or mentor",       "needs_role": False, "direction": None},
     "employee":        {"label": "Someone reporting to me", "needs_role": True,  "direction": "user_senior"},
     "boss-or-manager": {"label": "Someone I report to",     "needs_role": True,  "direction": "user_junior"},
+    # Added for the People "add a person" list. Each is read by an EXISTING type's
+    # engine (REASON_ENGINE_BASE below) and differs only in its own id and wording.
+    "mother":          {"label": "My mother",               "needs_role": False, "direction": None},
+    "father":          {"label": "My father",               "needs_role": False, "direction": None},
+    "daughter":        {"label": "My daughter",             "needs_role": False, "direction": None},
+    "son":             {"label": "My son",                  "needs_role": False, "direction": None},
+    "girlfriend":      {"label": "My girlfriend",           "needs_role": False, "direction": None},
+    "boyfriend":       {"label": "My boyfriend",            "needs_role": False, "direction": None},
+    "business_partner": {"label": "Business partner",       "needs_role": False, "direction": None},
 }
+
+# ── engine reuse for the newer types ──────────────────────────────────────────
+# A type listed here has NO scoring of its own: same layer weights, sources,
+# forward-dasha houses and badge words as the type on the right.
+#   * mother/father and daughter/son share the parent / child path: the family
+#     layer has no mother-vs-father distinction, so they read identically.
+#   * girlfriend/boyfriend use the romantic weights, but because their own id is not
+#     in MARRIAGE_KUTA_REASONS the marriage-matching factors are gated out. Only
+#     spouse (and the older "romantic") keep those.
+REASON_ENGINE_BASE = {
+    "mother": "parent", "father": "parent",
+    "daughter": "child", "son": "child",
+    "girlfriend": "romantic", "boyfriend": "romantic",
+    "business_partner": "business",
+}
+
+
+def engine_reason(reason):
+    """The reason whose engine reads this one (itself for every original type)."""
+    return REASON_ENGINE_BASE.get(reason, reason)
 
 VALID_REASONS = tuple(REASON_DEFINITIONS.keys())
 ROLE_REQUIRED_REASONS = tuple(k for k, v in REASON_DEFINITIONS.items() if v["needs_role"])
@@ -55,6 +84,9 @@ REASON_WEIGHTS = {
     "employee":        {"soul": 10, "chemistry": 0,  "public": 30, "lifepath": 15, "communication": 25, "friction": 20},
     "boss-or-manager": {"soul": 10, "chemistry": 0,  "public": 25, "lifepath": 20, "communication": 25, "friction": 20},
 }
+# The newer types carry their base type's weights unchanged (no new scoring).
+for _t, _b in REASON_ENGINE_BASE.items():
+    REASON_WEIGHTS[_t] = dict(REASON_WEIGHTS[_b])
 
 # ── per-role modifiers (employee + boss-or-manager only) ──────────────────────
 # Applied to the layer SCORES (not weights), then capped to 0-100.
@@ -114,7 +146,7 @@ def sources_for_reason(reason: str) -> dict:
     """Layer -> [(source, weight)] for a reason, with the marriage-only kutas
     removed (and Graha Maitri dropped from communication, where it double-counted
     the soul layer's use of the same number) for every non-marriage reason."""
-    base = V2_LAYER_SOURCES_BY_REASON.get(reason, V2_LAYER_SOURCES)
+    base = V2_LAYER_SOURCES_BY_REASON.get(engine_reason(reason), V2_LAYER_SOURCES)
     out = {}
     for layer, srcs in base.items():
         srcs = list(srcs)
@@ -216,19 +248,21 @@ _ALIASES = {
     "boss": "boss-or-manager", "manager": "boss-or-manager",
     "boss_or_manager": "boss-or-manager", "boss-manager": "boss-or-manager",
     "relationship": "romantic", "partner": "romantic", "dating": "romantic",
-    "boyfriend": "romantic", "girlfriend": "romantic", "lover": "romantic",
+    "lover": "romantic",
     # Marriage is its own reading (classical marriage factors apply), not dating.
     "marriage": "spouse", "married": "spouse", "husband": "spouse",
     "wife": "spouse", "marriage-partner": "spouse",
     "co-founder": "cofounder", "co_founder": "cofounder",
-    "mother": "parent", "father": "parent", "mom": "parent", "mum": "parent",
-    "dad": "parent", "parents": "parent", "parent-child": "parent",
-    "son": "child", "daughter": "child", "kid": "child", "kids": "child",
+    "mom": "mother", "mum": "mother", "mama": "mother", "dad": "father", "papa": "father",
+    "parents": "parent", "parent-child": "parent",
+    "kid": "child", "kids": "child",
     "brother": "sibling", "sister": "sibling", "siblings": "sibling",
     "mentor": "advisor", "adviser": "advisor", "consultant": "advisor",
     "counsel": "advisor", "counselor": "advisor", "coach": "advisor",
     "guide": "advisor",
     "sounding-board": "advisor", "sounding board": "advisor",
+    "business-partner": "business_partner", "business partner": "business_partner",
+    "businesspartner": "business_partner", "co-owner": "business_partner",
 }
 
 
@@ -239,7 +273,7 @@ def resolve_reason(raw):
     key = (raw or "").strip().lower()
     if not key:
         return None
-    key = _ALIASES.get(key, key)
+    key = key if key in REASON_DEFINITIONS else _ALIASES.get(key, key)   # an own id beats an alias
     return key if key in REASON_DEFINITIONS else None
 
 
@@ -249,7 +283,7 @@ def normalize_reason(compat_type=None, mode=None, default="romantic") -> str:
     Lenient (falls back to `default`) — meant for stored/legacy values being
     reopened. API input goes through resolve_reason() and is rejected if unknown."""
     raw = (compat_type or mode or default or "").strip().lower()
-    raw = _ALIASES.get(raw, raw)
+    raw = raw if raw in REASON_DEFINITIONS else _ALIASES.get(raw, raw)
     return raw if raw in REASON_DEFINITIONS else default
 
 
@@ -268,6 +302,9 @@ _REASON_I18N = {
             "parent": "Mi padre o madre", "child": "Mi hijo o hija",
             "advisor": "Asesor o mentor",
             "spouse": "Mi esposo o esposa", "sibling": "Mi hermano o hermana",
+            "mother": "Mi madre", "father": "Mi padre", "daughter": "Mi hija", "son": "Mi hijo",
+            "girlfriend": "Mi novia", "boyfriend": "Mi novio",
+            "business_partner": "Socio o socia de negocios",
         },
         "question": {
             "romantic": "¿Cómo somos como pareja?",
@@ -282,6 +319,12 @@ _REASON_I18N = {
             "child": "¿Qué sostiene este vínculo con mi hijo o hija?",
             "employee": "¿Esta persona funcionará bien en mi equipo?",
             "boss-or-manager": "¿Prosperaré con esta persona como líder?",
+            "mother": "¿Qué sostiene este vínculo con mi madre?",
+            "father": "¿Qué sostiene este vínculo con mi padre?",
+            "daughter": "¿Qué sostiene este vínculo con mi hija?",
+            "son": "¿Qué sostiene este vínculo con mi hijo?",
+            "girlfriend": "¿Cómo somos como pareja?", "boyfriend": "¿Cómo somos como pareja?",
+            "business_partner": "¿Funcionará esta sociedad?",
         },
         "sublabel": {
             "romantic": "Noviazgo, una relación en construcción",
@@ -296,6 +339,10 @@ _REASON_I18N = {
             "advisor": "Mentor, consejero, asesor de confianza",
             "employee": "Tú eres el empleador / gerente",
             "boss-or-manager": "Tú eres quien reporta",
+            "mother": "Tu madre", "father": "Tu padre", "daughter": "Tu hija", "son": "Tu hijo",
+            "girlfriend": "Noviazgo, una relación en construcción",
+            "boyfriend": "Noviazgo, una relación en construcción",
+            "business_partner": "Tu socio o socia de negocios",
         },
         "role_label": {
             "sales": "Ventas / Desarrollo", "marketing": "Marketing",
@@ -317,6 +364,9 @@ _REASON_I18N = {
             "parent": "Meu pai ou mãe", "child": "Meu filho ou filha",
             "advisor": "Conselheiro(a) ou mentor(a)",
             "spouse": "Meu marido ou esposa", "sibling": "Meu irmão ou irmã",
+            "mother": "Minha mãe", "father": "Meu pai", "daughter": "Minha filha", "son": "Meu filho",
+            "girlfriend": "Minha namorada", "boyfriend": "Meu namorado",
+            "business_partner": "Sócio ou sócia de negócios",
         },
         "question": {
             "romantic": "Como somos como casal?",
@@ -331,6 +381,12 @@ _REASON_I18N = {
             "child": "O que sustenta este vínculo com meu filho ou filha?",
             "employee": "Esta pessoa vai funcionar bem na minha equipe?",
             "boss-or-manager": "Vou prosperar com esta pessoa como líder?",
+            "mother": "O que sustenta este vínculo com minha mãe?",
+            "father": "O que sustenta este vínculo com meu pai?",
+            "daughter": "O que sustenta este vínculo com minha filha?",
+            "son": "O que sustenta este vínculo com meu filho?",
+            "girlfriend": "Como somos como casal?", "boyfriend": "Como somos como casal?",
+            "business_partner": "Esta sociedade vai funcionar?",
         },
         "sublabel": {
             "romantic": "Namoro, uma relação em construção",
@@ -345,6 +401,10 @@ _REASON_I18N = {
             "advisor": "Mentor, conselheiro, assessor de confiança",
             "employee": "Você é o empregador / gestor",
             "boss-or-manager": "Você é quem reporta",
+            "mother": "Sua mãe", "father": "Seu pai", "daughter": "Sua filha", "son": "Seu filho",
+            "girlfriend": "Namoro, uma relação em construção",
+            "boyfriend": "Namoro, uma relação em construção",
+            "business_partner": "Seu sócio ou sua sócia de negócios",
         },
         "role_label": {
             "sales": "Vendas / BD", "marketing": "Marketing",
@@ -358,6 +418,51 @@ _REASON_I18N = {
         },
     },
 }
+
+
+# Roman-script Hindi labels for the "who is this person to you" list. Kept apart
+# from _REASON_I18N on purpose: reasons_directory() (the older picker) keys off
+# that table and must not change. Hindi (Devanagari) has no table here and falls
+# back to English, as everywhere else in the product.
+_HINGLISH_LABELS = {
+    "romantic": "Romantic partner", "spouse": "Mere pati ya patni",
+    "parent": "Mere mummy ya papa", "child": "Mera beta ya beti",
+    "mother": "Meri mummy", "father": "Mere papa", "daughter": "Meri beti", "son": "Mera beta",
+    "girlfriend": "Meri girlfriend", "boyfriend": "Mera boyfriend",
+    "sibling": "Mere bhai ya behen", "friend": "Dost",
+    "family": "Parivaar ka sadasya", "boss-or-manager": "Mere boss ya manager",
+    "employee": "Mere saath kaam karne wala (employee)", "business": "Business partner",
+    "business_partner": "Business partner",
+    "cofounder": "Cofounder", "advisor": "Advisor ya mentor",
+}
+
+_LABEL_LANGS = ("es", "pt")
+
+
+def label_lang(language) -> str:
+    """'es-AR' -> 'es'; 'hinglish' stays; anything else (including 'hi') -> 'en'."""
+    base = (language or "en").strip().lower().replace("_", "-").split("-")[0]
+    return base if base in ("es", "pt", "hinglish") else "en"
+
+
+def label_for(compat_type, language="en") -> str:
+    """User-facing name of a relationship type in the reader's language.
+
+    Accepts any stored value (legacy ones like 'relationship' / 'marriage' resolve
+    through the alias table). An unknown value gets a readable fallback, never the
+    raw id."""
+    raw = (compat_type or "").strip().lower()
+    key = raw if raw in REASON_DEFINITIONS else _ALIASES.get(raw, raw)
+    if key not in REASON_DEFINITIONS:
+        return raw.replace("-", " ").replace("_", " ").strip().capitalize()
+    lang = label_lang(language)
+    if lang == "hinglish":
+        return _HINGLISH_LABELS.get(key) or REASON_DEFINITIONS[key]["label"]
+    if lang in _LABEL_LANGS:
+        got = (_REASON_I18N.get(lang, {}).get("label") or {}).get(key)
+        if got:
+            return got
+    return REASON_DEFINITIONS[key]["label"]
 
 
 def reasons_directory(language: str = "en") -> dict:
@@ -385,6 +490,13 @@ def reasons_directory(language: str = "en") -> dict:
         "advisor":         ("Can I trust their counsel?",              "Mentor, advisor, sounding board"),
         "employee":        ("Will this person work well on my team?", "You are the employer / manager"),
         "boss-or-manager": ("Will I thrive under this person?",       "You are the report"),
+        "mother":          ("What does this bond with my mother hold?", "Your mother"),
+        "father":          ("What does this bond with my father hold?", "Your father"),
+        "daughter":        ("What does this bond with my daughter hold?", "Your daughter"),
+        "son":             ("What does this bond with my son hold?",    "Your son"),
+        "girlfriend":      ("How are we as a couple?",                "Dating, a relationship still taking shape"),
+        "boyfriend":       ("How are we as a couple?",                "Dating, a relationship still taking shape"),
+        "business_partner": ("Will this partnership work?",           "Your business partner"),
     }
     role_dir = [
         {"key": "sales",      "label": "Sales / BD",    "sublabel": "Revenue, deals, pipeline"},
@@ -401,7 +513,9 @@ def reasons_directory(language: str = "en") -> dict:
         for r in role_dir
     ]
     # Stable display order (employer/report last, per the picker design).
-    order = ["romantic", "spouse", "cofounder", "business", "advisor", "friend", "family", "sibling", "parent", "child", "employee", "boss-or-manager"]
+    order = ["romantic", "spouse", "cofounder", "business", "advisor", "friend", "family", "sibling", "parent", "child",
+             "mother", "father", "daughter", "son", "girlfriend", "boyfriend", "business_partner",
+             "employee", "boss-or-manager"]
     out = []
     for key in order:
         d = REASON_DEFINITIONS[key]

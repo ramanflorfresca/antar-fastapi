@@ -72,6 +72,9 @@ _COMPAT_GROUPS: Dict[str, set] = {
     "advisor": {"advisor"},
     "boss-or-manager": {"boss"}, "boss": {"boss"}, "manager": {"boss"},
     "employee": {"employee"}, "worker": {"employee"},
+    # newer People types answer to the words of the group whose engine reads them
+    "mother": {"parent"}, "father": {"parent"}, "daughter": {"child"}, "son": {"child"},
+    "girlfriend": {"partner"}, "boyfriend": {"partner"}, "business_partner": {"partner", "cofounder"},
 }
 # "partner" is also said of a business partner; a romantic-only person still satisfies it.
 

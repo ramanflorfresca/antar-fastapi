@@ -1,0 +1,4335 @@
+{
+ "directory": {
+  "en": {
+   "advisor": {
+    "direction": null,
+    "key": "advisor",
+    "label": "Advisor or mentor",
+    "needs_role": false,
+    "question": "Can I trust their counsel?",
+    "sublabel": "Mentor, advisor, sounding board"
+   },
+   "boss-or-manager": {
+    "direction": "user_junior",
+    "key": "boss-or-manager",
+    "label": "Someone I report to",
+    "needs_role": true,
+    "question": "Will I thrive under this person?",
+    "roles": [
+     {
+      "key": "sales",
+      "label": "Sales / BD",
+      "sublabel": "Revenue, deals, pipeline"
+     },
+     {
+      "key": "marketing",
+      "label": "Marketing",
+      "sublabel": "Brand, creative, content"
+     },
+     {
+      "key": "finance",
+      "label": "Finance / Ops",
+      "sublabel": "Accounting, controllership"
+     },
+     {
+      "key": "managerial",
+      "label": "Leadership",
+      "sublabel": "P&L, team management"
+     }
+    ],
+    "sublabel": "You are the report"
+   },
+   "business": {
+    "direction": null,
+    "key": "business",
+    "label": "Business partner",
+    "needs_role": false,
+    "question": "Will this partnership work?",
+    "sublabel": "Generic business or contractual"
+   },
+   "child": {
+    "direction": null,
+    "key": "child",
+    "label": "My child",
+    "needs_role": false,
+    "question": "What does this bond with my child hold?",
+    "sublabel": "Your son or daughter"
+   },
+   "cofounder": {
+    "direction": null,
+    "key": "cofounder",
+    "label": "Cofounder",
+    "needs_role": false,
+    "question": "Should we build this company together?",
+    "sublabel": "Equity-tied venture partnership"
+   },
+   "employee": {
+    "direction": "user_senior",
+    "key": "employee",
+    "label": "Someone reporting to me",
+    "needs_role": true,
+    "question": "Will this person work well on my team?",
+    "roles": [
+     {
+      "key": "sales",
+      "label": "Sales / BD",
+      "sublabel": "Revenue, deals, pipeline"
+     },
+     {
+      "key": "marketing",
+      "label": "Marketing",
+      "sublabel": "Brand, creative, content"
+     },
+     {
+      "key": "finance",
+      "label": "Finance / Ops",
+      "sublabel": "Accounting, controllership"
+     },
+     {
+      "key": "managerial",
+      "label": "Leadership",
+      "sublabel": "P&L, team management"
+     }
+    ],
+    "sublabel": "You are the employer / manager"
+   },
+   "family": {
+    "direction": null,
+    "key": "family",
+    "label": "Family member",
+    "needs_role": false,
+    "question": "What does this relationship ask of me?",
+    "sublabel": "In-laws, extended family"
+   },
+   "friend": {
+    "direction": null,
+    "key": "friend",
+    "label": "Friend",
+    "needs_role": false,
+    "question": "What is our friendship made of?",
+    "sublabel": "Non-romantic, platonic"
+   },
+   "parent": {
+    "direction": null,
+    "key": "parent",
+    "label": "My parent",
+    "needs_role": false,
+    "question": "What does this bond with my parent hold?",
+    "sublabel": "Your mother or father"
+   },
+   "romantic": {
+    "direction": null,
+    "key": "romantic",
+    "label": "Romantic partner",
+    "needs_role": false,
+    "question": "How are we as a couple?",
+    "sublabel": "Dating, a relationship still taking shape"
+   },
+   "sibling": {
+    "direction": null,
+    "key": "sibling",
+    "label": "My brother or sister",
+    "needs_role": false,
+    "question": "What does this bond with my sibling hold?",
+    "sublabel": "Your brother or sister"
+   },
+   "spouse": {
+    "direction": null,
+    "key": "spouse",
+    "label": "My husband or wife",
+    "needs_role": false,
+    "question": "What holds our marriage together?",
+    "sublabel": "Your husband or wife"
+   }
+  },
+  "es": {
+   "advisor": {
+    "direction": null,
+    "key": "advisor",
+    "label": "Asesor o mentor",
+    "needs_role": false,
+    "question": "\u00bfPuedo confiar en su consejo?",
+    "sublabel": "Mentor, consejero, asesor de confianza"
+   },
+   "boss-or-manager": {
+    "direction": "user_junior",
+    "key": "boss-or-manager",
+    "label": "Alguien a quien le reporto",
+    "needs_role": true,
+    "question": "\u00bfProsperar\u00e9 con esta persona como l\u00edder?",
+    "roles": [
+     {
+      "key": "sales",
+      "label": "Ventas / Desarrollo",
+      "sublabel": "Ingresos, negocios, pipeline"
+     },
+     {
+      "key": "marketing",
+      "label": "Marketing",
+      "sublabel": "Marca, creatividad, contenido"
+     },
+     {
+      "key": "finance",
+      "label": "Finanzas / Operaciones",
+      "sublabel": "Contabilidad, control financiero"
+     },
+     {
+      "key": "managerial",
+      "label": "Liderazgo",
+      "sublabel": "P&L, gesti\u00f3n de equipo"
+     }
+    ],
+    "sublabel": "T\u00fa eres quien reporta"
+   },
+   "business": {
+    "direction": null,
+    "key": "business",
+    "label": "Socio de negocios",
+    "needs_role": false,
+    "question": "\u00bfFuncionar\u00e1 esta sociedad?",
+    "sublabel": "Negocio o contrato en general"
+   },
+   "child": {
+    "direction": null,
+    "key": "child",
+    "label": "Mi hijo o hija",
+    "needs_role": false,
+    "question": "\u00bfQu\u00e9 sostiene este v\u00ednculo con mi hijo o hija?",
+    "sublabel": "Tu hijo o hija"
+   },
+   "cofounder": {
+    "direction": null,
+    "key": "cofounder",
+    "label": "Cofundador(a)",
+    "needs_role": false,
+    "question": "\u00bfDeber\u00edamos construir esta empresa juntos?",
+    "sublabel": "Sociedad con participaci\u00f3n accionaria"
+   },
+   "employee": {
+    "direction": "user_senior",
+    "key": "employee",
+    "label": "Alguien que me reporta",
+    "needs_role": true,
+    "question": "\u00bfEsta persona funcionar\u00e1 bien en mi equipo?",
+    "roles": [
+     {
+      "key": "sales",
+      "label": "Ventas / Desarrollo",
+      "sublabel": "Ingresos, negocios, pipeline"
+     },
+     {
+      "key": "marketing",
+      "label": "Marketing",
+      "sublabel": "Marca, creatividad, contenido"
+     },
+     {
+      "key": "finance",
+      "label": "Finanzas / Operaciones",
+      "sublabel": "Contabilidad, control financiero"
+     },
+     {
+      "key": "managerial",
+      "label": "Liderazgo",
+      "sublabel": "P&L, gesti\u00f3n de equipo"
+     }
+    ],
+    "sublabel": "T\u00fa eres el empleador / gerente"
+   },
+   "family": {
+    "direction": null,
+    "key": "family",
+    "label": "Familiar",
+    "needs_role": false,
+    "question": "\u00bfQu\u00e9 me pide esta relaci\u00f3n?",
+    "sublabel": "Suegros, familia extendida"
+   },
+   "friend": {
+    "direction": null,
+    "key": "friend",
+    "label": "Amistad",
+    "needs_role": false,
+    "question": "\u00bfDe qu\u00e9 est\u00e1 hecha nuestra amistad?",
+    "sublabel": "No rom\u00e1ntica, plat\u00f3nica"
+   },
+   "parent": {
+    "direction": null,
+    "key": "parent",
+    "label": "Mi padre o madre",
+    "needs_role": false,
+    "question": "\u00bfQu\u00e9 sostiene este v\u00ednculo con mi padre o madre?",
+    "sublabel": "Tu madre o padre"
+   },
+   "romantic": {
+    "direction": null,
+    "key": "romantic",
+    "label": "Pareja rom\u00e1ntica",
+    "needs_role": false,
+    "question": "\u00bfC\u00f3mo somos como pareja?",
+    "sublabel": "Noviazgo, una relaci\u00f3n en construcci\u00f3n"
+   },
+   "sibling": {
+    "direction": null,
+    "key": "sibling",
+    "label": "Mi hermano o hermana",
+    "needs_role": false,
+    "question": "\u00bfQu\u00e9 sostiene este v\u00ednculo con mi hermano o hermana?",
+    "sublabel": "Tu hermano o hermana"
+   },
+   "spouse": {
+    "direction": null,
+    "key": "spouse",
+    "label": "Mi esposo o esposa",
+    "needs_role": false,
+    "question": "\u00bfQu\u00e9 sostiene nuestro matrimonio?",
+    "sublabel": "Tu esposo o esposa"
+   }
+  },
+  "hinglish": {
+   "advisor": {
+    "direction": null,
+    "key": "advisor",
+    "label": "Advisor or mentor",
+    "needs_role": false,
+    "question": "Can I trust their counsel?",
+    "sublabel": "Mentor, advisor, sounding board"
+   },
+   "boss-or-manager": {
+    "direction": "user_junior",
+    "key": "boss-or-manager",
+    "label": "Someone I report to",
+    "needs_role": true,
+    "question": "Will I thrive under this person?",
+    "roles": [
+     {
+      "key": "sales",
+      "label": "Sales / BD",
+      "sublabel": "Revenue, deals, pipeline"
+     },
+     {
+      "key": "marketing",
+      "label": "Marketing",
+      "sublabel": "Brand, creative, content"
+     },
+     {
+      "key": "finance",
+      "label": "Finance / Ops",
+      "sublabel": "Accounting, controllership"
+     },
+     {
+      "key": "managerial",
+      "label": "Leadership",
+      "sublabel": "P&L, team management"
+     }
+    ],
+    "sublabel": "You are the report"
+   },
+   "business": {
+    "direction": null,
+    "key": "business",
+    "label": "Business partner",
+    "needs_role": false,
+    "question": "Will this partnership work?",
+    "sublabel": "Generic business or contractual"
+   },
+   "child": {
+    "direction": null,
+    "key": "child",
+    "label": "My child",
+    "needs_role": false,
+    "question": "What does this bond with my child hold?",
+    "sublabel": "Your son or daughter"
+   },
+   "cofounder": {
+    "direction": null,
+    "key": "cofounder",
+    "label": "Cofounder",
+    "needs_role": false,
+    "question": "Should we build this company together?",
+    "sublabel": "Equity-tied venture partnership"
+   },
+   "employee": {
+    "direction": "user_senior",
+    "key": "employee",
+    "label": "Someone reporting to me",
+    "needs_role": true,
+    "question": "Will this person work well on my team?",
+    "roles": [
+     {
+      "key": "sales",
+      "label": "Sales / BD",
+      "sublabel": "Revenue, deals, pipeline"
+     },
+     {
+      "key": "marketing",
+      "label": "Marketing",
+      "sublabel": "Brand, creative, content"
+     },
+     {
+      "key": "finance",
+      "label": "Finance / Ops",
+      "sublabel": "Accounting, controllership"
+     },
+     {
+      "key": "managerial",
+      "label": "Leadership",
+      "sublabel": "P&L, team management"
+     }
+    ],
+    "sublabel": "You are the employer / manager"
+   },
+   "family": {
+    "direction": null,
+    "key": "family",
+    "label": "Family member",
+    "needs_role": false,
+    "question": "What does this relationship ask of me?",
+    "sublabel": "In-laws, extended family"
+   },
+   "friend": {
+    "direction": null,
+    "key": "friend",
+    "label": "Friend",
+    "needs_role": false,
+    "question": "What is our friendship made of?",
+    "sublabel": "Non-romantic, platonic"
+   },
+   "parent": {
+    "direction": null,
+    "key": "parent",
+    "label": "My parent",
+    "needs_role": false,
+    "question": "What does this bond with my parent hold?",
+    "sublabel": "Your mother or father"
+   },
+   "romantic": {
+    "direction": null,
+    "key": "romantic",
+    "label": "Romantic partner",
+    "needs_role": false,
+    "question": "How are we as a couple?",
+    "sublabel": "Dating, a relationship still taking shape"
+   },
+   "sibling": {
+    "direction": null,
+    "key": "sibling",
+    "label": "My brother or sister",
+    "needs_role": false,
+    "question": "What does this bond with my sibling hold?",
+    "sublabel": "Your brother or sister"
+   },
+   "spouse": {
+    "direction": null,
+    "key": "spouse",
+    "label": "My husband or wife",
+    "needs_role": false,
+    "question": "What holds our marriage together?",
+    "sublabel": "Your husband or wife"
+   }
+  },
+  "pt": {
+   "advisor": {
+    "direction": null,
+    "key": "advisor",
+    "label": "Conselheiro(a) ou mentor(a)",
+    "needs_role": false,
+    "question": "Posso confiar no conselho dele(a)?",
+    "sublabel": "Mentor, conselheiro, assessor de confian\u00e7a"
+   },
+   "boss-or-manager": {
+    "direction": "user_junior",
+    "key": "boss-or-manager",
+    "label": "Algu\u00e9m a quem eu reporto",
+    "needs_role": true,
+    "question": "Vou prosperar com esta pessoa como l\u00edder?",
+    "roles": [
+     {
+      "key": "sales",
+      "label": "Vendas / BD",
+      "sublabel": "Receita, neg\u00f3cios, pipeline"
+     },
+     {
+      "key": "marketing",
+      "label": "Marketing",
+      "sublabel": "Marca, criativo, conte\u00fado"
+     },
+     {
+      "key": "finance",
+      "label": "Finan\u00e7as / Opera\u00e7\u00f5es",
+      "sublabel": "Contabilidade, controladoria"
+     },
+     {
+      "key": "managerial",
+      "label": "Lideran\u00e7a",
+      "sublabel": "P&L, gest\u00e3o de equipe"
+     }
+    ],
+    "sublabel": "Voc\u00ea \u00e9 quem reporta"
+   },
+   "business": {
+    "direction": null,
+    "key": "business",
+    "label": "S\u00f3cio(a) de neg\u00f3cios",
+    "needs_role": false,
+    "question": "Esta parceria vai funcionar?",
+    "sublabel": "Neg\u00f3cio ou contrato em geral"
+   },
+   "child": {
+    "direction": null,
+    "key": "child",
+    "label": "Meu filho ou filha",
+    "needs_role": false,
+    "question": "O que sustenta este v\u00ednculo com meu filho ou filha?",
+    "sublabel": "Seu filho ou filha"
+   },
+   "cofounder": {
+    "direction": null,
+    "key": "cofounder",
+    "label": "Cofundador(a)",
+    "needs_role": false,
+    "question": "Devemos construir esta empresa juntos?",
+    "sublabel": "Sociedade com participa\u00e7\u00e3o societ\u00e1ria"
+   },
+   "employee": {
+    "direction": "user_senior",
+    "key": "employee",
+    "label": "Algu\u00e9m que me reporta",
+    "needs_role": true,
+    "question": "Esta pessoa vai funcionar bem na minha equipe?",
+    "roles": [
+     {
+      "key": "sales",
+      "label": "Vendas / BD",
+      "sublabel": "Receita, neg\u00f3cios, pipeline"
+     },
+     {
+      "key": "marketing",
+      "label": "Marketing",
+      "sublabel": "Marca, criativo, conte\u00fado"
+     },
+     {
+      "key": "finance",
+      "label": "Finan\u00e7as / Opera\u00e7\u00f5es",
+      "sublabel": "Contabilidade, controladoria"
+     },
+     {
+      "key": "managerial",
+      "label": "Lideran\u00e7a",
+      "sublabel": "P&L, gest\u00e3o de equipe"
+     }
+    ],
+    "sublabel": "Voc\u00ea \u00e9 o empregador / gestor"
+   },
+   "family": {
+    "direction": null,
+    "key": "family",
+    "label": "Familiar",
+    "needs_role": false,
+    "question": "O que esta rela\u00e7\u00e3o me pede?",
+    "sublabel": "Sogros, fam\u00edlia estendida"
+   },
+   "friend": {
+    "direction": null,
+    "key": "friend",
+    "label": "Amizade",
+    "needs_role": false,
+    "question": "Do que \u00e9 feita a nossa amizade?",
+    "sublabel": "N\u00e3o rom\u00e2ntica, plat\u00f4nica"
+   },
+   "parent": {
+    "direction": null,
+    "key": "parent",
+    "label": "Meu pai ou m\u00e3e",
+    "needs_role": false,
+    "question": "O que sustenta este v\u00ednculo com meu pai ou m\u00e3e?",
+    "sublabel": "Seu pai ou m\u00e3e"
+   },
+   "romantic": {
+    "direction": null,
+    "key": "romantic",
+    "label": "Parceiro(a) rom\u00e2ntico(a)",
+    "needs_role": false,
+    "question": "Como somos como casal?",
+    "sublabel": "Namoro, uma rela\u00e7\u00e3o em constru\u00e7\u00e3o"
+   },
+   "sibling": {
+    "direction": null,
+    "key": "sibling",
+    "label": "Meu irm\u00e3o ou irm\u00e3",
+    "needs_role": false,
+    "question": "O que sustenta este v\u00ednculo com meu irm\u00e3o ou irm\u00e3?",
+    "sublabel": "Seu irm\u00e3o ou irm\u00e3"
+   },
+   "spouse": {
+    "direction": null,
+    "key": "spouse",
+    "label": "Meu marido ou esposa",
+    "needs_role": false,
+    "question": "O que sustenta o nosso casamento?",
+    "sublabel": "Seu marido ou esposa"
+   }
+  }
+ },
+ "fwd_spec": {
+  "advisor": {
+   "bad": [],
+   "good": [
+    "Jupiter",
+    "Mercury",
+    "Sun"
+   ],
+   "neg": [
+    6,
+    8,
+    12
+   ],
+   "pos": [
+    9,
+    5,
+    2,
+    10
+   ],
+   "sep": false
+  },
+  "boss-or-manager": {
+   "bad": [
+    "Ketu"
+   ],
+   "good": [
+    "Saturn",
+    "Sun",
+    "Mercury"
+   ],
+   "neg": [
+    8,
+    12
+   ],
+   "pos": [
+    10,
+    6,
+    9,
+    11
+   ],
+   "sep": false
+  },
+  "business": {
+   "bad": [
+    "Ketu"
+   ],
+   "good": [
+    "Mercury",
+    "Jupiter",
+    "Sun",
+    "Venus"
+   ],
+   "neg": [
+    6,
+    8,
+    12
+   ],
+   "pos": [
+    7,
+    10,
+    11,
+    2
+   ],
+   "sep": false
+  },
+  "child": {
+   "bad": [
+    "Rahu",
+    "Ketu"
+   ],
+   "good": [
+    "Jupiter",
+    "Moon",
+    "Sun",
+    "Venus"
+   ],
+   "neg": [
+    6,
+    8,
+    12
+   ],
+   "pos": [
+    5,
+    9,
+    11,
+    2
+   ],
+   "sep": false
+  },
+  "cofounder": {
+   "bad": [
+    "Ketu"
+   ],
+   "good": [
+    "Mercury",
+    "Mars",
+    "Jupiter",
+    "Sun"
+   ],
+   "neg": [
+    6,
+    8,
+    12
+   ],
+   "pos": [
+    7,
+    10,
+    11,
+    3
+   ],
+   "sep": false
+  },
+  "employee": {
+   "bad": [
+    "Ketu"
+   ],
+   "good": [
+    "Saturn",
+    "Sun",
+    "Mercury",
+    "Mars"
+   ],
+   "neg": [
+    8,
+    12
+   ],
+   "pos": [
+    10,
+    6,
+    3,
+    11
+   ],
+   "sep": false
+  },
+  "family": {
+   "bad": [
+    "Rahu",
+    "Ketu"
+   ],
+   "good": [
+    "Moon",
+    "Jupiter",
+    "Venus"
+   ],
+   "neg": [
+    6,
+    8,
+    12
+   ],
+   "pos": [
+    4,
+    2,
+    9,
+    11
+   ],
+   "sep": false
+  },
+  "friend": {
+   "bad": [
+    "Ketu"
+   ],
+   "good": [
+    "Mercury",
+    "Venus",
+    "Moon",
+    "Jupiter"
+   ],
+   "neg": [
+    6,
+    12
+   ],
+   "pos": [
+    11,
+    3,
+    7,
+    5
+   ],
+   "sep": false
+  },
+  "parent": {
+   "bad": [
+    "Rahu",
+    "Ketu"
+   ],
+   "good": [
+    "Moon",
+    "Sun",
+    "Jupiter"
+   ],
+   "mild_bad": [
+    "Saturn"
+   ],
+   "neg": [
+    6,
+    8,
+    12
+   ],
+   "pos": [
+    4,
+    9,
+    10,
+    2
+   ],
+   "sep": false
+  },
+  "romantic": {
+   "bad": [
+    "Rahu",
+    "Ketu",
+    "Saturn"
+   ],
+   "good": [
+    "Venus",
+    "Jupiter",
+    "Moon"
+   ],
+   "neg": [
+    6,
+    8,
+    12
+   ],
+   "pos": [
+    7,
+    5,
+    11,
+    2
+   ],
+   "sep": true
+  },
+  "sibling": {
+   "bad": [],
+   "good": [
+    "Mars",
+    "Mercury",
+    "Jupiter"
+   ],
+   "neg": [
+    6,
+    8,
+    12
+   ],
+   "pos": [
+    3,
+    11,
+    2,
+    9
+   ],
+   "sep": false
+  },
+  "spouse": {
+   "bad": [
+    "Rahu",
+    "Ketu",
+    "Saturn"
+   ],
+   "good": [
+    "Venus",
+    "Jupiter",
+    "Moon"
+   ],
+   "neg": [
+    6,
+    8,
+    12
+   ],
+   "pos": [
+    7,
+    2,
+    5,
+    11
+   ],
+   "sep": true
+  }
+ },
+ "reasons": {
+  "advisor": {
+   "definition": {
+    "direction": null,
+    "label": "Advisor or mentor",
+    "needs_role": false
+   },
+   "detail": {
+    "FLOW": "Read as a counsel fit, {b_name} should be easy for {a_name} to learn from \u2014 their guidance comes from shared values and lands at the right time.",
+    "MIXED": "Read as a counsel fit, {b_name} can help {a_name} with some clear gaps. Say plainly what you want from them, then check their advice against your own judgment.",
+    "STRAIN": "Read as a counsel fit, {b_name} sees things differently from {a_name}. That can be valuable as an outside view; weigh it carefully and keep the purpose of the relationship clear."
+   },
+   "headline": {
+    "FLOW": "A guide worth trusting \u2014 their counsel fits you and your moment.",
+    "MIXED": "Useful counsel with some gaps \u2014 take the advice and check it against your own sense.",
+    "STRAIN": "A different vantage point \u2014 valuable as an outside view, but weigh it carefully."
+   },
+   "runs": [
+    {
+     "badge": "MIXED",
+     "catalysts": [
+      "Your timing and Ravi's line up \u2014 their guidance lands when you're ready for it.",
+      "Little friction sits between you and Ravi \u2014 you can take their honest view without bristling."
+     ],
+     "direction": null,
+     "headline": "Useful counsel with some gaps \u2014 take the advice and check it against your own sense.",
+     "layers": [
+      [
+       "soul",
+       "Soul Alignment",
+       54,
+       20,
+       "Shared ground, real differences.",
+       "Ravi values some different things than you do; take the advice, then check it against your own compass."
+      ],
+      [
+       "chemistry",
+       "Chemistry & Attraction",
+       40,
+       0,
+       "Off-beat rhythm.",
+       "The rapport with Ravi takes effort \u2014 don't mistake that for poor advice."
+      ],
+      [
+       "public",
+       "Public & Worldly Fit",
+       56,
+       25,
+       "A mixed public picture.",
+       "Ravi knows part of your world well and part less so \u2014 use them where they're strong."
+      ],
+      [
+       "lifepath",
+       "Lifepath & Timing",
+       90,
+       10,
+       "Timing moves in step.",
+       "Your timing and Ravi's line up \u2014 their guidance lands when you're ready for it."
+      ],
+      [
+       "communication",
+       "Communication & Trust",
+       70,
+       35,
+       "Works with deliberate effort.",
+       "You and Ravi communicate well once you say plainly what you need from them."
+      ],
+      [
+       "friction",
+       "Friction & Growth",
+       88,
+       10,
+       "Little hidden friction.",
+       "Little friction sits between you and Ravi \u2014 you can take their honest view without bristling."
+      ]
+     ],
+     "passed": true,
+     "score": 67,
+     "summary": "Read as a counsel fit, Ravi can help Asha with some clear gaps. Say plainly what you want from them, then check their advice against your own judgment.",
+     "watch_points": []
+    },
+    {
+     "badge": "MIXED",
+     "catalysts": [
+      "You and Ravi understand each other quickly \u2014 their counsel is easy to trust and to use.",
+      "Your timing and Ravi's line up \u2014 their guidance lands when you're ready for it.",
+      "Little friction sits between you and Ravi \u2014 you can take their honest view without bristling."
+     ],
+     "direction": null,
+     "headline": "Useful counsel with some gaps \u2014 take the advice and check it against your own sense.",
+     "layers": [
+      [
+       "soul",
+       "Soul Alignment",
+       43,
+       20,
+       "Values pull apart.",
+       "Ravi's sense of what matters differs from yours \u2014 weigh their counsel against your own values."
+      ],
+      [
+       "chemistry",
+       "Chemistry & Attraction",
+       40,
+       0,
+       "Off-beat rhythm.",
+       "The rapport with Ravi takes effort \u2014 don't mistake that for poor advice."
+      ],
+      [
+       "public",
+       "Public & Worldly Fit",
+       57,
+       25,
+       "A mixed public picture.",
+       "Ravi knows part of your world well and part less so \u2014 use them where they're strong."
+      ],
+      [
+       "lifepath",
+       "Lifepath & Timing",
+       90,
+       10,
+       "Timing moves in step.",
+       "Your timing and Ravi's line up \u2014 their guidance lands when you're ready for it."
+      ],
+      [
+       "communication",
+       "Communication & Trust",
+       87,
+       35,
+       "You understand each other.",
+       "You and Ravi understand each other quickly \u2014 their counsel is easy to trust and to use."
+      ],
+      [
+       "friction",
+       "Friction & Growth",
+       84,
+       10,
+       "Little hidden friction.",
+       "Little friction sits between you and Ravi \u2014 you can take their honest view without bristling."
+      ]
+     ],
+     "passed": true,
+     "score": 71,
+     "summary": "Read as a counsel fit, Ravi can help Asha with some clear gaps. Say plainly what you want from them, then check their advice against your own judgment.",
+     "watch_points": [
+      "Ravi's sense of what matters differs from yours \u2014 weigh their counsel against your own values."
+     ]
+    },
+    {
+     "badge": "MIXED",
+     "catalysts": [
+      "Ravi cares about what you care about \u2014 their guidance comes from shared values.",
+      "Your timing and Ravi's line up \u2014 their guidance lands when you're ready for it."
+     ],
+     "direction": null,
+     "headline": "Useful counsel with some gaps \u2014 take the advice and check it against your own sense.",
+     "layers": [
+      [
+       "soul",
+       "Soul Alignment",
+       78,
+       20,
+       "Deep values resonance.",
+       "Ravi cares about what you care about \u2014 their guidance comes from shared values."
+      ],
+      [
+       "chemistry",
+       "Chemistry & Attraction",
+       90,
+       0,
+       "Natural, easy attraction.",
+       "Conversations with Ravi feel natural and encouraging."
+      ],
+      [
+       "public",
+       "Public & Worldly Fit",
+       67,
+       25,
+       "A mixed public picture.",
+       "Ravi knows part of your world well and part less so \u2014 use them where they're strong."
+      ],
+      [
+       "lifepath",
+       "Lifepath & Timing",
+       90,
+       10,
+       "Timing moves in step.",
+       "Your timing and Ravi's line up \u2014 their guidance lands when you're ready for it."
+      ],
+      [
+       "communication",
+       "Communication & Trust",
+       51,
+       35,
+       "Works with deliberate effort.",
+       "You and Ravi communicate well once you say plainly what you need from them."
+      ],
+      [
+       "friction",
+       "Friction & Growth",
+       68,
+       10,
+       "Manageable friction underneath.",
+       "Some friction with Ravi is useful \u2014 it can sharpen your thinking if you stay open."
+      ]
+     ],
+     "passed": true,
+     "score": 66,
+     "summary": "Read as a counsel fit, Ravi can help Asha with some clear gaps. Say plainly what you want from them, then check their advice against your own judgment.",
+     "watch_points": []
+    }
+   ],
+   "sources": {
+    "chemistry": [
+     [
+      "venus_compatibility",
+      0.5833
+     ],
+     [
+      "mars_compatibility",
+      0.4167
+     ]
+    ],
+    "communication": [
+     [
+      "mercury_compatibility",
+      0.5714
+     ],
+     [
+      "gana",
+      0.4286
+     ]
+    ],
+    "friction": [
+     [
+      "mutual_6_8",
+      0.6923
+     ],
+     [
+      "growth_areas_count",
+      0.3077
+     ]
+    ],
+    "lifepath": [
+     [
+      "dasha_timing",
+      1.0
+     ]
+    ],
+    "public": [
+     [
+      "house_7",
+      0.4
+     ],
+     [
+      "house_10",
+      0.4
+     ],
+     [
+      "house_11",
+      0.2
+     ]
+    ],
+    "soul": [
+     [
+      "d9_overall",
+      0.5
+     ],
+     [
+      "graha_maitri",
+      0.35
+     ],
+     [
+      "varna",
+      0.15
+     ]
+    ]
+   },
+   "weights": {
+    "chemistry": 0,
+    "communication": 35,
+    "friction": 10,
+    "lifepath": 10,
+    "public": 25,
+    "soul": 20
+   }
+  },
+  "boss-or-manager": {
+   "definition": {
+    "direction": "user_junior",
+    "label": "Someone I report to",
+    "needs_role": true
+   },
+   "detail": {
+    "FLOW": "Read as a reporting fit, {a_name} should grow well under {b_name} \u2014 their style and timing support investing in you. A manager worth learning from.",
+    "MIXED": "Read as a reporting fit, {a_name} can do well under {b_name} with clear expectations on both sides. Learn their rhythm and make your work visible.",
+    "STRAIN": "Read as a reporting fit, working under {b_name} will take real adjustment for {a_name}. Get specifics early and be proactive about how your contributions are seen."
+   },
+   "headline": {
+    "FLOW": "A manager you can grow under \u2014 {b_name}'s style fits how you work.",
+    "MIXED": "A workable manager fit \u2014 you'll do well under {b_name} with clear expectations.",
+    "STRAIN": "A demanding fit \u2014 working under {b_name} will take real adjustment."
+   },
+   "runs": [
+    {
+     "badge": "MIXED",
+     "catalysts": [
+      "Ravi gives you the number, the context, and the reason behind both.",
+      "Ravi is in a season of expansion \u2014 good years to be on their team.",
+      "Ravi handles a bad month without turning it on you."
+     ],
+     "direction": "user_junior",
+     "headline": "A workable manager fit \u2014 you'll do well under Ravi with clear expectations.",
+     "layers": [
+      [
+       "soul",
+       "Soul Alignment",
+       54,
+       10,
+       "Shared ground, real differences.",
+       "Ravi defines success by the number; make sure that's a game you want."
+      ],
+      [
+       "chemistry",
+       "Chemistry & Attraction",
+       40,
+       0,
+       "Off-beat rhythm.",
+       "You and Ravi don't click naturally \u2014 your numbers will have to speak."
+      ],
+      [
+       "public",
+       "Advancement",
+       60,
+       25,
+       "A mixed public picture.",
+       "Ravi shares credit unevenly; make your contribution legible yourself."
+      ],
+      [
+       "lifepath",
+       "Operating Rhythm",
+       90,
+       20,
+       "Timing moves in step.",
+       "Ravi is in a season of expansion \u2014 good years to be on their team."
+      ],
+      [
+       "communication",
+       "Communication & Trust",
+       75,
+       25,
+       "You understand each other.",
+       "Ravi gives you the number, the context, and the reason behind both."
+      ],
+      [
+       "friction",
+       "Autonomy",
+       83,
+       20,
+       "Little hidden friction.",
+       "Ravi handles a bad month without turning it on you."
+      ]
+     ],
+     "passed": true,
+     "score": 74,
+     "summary": "Read as a reporting fit, Asha can do well under Ravi with clear expectations on both sides. Learn their rhythm and make your work visible.",
+     "watch_points": []
+    },
+    {
+     "badge": "FLOW",
+     "catalysts": [
+      "Ravi gives you the number, the context, and the reason behind both.",
+      "Ravi is in a season of expansion \u2014 good years to be on their team.",
+      "Ravi handles a bad month without turning it on you."
+     ],
+     "direction": "user_junior",
+     "headline": "A manager you can grow under \u2014 Ravi's style fits how you work.",
+     "layers": [
+      [
+       "soul",
+       "Soul Alignment",
+       43,
+       10,
+       "Values pull apart.",
+       "Ravi rewards things you don't value \u2014 you'll feel it in every review."
+      ],
+      [
+       "chemistry",
+       "Chemistry & Attraction",
+       40,
+       0,
+       "Off-beat rhythm.",
+       "You and Ravi don't click naturally \u2014 your numbers will have to speak."
+      ],
+      [
+       "public",
+       "Advancement",
+       61,
+       25,
+       "A mixed public picture.",
+       "Ravi shares credit unevenly; make your contribution legible yourself."
+      ],
+      [
+       "lifepath",
+       "Operating Rhythm",
+       90,
+       20,
+       "Timing moves in step.",
+       "Ravi is in a season of expansion \u2014 good years to be on their team."
+      ],
+      [
+       "communication",
+       "Communication & Trust",
+       92,
+       25,
+       "You understand each other.",
+       "Ravi gives you the number, the context, and the reason behind both."
+      ],
+      [
+       "friction",
+       "Autonomy",
+       79,
+       20,
+       "Little hidden friction.",
+       "Ravi handles a bad month without turning it on you."
+      ]
+     ],
+     "passed": true,
+     "score": 76,
+     "summary": "Read as a reporting fit, Asha should grow well under Ravi \u2014 their style and timing support investing in you. A manager worth learning from.",
+     "watch_points": [
+      "Ravi rewards things you don't value \u2014 you'll feel it in every review."
+     ]
+    },
+    {
+     "badge": "MIXED",
+     "catalysts": [
+      "Ravi sells your wins upward \u2014 credit reaches the people who matter.",
+      "Ravi is in a season of expansion \u2014 good years to be on their team.",
+      "Ravi measures what you also think matters \u2014 you'll agree on what a win is."
+     ],
+     "direction": "user_junior",
+     "headline": "A workable manager fit \u2014 you'll do well under Ravi with clear expectations.",
+     "layers": [
+      [
+       "soul",
+       "Soul Alignment",
+       78,
+       10,
+       "Deep values resonance.",
+       "Ravi measures what you also think matters \u2014 you'll agree on what a win is."
+      ],
+      [
+       "chemistry",
+       "Chemistry & Attraction",
+       90,
+       0,
+       "Natural, easy attraction.",
+       "Ravi likes working with you, and in a sales org that opens doors."
+      ],
+      [
+       "public",
+       "Advancement",
+       77,
+       25,
+       "Read well by the world.",
+       "Ravi sells your wins upward \u2014 credit reaches the people who matter."
+      ],
+      [
+       "lifepath",
+       "Operating Rhythm",
+       90,
+       20,
+       "Timing moves in step.",
+       "Ravi is in a season of expansion \u2014 good years to be on their team."
+      ],
+      [
+       "communication",
+       "Communication & Trust",
+       56,
+       25,
+       "Works with deliberate effort.",
+       "Ravi tells you what to hit, not always why \u2014 ask for the reasoning."
+      ],
+      [
+       "friction",
+       "Autonomy",
+       63,
+       20,
+       "Manageable friction underneath.",
+       "Ravi gets sharp when the pipeline thins \u2014 don't take it as a verdict."
+      ]
+     ],
+     "passed": true,
+     "score": 72,
+     "summary": "Read as a reporting fit, Asha can do well under Ravi with clear expectations on both sides. Learn their rhythm and make your work visible.",
+     "watch_points": []
+    }
+   ],
+   "sources": {
+    "chemistry": [
+     [
+      "venus_compatibility",
+      0.5833
+     ],
+     [
+      "mars_compatibility",
+      0.4167
+     ]
+    ],
+    "communication": [
+     [
+      "mercury_compatibility",
+      0.5714
+     ],
+     [
+      "gana",
+      0.4286
+     ]
+    ],
+    "friction": [
+     [
+      "mutual_6_8",
+      0.6923
+     ],
+     [
+      "growth_areas_count",
+      0.3077
+     ]
+    ],
+    "lifepath": [
+     [
+      "dasha_timing",
+      1.0
+     ]
+    ],
+    "public": [
+     [
+      "house_exchange_their_to_your",
+      0.5
+     ],
+     [
+      "house_10",
+      0.3
+     ],
+     [
+      "house_7",
+      0.1
+     ],
+     [
+      "house_11",
+      0.1
+     ]
+    ],
+    "soul": [
+     [
+      "d9_overall",
+      0.5
+     ],
+     [
+      "graha_maitri",
+      0.35
+     ],
+     [
+      "varna",
+      0.15
+     ]
+    ]
+   },
+   "weights": {
+    "chemistry": 0,
+    "communication": 25,
+    "friction": 20,
+    "lifepath": 20,
+    "public": 25,
+    "soul": 10
+   }
+  },
+  "business": {
+   "definition": {
+    "direction": null,
+    "label": "Business partner",
+    "needs_role": false
+   },
+   "detail": {
+    "FLOW": "{a_name} and {b_name} bring complementary strengths to a working partnership. The pattern supports steady building, shared decisions, and the kind of trust that compounds over years rather than months.",
+    "MIXED": "{a_name} and {b_name} can build something real, with a few areas that need structure. Clear roles, written agreements, and named expectations turn the friction into a productive division of labor.",
+    "STRAIN": "{a_name} and {b_name} are on different clocks and read situations differently. A partnership is possible, but only with strong structure \u2014 defined roles, written decisions, and regular reviews to clear the friction."
+   },
+   "headline": {
+    "FLOW": "Two builders whose energies move in step \u2014 this partnership compounds.",
+    "MIXED": "Two builders who pull in different directions \u2014 but harder together than alone, if you mind the gaps.",
+    "STRAIN": "Two builders whose timing doesn't match \u2014 this needs real discipline to clear the friction."
+   },
+   "runs": [
+    {
+     "badge": "MIXED",
+     "catalysts": [
+      "You and Ravi are in matching seasons \u2014 good timing to build together.",
+      "Little structural friction sits between you and Ravi."
+     ],
+     "direction": null,
+     "headline": "Two builders who pull in different directions \u2014 but harder together than alone, if you mind the gaps.",
+     "layers": [
+      [
+       "soul",
+       "Soul Alignment",
+       54,
+       10,
+       "Shared ground, real differences.",
+       "You and Ravi hold different priorities; workable if you name them early."
+      ],
+      [
+       "chemistry",
+       "Chemistry & Attraction",
+       40,
+       5,
+       "Off-beat rhythm.",
+       "The day-to-day working style with Ravi grates until you build structure."
+      ],
+      [
+       "public",
+       "Public & Worldly Fit",
+       56,
+       30,
+       "A mixed public picture.",
+       "Your public face as a team with Ravi is workable but uneven."
+      ],
+      [
+       "lifepath",
+       "Lifepath & Timing",
+       90,
+       25,
+       "Timing moves in step.",
+       "You and Ravi are in matching seasons \u2014 good timing to build together."
+      ],
+      [
+       "communication",
+       "Communication & Trust",
+       70,
+       20,
+       "Works with deliberate effort.",
+       "You and Ravi communicate well with agreed channels and written follow-ups."
+      ],
+      [
+       "friction",
+       "Friction & Growth",
+       88,
+       10,
+       "Little hidden friction.",
+       "Little structural friction sits between you and Ravi."
+      ]
+     ],
+     "passed": true,
+     "score": 70,
+     "summary": "Asha and Ravi can build something real, with a few areas that need structure. Clear roles, written agreements, and named expectations turn the friction into a productive division of labor.",
+     "watch_points": [
+      "The day-to-day working style with Ravi grates until you build structure."
+     ]
+    },
+    {
+     "badge": "MIXED",
+     "catalysts": [
+      "You and Ravi are in matching seasons \u2014 good timing to build together.",
+      "You and Ravi negotiate and decide cleanly together.",
+      "Little structural friction sits between you and Ravi."
+     ],
+     "direction": null,
+     "headline": "Two builders who pull in different directions \u2014 but harder together than alone, if you mind the gaps.",
+     "layers": [
+      [
+       "soul",
+       "Soul Alignment",
+       43,
+       10,
+       "Values pull apart.",
+       "Your sense of what matters pulls against Ravi's \u2014 expect tension over priorities."
+      ],
+      [
+       "chemistry",
+       "Chemistry & Attraction",
+       40,
+       5,
+       "Off-beat rhythm.",
+       "The day-to-day working style with Ravi grates until you build structure."
+      ],
+      [
+       "public",
+       "Public & Worldly Fit",
+       57,
+       30,
+       "A mixed public picture.",
+       "Your public face as a team with Ravi is workable but uneven."
+      ],
+      [
+       "lifepath",
+       "Lifepath & Timing",
+       90,
+       25,
+       "Timing moves in step.",
+       "You and Ravi are in matching seasons \u2014 good timing to build together."
+      ],
+      [
+       "communication",
+       "Communication & Trust",
+       87,
+       20,
+       "You understand each other.",
+       "You and Ravi negotiate and decide cleanly together."
+      ],
+      [
+       "friction",
+       "Friction & Growth",
+       84,
+       10,
+       "Little hidden friction.",
+       "Little structural friction sits between you and Ravi."
+      ]
+     ],
+     "passed": true,
+     "score": 72,
+     "summary": "Asha and Ravi can build something real, with a few areas that need structure. Clear roles, written agreements, and named expectations turn the friction into a productive division of labor.",
+     "watch_points": [
+      "Your sense of what matters pulls against Ravi's \u2014 expect tension over priorities.",
+      "The day-to-day working style with Ravi grates until you build structure."
+     ]
+    },
+    {
+     "badge": "MIXED",
+     "catalysts": [
+      "You and Ravi are in matching seasons \u2014 good timing to build together.",
+      "Your values align with Ravi's \u2014 the partnership rests on shared ground.",
+      "Working day-to-day with Ravi flows easily."
+     ],
+     "direction": null,
+     "headline": "Two builders who pull in different directions \u2014 but harder together than alone, if you mind the gaps.",
+     "layers": [
+      [
+       "soul",
+       "Soul Alignment",
+       78,
+       10,
+       "Deep values resonance.",
+       "Your values align with Ravi's \u2014 the partnership rests on shared ground."
+      ],
+      [
+       "chemistry",
+       "Chemistry & Attraction",
+       90,
+       5,
+       "Natural, easy attraction.",
+       "Working day-to-day with Ravi flows easily."
+      ],
+      [
+       "public",
+       "Public & Worldly Fit",
+       67,
+       30,
+       "A mixed public picture.",
+       "Your public face as a team with Ravi is workable but uneven."
+      ],
+      [
+       "lifepath",
+       "Lifepath & Timing",
+       90,
+       25,
+       "Timing moves in step.",
+       "You and Ravi are in matching seasons \u2014 good timing to build together."
+      ],
+      [
+       "communication",
+       "Communication & Trust",
+       51,
+       20,
+       "Works with deliberate effort.",
+       "You and Ravi communicate well with agreed channels and written follow-ups."
+      ],
+      [
+       "friction",
+       "Friction & Growth",
+       68,
+       10,
+       "Manageable friction underneath.",
+       "Some friction with Ravi is manageable with clear roles and reviews."
+      ]
+     ],
+     "passed": true,
+     "score": 72,
+     "summary": "Asha and Ravi can build something real, with a few areas that need structure. Clear roles, written agreements, and named expectations turn the friction into a productive division of labor.",
+     "watch_points": []
+    }
+   ],
+   "sources": {
+    "chemistry": [
+     [
+      "venus_compatibility",
+      0.5833
+     ],
+     [
+      "mars_compatibility",
+      0.4167
+     ]
+    ],
+    "communication": [
+     [
+      "mercury_compatibility",
+      0.5714
+     ],
+     [
+      "gana",
+      0.4286
+     ]
+    ],
+    "friction": [
+     [
+      "mutual_6_8",
+      0.6923
+     ],
+     [
+      "growth_areas_count",
+      0.3077
+     ]
+    ],
+    "lifepath": [
+     [
+      "dasha_timing",
+      1.0
+     ]
+    ],
+    "public": [
+     [
+      "house_7",
+      0.4
+     ],
+     [
+      "house_10",
+      0.4
+     ],
+     [
+      "house_11",
+      0.2
+     ]
+    ],
+    "soul": [
+     [
+      "d9_overall",
+      0.5
+     ],
+     [
+      "graha_maitri",
+      0.35
+     ],
+     [
+      "varna",
+      0.15
+     ]
+    ]
+   },
+   "weights": {
+    "chemistry": 5,
+    "communication": 20,
+    "friction": 10,
+    "lifepath": 25,
+    "public": 30,
+    "soul": 10
+   }
+  },
+  "child": {
+   "definition": {
+    "direction": null,
+    "label": "My child",
+    "needs_role": false
+   },
+   "detail": {
+    "FLOW": "{a_name} and {b_name} share a close, natural bond. Your rhythms fit, and it is easier than most to be supportive without having to push.",
+    "MIXED": "{a_name} and {b_name} have a warm bond with the normal tension of raising someone. Asking more than telling, and staying steady, keeps the door open.",
+    "STRAIN": "{a_name} and {b_name} are wired differently, and that can be tiring. The work is to see {b_name} for who they are and offer steady, warm limits rather than control."
+   },
+   "headline": {
+    "FLOW": "A close, easy bond \u2014 you understand each other's rhythm.",
+    "MIXED": "A warm bond with the normal push and pull of raising someone \u2014 steadiness carries it.",
+    "STRAIN": "A bond that asks you to meet them where they are \u2014 firm, warm and patient."
+   },
+   "runs": [
+    {
+     "badge": "MIXED",
+     "catalysts": [
+      "Little tension sits between you and Ravi.",
+      "Ravi's season and yours are lining up well right now."
+     ],
+     "direction": null,
+     "headline": "A warm bond with the normal push and pull of raising someone \u2014 steadiness carries it.",
+     "layers": [
+      [
+       "soul",
+       "Soul Alignment",
+       54,
+       30,
+       "Shared ground, real differences.",
+       "You and Ravi share a deep bond and hold some things differently \u2014 that's how a child becomes themselves."
+      ],
+      [
+       "chemistry",
+       "Chemistry & Attraction",
+       40,
+       0,
+       "Off-beat rhythm.",
+       "The daily rhythm with Ravi can be tiring \u2014 it eases when you meet their pace."
+      ],
+      [
+       "public",
+       "Public & Worldly Fit",
+       56,
+       5,
+       "A mixed public picture.",
+       "How you and Ravi come across to others is mostly steady."
+      ],
+      [
+       "lifepath",
+       "Lifepath & Timing",
+       90,
+       20,
+       "Timing moves in step.",
+       "Ravi's season and yours are lining up well right now."
+      ],
+      [
+       "communication",
+       "Communication & Trust",
+       70,
+       20,
+       "Works with deliberate effort.",
+       "You and Ravi talk well when you ask more and advise less."
+      ],
+      [
+       "friction",
+       "Friction & Growth",
+       88,
+       25,
+       "Little hidden friction.",
+       "Little tension sits between you and Ravi."
+      ]
+     ],
+     "passed": true,
+     "score": 73,
+     "summary": "Asha and Ravi have a warm bond with the normal tension of raising someone. Asking more than telling, and staying steady, keeps the door open.",
+     "watch_points": []
+    },
+    {
+     "badge": "MIXED",
+     "catalysts": [
+      "Little tension sits between you and Ravi.",
+      "Ravi's season and yours are lining up well right now.",
+      "Ravi opens up to you, and you can hear them."
+     ],
+     "direction": null,
+     "headline": "A warm bond with the normal push and pull of raising someone \u2014 steadiness carries it.",
+     "layers": [
+      [
+       "soul",
+       "Soul Alignment",
+       43,
+       30,
+       "Values pull apart.",
+       "Ravi is wired differently from you \u2014 the work is to see who they are rather than who you pictured."
+      ],
+      [
+       "chemistry",
+       "Chemistry & Attraction",
+       40,
+       0,
+       "Off-beat rhythm.",
+       "The daily rhythm with Ravi can be tiring \u2014 it eases when you meet their pace."
+      ],
+      [
+       "public",
+       "Public & Worldly Fit",
+       57,
+       5,
+       "A mixed public picture.",
+       "How you and Ravi come across to others is mostly steady."
+      ],
+      [
+       "lifepath",
+       "Lifepath & Timing",
+       90,
+       20,
+       "Timing moves in step.",
+       "Ravi's season and yours are lining up well right now."
+      ],
+      [
+       "communication",
+       "Communication & Trust",
+       87,
+       20,
+       "You understand each other.",
+       "Ravi opens up to you, and you can hear them."
+      ],
+      [
+       "friction",
+       "Friction & Growth",
+       84,
+       25,
+       "Little hidden friction.",
+       "Little tension sits between you and Ravi."
+      ]
+     ],
+     "passed": true,
+     "score": 72,
+     "summary": "Asha and Ravi have a warm bond with the normal tension of raising someone. Asking more than telling, and staying steady, keeps the door open.",
+     "watch_points": [
+      "Ravi is wired differently from you \u2014 the work is to see who they are rather than who you pictured."
+     ]
+    },
+    {
+     "badge": "MIXED",
+     "catalysts": [
+      "You and your child Ravi share a natural understanding of what matters.",
+      "Ravi's season and yours are lining up well right now."
+     ],
+     "direction": null,
+     "headline": "A warm bond with the normal push and pull of raising someone \u2014 steadiness carries it.",
+     "layers": [
+      [
+       "soul",
+       "Soul Alignment",
+       78,
+       30,
+       "Deep values resonance.",
+       "You and your child Ravi share a natural understanding of what matters."
+      ],
+      [
+       "chemistry",
+       "Chemistry & Attraction",
+       90,
+       0,
+       "Natural, easy attraction.",
+       "Time with Ravi comes easily and fills you both up."
+      ],
+      [
+       "public",
+       "Public & Worldly Fit",
+       67,
+       5,
+       "A mixed public picture.",
+       "How you and Ravi come across to others is mostly steady."
+      ],
+      [
+       "lifepath",
+       "Lifepath & Timing",
+       90,
+       20,
+       "Timing moves in step.",
+       "Ravi's season and yours are lining up well right now."
+      ],
+      [
+       "communication",
+       "Communication & Trust",
+       51,
+       20,
+       "Works with deliberate effort.",
+       "You and Ravi talk well when you ask more and advise less."
+      ],
+      [
+       "friction",
+       "Friction & Growth",
+       68,
+       25,
+       "Manageable friction underneath.",
+       "Some friction with Ravi is a normal part of growing up and is workable with steadiness."
+      ]
+     ],
+     "passed": true,
+     "score": 72,
+     "summary": "Asha and Ravi have a warm bond with the normal tension of raising someone. Asking more than telling, and staying steady, keeps the door open.",
+     "watch_points": []
+    }
+   ],
+   "sources": {
+    "chemistry": [
+     [
+      "venus_compatibility",
+      0.5833
+     ],
+     [
+      "mars_compatibility",
+      0.4167
+     ]
+    ],
+    "communication": [
+     [
+      "mercury_compatibility",
+      0.5714
+     ],
+     [
+      "gana",
+      0.4286
+     ]
+    ],
+    "friction": [
+     [
+      "mutual_6_8",
+      0.6923
+     ],
+     [
+      "growth_areas_count",
+      0.3077
+     ]
+    ],
+    "lifepath": [
+     [
+      "dasha_timing",
+      1.0
+     ]
+    ],
+    "public": [
+     [
+      "house_7",
+      0.4
+     ],
+     [
+      "house_10",
+      0.4
+     ],
+     [
+      "house_11",
+      0.2
+     ]
+    ],
+    "soul": [
+     [
+      "d9_overall",
+      0.5
+     ],
+     [
+      "graha_maitri",
+      0.35
+     ],
+     [
+      "varna",
+      0.15
+     ]
+    ]
+   },
+   "weights": {
+    "chemistry": 0,
+    "communication": 20,
+    "friction": 25,
+    "lifepath": 20,
+    "public": 5,
+    "soul": 30
+   }
+  },
+  "cofounder": {
+   "definition": {
+    "direction": null,
+    "label": "Cofounder",
+    "needs_role": false
+   },
+   "detail": {
+    "FLOW": "{a_name} and {b_name} show a rare founder alignment \u2014 complementary roles and years of shared runway. This is the kind of pairing you can build on without second-guessing the foundation.",
+    "MIXED": "{a_name} and {b_name} have a strong cofounder fit with specific gaps to close. Settle equity, roles, and decision rights early and the partnership can carry real weight.",
+    "STRAIN": "{a_name} and {b_name} are building toward different futures on different timelines. A venture together would be high-maintenance \u2014 go in clear-eyed about where the strain will surface."
+   },
+   "headline": {
+    "FLOW": "A rare founder match \u2014 complementary edges and a shared runway.",
+    "MIXED": "A strong founder fit with clear gaps \u2014 define roles and equity early.",
+    "STRAIN": "Different chapters, different missions \u2014 this would be high-maintenance to build."
+   },
+   "runs": [
+    {
+     "badge": "MIXED",
+     "catalysts": [
+      "Your runways and Ravi's line up for years of building together.",
+      "Little destructive friction sits between you and Ravi."
+     ],
+     "direction": null,
+     "headline": "A strong founder fit with clear gaps \u2014 define roles and equity early.",
+     "layers": [
+      [
+       "soul",
+       "Soul Alignment",
+       54,
+       20,
+       "Shared ground, real differences.",
+       "Your missions overlap with Ravi's but aren't identical \u2014 align on the 'why'."
+      ],
+      [
+       "chemistry",
+       "Chemistry & Attraction",
+       40,
+       5,
+       "Off-beat rhythm.",
+       "Under pressure you and Ravi default to different modes that clash."
+      ],
+      [
+       "public",
+       "Public & Worldly Fit",
+       56,
+       25,
+       "A mixed public picture.",
+       "Your founder image with Ravi is solid but needs clearer role lines."
+      ],
+      [
+       "lifepath",
+       "Lifepath & Timing",
+       90,
+       25,
+       "Timing moves in step.",
+       "Your runways and Ravi's line up for years of building together."
+      ],
+      [
+       "communication",
+       "Communication & Trust",
+       70,
+       15,
+       "Works with deliberate effort.",
+       "You and Ravi communicate well if you name the pattern before stress hits."
+      ],
+      [
+       "friction",
+       "Friction & Growth",
+       88,
+       10,
+       "Little hidden friction.",
+       "Little destructive friction sits between you and Ravi."
+      ]
+     ],
+     "passed": true,
+     "score": 69,
+     "summary": "Asha and Ravi have a strong cofounder fit with specific gaps to close. Settle equity, roles, and decision rights early and the partnership can carry real weight.",
+     "watch_points": [
+      "Under pressure you and Ravi default to different modes that clash."
+     ]
+    },
+    {
+     "badge": "MIXED",
+     "catalysts": [
+      "Your runways and Ravi's line up for years of building together.",
+      "You and Ravi can have hard conversations without breaking trust.",
+      "Little destructive friction sits between you and Ravi."
+     ],
+     "direction": null,
+     "headline": "A strong founder fit with clear gaps \u2014 define roles and equity early.",
+     "layers": [
+      [
+       "soul",
+       "Soul Alignment",
+       43,
+       20,
+       "Values pull apart.",
+       "What drives you and what drives Ravi point at different futures."
+      ],
+      [
+       "chemistry",
+       "Chemistry & Attraction",
+       40,
+       5,
+       "Off-beat rhythm.",
+       "Under pressure you and Ravi default to different modes that clash."
+      ],
+      [
+       "public",
+       "Public & Worldly Fit",
+       57,
+       25,
+       "A mixed public picture.",
+       "Your founder image with Ravi is solid but needs clearer role lines."
+      ],
+      [
+       "lifepath",
+       "Lifepath & Timing",
+       90,
+       25,
+       "Timing moves in step.",
+       "Your runways and Ravi's line up for years of building together."
+      ],
+      [
+       "communication",
+       "Communication & Trust",
+       87,
+       15,
+       "You understand each other.",
+       "You and Ravi can have hard conversations without breaking trust."
+      ],
+      [
+       "friction",
+       "Friction & Growth",
+       84,
+       10,
+       "Little hidden friction.",
+       "Little destructive friction sits between you and Ravi."
+      ]
+     ],
+     "passed": true,
+     "score": 69,
+     "summary": "Asha and Ravi have a strong cofounder fit with specific gaps to close. Settle equity, roles, and decision rights early and the partnership can carry real weight.",
+     "watch_points": [
+      "What drives you and what drives Ravi point at different futures.",
+      "Under pressure you and Ravi default to different modes that clash."
+     ]
+    },
+    {
+     "badge": "MIXED",
+     "catalysts": [
+      "Your runways and Ravi's line up for years of building together.",
+      "You and Ravi are building toward the same mission at heart.",
+      "You and Ravi click under pressure \u2014 the working bond holds."
+     ],
+     "direction": null,
+     "headline": "A strong founder fit with clear gaps \u2014 define roles and equity early.",
+     "layers": [
+      [
+       "soul",
+       "Soul Alignment",
+       78,
+       20,
+       "Deep values resonance.",
+       "You and Ravi are building toward the same mission at heart."
+      ],
+      [
+       "chemistry",
+       "Chemistry & Attraction",
+       90,
+       5,
+       "Natural, easy attraction.",
+       "You and Ravi click under pressure \u2014 the working bond holds."
+      ],
+      [
+       "public",
+       "Public & Worldly Fit",
+       67,
+       25,
+       "A mixed public picture.",
+       "Your founder image with Ravi is solid but needs clearer role lines."
+      ],
+      [
+       "lifepath",
+       "Lifepath & Timing",
+       90,
+       25,
+       "Timing moves in step.",
+       "Your runways and Ravi's line up for years of building together."
+      ],
+      [
+       "communication",
+       "Communication & Trust",
+       51,
+       15,
+       "Works with deliberate effort.",
+       "You and Ravi communicate well if you name the pattern before stress hits."
+      ],
+      [
+       "friction",
+       "Friction & Growth",
+       68,
+       10,
+       "Manageable friction underneath.",
+       "Friction with Ravi is survivable with clear equity and roles."
+      ]
+     ],
+     "passed": true,
+     "score": 74,
+     "summary": "Asha and Ravi have a strong cofounder fit with specific gaps to close. Settle equity, roles, and decision rights early and the partnership can carry real weight.",
+     "watch_points": []
+    }
+   ],
+   "sources": {
+    "chemistry": [
+     [
+      "venus_compatibility",
+      0.5833
+     ],
+     [
+      "mars_compatibility",
+      0.4167
+     ]
+    ],
+    "communication": [
+     [
+      "mercury_compatibility",
+      0.5714
+     ],
+     [
+      "gana",
+      0.4286
+     ]
+    ],
+    "friction": [
+     [
+      "mutual_6_8",
+      0.6923
+     ],
+     [
+      "growth_areas_count",
+      0.3077
+     ]
+    ],
+    "lifepath": [
+     [
+      "dasha_timing",
+      1.0
+     ]
+    ],
+    "public": [
+     [
+      "house_7",
+      0.4
+     ],
+     [
+      "house_10",
+      0.4
+     ],
+     [
+      "house_11",
+      0.2
+     ]
+    ],
+    "soul": [
+     [
+      "d9_overall",
+      0.5
+     ],
+     [
+      "graha_maitri",
+      0.35
+     ],
+     [
+      "varna",
+      0.15
+     ]
+    ]
+   },
+   "weights": {
+    "chemistry": 5,
+    "communication": 15,
+    "friction": 10,
+    "lifepath": 25,
+    "public": 25,
+    "soul": 20
+   }
+  },
+  "employee": {
+   "definition": {
+    "direction": "user_senior",
+    "label": "Someone reporting to me",
+    "needs_role": true
+   },
+   "detail": {
+    "FLOW": "Read as a role fit, {b_name} should settle into how {a_name} runs things and deliver with little friction. Set the expectations once and expect steady, reliable work.",
+    "MIXED": "Read as a role fit, {b_name} can do well for {a_name} with clear structure and onboarding. The gaps are workable; name them and put a cadence in place.",
+    "STRAIN": "Read as a role fit, {b_name} would need active managing to thrive under {a_name}. Be honest about where the friction sits before committing to the placement."
+   },
+   "headline": {
+    "FLOW": "A strong fit for the role \u2014 {b_name} should slot in and deliver.",
+    "MIXED": "A workable fit \u2014 {b_name} can do well here with clear structure.",
+    "STRAIN": "A stretch fit \u2014 {b_name} would need active managing to thrive in this role."
+   },
+   "runs": [
+    {
+     "badge": "MIXED",
+     "catalysts": [
+      "Ravi handles objections cleanly and updates you without being chased.",
+      "Ravi takes rejection without carrying it \u2014 that's rare and worth paying for.",
+      "Ravi's timing supports a push \u2014 they have the appetite for a heavy quarter."
+     ],
+     "direction": "user_senior",
+     "headline": "A workable fit \u2014 Ravi can do well here with clear structure.",
+     "layers": [
+      [
+       "soul",
+       "Soul Alignment",
+       54,
+       10,
+       "Shared ground, real differences.",
+       "Ravi will chase the number, but check what they think they're selling."
+      ],
+      [
+       "chemistry",
+       "Chemistry & Attraction",
+       40,
+       0,
+       "Off-beat rhythm.",
+       "Rapport is effortful for Ravi \u2014 expect a longer ramp on relationship-led deals."
+      ],
+      [
+       "public",
+       "Execution Fit",
+       62,
+       30,
+       "A mixed public picture.",
+       "Ravi represents you fine; brief them tightly before the big meetings."
+      ],
+      [
+       "lifepath",
+       "Operating Rhythm",
+       90,
+       15,
+       "Timing moves in step.",
+       "Ravi's timing supports a push \u2014 they have the appetite for a heavy quarter."
+      ],
+      [
+       "communication",
+       "Communication & Trust",
+       75,
+       25,
+       "You understand each other.",
+       "Ravi handles objections cleanly and updates you without being chased."
+      ],
+      [
+       "friction",
+       "Support Direction",
+       83,
+       20,
+       "Little hidden friction.",
+       "Ravi takes rejection without carrying it \u2014 that's rare and worth paying for."
+      ]
+     ],
+     "passed": true,
+     "score": 73,
+     "summary": "Read as a role fit, Ravi can do well for Asha with clear structure and onboarding. The gaps are workable; name them and put a cadence in place.",
+     "watch_points": []
+    },
+    {
+     "badge": "MIXED",
+     "catalysts": [
+      "Ravi handles objections cleanly and updates you without being chased.",
+      "Ravi takes rejection without carrying it \u2014 that's rare and worth paying for.",
+      "Ravi's timing supports a push \u2014 they have the appetite for a heavy quarter."
+     ],
+     "direction": "user_senior",
+     "headline": "A workable fit \u2014 Ravi can do well here with clear structure.",
+     "layers": [
+      [
+       "soul",
+       "Soul Alignment",
+       43,
+       10,
+       "Values pull apart.",
+       "Ravi isn't motivated by what this seat pays out \u2014 quota will feel like a costume."
+      ],
+      [
+       "chemistry",
+       "Chemistry & Attraction",
+       40,
+       0,
+       "Off-beat rhythm.",
+       "Rapport is effortful for Ravi \u2014 expect a longer ramp on relationship-led deals."
+      ],
+      [
+       "public",
+       "Execution Fit",
+       57,
+       30,
+       "A mixed public picture.",
+       "Ravi represents you fine; brief them tightly before the big meetings."
+      ],
+      [
+       "lifepath",
+       "Operating Rhythm",
+       90,
+       15,
+       "Timing moves in step.",
+       "Ravi's timing supports a push \u2014 they have the appetite for a heavy quarter."
+      ],
+      [
+       "communication",
+       "Communication & Trust",
+       92,
+       25,
+       "You understand each other.",
+       "Ravi handles objections cleanly and updates you without being chased."
+      ],
+      [
+       "friction",
+       "Support Direction",
+       79,
+       20,
+       "Little hidden friction.",
+       "Ravi takes rejection without carrying it \u2014 that's rare and worth paying for."
+      ]
+     ],
+     "passed": true,
+     "score": 74,
+     "summary": "Read as a role fit, Ravi can do well for Asha with clear structure and onboarding. The gaps are workable; name them and put a cadence in place.",
+     "watch_points": [
+      "Ravi isn't motivated by what this seat pays out \u2014 quota will feel like a costume."
+     ]
+    },
+    {
+     "badge": "MIXED",
+     "catalysts": [
+      "Ravi's timing supports a push \u2014 they have the appetite for a heavy quarter.",
+      "Ravi wants what a sales seat rewards \u2014 the drive is real, not performed."
+     ],
+     "direction": "user_senior",
+     "headline": "A workable fit \u2014 Ravi can do well here with clear structure.",
+     "layers": [
+      [
+       "soul",
+       "Soul Alignment",
+       78,
+       10,
+       "Deep values resonance.",
+       "Ravi wants what a sales seat rewards \u2014 the drive is real, not performed."
+      ],
+      [
+       "chemistry",
+       "Chemistry & Attraction",
+       90,
+       0,
+       "Natural, easy attraction.",
+       "Ravi builds rapport fast \u2014 the thing you can't train."
+      ],
+      [
+       "public",
+       "Execution Fit",
+       72,
+       30,
+       "A mixed public picture.",
+       "Ravi represents you fine; brief them tightly before the big meetings."
+      ],
+      [
+       "lifepath",
+       "Operating Rhythm",
+       90,
+       15,
+       "Timing moves in step.",
+       "Ravi's timing supports a push \u2014 they have the appetite for a heavy quarter."
+      ],
+      [
+       "communication",
+       "Communication & Trust",
+       56,
+       25,
+       "Works with deliberate effort.",
+       "Ravi sells well but reports unevenly \u2014 set a forecast cadence early."
+      ],
+      [
+       "friction",
+       "Support Direction",
+       63,
+       20,
+       "Manageable friction underneath.",
+       "Losses land harder on Ravi than they'll admit; check in after a bad month."
+      ]
+     ],
+     "passed": true,
+     "score": 70,
+     "summary": "Read as a role fit, Ravi can do well for Asha with clear structure and onboarding. The gaps are workable; name them and put a cadence in place.",
+     "watch_points": []
+    }
+   ],
+   "sources": {
+    "chemistry": [
+     [
+      "venus_compatibility",
+      0.5833
+     ],
+     [
+      "mars_compatibility",
+      0.4167
+     ]
+    ],
+    "communication": [
+     [
+      "mercury_compatibility",
+      0.5714
+     ],
+     [
+      "gana",
+      0.4286
+     ]
+    ],
+    "friction": [
+     [
+      "mutual_6_8",
+      0.6923
+     ],
+     [
+      "growth_areas_count",
+      0.3077
+     ]
+    ],
+    "lifepath": [
+     [
+      "dasha_timing",
+      1.0
+     ]
+    ],
+    "public": [
+     [
+      "house_exchange_their_to_your",
+      0.5
+     ],
+     [
+      "house_7",
+      0.2
+     ],
+     [
+      "house_10",
+      0.2
+     ],
+     [
+      "house_11",
+      0.1
+     ]
+    ],
+    "soul": [
+     [
+      "d9_overall",
+      0.5
+     ],
+     [
+      "graha_maitri",
+      0.35
+     ],
+     [
+      "varna",
+      0.15
+     ]
+    ]
+   },
+   "weights": {
+    "chemistry": 0,
+    "communication": 25,
+    "friction": 20,
+    "lifepath": 15,
+    "public": 30,
+    "soul": 10
+   }
+  },
+  "family": {
+   "definition": {
+    "direction": null,
+    "label": "Family member",
+    "needs_role": false
+   },
+   "detail": {
+    "FLOW": "{a_name} and {b_name} share a steadying family bond where love and daily rhythm pull the same way. A relationship that supports both people through the long arc.",
+    "MIXED": "{a_name} and {b_name} have a warm bond with the ordinary family edges. Patience and a little listening carry it through the friction.",
+    "STRAIN": "{a_name} and {b_name} love each other across a real values or rhythm gap. The bond endures, but it keeps asking both people for understanding and room."
+   },
+   "headline": {
+    "FLOW": "A steadying bond \u2014 love and rhythm both pulling the same way.",
+    "MIXED": "A warm bond with the usual family edges \u2014 patience carries it.",
+    "STRAIN": "Deep love across a real gap \u2014 the relationship keeps asking for understanding."
+   },
+   "runs": [
+    {
+     "badge": "MIXED",
+     "catalysts": [
+      "Your life seasons and Ravi's support each other right now.",
+      "Little unspoken friction sits between you and Ravi."
+     ],
+     "direction": null,
+     "headline": "A warm bond with the usual family edges \u2014 patience carries it.",
+     "layers": [
+      [
+       "soul",
+       "Soul Alignment",
+       54,
+       30,
+       "Shared ground, real differences.",
+       "You and Ravi are bonded but hold some genuinely different values."
+      ],
+      [
+       "chemistry",
+       "Chemistry & Attraction",
+       40,
+       0,
+       "Off-beat rhythm.",
+       "The day-to-day rhythm with Ravi can rub, even with love underneath."
+      ],
+      [
+       "public",
+       "Public & Worldly Fit",
+       56,
+       5,
+       "A mixed public picture.",
+       "How you and Ravi appear to relatives is mostly steady."
+      ],
+      [
+       "lifepath",
+       "Lifepath & Timing",
+       90,
+       25,
+       "Timing moves in step.",
+       "Your life seasons and Ravi's support each other right now."
+      ],
+      [
+       "communication",
+       "Communication & Trust",
+       70,
+       20,
+       "Works with deliberate effort.",
+       "You and Ravi communicate well when you slow down and listen."
+      ],
+      [
+       "friction",
+       "Friction & Growth",
+       88,
+       20,
+       "Little hidden friction.",
+       "Little unspoken friction sits between you and Ravi."
+      ]
+     ],
+     "passed": true,
+     "score": 73,
+     "summary": "Asha and Ravi have a warm bond with the ordinary family edges. Patience and a little listening carry it through the friction.",
+     "watch_points": []
+    },
+    {
+     "badge": "MIXED",
+     "catalysts": [
+      "Your life seasons and Ravi's support each other right now.",
+      "You and Ravi can speak openly and be understood.",
+      "Little unspoken friction sits between you and Ravi."
+     ],
+     "direction": null,
+     "headline": "A warm bond with the usual family edges \u2014 patience carries it.",
+     "layers": [
+      [
+       "soul",
+       "Soul Alignment",
+       43,
+       30,
+       "Values pull apart.",
+       "You and Ravi love each other across a real values gap."
+      ],
+      [
+       "chemistry",
+       "Chemistry & Attraction",
+       40,
+       0,
+       "Off-beat rhythm.",
+       "The day-to-day rhythm with Ravi can rub, even with love underneath."
+      ],
+      [
+       "public",
+       "Public & Worldly Fit",
+       57,
+       5,
+       "A mixed public picture.",
+       "How you and Ravi appear to relatives is mostly steady."
+      ],
+      [
+       "lifepath",
+       "Lifepath & Timing",
+       90,
+       25,
+       "Timing moves in step.",
+       "Your life seasons and Ravi's support each other right now."
+      ],
+      [
+       "communication",
+       "Communication & Trust",
+       87,
+       20,
+       "You understand each other.",
+       "You and Ravi can speak openly and be understood."
+      ],
+      [
+       "friction",
+       "Friction & Growth",
+       84,
+       20,
+       "Little hidden friction.",
+       "Little unspoken friction sits between you and Ravi."
+      ]
+     ],
+     "passed": true,
+     "score": 72,
+     "summary": "Asha and Ravi have a warm bond with the ordinary family edges. Patience and a little listening carry it through the friction.",
+     "watch_points": [
+      "You and Ravi love each other across a real values gap."
+     ]
+    },
+    {
+     "badge": "MIXED",
+     "catalysts": [
+      "You and Ravi share a deep, values-level bond.",
+      "Your life seasons and Ravi's support each other right now."
+     ],
+     "direction": null,
+     "headline": "A warm bond with the usual family edges \u2014 patience carries it.",
+     "layers": [
+      [
+       "soul",
+       "Soul Alignment",
+       78,
+       30,
+       "Deep values resonance.",
+       "You and Ravi share a deep, values-level bond."
+      ],
+      [
+       "chemistry",
+       "Chemistry & Attraction",
+       90,
+       0,
+       "Natural, easy attraction.",
+       "Being around Ravi feels natural and steadying."
+      ],
+      [
+       "public",
+       "Public & Worldly Fit",
+       67,
+       5,
+       "A mixed public picture.",
+       "How you and Ravi appear to relatives is mostly steady."
+      ],
+      [
+       "lifepath",
+       "Lifepath & Timing",
+       90,
+       25,
+       "Timing moves in step.",
+       "Your life seasons and Ravi's support each other right now."
+      ],
+      [
+       "communication",
+       "Communication & Trust",
+       51,
+       20,
+       "Works with deliberate effort.",
+       "You and Ravi communicate well when you slow down and listen."
+      ],
+      [
+       "friction",
+       "Friction & Growth",
+       68,
+       20,
+       "Manageable friction underneath.",
+       "Some friction with Ravi is manageable with a little patience."
+      ]
+     ],
+     "passed": true,
+     "score": 73,
+     "summary": "Asha and Ravi have a warm bond with the ordinary family edges. Patience and a little listening carry it through the friction.",
+     "watch_points": []
+    }
+   ],
+   "sources": {
+    "chemistry": [
+     [
+      "venus_compatibility",
+      0.5833
+     ],
+     [
+      "mars_compatibility",
+      0.4167
+     ]
+    ],
+    "communication": [
+     [
+      "mercury_compatibility",
+      0.5714
+     ],
+     [
+      "gana",
+      0.4286
+     ]
+    ],
+    "friction": [
+     [
+      "mutual_6_8",
+      0.6923
+     ],
+     [
+      "growth_areas_count",
+      0.3077
+     ]
+    ],
+    "lifepath": [
+     [
+      "dasha_timing",
+      1.0
+     ]
+    ],
+    "public": [
+     [
+      "house_7",
+      0.4
+     ],
+     [
+      "house_10",
+      0.4
+     ],
+     [
+      "house_11",
+      0.2
+     ]
+    ],
+    "soul": [
+     [
+      "d9_overall",
+      0.5
+     ],
+     [
+      "graha_maitri",
+      0.35
+     ],
+     [
+      "varna",
+      0.15
+     ]
+    ]
+   },
+   "weights": {
+    "chemistry": 0,
+    "communication": 20,
+    "friction": 20,
+    "lifepath": 25,
+    "public": 5,
+    "soul": 30
+   }
+  },
+  "friend": {
+   "definition": {
+    "direction": null,
+    "label": "Friend",
+    "needs_role": false
+   },
+   "detail": {
+    "FLOW": "{a_name} and {b_name} have an easy, energizing friendship that tends to hold through life's changes. Little maintenance required \u2014 the connection refills itself.",
+    "MIXED": "{a_name} and {b_name} have a solid friendship that stays close with a little intention. Keep showing up through the off-seasons and it deepens.",
+    "STRAIN": "{a_name} and {b_name} are good for each other across a real gap in rhythm or values. The friendship lasts on effort and honesty rather than autopilot."
+   },
+   "headline": {
+    "FLOW": "An easy, energizing friendship that holds across seasons.",
+    "MIXED": "A good friendship that stays close with a little intention.",
+    "STRAIN": "A friendship across a real gap \u2014 it survives on effort, not autopilot."
+   },
+   "runs": [
+    {
+     "badge": "MIXED",
+     "catalysts": [
+      "Little hidden friction sits between you and Ravi.",
+      "You and Ravi are in life seasons that keep you close right now."
+     ],
+     "direction": null,
+     "headline": "A good friendship that stays close with a little intention.",
+     "layers": [
+      [
+       "soul",
+       "Soul Alignment",
+       54,
+       25,
+       "Shared ground, real differences.",
+       "You and Ravi share a lot and differ on a few things that matter."
+      ],
+      [
+       "chemistry",
+       "Chemistry & Attraction",
+       40,
+       5,
+       "Off-beat rhythm.",
+       "Your natural energy and Ravi's don't always match up."
+      ],
+      [
+       "public",
+       "Public & Worldly Fit",
+       56,
+       10,
+       "A mixed public picture.",
+       "You and Ravi are fine in a crowd, closer one-on-one."
+      ],
+      [
+       "lifepath",
+       "Lifepath & Timing",
+       90,
+       15,
+       "Timing moves in step.",
+       "You and Ravi are in life seasons that keep you close right now."
+      ],
+      [
+       "communication",
+       "Communication & Trust",
+       70,
+       25,
+       "Works with deliberate effort.",
+       "You and Ravi talk well once you account for different styles."
+      ],
+      [
+       "friction",
+       "Friction & Growth",
+       88,
+       20,
+       "Little hidden friction.",
+       "Little hidden friction sits between you and Ravi."
+      ]
+     ],
+     "passed": true,
+     "score": 70,
+     "summary": "Asha and Ravi have a solid friendship that stays close with a little intention. Keep showing up through the off-seasons and it deepens.",
+     "watch_points": [
+      "Your natural energy and Ravi's don't always match up."
+     ]
+    },
+    {
+     "badge": "MIXED",
+     "catalysts": [
+      "You and Ravi get each other quickly and forgive easily.",
+      "Little hidden friction sits between you and Ravi.",
+      "You and Ravi are in life seasons that keep you close right now."
+     ],
+     "direction": null,
+     "headline": "A good friendship that stays close with a little intention.",
+     "layers": [
+      [
+       "soul",
+       "Soul Alignment",
+       43,
+       25,
+       "Values pull apart.",
+       "You and Ravi value different things at the core of the friendship."
+      ],
+      [
+       "chemistry",
+       "Chemistry & Attraction",
+       40,
+       5,
+       "Off-beat rhythm.",
+       "Your natural energy and Ravi's don't always match up."
+      ],
+      [
+       "public",
+       "Public & Worldly Fit",
+       57,
+       10,
+       "A mixed public picture.",
+       "You and Ravi are fine in a crowd, closer one-on-one."
+      ],
+      [
+       "lifepath",
+       "Lifepath & Timing",
+       90,
+       15,
+       "Timing moves in step.",
+       "You and Ravi are in life seasons that keep you close right now."
+      ],
+      [
+       "communication",
+       "Communication & Trust",
+       87,
+       25,
+       "You understand each other.",
+       "You and Ravi get each other quickly and forgive easily."
+      ],
+      [
+       "friction",
+       "Friction & Growth",
+       84,
+       20,
+       "Little hidden friction.",
+       "Little hidden friction sits between you and Ravi."
+      ]
+     ],
+     "passed": true,
+     "score": 70,
+     "summary": "Asha and Ravi have a solid friendship that stays close with a little intention. Keep showing up through the off-seasons and it deepens.",
+     "watch_points": [
+      "You and Ravi value different things at the core of the friendship.",
+      "Your natural energy and Ravi's don't always match up."
+     ]
+    },
+    {
+     "badge": "MIXED",
+     "catalysts": [
+      "You and Ravi see the world through a similar lens.",
+      "You and Ravi are in life seasons that keep you close right now.",
+      "Time with Ravi is easy and energizing."
+     ],
+     "direction": null,
+     "headline": "A good friendship that stays close with a little intention.",
+     "layers": [
+      [
+       "soul",
+       "Soul Alignment",
+       78,
+       25,
+       "Deep values resonance.",
+       "You and Ravi see the world through a similar lens."
+      ],
+      [
+       "chemistry",
+       "Chemistry & Attraction",
+       90,
+       5,
+       "Natural, easy attraction.",
+       "Time with Ravi is easy and energizing."
+      ],
+      [
+       "public",
+       "Public & Worldly Fit",
+       67,
+       10,
+       "A mixed public picture.",
+       "You and Ravi are fine in a crowd, closer one-on-one."
+      ],
+      [
+       "lifepath",
+       "Lifepath & Timing",
+       90,
+       15,
+       "Timing moves in step.",
+       "You and Ravi are in life seasons that keep you close right now."
+      ],
+      [
+       "communication",
+       "Communication & Trust",
+       51,
+       25,
+       "Works with deliberate effort.",
+       "You and Ravi talk well once you account for different styles."
+      ],
+      [
+       "friction",
+       "Friction & Growth",
+       68,
+       20,
+       "Manageable friction underneath.",
+       "Some friction with Ravi is easy to absorb if you address it lightly."
+      ]
+     ],
+     "passed": true,
+     "score": 71,
+     "summary": "Asha and Ravi have a solid friendship that stays close with a little intention. Keep showing up through the off-seasons and it deepens.",
+     "watch_points": []
+    }
+   ],
+   "sources": {
+    "chemistry": [
+     [
+      "venus_compatibility",
+      0.5833
+     ],
+     [
+      "mars_compatibility",
+      0.4167
+     ]
+    ],
+    "communication": [
+     [
+      "mercury_compatibility",
+      0.5714
+     ],
+     [
+      "gana",
+      0.4286
+     ]
+    ],
+    "friction": [
+     [
+      "mutual_6_8",
+      0.6923
+     ],
+     [
+      "growth_areas_count",
+      0.3077
+     ]
+    ],
+    "lifepath": [
+     [
+      "dasha_timing",
+      1.0
+     ]
+    ],
+    "public": [
+     [
+      "house_7",
+      0.4
+     ],
+     [
+      "house_10",
+      0.4
+     ],
+     [
+      "house_11",
+      0.2
+     ]
+    ],
+    "soul": [
+     [
+      "d9_overall",
+      0.5
+     ],
+     [
+      "graha_maitri",
+      0.35
+     ],
+     [
+      "varna",
+      0.15
+     ]
+    ]
+   },
+   "weights": {
+    "chemistry": 5,
+    "communication": 25,
+    "friction": 20,
+    "lifepath": 15,
+    "public": 10,
+    "soul": 25
+   }
+  },
+  "parent": {
+   "definition": {
+    "direction": null,
+    "label": "My parent",
+    "needs_role": false
+   },
+   "detail": {
+    "FLOW": "{a_name} and {b_name} share a steady bond with understanding running both ways. It tends to support you both through the long arc of life.",
+    "MIXED": "{a_name} and {b_name} love each other with the usual generational edges. A little patience and honest listening carry the bond through the harder stretches.",
+    "STRAIN": "{a_name} and {b_name} love each other across a real gap in values or rhythm. The bond endures; it asks for understanding and kind boundaries more than agreement."
+   },
+   "headline": {
+    "FLOW": "A steady, supportive bond \u2014 understanding runs both ways.",
+    "MIXED": "A loving bond with the usual generational edges \u2014 patience carries it.",
+    "STRAIN": "Deep love across a real gap \u2014 the bond asks for understanding more than agreement."
+   },
+   "runs": [
+    {
+     "badge": "MIXED",
+     "catalysts": [
+      "Ravi's life season and yours are supporting each other right now.",
+      "Little unspoken tension sits between you and Ravi."
+     ],
+     "direction": null,
+     "headline": "A loving bond with the usual generational edges \u2014 patience carries it.",
+     "layers": [
+      [
+       "soul",
+       "Soul Alignment",
+       54,
+       30,
+       "Shared ground, real differences.",
+       "You and Ravi share a deep root and hold some values differently \u2014 love without needing agreement."
+      ],
+      [
+       "chemistry",
+       "Chemistry & Attraction",
+       40,
+       0,
+       "Off-beat rhythm.",
+       "The day-to-day rhythm with Ravi can wear on you, even with love underneath."
+      ],
+      [
+       "public",
+       "Public & Worldly Fit",
+       56,
+       5,
+       "A mixed public picture.",
+       "How you and Ravi appear to others is mostly steady."
+      ],
+      [
+       "lifepath",
+       "Lifepath & Timing",
+       90,
+       25,
+       "Timing moves in step.",
+       "Ravi's life season and yours are supporting each other right now."
+      ],
+      [
+       "communication",
+       "Communication & Trust",
+       70,
+       25,
+       "Works with deliberate effort.",
+       "You and Ravi communicate well once you slow down and listen for what's underneath."
+      ],
+      [
+       "friction",
+       "Friction & Growth",
+       88,
+       15,
+       "Little hidden friction.",
+       "Little unspoken tension sits between you and Ravi."
+      ]
+     ],
+     "passed": true,
+     "score": 72,
+     "summary": "Asha and Ravi love each other with the usual generational edges. A little patience and honest listening carry the bond through the harder stretches.",
+     "watch_points": []
+    },
+    {
+     "badge": "MIXED",
+     "catalysts": [
+      "Ravi's life season and yours are supporting each other right now.",
+      "You and Ravi can speak openly and be heard.",
+      "Little unspoken tension sits between you and Ravi."
+     ],
+     "direction": null,
+     "headline": "A loving bond with the usual generational edges \u2014 patience carries it.",
+     "layers": [
+      [
+       "soul",
+       "Soul Alignment",
+       43,
+       30,
+       "Values pull apart.",
+       "Ravi's values and yours sit far apart \u2014 the bond asks for acceptance more than agreement."
+      ],
+      [
+       "chemistry",
+       "Chemistry & Attraction",
+       40,
+       0,
+       "Off-beat rhythm.",
+       "The day-to-day rhythm with Ravi can wear on you, even with love underneath."
+      ],
+      [
+       "public",
+       "Public & Worldly Fit",
+       57,
+       5,
+       "A mixed public picture.",
+       "How you and Ravi appear to others is mostly steady."
+      ],
+      [
+       "lifepath",
+       "Lifepath & Timing",
+       90,
+       25,
+       "Timing moves in step.",
+       "Ravi's life season and yours are supporting each other right now."
+      ],
+      [
+       "communication",
+       "Communication & Trust",
+       87,
+       25,
+       "You understand each other.",
+       "You and Ravi can speak openly and be heard."
+      ],
+      [
+       "friction",
+       "Friction & Growth",
+       84,
+       15,
+       "Little hidden friction.",
+       "Little unspoken tension sits between you and Ravi."
+      ]
+     ],
+     "passed": true,
+     "score": 73,
+     "summary": "Asha and Ravi love each other with the usual generational edges. A little patience and honest listening carry the bond through the harder stretches.",
+     "watch_points": [
+      "Ravi's values and yours sit far apart \u2014 the bond asks for acceptance more than agreement."
+     ]
+    },
+    {
+     "badge": "MIXED",
+     "catalysts": [
+      "You and your parent Ravi hold values in much the same way \u2014 the bond rests on shared ground.",
+      "Ravi's life season and yours are supporting each other right now."
+     ],
+     "direction": null,
+     "headline": "A loving bond with the usual generational edges \u2014 patience carries it.",
+     "layers": [
+      [
+       "soul",
+       "Soul Alignment",
+       78,
+       30,
+       "Deep values resonance.",
+       "You and your parent Ravi hold values in much the same way \u2014 the bond rests on shared ground."
+      ],
+      [
+       "chemistry",
+       "Chemistry & Attraction",
+       90,
+       0,
+       "Natural, easy attraction.",
+       "Being with Ravi feels familiar and steadying."
+      ],
+      [
+       "public",
+       "Public & Worldly Fit",
+       67,
+       5,
+       "A mixed public picture.",
+       "How you and Ravi appear to others is mostly steady."
+      ],
+      [
+       "lifepath",
+       "Lifepath & Timing",
+       90,
+       25,
+       "Timing moves in step.",
+       "Ravi's life season and yours are supporting each other right now."
+      ],
+      [
+       "communication",
+       "Communication & Trust",
+       51,
+       25,
+       "Works with deliberate effort.",
+       "You and Ravi communicate well once you slow down and listen for what's underneath."
+      ],
+      [
+       "friction",
+       "Friction & Growth",
+       68,
+       15,
+       "Manageable friction underneath.",
+       "Some tension with Ravi is manageable with a little patience on both sides."
+      ]
+     ],
+     "passed": true,
+     "score": 72,
+     "summary": "Asha and Ravi love each other with the usual generational edges. A little patience and honest listening carry the bond through the harder stretches.",
+     "watch_points": []
+    }
+   ],
+   "sources": {
+    "chemistry": [
+     [
+      "venus_compatibility",
+      0.5833
+     ],
+     [
+      "mars_compatibility",
+      0.4167
+     ]
+    ],
+    "communication": [
+     [
+      "mercury_compatibility",
+      0.5714
+     ],
+     [
+      "gana",
+      0.4286
+     ]
+    ],
+    "friction": [
+     [
+      "mutual_6_8",
+      0.6923
+     ],
+     [
+      "growth_areas_count",
+      0.3077
+     ]
+    ],
+    "lifepath": [
+     [
+      "dasha_timing",
+      1.0
+     ]
+    ],
+    "public": [
+     [
+      "house_7",
+      0.4
+     ],
+     [
+      "house_10",
+      0.4
+     ],
+     [
+      "house_11",
+      0.2
+     ]
+    ],
+    "soul": [
+     [
+      "d9_overall",
+      0.5
+     ],
+     [
+      "graha_maitri",
+      0.35
+     ],
+     [
+      "varna",
+      0.15
+     ]
+    ]
+   },
+   "weights": {
+    "chemistry": 0,
+    "communication": 25,
+    "friction": 15,
+    "lifepath": 25,
+    "public": 5,
+    "soul": 30
+   }
+  },
+  "romantic": {
+   "definition": {
+    "direction": null,
+    "label": "Romantic partner",
+    "needs_role": false
+   },
+   "detail": {
+    "FLOW": "{a_name} and {b_name} share a foundation that supports both ease and depth. The pattern favors a relationship that feels natural now and grows sturdier over time, as long as you keep choosing each other.",
+    "MIXED": "{a_name} and {b_name} have genuine connection alongside genuine differences. This is a relationship that rewards honesty \u2014 name the gaps early and they become growth rather than grievance.",
+    "STRAIN": "{a_name} and {b_name} carry a connection that runs intense and growth-heavy. It won't always feel easy; it will feel necessary. The question isn't whether you're compatible but whether you're both ready to grow."
+   },
+   "headline": {
+    "FLOW": "A love that moves in step \u2014 ease now, depth over time.",
+    "MIXED": "Real love with real edges \u2014 it works when you both stay honest.",
+    "STRAIN": "A demanding, growth-heavy connection \u2014 beautiful, but it asks a lot."
+   },
+   "runs": [
+    {
+     "badge": "MIXED",
+     "catalysts": [
+      "Your life chapters and Ravi's are opening in the same direction right now."
+     ],
+     "direction": null,
+     "headline": "Real love with real edges \u2014 it works when you both stay honest.",
+     "layers": [
+      [
+       "soul",
+       "Soul Alignment",
+       54,
+       25,
+       "Shared ground, real differences.",
+       "Your core values and Ravi's mostly align, with a few real differences to honor."
+      ],
+      [
+       "chemistry",
+       "Chemistry & Attraction",
+       44,
+       25,
+       "Off-beat rhythm.",
+       "The spark with Ravi runs hot and cold \u2014 closeness takes conscious effort."
+      ],
+      [
+       "public",
+       "Public & Worldly Fit",
+       56,
+       5,
+       "A mixed public picture.",
+       "How you show up together is fine, if not the headline of this match."
+      ],
+      [
+       "lifepath",
+       "Lifepath & Timing",
+       93,
+       15,
+       "Timing moves in step.",
+       "Your life chapters and Ravi's are opening in the same direction right now."
+      ],
+      [
+       "communication",
+       "Communication & Trust",
+       70,
+       15,
+       "Works with deliberate effort.",
+       "You and Ravi communicate well once you name how you each process things."
+      ],
+      [
+       "friction",
+       "Friction & Growth",
+       65,
+       15,
+       "Manageable friction underneath.",
+       "Some friction with Ravi is workable if you stay honest about it."
+      ]
+     ],
+     "passed": false,
+     "score": 62,
+     "summary": "Asha and Ravi have genuine connection alongside genuine differences. This is a relationship that rewards honesty \u2014 name the gaps early and they become growth rather than grievance.",
+     "watch_points": [
+      "The spark with Ravi runs hot and cold \u2014 closeness takes conscious effort."
+     ]
+    },
+    {
+     "badge": "MIXED",
+     "catalysts": [
+      "Your life chapters and Ravi's are opening in the same direction right now.",
+      "You and Ravi feel heard by each other; trust comes easily.",
+      "Little hidden tension sits between you and Ravi."
+     ],
+     "direction": null,
+     "headline": "Real love with real edges \u2014 it works when you both stay honest.",
+     "layers": [
+      [
+       "soul",
+       "Soul Alignment",
+       43,
+       25,
+       "Values pull apart.",
+       "What you treasure and what Ravi treasures aren't the same \u2014 name it early."
+      ],
+      [
+       "chemistry",
+       "Chemistry & Attraction",
+       44,
+       25,
+       "Off-beat rhythm.",
+       "The spark with Ravi runs hot and cold \u2014 closeness takes conscious effort."
+      ],
+      [
+       "public",
+       "Public & Worldly Fit",
+       57,
+       5,
+       "A mixed public picture.",
+       "How you show up together is fine, if not the headline of this match."
+      ],
+      [
+       "lifepath",
+       "Lifepath & Timing",
+       93,
+       15,
+       "Timing moves in step.",
+       "Your life chapters and Ravi's are opening in the same direction right now."
+      ],
+      [
+       "communication",
+       "Communication & Trust",
+       87,
+       15,
+       "You understand each other.",
+       "You and Ravi feel heard by each other; trust comes easily."
+      ],
+      [
+       "friction",
+       "Friction & Growth",
+       90,
+       15,
+       "Little hidden friction.",
+       "Little hidden tension sits between you and Ravi."
+      ]
+     ],
+     "passed": true,
+     "score": 65,
+     "summary": "Asha and Ravi have genuine connection alongside genuine differences. This is a relationship that rewards honesty \u2014 name the gaps early and they become growth rather than grievance.",
+     "watch_points": [
+      "What you treasure and what Ravi treasures aren't the same \u2014 name it early.",
+      "The spark with Ravi runs hot and cold \u2014 closeness takes conscious effort."
+     ]
+    },
+    {
+     "badge": "FLOW",
+     "catalysts": [
+      "At the deepest level you and Ravi want the same things from life.",
+      "Your life chapters and Ravi's are opening in the same direction right now.",
+      "Little hidden tension sits between you and Ravi."
+     ],
+     "direction": null,
+     "headline": "A love that moves in step \u2014 ease now, depth over time.",
+     "layers": [
+      [
+       "soul",
+       "Soul Alignment",
+       78,
+       25,
+       "Deep values resonance.",
+       "At the deepest level you and Ravi want the same things from life."
+      ],
+      [
+       "chemistry",
+       "Chemistry & Attraction",
+       74,
+       25,
+       "Real spark, needs tending.",
+       "There's real chemistry with Ravi, though it needs tending to stay alive."
+      ],
+      [
+       "public",
+       "Public & Worldly Fit",
+       67,
+       5,
+       "A mixed public picture.",
+       "How you show up together is fine, if not the headline of this match."
+      ],
+      [
+       "lifepath",
+       "Lifepath & Timing",
+       93,
+       15,
+       "Timing moves in step.",
+       "Your life chapters and Ravi's are opening in the same direction right now."
+      ],
+      [
+       "communication",
+       "Communication & Trust",
+       51,
+       15,
+       "Works with deliberate effort.",
+       "You and Ravi communicate well once you name how you each process things."
+      ],
+      [
+       "friction",
+       "Friction & Growth",
+       79,
+       15,
+       "Little hidden friction.",
+       "Little hidden tension sits between you and Ravi."
+      ]
+     ],
+     "passed": true,
+     "score": 75,
+     "summary": "Asha and Ravi share a foundation that supports both ease and depth. The pattern favors a relationship that feels natural now and grows sturdier over time, as long as you keep choosing each other.",
+     "watch_points": []
+    }
+   ],
+   "sources": {
+    "chemistry": [
+     [
+      "yoni",
+      0.4
+     ],
+     [
+      "venus_compatibility",
+      0.35
+     ],
+     [
+      "mars_compatibility",
+      0.25
+     ]
+    ],
+    "communication": [
+     [
+      "mercury_compatibility",
+      0.5714
+     ],
+     [
+      "gana",
+      0.4286
+     ]
+    ],
+    "friction": [
+     [
+      "mutual_6_8",
+      0.45
+     ],
+     [
+      "nadi_dosha",
+      0.35
+     ],
+     [
+      "growth_areas_count",
+      0.2
+     ]
+    ],
+    "lifepath": [
+     [
+      "dasha_timing",
+      0.7
+     ],
+     [
+      "bhakoot",
+      0.3
+     ]
+    ],
+    "public": [
+     [
+      "house_7",
+      0.4
+     ],
+     [
+      "house_10",
+      0.4
+     ],
+     [
+      "house_11",
+      0.2
+     ]
+    ],
+    "soul": [
+     [
+      "d9_overall",
+      0.5
+     ],
+     [
+      "graha_maitri",
+      0.35
+     ],
+     [
+      "varna",
+      0.15
+     ]
+    ]
+   },
+   "weights": {
+    "chemistry": 25,
+    "communication": 15,
+    "friction": 15,
+    "lifepath": 15,
+    "public": 5,
+    "soul": 25
+   }
+  },
+  "sibling": {
+   "definition": {
+    "direction": null,
+    "label": "My brother or sister",
+    "needs_role": false
+   },
+   "detail": {
+    "FLOW": "{a_name} and {b_name} share a bond that runs easily \u2014 similar instincts and a natural understanding that tends to last through every season of life.",
+    "MIXED": "{a_name} and {b_name} love each other with the ordinary sibling edges. Leaving the old childhood roles behind and listening to who the other is now makes the bond warmer.",
+    "STRAIN": "{a_name} and {b_name} are quite different people with a lot of history. The bond endures, and it softens when each of you lets the other be who they are now."
+   },
+   "headline": {
+    "FLOW": "An easy, lifelong bond \u2014 you've got each other's backs without trying.",
+    "MIXED": "A real sibling bond with the old edges \u2014 warmth wins when you leave the roles behind.",
+    "STRAIN": "A bond across a real gap \u2014 it asks you to meet who they are now."
+   },
+   "runs": [
+    {
+     "badge": "MIXED",
+     "catalysts": [
+      "Your life seasons and Ravi's are supporting each other right now.",
+      "Little old rivalry sits between you and Ravi."
+     ],
+     "direction": null,
+     "headline": "A real sibling bond with the old edges \u2014 warmth wins when you leave the roles behind.",
+     "layers": [
+      [
+       "soul",
+       "Soul Alignment",
+       54,
+       25,
+       "Shared ground, real differences.",
+       "You and Ravi share roots and have grown into some different values; that's normal for siblings."
+      ],
+      [
+       "chemistry",
+       "Chemistry & Attraction",
+       40,
+       0,
+       "Off-beat rhythm.",
+       "The everyday rhythm with Ravi can rub, even with real love underneath."
+      ],
+      [
+       "public",
+       "Public & Worldly Fit",
+       56,
+       10,
+       "A mixed public picture.",
+       "How you and Ravi come across to relatives is mostly steady."
+      ],
+      [
+       "lifepath",
+       "Lifepath & Timing",
+       90,
+       20,
+       "Timing moves in step.",
+       "Your life seasons and Ravi's are supporting each other right now."
+      ],
+      [
+       "communication",
+       "Communication & Trust",
+       70,
+       25,
+       "Works with deliberate effort.",
+       "You and Ravi talk well when you slow down and leave the old roles at the door."
+      ],
+      [
+       "friction",
+       "Friction & Growth",
+       88,
+       20,
+       "Little hidden friction.",
+       "Little old rivalry sits between you and Ravi."
+      ]
+     ],
+     "passed": true,
+     "score": 72,
+     "summary": "Asha and Ravi love each other with the ordinary sibling edges. Leaving the old childhood roles behind and listening to who the other is now makes the bond warmer.",
+     "watch_points": []
+    },
+    {
+     "badge": "MIXED",
+     "catalysts": [
+      "You and Ravi can say things straight and still be fine afterwards.",
+      "Your life seasons and Ravi's are supporting each other right now.",
+      "Little old rivalry sits between you and Ravi."
+     ],
+     "direction": null,
+     "headline": "A real sibling bond with the old edges \u2014 warmth wins when you leave the roles behind.",
+     "layers": [
+      [
+       "soul",
+       "Soul Alignment",
+       43,
+       25,
+       "Values pull apart.",
+       "You and Ravi want different things from life \u2014 it helps to stop expecting the same choices."
+      ],
+      [
+       "chemistry",
+       "Chemistry & Attraction",
+       40,
+       0,
+       "Off-beat rhythm.",
+       "The everyday rhythm with Ravi can rub, even with real love underneath."
+      ],
+      [
+       "public",
+       "Public & Worldly Fit",
+       57,
+       10,
+       "A mixed public picture.",
+       "How you and Ravi come across to relatives is mostly steady."
+      ],
+      [
+       "lifepath",
+       "Lifepath & Timing",
+       90,
+       20,
+       "Timing moves in step.",
+       "Your life seasons and Ravi's are supporting each other right now."
+      ],
+      [
+       "communication",
+       "Communication & Trust",
+       87,
+       25,
+       "You understand each other.",
+       "You and Ravi can say things straight and still be fine afterwards."
+      ],
+      [
+       "friction",
+       "Friction & Growth",
+       84,
+       20,
+       "Little hidden friction.",
+       "Little old rivalry sits between you and Ravi."
+      ]
+     ],
+     "passed": true,
+     "score": 73,
+     "summary": "Asha and Ravi love each other with the ordinary sibling edges. Leaving the old childhood roles behind and listening to who the other is now makes the bond warmer.",
+     "watch_points": [
+      "You and Ravi want different things from life \u2014 it helps to stop expecting the same choices."
+     ]
+    },
+    {
+     "badge": "MIXED",
+     "catalysts": [
+      "You and Ravi grew up with the same inner compass \u2014 you simply understand each other.",
+      "Your life seasons and Ravi's are supporting each other right now."
+     ],
+     "direction": null,
+     "headline": "A real sibling bond with the old edges \u2014 warmth wins when you leave the roles behind.",
+     "layers": [
+      [
+       "soul",
+       "Soul Alignment",
+       78,
+       25,
+       "Deep values resonance.",
+       "You and Ravi grew up with the same inner compass \u2014 you simply understand each other."
+      ],
+      [
+       "chemistry",
+       "Chemistry & Attraction",
+       90,
+       0,
+       "Natural, easy attraction.",
+       "Being around Ravi feels easy and familiar."
+      ],
+      [
+       "public",
+       "Public & Worldly Fit",
+       67,
+       10,
+       "A mixed public picture.",
+       "How you and Ravi come across to relatives is mostly steady."
+      ],
+      [
+       "lifepath",
+       "Lifepath & Timing",
+       90,
+       20,
+       "Timing moves in step.",
+       "Your life seasons and Ravi's are supporting each other right now."
+      ],
+      [
+       "communication",
+       "Communication & Trust",
+       51,
+       25,
+       "Works with deliberate effort.",
+       "You and Ravi talk well when you slow down and leave the old roles at the door."
+      ],
+      [
+       "friction",
+       "Friction & Growth",
+       68,
+       20,
+       "Manageable friction underneath.",
+       "A touch of rivalry with Ravi is workable when it's said out loud."
+      ]
+     ],
+     "passed": true,
+     "score": 71,
+     "summary": "Asha and Ravi love each other with the ordinary sibling edges. Leaving the old childhood roles behind and listening to who the other is now makes the bond warmer.",
+     "watch_points": []
+    }
+   ],
+   "sources": {
+    "chemistry": [
+     [
+      "venus_compatibility",
+      0.5833
+     ],
+     [
+      "mars_compatibility",
+      0.4167
+     ]
+    ],
+    "communication": [
+     [
+      "mercury_compatibility",
+      0.5714
+     ],
+     [
+      "gana",
+      0.4286
+     ]
+    ],
+    "friction": [
+     [
+      "mutual_6_8",
+      0.6923
+     ],
+     [
+      "growth_areas_count",
+      0.3077
+     ]
+    ],
+    "lifepath": [
+     [
+      "dasha_timing",
+      1.0
+     ]
+    ],
+    "public": [
+     [
+      "house_7",
+      0.4
+     ],
+     [
+      "house_10",
+      0.4
+     ],
+     [
+      "house_11",
+      0.2
+     ]
+    ],
+    "soul": [
+     [
+      "d9_overall",
+      0.5
+     ],
+     [
+      "graha_maitri",
+      0.35
+     ],
+     [
+      "varna",
+      0.15
+     ]
+    ]
+   },
+   "weights": {
+    "chemistry": 0,
+    "communication": 25,
+    "friction": 20,
+    "lifepath": 20,
+    "public": 10,
+    "soul": 25
+   }
+  },
+  "spouse": {
+   "definition": {
+    "direction": null,
+    "label": "My husband or wife",
+    "needs_role": false
+   },
+   "detail": {
+    "FLOW": "{a_name} and {b_name} have the rarer thing: alignment that survives ordinary life. Values, timing and temperament support each other rather than compete. Protect it by not taking it for granted.",
+    "MIXED": "{a_name} and {b_name} have genuine ground to build on and specific gaps to close. Marriage doesn't dissolve those gaps \u2014 it makes them daily. Named early they become the structure of the relationship; left unspoken they become the argument you keep having.",
+    "STRAIN": "{a_name} and {b_name} face real structural differences \u2014 in values, timing, or temperament. This isn't a verdict against the marriage; karmically intense pairings are often the most transformative. But it will need conscious work, not hope."
+   },
+   "headline": {
+    "FLOW": "A marriage with real foundations \u2014 this one is built to hold.",
+    "MIXED": "A workable marriage that asks for honesty early rather than patience later.",
+    "STRAIN": "A demanding match \u2014 possible, but it will ask a great deal of you both."
+   },
+   "runs": [
+    {
+     "badge": "MIXED",
+     "catalysts": [
+      "Your life arcs with Ravi move in step \u2014 the seasons of growth line up."
+     ],
+     "direction": null,
+     "headline": "A workable marriage that asks for honesty early rather than patience later.",
+     "layers": [
+      [
+       "soul",
+       "Soul Alignment",
+       54,
+       25,
+       "Shared ground, real differences.",
+       "You and Ravi share most values and diverge on some that matter. Name them before, not after."
+      ],
+      [
+       "chemistry",
+       "Chemistry & Attraction",
+       44,
+       15,
+       "Off-beat rhythm.",
+       "Physical rhythms differ enough that it will need conscious attention, early."
+      ],
+      [
+       "public",
+       "Public & Worldly Fit",
+       56,
+       10,
+       "A mixed public picture.",
+       "You and Ravi present well together with a little effort around family expectations."
+      ],
+      [
+       "lifepath",
+       "Lifepath & Timing",
+       93,
+       20,
+       "Timing moves in step.",
+       "Your life arcs with Ravi move in step \u2014 the seasons of growth line up."
+      ],
+      [
+       "communication",
+       "Communication & Trust",
+       70,
+       15,
+       "Works with deliberate effort.",
+       "You and Ravi communicate well until stress \u2014 then old patterns return."
+      ],
+      [
+       "friction",
+       "Friction & Growth",
+       65,
+       15,
+       "Manageable friction underneath.",
+       "There's friction between you and Ravi that is workable if it's named rather than stored."
+      ]
+     ],
+     "passed": true,
+     "score": 65,
+     "summary": "Asha and Ravi have genuine ground to build on and specific gaps to close. Marriage doesn't dissolve those gaps \u2014 it makes them daily. Named early they become the structure of the relationship; left unspoken they become the argument you keep having.",
+     "watch_points": [
+      "Physical rhythms differ enough that it will need conscious attention, early."
+     ]
+    },
+    {
+     "badge": "MIXED",
+     "catalysts": [
+      "Your life arcs with Ravi move in step \u2014 the seasons of growth line up.",
+      "You and Ravi can say hard things to each other and stay close.",
+      "Little corrosive friction sits between you \u2014 disagreements stay recoverable."
+     ],
+     "direction": null,
+     "headline": "A workable marriage that asks for honesty early rather than patience later.",
+     "layers": [
+      [
+       "soul",
+       "Soul Alignment",
+       43,
+       25,
+       "Values pull apart.",
+       "You and Ravi are building toward different lives. Marriage magnifies that, it doesn't resolve it."
+      ],
+      [
+       "chemistry",
+       "Chemistry & Attraction",
+       44,
+       15,
+       "Off-beat rhythm.",
+       "Physical rhythms differ enough that it will need conscious attention, early."
+      ],
+      [
+       "public",
+       "Public & Worldly Fit",
+       57,
+       10,
+       "A mixed public picture.",
+       "You and Ravi present well together with a little effort around family expectations."
+      ],
+      [
+       "lifepath",
+       "Lifepath & Timing",
+       93,
+       20,
+       "Timing moves in step.",
+       "Your life arcs with Ravi move in step \u2014 the seasons of growth line up."
+      ],
+      [
+       "communication",
+       "Communication & Trust",
+       87,
+       15,
+       "You understand each other.",
+       "You and Ravi can say hard things to each other and stay close."
+      ],
+      [
+       "friction",
+       "Friction & Growth",
+       90,
+       15,
+       "Little hidden friction.",
+       "Little corrosive friction sits between you \u2014 disagreements stay recoverable."
+      ]
+     ],
+     "passed": true,
+     "score": 68,
+     "summary": "Asha and Ravi have genuine ground to build on and specific gaps to close. Marriage doesn't dissolve those gaps \u2014 it makes them daily. Named early they become the structure of the relationship; left unspoken they become the argument you keep having.",
+     "watch_points": [
+      "You and Ravi are building toward different lives. Marriage magnifies that, it doesn't resolve it.",
+      "Physical rhythms differ enough that it will need conscious attention, early."
+     ]
+    },
+    {
+     "badge": "FLOW",
+     "catalysts": [
+      "You and Ravi want the same shape of life \u2014 the foundation marriage rests on.",
+      "Your life arcs with Ravi move in step \u2014 the seasons of growth line up.",
+      "Little corrosive friction sits between you \u2014 disagreements stay recoverable."
+     ],
+     "direction": null,
+     "headline": "A marriage with real foundations \u2014 this one is built to hold.",
+     "layers": [
+      [
+       "soul",
+       "Soul Alignment",
+       78,
+       25,
+       "Deep values resonance.",
+       "You and Ravi want the same shape of life \u2014 the foundation marriage rests on."
+      ],
+      [
+       "chemistry",
+       "Chemistry & Attraction",
+       74,
+       15,
+       "Real spark, needs tending.",
+       "Attraction between you and Ravi is real but needs tending \u2014 it won't run on its own."
+      ],
+      [
+       "public",
+       "Public & Worldly Fit",
+       67,
+       10,
+       "A mixed public picture.",
+       "You and Ravi present well together with a little effort around family expectations."
+      ],
+      [
+       "lifepath",
+       "Lifepath & Timing",
+       93,
+       20,
+       "Timing moves in step.",
+       "Your life arcs with Ravi move in step \u2014 the seasons of growth line up."
+      ],
+      [
+       "communication",
+       "Communication & Trust",
+       51,
+       15,
+       "Works with deliberate effort.",
+       "You and Ravi communicate well until stress \u2014 then old patterns return."
+      ],
+      [
+       "friction",
+       "Friction & Growth",
+       79,
+       15,
+       "Little hidden friction.",
+       "Little corrosive friction sits between you \u2014 disagreements stay recoverable."
+      ]
+     ],
+     "passed": true,
+     "score": 75,
+     "summary": "Asha and Ravi have the rarer thing: alignment that survives ordinary life. Values, timing and temperament support each other rather than compete. Protect it by not taking it for granted.",
+     "watch_points": []
+    }
+   ],
+   "sources": {
+    "chemistry": [
+     [
+      "yoni",
+      0.4
+     ],
+     [
+      "venus_compatibility",
+      0.35
+     ],
+     [
+      "mars_compatibility",
+      0.25
+     ]
+    ],
+    "communication": [
+     [
+      "mercury_compatibility",
+      0.5714
+     ],
+     [
+      "gana",
+      0.4286
+     ]
+    ],
+    "friction": [
+     [
+      "mutual_6_8",
+      0.45
+     ],
+     [
+      "nadi_dosha",
+      0.35
+     ],
+     [
+      "growth_areas_count",
+      0.2
+     ]
+    ],
+    "lifepath": [
+     [
+      "dasha_timing",
+      0.7
+     ],
+     [
+      "bhakoot",
+      0.3
+     ]
+    ],
+    "public": [
+     [
+      "house_7",
+      0.4
+     ],
+     [
+      "house_10",
+      0.4
+     ],
+     [
+      "house_11",
+      0.2
+     ]
+    ],
+    "soul": [
+     [
+      "d9_overall",
+      0.5
+     ],
+     [
+      "graha_maitri",
+      0.35
+     ],
+     [
+      "varna",
+      0.15
+     ]
+    ]
+   },
+   "weights": {
+    "chemistry": 15,
+    "communication": 15,
+    "friction": 15,
+    "lifepath": 20,
+    "public": 10,
+    "soul": 25
+   }
+  }
+ },
+ "valid_original_order": [
+  "romantic",
+  "spouse",
+  "business",
+  "cofounder",
+  "friend",
+  "family",
+  "sibling",
+  "parent",
+  "child",
+  "advisor",
+  "employee",
+  "boss-or-manager"
+ ]
+}

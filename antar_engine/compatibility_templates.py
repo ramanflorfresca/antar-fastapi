@@ -1189,6 +1189,34 @@ _DETAILS["advisor"] = {
 }
 
 
+# ── Newer People types: mother, father, daughter, son, girlfriend, boyfriend, business partner ──
+# Each is read by an existing type's engine (compatibility_reasons.REASON_ENGINE_BASE)
+# and shares that type's authored wording; only the noun in the parent / child lines
+# is made specific. No separate mother-vs-father (or daughter-vs-son) reading exists.
+_NOUN_SWAP = {
+    "mother": ("your parent", "your mother"), "father": ("your parent", "your father"),
+    "daughter": ("your child", "your daughter"), "son": ("your child", "your son"),
+}
+
+
+def _derive_reason(new: str, base: str) -> None:
+    lines = _copy.deepcopy(_BASE_LINES[base])
+    swap = _NOUN_SWAP.get(new)
+    if swap:
+        for layer in lines.values():
+            for b, text in layer.items():
+                layer[b] = text.replace(*swap)
+    _BASE_LINES[new] = lines
+    _HEADLINES[new] = dict(_HEADLINES[base])
+    _DETAILS[new] = dict(_DETAILS[base])
+
+
+for _new, _base in (("mother", "parent"), ("father", "parent"), ("daughter", "child"),
+                    ("son", "child"), ("girlfriend", "romantic"), ("boyfriend", "romantic"),
+                    ("business_partner", "business")):
+    _derive_reason(_new, _base)
+
+
 def reasons_with_templates() -> tuple:
     """Every reason that has its own (non-fallback) headline, detail and a line for
     every layer and badge. Used by the coverage test."""
