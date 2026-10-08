@@ -50402,6 +50402,18 @@ def get_circle(chart_id: str, language: Optional[str] = None,
         print(f"[circle] private people unavailable: {e}")
         private = []
     names = _circle_names([ _circle.side_of(p, chart_id)["other"] for p in pairs])
+    priv_by_id = {pp.get("connection_chart_id"): pp for pp in private}
+
+    def _priv_read(pid):
+        """The inviter's OWN private read of this person (they typed the details), so inviting
+        someone never takes the reading away. Never present for the invitee's side."""
+        pp = priv_by_id.get(pid)
+        if not pid or not pp:
+            return None
+        pr = pp.get("primary") or {}
+        return {"chart_id": pid, "session_id": pr.get("session_id"), "score": pr.get("score"),
+                "badge": pr.get("badge"), "compat_type": pr.get("compat_type"),
+                "today": pp.get("today"), "note": pp.get("note", "")}
     invite_priv = {i.get("private_chart_id") for i in invites if i.get("private_chart_id")}
     pair_priv = set()
     items = []
@@ -50421,6 +50433,7 @@ def get_circle(chart_id: str, language: Optional[str] = None,
                       "pair_id": p["id"], "since": p.get("created_at"), "relation": rel,
                       "compat_type_label": rel["compat_type_label"], "status": "active",
                       "i_invited": s["i_invited"], "private_chart_id": priv_id,
+                      "private_read": _priv_read(priv_id) if s["i_invited"] else None,
                       "their_day": _circle_their_day(chart_id, s["other"], lang),
                       "my_sharing": {"share_day": _circle.get_share(supabase, chart_id, s["other"])}})
     for i in invites:
@@ -50430,6 +50443,7 @@ def get_circle(chart_id: str, language: Optional[str] = None,
                       "compat_type_label": rel["compat_type_label"], "expires_at": i.get("expires_at"),
                       "created_at": i.get("created_at"), "position": i.get("position"),
                       "private_chart_id": i.get("private_chart_id"),
+                      "private_read": _priv_read(i.get("private_chart_id")),
                       "can_resend": int(i.get("resend_count") or 0) < _circle.MAX_RESENDS})
     from antar_engine import people_links as _pl
     for pp in private:

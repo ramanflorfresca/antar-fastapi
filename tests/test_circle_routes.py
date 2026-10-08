@@ -317,3 +317,24 @@ def test_failed_pair_creation_gives_the_link_back(env, monkeypatch):
     # the link is still good: the same person can try again
     ok = c.post(f"/api/v1/circle/invite/{code}/accept", json={"chart_id": B}, headers=AUTH["uB"])
     assert ok.status_code == 200, ok.text
+
+
+def test_inviting_a_private_person_keeps_the_inviters_own_read_reachable(env):
+    """Invite later (or invite while keeping the reading): the private read must not vanish from the list."""
+    c, db, main = env
+    main.get_network = lambda cid, lang="en": {"people": [
+        {"connection_chart_id": "priv2", "name": "Saransh Rao", "primary": {"compat_type": "cofounder", "score": 64, "badge": "Mixed", "session_id": "s2"},
+         "today": {"available": False}, "note": "met at the summit"}]}
+    sent = c.post("/api/v1/circle/invites", json={"chart_id": A, "relation": "cofounder", "first_name": "Saransh", "private_chart_id": "priv2"}, headers=AUTH["uA"])
+    assert sent.status_code == 200
+    items = c.get(f"/api/v1/circle/{A}", headers=AUTH["uA"]).json()["circle"]
+    inv = next(i for i in items if i["state"] == "invite_sent")
+    assert inv["private_read"]["session_id"] == "s2" and inv["private_read"]["badge"] == "Mixed" and inv["private_read"]["note"] == "met at the summit"
+    assert not [i for i in items if i["state"] == "private"]              # shown once, as the invite
+    code = sent.json()["link"].rsplit("/", 1)[1]
+    c.post(f"/api/v1/circle/invite/{code}/accept", json={"chart_id": B}, headers=AUTH["uB"])
+    mine = next(i for i in c.get(f"/api/v1/circle/{A}", headers=AUTH["uA"]).json()["circle"] if i["state"] == "in_circle")
+    assert mine["private_read"]["session_id"] == "s2"
+    theirs = next(i for i in c.get(f"/api/v1/circle/{B}", headers=AUTH["uB"]).json()["circle"] if i["state"] == "in_circle")
+    assert theirs["private_read"] is None                                  # never the invitee's side
+    assert "met at the summit" not in str(c.get(f"/api/v1/circle/{B}/pair/{A}", headers=AUTH["uB"]).json())
