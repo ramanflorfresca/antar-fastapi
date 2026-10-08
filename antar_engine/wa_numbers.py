@@ -59,6 +59,9 @@ current_sender: contextvars.ContextVar = contextvars.ContextVar("wa_sender", def
 
 def country_of(number: str) -> str:
     """ISO country from an E.164 number ('' when unknown)."""
+    m = re.match(r"^([A-Za-z]{2})\.[A-Za-z0-9]+$", str(number or "").strip())
+    if m:                                  # a WhatsApp user ID ("CO.1130…"): its prefix is the country
+        return m.group(1).upper()
     d = re.sub(r"\D", "", number or "")
     if not d:
         return ""

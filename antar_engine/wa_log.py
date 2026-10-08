@@ -32,7 +32,10 @@ def bind(client) -> None:
 
 
 def _digits_number(n) -> str:
-    d = re.sub(r"\D", "", str(n or "").replace("whatsapp:", ""))
+    raw = str(n or "").replace("whatsapp:", "").strip()
+    if re.match(r"^[A-Za-z]{2}\.[A-Za-z0-9]{6,64}$", raw):   # a WhatsApp user ID (no phone number): keep it whole
+        return raw[:2].upper() + raw[2:]
+    d = re.sub(r"\D", "", raw)
     return ("+" + d) if d else ""
 
 
