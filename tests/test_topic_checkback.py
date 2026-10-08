@@ -558,3 +558,98 @@ def test_the_flag_travels_with_the_claim_and_the_board_splits_on_it():
     assert {"topic_read:best", "topic_read:best:chara_dependent", "topic_read:best:independent"} <= set(rows)
     assert rows["topic_read:best:chara_dependent"]["answered"] == 1 and rows["topic_read:best:independent"]["answered"] == 2
     assert rows["topic_read:best:independent"]["small_n"] is True                        # still suppressed below n=30
+
+
+# ── personal name: a few moments only, hand-written per language ─────────────
+def _named_db(name, **kw):
+    db = DB()
+    tcb.record_windows(db, read(best=("2026-10-14", "2026-10-20"), **kw), CHART, TODAY)
+    db.t["charts"] = [{"id": CHART, "name": name}]
+    return db
+
+
+@pytest.mark.parametrize("raw,want", [
+    ("Raman", "Raman"), ("  raman singh ", "Raman"), ("RAMAN", "Raman"), ("María José", "María"),
+    ("Jean-Luc Picard", "Jean-Luc"), ("", None), (None, None), ("a@b.com", None), ("12345", None),
+    ("Guest", None), ("user", None), ("TEST", None), ("Demo User", None), ("R", None),
+    ("Abcdefghijklmnopqrstuvwxyz", None), ("+1555", None),
+])
+def test_first_name_rules(raw, want):
+    assert tcb.first_name(raw) == want
+
+
+@pytest.mark.parametrize("lang,start", [("en", "Raman, your money window"), ("es", "Raman, tu ventana de"),
+                                        ("pt", "Raman, sua janela de"), ("hinglish", "Raman, aapka")])
+def test_named_question_in_each_language(lang, start):
+    db = _named_db("Raman Singh")
+    it = tcb.due_items(db, CHART, lang, NOW)[0]
+    assert it["question"].startswith(start), it["question"]
+    assert it["options"] and "question" in it and it["reask"] is False
+    assert tcb.thanks(lang, "Raman").count("Raman") == 1
+
+
+def test_named_en_exact_and_watch_and_reask():
+    db = _named_db("raman")
+    assert tcb.due_items(db, CHART, "en", NOW)[0]["question"].startswith(
+        "Raman, your money window, Oct 14 – Oct 20, has passed. Did it hold?")
+    w = tcb.build_item({"id": "x", "topic": "money", "window_start": "2026-10-22", "window_end": "2026-10-24",
+                        "engines": {"topic_read": {"kind": "watch"}}}, "en", False, "Raman")
+    assert w["question"].startswith("Raman, the caution we flagged for your money")
+    r = tcb.build_item({"id": "x", "topic": "money", "window_start": "2026-10-14", "window_end": "2026-10-20",
+                        "engines": {"topic_read": {"kind": "best"}}}, "en", True, "Raman")
+    assert r["question"].startswith("Raman, last time you weren't sure yet. Your money window")
+    assert tcb.thanks("en", "Raman") == "Thanks, Raman. Hits and misses both help us get this right."
+
+
+@pytest.mark.parametrize("name", [None, "", "Guest", "a@b.com", "42"])
+def test_no_usable_name_serves_the_existing_sentence(name):
+    plain = tcb.due_items(_named_db(None), CHART, "en", NOW)[0]["question"]
+    assert tcb.due_items(_named_db(name), CHART, "en", NOW)[0]["question"] == plain
+    assert plain.startswith("Your money window")
+    assert tcb.thanks("en") == tcb._THANKS["en"] == tcb.thanks("en", None)
+
+
+def test_hindi_falls_back_like_other_topic_copy():
+    it = tcb.due_items(_named_db("Raman"), CHART, "hi", NOW)[0]
+    assert it["language"] == C.serve_language("hi")
+
+
+def test_demo_chart_never_gets_a_name(demo):
+    db = DB()
+    db.t["charts"] = [{"id": DEMO, "name": "Raman"}]
+    assert tcb.name_for(db, DEMO) is None
+    assert tcb.name_for(db, CHART) is None            # no row → no name
+
+
+def test_name_lookup_fails_open():
+    class Boom(DB):
+        def table(self, name):
+            if name == "charts":
+                raise RuntimeError("down")
+            return super().table(name)
+    db = Boom()
+    tcb.record_windows(db, read(), CHART, TODAY)
+    assert tcb.due_items(db, CHART, "en", NOW)[0]["question"].startswith("Your money window")
+
+
+def test_joint_question_is_never_named():
+    row = {"id": "x", "topic": "money", "window_start": "2026-10-14", "window_end": "2026-10-20",
+           "engines": {"topic_read": {"kind": "best", "joint": True}}}
+    q = tcb.build_item(row, "en", False, "Raman")["question"]
+    assert "Raman" not in q
+
+
+def test_answer_endpoint_thanks_uses_name(client):
+    c, db, main = client
+    tcb.record_windows(db, read(), CHART, TODAY)
+    db.t["charts"] = [{"id": CHART, "name": "Raman"}]
+    cid = db.claims()[0]["id"]
+    r = c.post(f"/api/v1/chart/{CHART}/topic-checkbacks/{cid}/answer?language=es", json={"answer": "yes"})
+    assert r.json()["thanks"].startswith("Gracias, Raman.")
+
+
+def test_named_strings_have_no_jargon():
+    for lang in LANGS:
+        for s in (tcb.thanks(lang, "Raman"),
+                  tcb.due_items(_named_db("Raman"), CHART, lang, NOW)[0]["question"]):
+            assert not _JARGON.search(s), s
