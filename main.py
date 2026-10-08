@@ -651,6 +651,38 @@ def _install_pg_transient_retry(client) -> None:
         print(f"[startup] could not wrap PostgREST session (non-fatal): {_e}")
 
 
+
+
+def _use_http1_pool_for_postgrest(client) -> None:
+    """[login-perf 2026-10-07] postgrest-py hardcodes http2=True, so every query
+    in a worker multiplexes over ONE connection. When Supabase/its edge drops
+    that connection after idle, ALL in-flight queries fail together
+    (RemoteProtocolError bursts in the logs on the first request after a pause)
+    and each pays a retry. HTTP/1.1 keeps a pool of independent connections:
+    a stale one fails alone and the retry wrapper takes a fresh one. Keep the
+    original session's base_url/headers/timeout so nothing else changes."""
+    try:
+        import httpx as _hx
+        old = client.postgrest.session
+        client.postgrest.session = _hx.Client(
+            base_url=old.base_url,
+            headers=old.headers,
+            timeout=old.timeout,
+            follow_redirects=True,
+            http2=False,
+            limits=_hx.Limits(max_connections=64, max_keepalive_connections=32,
+                              keepalive_expiry=4.0),
+        )
+        try:
+            old.close()
+        except Exception:
+            pass
+        print("[startup] PostgREST session: HTTP/1.1 pool (stale-conn isolation)")
+    except Exception as _e:
+        print(f"[startup] PostgREST http1 pool not applied (non-fatal): {_e}")
+
+
+_use_http1_pool_for_postgrest(supabase)
 _install_pg_transient_retry(supabase)
 
 
@@ -8532,6 +8564,57 @@ def get_chart(chart_id: str):
     response_dict["sun_sign"] = r.get("sun_sign") or (_ci_pl.get("Sun", {}) or {}).get("sign")
     response_dict["current_mahadasha"] = _current_md_lord(chart_id)
     return response_dict
+
+@app.get("/api/v1/bootstrap/{chart_id}")
+def get_bootstrap(chart_id: str, language: str = "en", tz_offset: int = 0):
+    """[login-perf 2026-10-07] Everything the app shell needs after login, in ONE
+    round trip. The redesigned FE fired ~20 requests (each with a CORS
+    preflight, because the URLs carry the chart id) and several of them 3-4x.
+    Each section runs in parallel and fails soft: a section that errors is
+    returned as null (and listed in `errors`) so the shell still renders. Only
+    a missing chart 404s. Sections are the same payloads as the individual
+    endpoints, which stay as they are."""
+    from concurrent.futures import ThreadPoolExecutor
+    chart_id = _ensure_full_uuid(chart_id)
+
+    def _entitlements():
+        return get_entitlements_endpoint(chart_id)
+
+    def _subscription():
+        return get_subscription_status(chart_id)
+
+    def _streak():
+        return get_streak_endpoint(chart_id, tz_offset=tz_offset)
+
+    def _accuracy():
+        return get_prediction_accuracy_endpoint(chart_id, language=language)
+
+    def _pending():
+        return get_pending_feedback_endpoint(chart_id, language=language)
+
+    jobs = {
+        "entitlements": _entitlements,
+        "subscription": _subscription,
+        "streak": _streak,
+        "accuracy": _accuracy,
+        "pending_feedback": _pending,
+    }
+    out: dict = {}
+    errors: list = []
+    with ThreadPoolExecutor(max_workers=len(jobs) + 1) as ex:
+        chart_f = ex.submit(get_chart, chart_id)
+        futs = {k: ex.submit(fn) for k, fn in jobs.items()}
+        out["chart"] = chart_f.result()  # 404 propagates: no chart, no bootstrap
+        for k, f in futs.items():
+            try:
+                out[k] = f.result()
+            except Exception as e:
+                out[k] = None
+                errors.append(k)
+                print(f"[bootstrap] {k} failed chart={chart_id[:8]}: {type(e).__name__}: {e}")
+    out["errors"] = errors
+    return out
+
 
 # ── Predict ───────────────────────────────────────────────────────────────────
 
