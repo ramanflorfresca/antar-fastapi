@@ -27,7 +27,7 @@ __all__ = [
     "lang_of", "status_for", "open_reminder_due", "build_row",
     "push_message", "whatsapp_message",
     "ASK_CLAIM_SOURCES", "CLAIM_PREFIX", "claim_decision_id", "parse_claim_decision_id",
-    "claims_to_decisions", "claim_timing_label",
+    "claims_to_decisions", "claim_timing_label", "attach_topics",
 ]
 
 # Same hour the outcome check-in uses, so a person never gets two Antar
@@ -281,5 +281,35 @@ def claims_to_decisions(claims: list, saved_rows: list, *, today: Optional[date]
             "created_at": c.get("created_at"),
             "auto": True,
             "status": status_for(ws, we, t),
+            "topic": _claim_topic(c),
         })
     return out
+
+
+def _claim_topic(c: dict) -> Optional[str]:
+    from antar_engine import topic_copy as C
+    return C.topic_for_concern((c or {}).get("topic"))
+
+
+def attach_topics(rows: list, claims: list) -> list:
+    """Set row['topic'] (one of topic_copy.TOPIC_KEYS, else None) on every row, in place.
+
+    claims: any prediction_claims rows (id, topic) already loaded. A row linked to a known
+    claim takes that claim's topic (even None, so a materialized auto row never differs from
+    what it showed before); a manual row with no resolvable claim is classified from its
+    question text. Never raises: a failure leaves topic None.
+    """
+    from antar_engine import topic_copy as C
+    by_id = {str(c.get("id")): _claim_topic(c) for c in claims or [] if c.get("id") is not None}
+    for r in rows:
+        try:
+            if "topic" in r and r["topic"] in C.TOPIC_KEYS:
+                continue
+            cid = str(r.get("claim_id")) if r.get("claim_id") else None
+            if cid and cid in by_id:
+                r["topic"] = by_id[cid]
+            else:
+                r["topic"] = C.topic_for_question(r.get("question"))
+        except Exception:
+            r["topic"] = None
+    return rows

@@ -7048,15 +7048,32 @@ def decisions_list(chart_id: str, authorization: Optional[str] = Header(None),
     # [your-questions 2026-10-07] Add every dated Ask answer (app + WhatsApp) the
     # engine already recorded, so the screen is not empty for someone who never
     # tapped save. Read-time merge only; fail-open to the saved rows.
+    claims = []
     try:
         claims = (supabase.table("prediction_claims")
-                  .select("id,chart_id,created_at,source,question,verdict,window_start,window_end,channel,language")
+                  .select("id,chart_id,created_at,source,question,verdict,window_start,window_end,channel,language,topic")
                   .eq("chart_id", chart_id).in_("source", list(_sd.ASK_CLAIM_SOURCES))
                   .order("created_at", desc=True).limit(300).execute().data or [])
         auto = _sd.claims_to_decisions(claims, all_saved)
         rows = sorted(rows + auto, key=lambda r: str(r.get("created_at") or ""), reverse=True)[:100]
     except Exception as e:
         print(f"[decisions] auto questions skipped: {str(e)[:100]}")
+    # [decisions-topic 2026-10-08] additive `topic` per row for the FE icon. Linked claims
+    # not already loaded (e.g. topic_read) come in ONE batched query; fail-open to null.
+    try:
+        known = {str(c.get("id")) for c in claims}
+        need = sorted({str(r["claim_id"]) for r in rows if r.get("claim_id")} - known)
+        if need:
+            claims = claims + (supabase.table("prediction_claims").select("id,topic")
+                               .in_("id", need).limit(len(need)).execute().data or [])
+    except Exception as e:
+        print(f"[decisions] claim topics skipped: {str(e)[:100]}")
+    try:
+        _sd.attach_topics(rows, claims)
+    except Exception as e:
+        print(f"[decisions] topic attach skipped: {str(e)[:100]}")
+    for r in rows:
+        r.setdefault("topic", None)
     return {"available": True, "decisions": rows, "count": len(rows)}
 
 
