@@ -57,6 +57,12 @@ _NEIGHBOURS = {"CO": "es", "AR": "es", "MX": "es", "ES": "es", "CL": "es", "PE":
 current_sender: contextvars.ContextVar = contextvars.ContextVar("wa_sender", default="")
 
 
+def country_lang(number: str) -> Optional[str]:
+    """es/pt for a Spanish- or Portuguese-speaking country (phone number or WhatsApp user ID), else None."""
+    v = _NEIGHBOURS.get(country_of(number))
+    return v if v in ("es", "pt") else None
+
+
 def country_of(number: str) -> str:
     """ISO country from an E.164 number ('' when unknown)."""
     m = re.match(r"^([A-Za-z]{2})\.[A-Za-z0-9]+$", str(number or "").strip())
