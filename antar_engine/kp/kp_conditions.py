@@ -415,6 +415,6 @@ def explain(kp: dict, language: str = "en", question: str = "") -> dict:
         basis = _astro_basis(dbg.get("csl"), sorted(dbg.get("favour_hit") or []),
                              sorted(dbg.get("against_hit") or [], key=lambda h: _rank.index(h) if h in _rank else 99), lang)
         if basis:
-            text = basis + " " + text
+            text = basis      # owner: the chart fact stands alone; the plain-language gloss is dropped
     return {"supports": sup, "blocks": blk, "close_ok": gate_ok,
             "condition": text, "label": T["label_cond"] if lean == "conditional" else T["label"]}
