@@ -70,7 +70,7 @@ def test_donts_are_three_at_most_and_honest():
 def test_build_shape_and_the_honesty_note_never_predicts():
     me, other = prof("Raman", "driver"), prof("Andres", "anchor", shift={"on": "2027-06-05", "label": "Jun 5, 2027", "to": "discipline and time"})
     b = CB.build(me, other, "cofounder", [], {"badge": "MIXED", "score": 58, "headline": "h"}, [{"area": "communication"}], "en", TODAY)
-    assert set(b) == {"lens", "fit", "people", "balance", "timing", "donts", "moves", "note"}
+    assert set(b) == {"lens", "verdict", "phase", "fit", "people", "balance", "timing", "donts", "moves", "note"}
     assert [p["first_name"] for p in b["people"]] == ["Raman", "Andres"]
     assert b["timing"]["shifts"][0]["line"] == "Andres moves into a season of discipline and time on Jun 5, 2027."
     assert "does not predict funding" in b["note"]
