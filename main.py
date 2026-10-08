@@ -22558,6 +22558,29 @@ def _compat_display_name(raw, chart_row=None, fallback: str = "You") -> str:
     return fallback
 
 
+async def _compat_current_columns(request) -> dict:
+    """charts columns for where the added person lives now (current_city/country/latitude/longitude/timezone), or {}.
+    Best effort: a failed geocode still stores the city and country as typed."""
+    city = (getattr(request, "current_city_b", None) or "").strip()
+    if not city:
+        return {}
+    country = (getattr(request, "current_country_b", None) or "").strip()
+    cols = {"current_city": city[:120], "current_country": country[:80]}
+    lat, lng, tz = (getattr(request, "current_latitude_b", None), getattr(request, "current_longitude_b", None),
+                    getattr(request, "current_timezone_b", None))
+    if lat is None or lng is None:
+        try:
+            g = await _geocode_city(city, country)
+            lat, lng, tz = g[0], g[1], tz or (g[2] if len(g) > 2 else None)
+        except Exception:
+            lat = lng = None
+    if lat is not None and lng is not None:
+        cols.update(current_latitude=lat, current_longitude=lng)
+    if tz:
+        cols["current_timezone"] = tz
+    return cols
+
+
 class CompatibilityStartRequest(BaseModel):
     chart_id_a:         str
     chart_id_b:         Optional[str] = None
@@ -22576,6 +22599,12 @@ class CompatibilityStartRequest(BaseModel):
     latitude_b:         Optional[float] = None
     longitude_b:        Optional[float] = None
     timezone_b:         Optional[str] = None
+    # where the person lives NOW (optional; same screen as the birth place). Stored on their chart; geocoded when only text is sent.
+    current_city_b:      Optional[str] = None
+    current_country_b:   Optional[str] = None
+    current_latitude_b:  Optional[float] = None
+    current_longitude_b: Optional[float] = None
+    current_timezone_b:  Optional[str] = None
     gender_b:           Optional[str] = None   # [people-links] stored on a NEW person chart
     language:           Optional[str] = "en"
     # "Employee at a specific position" (e.g. CTO, sales manager). Free text, trimmed,
@@ -22963,6 +22992,12 @@ async def compatibility_start(request: CompatibilityStartRequest,
             chart_b = _res_b2.data[0]["chart_data"] if _res_b2.data else {}
             dashas_b = get_dashas_for_chart(chart_id_b)
             print(f"[compat] Reusing existing sub-chart {chart_id_b} for {request.name_b}")
+            try:   # keep where they live now up to date on the existing person
+                _cur_u = await _compat_current_columns(request)
+                if _cur_u:
+                    supabase.table("charts").update(_cur_u).eq("id", chart_id_b).execute()
+            except Exception as _cue:
+                print(f"[compat] current-location update non-fatal: {_cue}")
             if request.gender_b:
                 try:
                     supabase.table("charts").update({"gender": request.gender_b}).eq("id", chart_id_b).execute()
@@ -23026,8 +23061,14 @@ async def compatibility_start(request: CompatibilityStartRequest,
                 chart_b,
                 label="/compat (chart B)",
             )
+            _cur_b = {}
+            try:
+                _cur_b = await _compat_current_columns(request)
+            except Exception as _cbe:
+                print(f"[compat] current-location non-fatal: {_cbe}")
             supabase.table("charts").insert({
                 **({"gender": request.gender_b} if request.gender_b else {}),
+                **_cur_b,
                 "id": chart_id_b,
                 "birth_date": request.birth_date_b,
                 "birth_time": birth_time_b,
@@ -38390,6 +38431,39 @@ async def _network_prewarm(connection_chart_id):
         print(f"[network] prewarm failed cid={str(connection_chart_id)[:8]}: {_e}")
     finally:
         _NETWORK_PREWARM_INFLIGHT.discard(connection_chart_id)
+
+
+class _ParseBirthIn(BaseModel):
+    text: str
+    date_order: Optional[str] = None        # "dmy" | "mdy" once the user has chosen
+    language: Optional[str] = None
+
+
+@app.post("/api/v1/people/parse-birth")
+async def people_parse_birth(body: _ParseBirthIn, authorization: Optional[str] = Header(None)):
+    """One free line ("15 Oct 1990, 2:30 pm, Hyderabad") -> a birth date, time and place to CONFIRM, in en/es/pt/Hinglish.
+    Never guesses silently: an ambiguous day/month or a clock time without am/pm comes back as `date_ambiguous` /
+    `time_ambiguous` with both readings; an unsure time is flagged approximate / unknown. Needs a signed-in user (it geocodes).
+    No birth data is stored by this call."""
+    uid, _ = _st_identity(authorization) if authorization else (None, None)
+    if not uid:
+        raise HTTPException(status_code=401, detail={"error": "auth_required"})
+    from antar_engine import birth_parse as _bp
+    text = (body.text or "").strip()[:300]
+    if not text:
+        raise HTTPException(status_code=422, detail={"error": "text_required"})
+    order = body.date_order if body.date_order in ("dmy", "mdy") else None
+    res = _bp.parse(text, order)
+    res["place"] = None
+    if res.get("city_text"):
+        try:
+            g = await _geocode_city(res["city_text"], "")
+            res["place"] = {"city": res["city_text"], "latitude": g[0], "longitude": g[1], "timezone": g[2] if len(g) > 2 else None}
+        except Exception as e:
+            print(f"[parse-birth] geocode miss: {str(e)[:100]}")
+    if not res["place"] and "place" not in res["missing"]:
+        res["missing"].append("place")
+    return res
 
 
 @app.get("/api/v1/network/{chart_id}")
