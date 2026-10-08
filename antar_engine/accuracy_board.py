@@ -36,7 +36,7 @@ from antar_engine.outcomes import parse_window
 MIN_N = 30
 MIN_ANSWER_RATE = 0.30
 SCORE = {"yes": 1.0, "partly": 0.5, "no": 0.0}
-SOURCES = ("ask_explore", "ask_yesno", "decoy", "topic_read", "circle_window")
+SOURCES = ("ask_explore", "ask_yesno", "decoy", "topic_read", "circle_window", "circle_fit")
 # [topic-checkback] topic-read windows: asked after the window ENDS, answered yes / no /
 # not_sure. A best window that held and a watch window that mattered are both "yes" = hit.
 TOPIC_READ = "topic_read"
@@ -44,6 +44,8 @@ TOPIC_READ = "topic_read"
 # independent observations of one prediction (same window, same events, often talked over), so the
 # board collapses them to ONE window: its hit is the mean of the answers given.
 CIRCLE_WINDOW = "circle_window"
+# [circle-fit] one-tap "does this fit?" on a pair reading: yes / partly / no, per item (call | me | reading), scored per lens.
+CIRCLE_FIT = "circle_fit"
 _DENIALS = {"NO", "DENIED", "DENIAL", "NOT_PROMISED"}
 
 
@@ -155,7 +157,7 @@ def _suppress_small_n(row: dict) -> dict:
 
 
 def _row_for(row: dict, name: str) -> dict:
-    return _suppress_small_n(row) if str(name).startswith((TOPIC_READ, CIRCLE_WINDOW)) else row
+    return _suppress_small_n(row) if str(name).startswith((TOPIC_READ, CIRCLE_WINDOW, CIRCLE_FIT)) else row
 
 
 def _collapse_circle(claims: list, outs: dict) -> list:
@@ -231,6 +233,12 @@ def build(claims: list, outcomes: list) -> dict:
         elif outcome == "not_sure":
             health["not_sure"] += 1
         _add(final[(c.get("source"), topic)], c, outcome, hit)
+        if c.get("source") == CIRCLE_FIT:
+            # one engine row per item (call | me | reading) x lens, so a miss shows WHICH part of a reading is wrong
+            it = ((c.get("engines") or {}).get("circle_fit") or {}).get("item")
+            if it in ("call", "me", "reading"):
+                _add(engines[(f"circle_fit:{it}", topic)], c, outcome, hit)
+            continue
         if c.get("source") in (TOPIC_READ, CIRCLE_WINDOW):
             tr = (c.get("engines") or {}).get("topic_read") or {}
             if tr.get("kind") in ("best", "watch"):
