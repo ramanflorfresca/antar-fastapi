@@ -79,13 +79,14 @@ def shared_runs(wa: dict, wb: dict) -> dict:
 
 
 # ── presentation ─────────────────────────────────────────────────────────────
-def _range(s: date, e: date, lang: str) -> str:
-    if s.year != e.year or (e - s).days >= 90:
+def _range(s: date, e: date, lang: str, today: Optional[date] = None) -> str:
+    # a window in another calendar year than today carries its year: "Jul 5 - Sep 2" would read as this July
+    if s.year != e.year or (e - s).days >= 90 or (today and s.year != today.year):
         return f"{C.day_label_y(s, lang)} – {C.day_label_y(e, lang)}"
     return C.range_label(s, e, lang)
 
 
-def _window(run: Run, kind: str, topic: str, scale: str, lang: str) -> dict:
+def _window(run: Run, kind: str, topic: str, scale: str, lang: str, today: Optional[date] = None) -> dict:
     s, e, conf = run
     area = C.pick(C.AREA, lang)[topic]
     B = CC.pick(CC.BULLET, lang)
@@ -93,7 +94,7 @@ def _window(run: Run, kind: str, topic: str, scale: str, lang: str) -> dict:
                else [B["care_one"].format(area=area), B["care_why"]])
     view = "month" if scale == "month" else "chapter"
     return {
-        "start": s.isoformat(), "end": e.isoformat(), "label": _range(s, e, lang),
+        "start": s.isoformat(), "end": e.isoformat(), "label": _range(s, e, lang, today),
         "days": (e - s).days + 1, "kind": kind,
         "reasoning": {
             "bullets": bullets,
@@ -108,10 +109,10 @@ def _pick(runs: List[Run]) -> List[Run]:
     return sorted(runs)[:MAX_PER_KIND]
 
 
-def build_topic(topic: str, wa: dict, wb: dict, scale: str, lang: str) -> dict:
+def build_topic(topic: str, wa: dict, wb: dict, scale: str, lang: str, today: Optional[date] = None) -> dict:
     sr = shared_runs(wa, wb)
-    best = [_window(r, "best", topic, scale, lang) for r in _pick(sr["best"])]
-    care = [_window(r, "care", topic, scale, lang) for r in _pick(sr["care"])]
+    best = [_window(r, "best", topic, scale, lang, today) for r in _pick(sr["best"])]
+    care = [_window(r, "care", topic, scale, lang, today) for r in _pick(sr["care"])]
     area = C.pick(C.AREA, lang)[topic]
     span = CC.SPAN[scale].get(lang) or CC.SPAN[scale]["en"]
     if best:
@@ -124,18 +125,19 @@ def build_topic(topic: str, wa: dict, wb: dict, scale: str, lang: str) -> dict:
             "has_overlap": bool(best), "best": best, "care": care, "note": note}
 
 
-def build_page(windows_a: Dict[str, dict], windows_b: Dict[str, dict], scale: str, lang: str) -> dict:
+def build_page(windows_a: Dict[str, dict], windows_b: Dict[str, dict], scale: str, lang: str,
+               today: Optional[date] = None) -> dict:
     """{"topics": [...in the standard topic order], "headline": {...}} from two charts' per-topic
     `windows_for` results. A topic one side could not be scanned for is simply left out."""
     topics = []
     for t in C.TOPIC_KEYS:
         if t in windows_a and t in windows_b:
-            topics.append(build_topic(t, windows_a[t], windows_b[t], scale, lang))
+            topics.append(build_topic(t, windows_a[t], windows_b[t], scale, lang, today))
     firsts = [(w["start"], -w["days"], tp["topic"], w) for tp in topics for w in tp["best"][:1]]
     if firsts:
         _, _, topic, w = min(firsts)
         s, e = date.fromisoformat(w["start"]), date.fromisoformat(w["end"])
-        text = CC.pick(CC.HEADLINE_BEST, lang).format(topic=C.LABEL[lang][topic].lower(), range=_range(s, e, lang))
+        text = CC.pick(CC.HEADLINE_BEST, lang).format(topic=C.LABEL[lang][topic].lower(), range=_range(s, e, lang, today))
         headline = {"text": text, "topic": topic, "window": w}
     else:
         headline = {"text": CC.pick(CC.HEADLINE_NONE, lang), "topic": None, "window": None}

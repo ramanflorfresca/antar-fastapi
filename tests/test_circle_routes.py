@@ -264,3 +264,20 @@ def test_pair_aware_ask_answers_from_the_overlap_only_for_circle_members(env):
     assert main._ask_pair_answer("When should Dinesh and I sign?", A, "en", None) is None
     c.post(f"/api/v1/circle/{A}/pair/{B}/leave", headers=AUTH["uA"])
     assert main._ask_pair_answer("When should Aarav and I sign?", A, "en", None) is None
+
+
+def test_real_engine_windows_are_cacheable_and_page_has_windows(env, monkeypatch):
+    """Regression (found by the live end-to-end): the windows hold dates, and the topic engine's JSON
+    cache choked on them, so the pair page silently fell back to an empty page in production."""
+    c, db, main = env
+    sys.path.insert(0, __file__.rsplit("/", 1)[0])
+    from test_topic_engine import _real_ctx
+    monkeypatch.undo()                      # drop the faked _circle_windows_for from the fixture
+    monkeypatch.setattr(main, "supabase", db)
+    monkeypatch.setattr(main, "_topic_ctx_load", lambda cid: (_real_ctx("1990-10-15", "14:10"), {}))
+    main._CIRCLE_WIN_CACHE.clear()
+    w1 = main._circle_windows_for(A, "month", TODAY)
+    w2 = main._circle_windows_for(A, "month", TODAY)
+    assert w1 is w2 and set(w1[0]) >= {"money", "love"} and isinstance(w1[1], (date, type(None)))
+    page = main._circle_pair_compute(A, B, "month", "en", TODAY)
+    assert page is not None and len(page["topics"]) == 7           # same chart twice = everything overlaps
