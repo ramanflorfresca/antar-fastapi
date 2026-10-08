@@ -39,6 +39,10 @@ from antar_engine.outcomes import REASK_AFTER_DAYS, REASK_MARK, _table_missing
 logger = logging.getLogger(__name__)
 
 SOURCE = "topic_read"
+# [circle] a window two people SHARE (the overlap of both charts' own windows), recorded for
+# BOTH charts and asked of each person separately. Same table, same answers, same flow.
+CIRCLE_SOURCE = "circle_window"
+SOURCES = (SOURCE, CIRCLE_SOURCE)
 # "today" is a one-day window re-shown every morning; asking "did it hold?" about each
 # one would be noise and would flood the board with near-identical claims.
 RECORDED_SCALES = ("month", "season", "year")
@@ -141,6 +145,29 @@ def _overlaps(a_s, a_e, b_s, b_e) -> bool:
     return bool(a_s and a_e and b_s and b_e and a_s <= b_e and b_s <= a_e)
 
 
+def write_new_claims(sb, chart_id: str, rows: list, source: str = SOURCE) -> int:
+    """Insert each claim row unless the same stretch is already recorded (same chart, source,
+    topic, kind, scale and - for shared windows - the same pair, overlapping dates). Raises on
+    a storage error: callers wrap it. Returns the number of NEW claims."""
+    wrote = 0
+    for row in rows:
+        m = _meta(row)
+        existing = (sb.table("prediction_claims")
+                    .select("id,window_start,window_end,engines")
+                    .eq("chart_id", chart_id).eq("source", source)
+                    .eq("topic", row["topic"])
+                    .gte("window_end", row["window_start"])
+                    .lte("window_start", row["window_end"])
+                    .limit(20).execute()).data or []
+        if any(_meta(x).get("kind") == m["kind"] and _meta(x).get("scale") == m["scale"]
+               and _meta(x).get("pair_id") == m.get("pair_id") for x in existing):
+            continue
+        res = (sb.table("prediction_claims")
+               .upsert(row, on_conflict="dedupe_key", ignore_duplicates=True).execute())
+        wrote += len(res.data or [])
+    return wrote
+
+
 def record_windows(sb, out: Optional[dict], chart_id: str, today: Optional[date] = None) -> int:
     """Record one claim per (chart, topic, scale, kind, window). Idempotent and
     overlap-aware: the engine's windows are bucketed from TODAY, so the same stretch
@@ -154,23 +181,7 @@ def record_windows(sb, out: Optional[dict], chart_id: str, today: Optional[date]
         rows = build_claims(out, chart_id, today)
         if not rows:
             return 0
-        wrote = 0
-        for row in rows:
-            m = _meta(row)
-            existing = (sb.table("prediction_claims")
-                        .select("id,window_start,window_end,engines")
-                        .eq("chart_id", chart_id).eq("source", SOURCE)
-                        .eq("topic", row["topic"])
-                        .gte("window_end", row["window_start"])
-                        .lte("window_start", row["window_end"])
-                        .limit(20).execute()).data or []
-            if any(_meta(x).get("kind") == m["kind"] and _meta(x).get("scale") == m["scale"]
-                   for x in existing):
-                continue
-            res = (sb.table("prediction_claims")
-                   .upsert(row, on_conflict="dedupe_key", ignore_duplicates=True).execute())
-            wrote += len(res.data or [])
-        return wrote
+        return write_new_claims(sb, chart_id, rows, SOURCE)
     except Exception as e:
         if _table_missing(e):
             _warn_once("missing", "[topic-checkback] prediction_claims not available yet — "
@@ -258,7 +269,11 @@ def build_item(row: dict, language=None, reask: bool = False) -> Optional[dict]:
         return None
     lang = _lang(language or row.get("language"))
     rng = _range(s, e, lang)
-    q = _QUESTION[kind][lang].format(topic=C.LABEL[lang][topic].lower(), range=rng)
+    if _meta(row).get("joint"):          # [circle] a window two people share
+        from antar_engine import circle_copy as CC
+        q = CC.JOINT_QUESTION[kind][lang].format(topic=C.LABEL[lang][topic].lower(), range=rng)
+    else:
+        q = _QUESTION[kind][lang].format(topic=C.LABEL[lang][topic].lower(), range=rng)
     if reask:
         q = f"{_REASK_LEAD[lang]} {q}"
     labels = option_labels(kind, lang)
@@ -291,7 +306,7 @@ def select_due(claims: list, outcomes: dict, now: datetime, limit: int = 1) -> l
     REASK_AFTER_DAYS ago and has not been re-asked yet."""
     out = []
     for c in sorted(claims, key=lambda r: r.get("checkin_due_at") or ""):
-        if c.get("source") != SOURCE:
+        if c.get("source") not in SOURCES:
             continue
         due = _parse_ts(c.get("checkin_due_at"))
         if not due or due > now:
@@ -325,7 +340,7 @@ def due_items(sb, chart_id: str, language=None, now: Optional[datetime] = None,
     now = now or datetime.now(timezone.utc)
     try:
         claims = (sb.table("prediction_claims").select("*").eq("chart_id", chart_id)
-                  .eq("source", SOURCE).lte("checkin_due_at", now.isoformat())
+                  .in_("source", list(SOURCES)).lte("checkin_due_at", now.isoformat())
                   .order("checkin_due_at").limit(50).execute()).data or []
         if not claims:
             return []
@@ -339,12 +354,29 @@ def due_items(sb, chart_id: str, language=None, now: Optional[datetime] = None,
             logger.warning("[topic-checkback] due lookup failed: %s", e)
         return []
     items = []
+    gone = _pairs_gone(sb, claims)
+    if gone:                                   # [circle] someone left: stop asking about the shared window
+        claims = [c for c in claims if _meta(c).get("pair_id") not in gone]
     for c, reask in select_due(claims, outs, now, limit):
         it = build_item(c, language, reask)
         if it:
             items.append(it)
             mark_shown(sb, c, reask, now)
     return items
+
+
+def _pairs_gone(sb, claims: list) -> set:
+    """pair ids of shared-window claims whose pair no longer exists (a person left). Fail-open:
+    when the lookup fails nothing is treated as gone."""
+    ids = sorted({_meta(c).get("pair_id") for c in claims if _meta(c).get("joint") and _meta(c).get("pair_id")})
+    if not ids:
+        return set()
+    try:
+        alive = {r["id"] for r in (sb.table("circle_pairs").select("id").in_("id", ids)
+                                   .execute().data or [])}
+        return set(ids) - alive
+    except Exception:
+        return set()
 
 
 def mark_shown(sb, claim: dict, reask: bool, now: datetime):
@@ -391,7 +423,7 @@ def record_answer(sb, chart_id: str, claim_id: str, answer: str,
     now = now or datetime.now(timezone.utc)
     try:
         rows = (sb.table("prediction_claims").select("*").eq("id", claim_id)
-                .eq("chart_id", chart_id).eq("source", SOURCE).limit(1).execute()).data or []
+                .eq("chart_id", chart_id).in_("source", list(SOURCES)).limit(1).execute()).data or []
         if not rows:
             raise UnknownCheckback(claim_id)
         claim = rows[0]
