@@ -2058,6 +2058,12 @@ async def lifespan(app: FastAPI):
     import asyncio as _lp_aio
     _MAIN_LOOP = _lp_aio.get_running_loop()
     if _become_scheduler_leader():
+        # APScheduler's AsyncIOScheduler keeps the loop of its FIRST start(); a later start() on another loop (tests start the app
+        # lifespan several times, each on a fresh loop) then hit 'Event loop is closed'. Always bind it to the loop we run on.
+        try:
+            scheduler._eventloop = _MAIN_LOOP
+        except Exception:
+            pass
         scheduler.start()
         print("[startup] Scheduler started (leader worker) — daily jobs active")
     else:
