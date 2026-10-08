@@ -219,7 +219,7 @@ def role_of(pace: str, stems: List[str]) -> str:
     return "driver" if drv > anc else "anchor" if anc > drv else "steady"
 
 
-def _fit_parts(cd: dict, dashas: dict, lang: str, today: date) -> dict:
+def _fit_parts(cd: dict, dashas: dict, lang: str, today: date, jaimini: Optional[dict] = None) -> dict:
     """temperament, partnership lean (with plain reasons) and the running season, from circle_fit."""
     from antar_engine import circle_fit as F
     t = F.temperament(cd)
@@ -228,7 +228,7 @@ def _fit_parts(cd: dict, dashas: dict, lang: str, today: date) -> dict:
         pl = F.partnership_lean(cd)
         out["partnership"] = {"lean": pl["lean"], "label": CC.pick(F.LEAN_LABEL[pl["lean"]], lang),
                               "reasons": [CC.pick(F.REASON[k], lang) for k in pl["reasons"]][:3]}
-        se = F.season_at(cd, (dashas or {}).get("vimsottari"), today)
+        se = F.season_checked(cd, (dashas or {}).get("vimsottari"), dashas, jaimini, today, lang)
         if se:
             out["season"] = F.describe(se, lang)
     except Exception:
@@ -237,7 +237,7 @@ def _fit_parts(cd: dict, dashas: dict, lang: str, today: date) -> dict:
 
 
 def profile(cd: dict, dashas: dict, name: str, lang: str = "en", today: Optional[date] = None,
-            bond_role: Optional[str] = None) -> dict:
+            bond_role: Optional[str] = None, jaimini: Optional[dict] = None) -> dict:
     """One person's working profile. `strong_at` / `watch_for` are [{title, effect}] ( `effect` is English and is
     translated by the route; titles are localized); `watch_for` is [] when nothing is flagged."""
     from antar_engine.yogas import plain_yoga
@@ -274,7 +274,7 @@ def profile(cd: dict, dashas: dict, name: str, lang: str = "en", today: Optional
     except Exception:
         shift = None
     strip = lambda rows: [{"title": r["title"], "effect": r["effect"]} for r in rows]
-    fit = _fit_parts(cd, dashas, lang, today or date.today())
+    fit = _fit_parts(cd, dashas, lang, today or date.today(), jaimini)
     work_partner = bond_role is None
     bond = None
     if not work_partner:
