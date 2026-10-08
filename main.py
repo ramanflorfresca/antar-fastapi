@@ -50677,6 +50677,64 @@ async def get_chart_windows(chart_id: str, language: Optional[str] = None,
     return out
 
 
+# ── Questions for you: timing questions worth asking now, from the Windows feed + Ask history ──
+_SUGGESTED_Q_VERSION = "v1"
+
+
+def _suggested_questions_compute(chart_id: str, language, tz_offset, limit: int):
+    """Sync (threadpool). None only for an unknown chart. The window part is cached per chart,
+    language and day; the Ask history is read fresh so a question just asked drops out at once.
+    Any engine trouble still returns evergreen timing questions."""
+    import antar_engine.topic_engine as _te
+    from antar_engine import suggested_questions as _sq
+    from antar_engine import topic_copy as _tc
+    today = _prac_local_date(tz_offset)
+    lang = _tc.serve_language(language)
+    feed = None
+    try:
+        feed = _windows_compute(chart_id, language, tz_offset, 30)
+    except Exception as e:
+        print(f"[suggested-questions] windows failed -> evergreen: {e!r}")
+    else:
+        if feed is None:
+            return None
+    cands = None
+    if feed is not None:
+        ck = ("suggested-q", _SUGGESTED_Q_VERSION, chart_id, lang, today.isoformat())
+        cands = _te.cache_get(ck)
+        if cands is None:
+            cands = _sq.window_candidates(feed, chart_id, today, lang)
+            _te.cache_put(ck, cands, _TOPIC_READ_TTL)
+    rows = []
+    try:
+        rows = (supabase.table("chat_messages").select("question, domain, created_at")
+                .eq("chart_id", chart_id).order("created_at", desc=True)
+                .limit(_sq.HISTORY_ROWS).execute().data) or []
+    except Exception as e:
+        print(f"[suggested-questions] history skipped: {e!r}")
+    return _sq.build(feed, rows, chart_id, today, lang, limit, cands=cands)
+
+
+@app.get("/api/v1/chart/{chart_id}/suggested-questions")
+async def get_chart_suggested_questions(chart_id: str, language: Optional[str] = None,
+                                        tz_offset: Optional[int] = None, limit: int = 3):
+    """Up to `limit` (1-5, default 3) timing questions worth asking now: a window open now, the
+    next one opening, a care stretch, then a follow-up to a recent Ask question or an evergreen
+    one. One per topic, never one already in the last 20 Ask rows. Each `text` is a standalone
+    question for the normal Ask flow; `reason` is a short plain why-this-now. Same access as
+    the Windows feed (the chart id is the key; the demo chart works). Never an error (404 only
+    for an unknown chart)."""
+    from antar_engine import suggested_questions as _sq
+    try:
+        out = await run_in_threadpool(_suggested_questions_compute, chart_id, language, tz_offset, limit)
+    except Exception as e:
+        print(f"[suggested-questions] failed -> evergreen: {e!r}")
+        out = _sq.build(None, [], chart_id, _prac_local_date(tz_offset), language or "en", limit)
+    if out is None:
+        raise HTTPException(status_code=404, detail="Chart not found")
+    return out
+
+
 def _topic_read_record(out, chart_id, today):
     from antar_engine import topic_checkback as _tcb
     key = (chart_id, out.get("topic"), out.get("scale"), today.isoformat(),
