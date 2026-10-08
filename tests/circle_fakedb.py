@@ -7,7 +7,7 @@ class _Q:
         self.db, self.name = db, name
         self.f, self._order, self._lim, self._op, self._payload, self._opts = [], None, None, "select", None, {}
 
-    def select(self, *_, **__): return self
+    def select(self, cols="*", *_, **__): self._sel = str(cols); return self
     def eq(self, c, v): self.f.append(lambda r: r.get(c) == v); return self
     def neq(self, c, v): self.f.append(lambda r: r.get(c) != v); return self
     def gt(self, c, v): self.f.append(lambda r: str(r.get(c)) > str(v)); return self
@@ -30,6 +30,9 @@ class _Q:
     def execute(self):
         if self.db.missing and (self.db.missing is True or self.name in self.db.missing):
             raise Exception("PGRST205 Could not find the table 'public.%s' in the schema cache" % self.name)
+        for tbl, col in self.db.bad_cols:        # a column that does not exist (phantom / migration not run)
+            if tbl == self.name and (col in getattr(self, "_sel", "") or col in str(self._payload or "")):
+                raise Exception("42703 column %s.%s does not exist" % (tbl, col))
         rows = self.db.t.setdefault(self.name, [])
         R = type("R", (), {"data": None})
         r = R()
@@ -75,7 +78,7 @@ class _Q:
 
 class DB:
     def __init__(self, missing=False):
-        self.t, self.missing, self._n = {}, missing, 0
+        self.t, self.missing, self._n, self.bad_cols = {}, missing, 0, set()
         self.defaults = {"circle_invites": {"accepted_chart_id": None, "resend_count": 0, "status": "pending"}}
 
     def clock(self):

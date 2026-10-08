@@ -50630,28 +50630,156 @@ def get_circle_pair(chart_id: str, other_chart_id: str, scale: str = "month",
         "since": pair.get("created_at"), "as_of": today.isoformat(), "scale": scale, "language": lang,
         **page,
         "their_day": _circle_their_day(chart_id, other_chart_id, lang),
-        "my_sharing": {"share_day": _circle.get_share(supabase, chart_id, other_chart_id)},
+        "my_sharing": {"share_day": _circle.get_share(supabase, chart_id, other_chart_id),
+                       "share_reading": _circle.get_share_reading(supabase, chart_id, other_chart_id)},
+        "reading": _circle.reading_state(supabase, chart_id, other_chart_id),
         "between_us": _circle_between_us(chart_id, pair, side),
         "ask_chips": chips,
     }
 
 
 class _CircleShareIn(BaseModel):
-    share_day: bool
+    share_day: Optional[bool] = None
+    share_reading: Optional[bool] = None
 
 
 @app.put("/api/v1/circle/{chart_id}/sharing/{other_chart_id}")
 def put_circle_sharing(chart_id: str, other_chart_id: str, body: _CircleShareIn,
                        authorization: Optional[str] = Header(None), x_claim_token: Optional[str] = Header(None)):
-    """Turn 'share my day' on or off for ONE person. Default off; revocable any time; yours alone."""
+    """Your own switches for ONE person, both default off and revocable any time: `share_day` (a one-line
+    glance at your day) and `share_reading` (the joint reading; shown only while BOTH of you have it on).
+    Send either or both. Returns the resulting state of each."""
     _circle_authorize(chart_id, authorization, x_claim_token)
+    if body.share_day is None and body.share_reading is None:
+        raise HTTPException(status_code=422, detail={"error": "nothing_to_change"})
     if not _circle.pair_for(supabase, chart_id, other_chart_id):
         raise HTTPException(status_code=404, detail={"error": "not_in_circle"})
     try:
-        _circle.set_share(supabase, chart_id, other_chart_id, body.share_day)
+        if body.share_day is not None:
+            _circle.set_share(supabase, chart_id, other_chart_id, body.share_day)
+        if body.share_reading is not None:
+            _circle.set_share_reading(supabase, chart_id, other_chart_id, body.share_reading)
     except _circle.CircleUnavailable as e:
         raise _circle_err(e)
-    return {"share_day": bool(body.share_day)}
+    return {"share_day": _circle.get_share(supabase, chart_id, other_chart_id),
+            "share_reading": _circle.get_share_reading(supabase, chart_id, other_chart_id)}
+
+
+# ── "Our reading": the joint compatibility reading (second opt-in, both must be on) ──
+_CIRCLE_READ_CACHE: dict = {}
+_CIRCLE_READ_TTL = 6 * 3600
+
+
+def _circle_reading_build(ca: dict, da: dict, cb: dict, db_: dict, birth_a: str, birth_b: str,
+                          gender_a, gender_b, reason: str, name_a: str, name_b: str, lang: str) -> dict:
+    """Pure (no DB, no writes): the SAME scoring steps /compatibility/start runs, on two loaded charts."""
+    from antar_engine import compatibility_reasons as _R, compatibility_layers as _CL
+    from antar_engine.Compatibility import calculate_compatibility as _calc
+    from antar_engine import circle_reading as _CR
+    ca, cb = dict(ca or {}), dict(cb or {})
+    ca["current_dasha"] = _current_dasha_str(da)
+    cb["current_dasha"] = _current_dasha_str(db_)
+    role = "managerial" if _R.REASON_DEFINITIONS[reason]["needs_role"] else None
+    raw = _calc(chart_a=ca, chart_b=cb, name_a=name_a, name_b=name_b, birth_date_a=birth_a,
+                birth_date_b=birth_b, compatibility_type=_R.engine_reason(reason), language="en")
+    try:
+        fwd = _forward_dasha_support(ca, da, cb, db_, reason, birth_a=birth_a, birth_b=birth_b,
+                                     gender_a=gender_a, gender_b=gender_b)
+        if fwd.get("available"):
+            dt = raw.get("dasha_timing") or {}
+            dt["score"] = fwd["score"]
+            if fwd.get("narrative"):
+                dt["narrative"] = fwd["narrative"]
+            dt["forward"] = fwd
+            raw["dasha_timing"], raw["_forward_dasha"] = dt, fwd
+    except Exception as e:
+        print(f"[circle][reading] forward-dasha skipped: {e}")
+    try:
+        dm = _dasha_lord_maitri(da, db_)
+        if dm:
+            dt2 = raw.get("dasha_timing") or {}
+            dt2["score"] = round(0.6 * float(dt2.get("score", 50)) + 0.4 * dm["score"])
+            raw["dasha_timing"], raw["_dasha_maitri"] = dt2, dm
+    except Exception as e:
+        print(f"[circle][reading] dasha-maitri skipped: {e}")
+    try:
+        d10 = _d10_synastry(ca, cb)
+        if d10:
+            raw["d10_synastry"] = d10
+    except Exception as e:
+        print(f"[circle][reading] d10 skipped: {e}")
+    v2 = _CL.compose_compat_v2(raw, ca, cb, reason, role, a_name=name_a, b_name=name_b,
+                               strip_fn=apply_user_facing_strips)
+    return _CR.shape(v2, lang)
+
+
+def _circle_reading_compute(me: str, other: str, relation: str, today) -> Optional[dict]:
+    """Sync (threadpool): load both REAL charts and build the reading from `me`'s side. English; cached."""
+    from antar_engine import circle_reading as _CR
+    ck = (me, other, relation, today.isoformat())
+    hit = _CIRCLE_READ_CACHE.get(ck)
+    if hit and hit[0] > _time.time():
+        return hit[1]
+    rows = {}
+    for cid in (me, other):
+        r = (supabase.table("charts").select("chart_data,birth_date,name,first_name,gender")
+             .eq("id", cid).is_("deleted_at", "null").limit(1).execute().data or [])
+        if not r:
+            return None
+        rows[cid] = r[0]
+    from antar_engine import people_links as _pl
+    reason = _CR.reason_for(relation, _pl)
+    a, b = rows[me], rows[other]
+    out = _circle_reading_build(
+        _safe_jsonb(a["chart_data"]), get_dashas_for_chart(me),
+        _safe_jsonb(b["chart_data"]), get_dashas_for_chart(other),
+        a.get("birth_date") or "", b.get("birth_date") or "", a.get("gender"), b.get("gender"),
+        reason, _circle.first_name_of(a) or "You", _circle.first_name_of(b) or "They", "en")
+    if len(_CIRCLE_READ_CACHE) > 200:
+        _CIRCLE_READ_CACHE.clear()
+    _CIRCLE_READ_CACHE[ck] = (_time.time() + _CIRCLE_READ_TTL, out)
+    return out
+
+
+@app.get("/api/v1/circle/{chart_id}/pair/{other_chart_id}/reading")
+async def get_circle_reading(chart_id: str, other_chart_id: str, language: Optional[str] = None,
+                             tz_offset: Optional[int] = None,
+                             authorization: Optional[str] = Header(None),
+                             x_claim_token: Optional[str] = Header(None)):
+    """'Our reading' for an active pair. `state`: off | waiting | they_on | on. The reading itself is returned
+    ONLY when state is `on` (both of you switched it on); otherwise `reading` is null. Never reveals whether
+    the other person has declined, only whether they are on."""
+    row = await run_in_threadpool(_circle_authorize, chart_id, authorization, x_claim_token)
+    pair = await run_in_threadpool(_circle.pair_for, supabase, chart_id, other_chart_id)
+    if not pair:
+        raise HTTPException(status_code=404, detail={"error": "not_in_circle"})
+    st = await run_in_threadpool(_circle.reading_state, supabase, chart_id, other_chart_id)
+    lang = _circle_lang(language, row)
+    names = await run_in_threadpool(_circle_names, [other_chart_id])
+    if other_chart_id not in names:
+        raise HTTPException(status_code=404, detail={"error": "not_in_circle"})
+    out = {"available": True, "state": st["state"], "mine": st["mine"], "theirs": st["theirs"],
+           "other_first_name": names[other_chart_id], "language": lang, "reading": None}
+    if st["state"] != "on":
+        return out
+    side = _circle.side_of(pair, chart_id)
+    today = _prac_local_date(tz_offset)
+    try:
+        reading = await run_in_threadpool(_circle_reading_compute, chart_id, other_chart_id, side["relation"], today)
+    except Exception as e:
+        print(f"[circle][reading] compute failed: {str(e)[:200]}")
+        reading = None
+    if reading and lang in TRANSLATED_LANGUAGES:
+        try:
+            from antar_engine.translation_middleware import translate_dict
+            reading = await translate_dict(
+                reading, language=lang,
+                fields_to_translate={"headline", "summary", "detail", "label", "line", "catalysts", "watch_points"},
+                endpoint_name="circle_reading", chart_id=chart_id)
+        except Exception as e:
+            print(f"[circle][reading] translate skipped: {str(e)[:160]}")
+    out["reading"] = reading
+    return out
 
 
 @app.post("/api/v1/circle/{chart_id}/pair/{other_chart_id}/leave")

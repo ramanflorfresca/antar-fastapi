@@ -1,0 +1,89 @@
+"""
+antar_engine/circle_reading.py - "Our reading": a joint compatibility reading of a Circle pair.
+
+The scoring is the EXISTING compatibility engine (Compatibility.calculate_compatibility +
+compatibility_layers.compose_compat_v2, deterministic, no LLM) run on the two REAL charts. This module
+holds only the pure parts: the consent state machine and the shaping of the engine output into the
+pair-level payload. The consent rule is a SECOND opt-in on top of "Between us" (which promised only
+dates and first names): the reading is shown only while BOTH people have it switched on.
+
+State, from one person's side (mine / theirs = has that person switched it on):
+  off      neither            -> explainer + my switch
+  waiting  only me            -> "Waiting for {name}" (I am never told whether they have looked)
+  they_on  only them          -> "{name} turned on the joint reading" + my switch
+  on       both               -> the reading
+Only a "yes" is ever visible to the other side; nobody can tell a "no" from "has not looked".
+
+The payload carries first names, scores and plain sentences only: no birth details, no planets,
+no houses, no chart ids.
+"""
+from __future__ import annotations
+
+from typing import Optional
+
+from antar_engine import circle_copy as CC
+
+STATES = ("off", "waiting", "they_on", "on")
+
+
+def state_of(mine: bool, theirs: bool) -> str:
+    if mine and theirs:
+        return "on"
+    if mine:
+        return "waiting"
+    if theirs:
+        return "they_on"
+    return "off"
+
+
+def layer_status(layer: dict) -> str:
+    """flows | needs_care | friction - the same three words People uses."""
+    if layer.get("passed"):
+        return "flows"
+    try:
+        return "friction" if float(layer.get("score")) < 40 else "needs_care"
+    except (TypeError, ValueError):
+        return "needs_care"
+
+
+STATUS_LABEL = {
+    "en": {"flows": "Flows", "needs_care": "Needs care", "friction": "Friction"},
+    "es": {"flows": "Fluye", "needs_care": "Necesita cuidado", "friction": "Fricción"},
+    "pt": {"flows": "Flui", "needs_care": "Precisa de cuidado", "friction": "Atrito"},
+    "hinglish": {"flows": "Flows", "needs_care": "Dhyaan chahiye", "friction": "Friction"},
+}
+
+
+def _as_list(v) -> list:
+    return [str(x) for x in v] if isinstance(v, (list, tuple)) else ([str(v)] if v else [])
+
+
+def shape(v2: dict, lang: str = "en") -> dict:
+    """The engine's composed result -> the pair-level payload (English text; the route translates)."""
+    lang = CC.lang_of(lang)
+    labels = CC.pick(STATUS_LABEL, lang)
+    layers = []
+    for l in v2.get("layers") or []:
+        if l.get("applicable") is False:
+            continue
+        st = layer_status(l)
+        layers.append({"key": l.get("layer_key"), "label": l.get("layer_label"), "score": l.get("score"),
+                       "status": st, "status_label": labels[st],
+                       "headline": l.get("headline"), "detail": l.get("detail")})
+    conf = v2.get("confidence") or {}
+    tm = v2.get("timing") or {}
+    return {
+        "score": v2.get("score"), "badge": v2.get("badge"),
+        "headline": v2.get("headline"), "summary": v2.get("summary"),
+        "layers": layers,
+        "watch_points": _as_list(v2.get("watch_points")),
+        "catalysts": _as_list(v2.get("catalysts")),
+        "confidence": {"level": conf.get("level"), "line": conf.get("line")} if conf else None,
+        "timing": {"best_window": tm.get("best_window"), "line": tm.get("line")} if tm else None,
+    }
+
+
+def reason_for(relation: str, people_links) -> str:
+    """What the OTHER person is to the viewer -> the compatibility reason key (employee/boss-or-manager keep
+    their direction from the viewer's side)."""
+    return people_links.relation_to_compat_type(relation)

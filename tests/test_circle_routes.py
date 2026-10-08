@@ -183,13 +183,13 @@ def test_their_day_only_with_opt_in_and_revocable(env):
     make_pair(c, db, share_day=False)
     day = lambda me, other, h: c.get(f"/api/v1/circle/{me}/pair/{other}", headers=h).json()["their_day"]
     assert day(A, B, AUTH["uA"]) == {"available": False, "shared": False}
-    assert c.put(f"/api/v1/circle/{B}/sharing/{A}", json={"share_day": True}, headers=AUTH["uB"]).json() == {"share_day": True}
+    assert c.put(f"/api/v1/circle/{B}/sharing/{A}", json={"share_day": True}, headers=AUTH["uB"]).json()["share_day"] is True
     seen = day(A, B, AUTH["uA"])
     assert seen["shared"] is True and seen["available"] is True and seen["one_line"]
     assert day(B, A, AUTH["uB"]) == {"available": False, "shared": False}                 # A never opted in
     mine = c.get(f"/api/v1/circle/{B}/pair/{A}", headers=AUTH["uB"]).json()["my_sharing"]
-    assert mine == {"share_day": True}
-    assert c.put(f"/api/v1/circle/{B}/sharing/{A}", json={"share_day": False}, headers=AUTH["uB"]).json() == {"share_day": False}
+    assert mine["share_day"] is True
+    assert c.put(f"/api/v1/circle/{B}/sharing/{A}", json={"share_day": False}, headers=AUTH["uB"]).json()["share_day"] is False
     assert day(A, B, AUTH["uA"]) == {"available": False, "shared": False}
     assert c.put(f"/api/v1/circle/{A}/sharing/{B}", json={"share_day": True}, headers=AUTH["uB"]).status_code == 403
     assert c.put(f"/api/v1/circle/{A}/sharing/{X}", json={"share_day": True}, headers=AUTH["uA"]).status_code == 404
