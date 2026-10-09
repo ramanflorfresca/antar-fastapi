@@ -50556,7 +50556,7 @@ async def _topic_read_full(chart_id: str, topic: str, scale: str, language, tz_o
     if out is None:
         return None
     lang, today = out.get("language") or "en", _prac_local_date(tz_offset)
-    ck = ("topic-read", "v7-detail", chart_id, topic, scale, lang, today.isoformat())
+    ck = ("topic-read", "v8-detail", chart_id, topic, scale, lang, today.isoformat())
     hit = _te.cache_get(ck)
     if hit is not None:
         return hit
@@ -50567,6 +50567,7 @@ async def _topic_read_full(chart_id: str, topic: str, scale: str, language, tz_o
         full = dict(out, detail=_td.build_detail(topic, scale, src, today))
         full = _td.reconcile(full, src.get("daily"), lang)
         full = _td.reconcile_year(full, lang)
+        full = _td.reconcile_month(full, lang)
     except Exception as e:
         print(f"[topic-detail] skipped: {e!r}")
         full = dict(out, detail=None)
