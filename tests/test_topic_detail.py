@@ -433,7 +433,7 @@ def test_route_attaches_detail_and_reconciles(client, monkeypatch):
     assert calls == ["daily"]
     c.get("/api/v1/chart/c/topic-read?topic=money&scale=today&tz_offset=-240")
     assert calls == ["daily"]                                                     # second hit is served from the cache
-    assert any(k[:2] == ("topic-read", "v7-detail") for k in te._CACHE)           # version-salted key
+    assert any(k[:2] == ("topic-read", "v8-detail") for k in te._CACHE)           # version-salted key
 
 
 @pytest.mark.parametrize("scale,need", [("month", "month"), ("year", "year"), ("season", "arc"), ("chapter", "arc")])
@@ -510,3 +510,40 @@ def test_year_without_a_caution_is_untouched():
     assert D.reconcile_year(base, "en") == base
     other = dict(_year_out(), scale="month")
     assert D.reconcile_year(other, "en") == other
+
+
+# ── the 30-day claim carries the month's own caution week ────────────────────
+def _month_out(tone="open", lang="en", topic="money"):
+    return {"topic": topic, "scale": "month", "language": lang, "tone": tone,
+            "detail": D.build_detail(topic, "month", SRC, TODAY),
+            "claim": "Over the next 30 days, money matters have better backing than usual, so it is a good stretch to act."}
+
+
+def test_open_month_claim_gains_the_caution_week():
+    base = _month_out()
+    out = D.reconcile_month(base, "en")
+    assert out["claim"] == base["claim"] + " " + MONTH["caution_week"]
+    assert out["detail"]["caution_note"] == MONTH["caution_week"]
+    assert D.reconcile_month(out, "en")["claim"] == out["claim"]               # idempotent
+
+
+def test_steady_month_claim_is_replaced_not_contradicted():
+    out = D.reconcile_month(_month_out("steady"), "en")
+    assert out["claim"] == ("Over the next 30 days, it is steady overall for money and income, with one stretch to watch. "
+                            + MONTH["caution_week"])
+    assert "nothing sharp" not in out["claim"]
+
+
+@pytest.mark.parametrize("lang", LANGS)
+def test_month_claim_reconciles_in_every_language(lang):
+    out = D.reconcile_month(_month_out("steady", lang), lang)
+    assert out["claim"].startswith(C.SPAN_LEAD[lang]["month"]) and out["claim"].endswith(MONTH["caution_week"])
+    assert not _JARGON.search(C.MONTH_CAUTION_CORE[lang])
+
+
+def test_month_without_a_topic_caution_is_untouched():
+    for topic in ("health", "love"):
+        base = _month_out(topic=topic)
+        assert D.reconcile_month(base, "en") == base
+    other = dict(_month_out(), scale="year")
+    assert D.reconcile_month(other, "en") == other

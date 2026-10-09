@@ -389,6 +389,11 @@ YEAR_CAUTION_CORE: Dict[str, str] = {   # a steady year read that still has one 
     "es": "en general todo está estable en {area}, con {when} como el tramo a vigilar",
     "pt": "no geral tudo está estável em {area}, com {when} como o trecho a observar",
     "hinglish": "{area} mein aam taur par sthirta hai, bas {when} par nazar rakhein"}
+MONTH_CAUTION_CORE: Dict[str, str] = {   # a steady 30-day read that still has one demanding week for the topic
+    "en": "it is steady overall for {area}, with one stretch to watch",
+    "es": "en general todo está estable en {area}, con un tramo a vigilar",
+    "pt": "no geral tudo está estável em {area}, com um trecho a observar",
+    "hinglish": "{area} mein aam taur par sthirta hai, bas ek daur par nazar rakhein"}
 YEAR_CAUTION_TAIL: Dict[str, str] = {   # appended to a year read that has a window but also a demanding stretch
     "en": "Watch {when}.", "es": "Vigila {when}.", "pt": "Observe {when}.", "hinglish": "{when} par nazar rakhein."}
 LEAD_JOIN: Dict[str, str] = {"en": "{lead}, {core}.", "es": "{lead}, {core}.",

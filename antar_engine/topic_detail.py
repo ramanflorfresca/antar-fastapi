@@ -377,3 +377,27 @@ def reconcile_year(out: dict, lang: str) -> dict:
         return out
     except Exception:
         return out
+
+
+def reconcile_month(out: dict, lang: str) -> dict:
+    """The 30-day claim vs the month's own caution week. When the monthly read flags a demanding
+    week for this topic, the claim says so with the engine's own sentence ('Week of October 9 - ...').
+    A steady claim ('nothing sharp') is replaced; an open / care claim keeps itself and gains the
+    sentence. Returns a new dict; never raises."""
+    try:
+        det = out.get("detail") or {}
+        note = det.get("caution_week")
+        careful = (det.get("focus") or {}).get("careful")
+        if out.get("scale") != "month" or not note or not (careful or relevance(note, out.get("topic")) == "yes"):
+            return out
+        out = dict(out)
+        out["detail"] = dict(det, caution_note=note)
+        if out.get("tone") == "steady":
+            area = C.pick(C.AREA, lang)[out["topic"]]
+            core = C.pick(C.MONTH_CAUTION_CORE, lang).format(area=area)
+            out["claim"] = C.pick(C.LEAD_JOIN, lang).format(lead=C.pick(C.SPAN_LEAD, lang)["month"], core=core)
+        if note not in out.get("claim", ""):
+            out["claim"] = f"{out['claim'].rstrip()} {note}"
+        return out
+    except Exception:
+        return out
