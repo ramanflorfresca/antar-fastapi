@@ -95,7 +95,25 @@ def test_followup_from_recent_ask_history_then_evergreen():
     assert first["kind"] == "followup" and first["topic"] == "money" and first["text"].endswith("?")
     assert first["text"].casefold() != rows[0]["question"].casefold()
     assert "money" in first["reason"]
+    assert first["text"] == "When does my strongest money window open?"        # the timing lane only
+    assert first["reason"] == "Following up on your question about money."
     assert out["count"] == 3 and len({q["topic"] for q in out["questions"]}) == 3
+
+
+def test_followups_skip_old_or_undated_rows_and_non_timing_lanes():
+    empty = {"now": [], "next": [], "care": []}
+    old = [{"question": "When will my money situation ease?", "domain": "money", "created_at": "2026-09-01"}]
+    undated = [{"question": "When will my money situation ease?", "domain": "money"}]
+    for rows in (old, undated):
+        assert all(q["reason"] != "Following up on your question about money."
+                   for q in build(empty, rows)["questions"])
+    edge = [{"question": "When will my money situation ease?", "domain": "money", "created_at": "2026-09-24"}]
+    assert build(empty, edge)["questions"][0]["reason"].startswith("Following up")      # 14 days: still in
+    for lang in LANGS:
+        rows = [{"question": "money", "domain": "money", "created_at": "2026-10-07"}]
+        for q in build(empty, rows, lang)["questions"]:
+            if q["reason"].startswith(("Seguimiento", "Sigue", "Continua")) or "agla kadam" in q["reason"]:
+                assert q["topic"] == "money"
 
 
 def test_ids_are_stable_per_chart_day_topic_kind():
@@ -276,3 +294,19 @@ def test_october_is_not_a_cto():
     from antar_engine.astrological_rules import detect_concern
     assert detect_concern("Is October a good time to start a new health routine?") != "career"
     assert detect_concern("Our new CTO joined and I am anxious") == "career"
+
+
+def test_engine_timing_followups_are_clean_in_every_language():
+    from antar_engine import ask_followups as F
+    kept = 0
+    for lang in LANGS:
+        for t, bucket in SQ._FOLLOWUP_BUCKET.items():
+            wq = F._Q[F._lang(lang)][bucket]["when"]
+            rows = [{"question": "zzz", "domain": t, "created_at": "2026-10-07"}]
+            got = SQ.followup_candidates(rows, CHART, TODAY, lang)
+            assert not got or got[0]["text"] == wq
+            for g in got:
+                kept += 1
+                assert not SQ.OUTCOME_WORDS.search(g["text"]) and not _JARGON.search(g["text"]), g
+                assert C.topic_for_question(g["text"]) in (t, None), (lang, t, g["text"])
+    assert kept >= 10

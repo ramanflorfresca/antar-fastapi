@@ -23,6 +23,7 @@ KINDS = ("open_now", "opening_soon", "care", "followup")
 SOON_DAYS = 90
 CARE_DAYS = 45
 HISTORY_ROWS = 20
+FOLLOWUP_DAYS = 14
 MAX_LIMIT = 5
 TOPIC_ORDER = ("money", "career", "love", "health", "business", "peace", "family")
 
@@ -145,22 +146,22 @@ REASON: Dict[str, Dict[str, str]] = {
     "en": {"open_now": "Your {area} window is open until {end}.",
            "opening_soon": "A {area} window opens {start}.",
            "care": "A careful stretch for {area}: {start} – {end}.",
-           "followup": "You were just asking about {area}.",
+           "followup": "Following up on your question about {area}.",
            "evergreen": "Timing is worth checking for {area}."},
     "es": {"open_now": "Tu ventana de {area} está abierta hasta el {end}.",
            "opening_soon": "Una ventana de {area} se abre el {start}.",
            "care": "Un tramo de cuidado para {area}: {start} – {end}.",
-           "followup": "Estabas preguntando por {area}.",
+           "followup": "Sigue a tu pregunta sobre {area}.",
            "evergreen": "Vale la pena mirar el momento en {area}."},
     "pt": {"open_now": "Sua janela de {area} está aberta até {end}.",
            "opening_soon": "Uma janela de {area} abre em {start}.",
            "care": "Um período de cuidado para {area}: {start} – {end}.",
-           "followup": "Você estava perguntando sobre {area}.",
+           "followup": "Continua a sua pergunta sobre {area}.",
            "evergreen": "Vale a pena olhar o momento em {area}."},
     "hinglish": {"open_now": "Aapki {area} ki window {end} tak khuli hai.",
                  "opening_soon": "{area} ki ek window {start} ko khulti hai.",
                  "care": "{area} ke liye dhyaan ka daur: {start} – {end}.",
-                 "followup": "Aap abhi {area} ke baare mein pooch rahe the.",
+                 "followup": "{area} ke baare mein aapke sawaal ka agla kadam.",
                  "evergreen": "{area} mein samay dekhna kaam ka hai."},
 }
 
@@ -248,22 +249,33 @@ def _care(chart_id, today, lang, topic, s, e, sort) -> dict:
     return q
 
 
+def _recent(row: dict, today: date) -> bool:
+    """True when the Ask row is dated and at most FOLLOWUP_DAYS old (undated rows do not count)."""
+    try:
+        d = date.fromisoformat(str(row.get("created_at") or "")[:10])
+    except ValueError:
+        return False
+    return 0 <= (today - d).days <= FOLLOWUP_DAYS
+
+
 def followup_candidates(rows: List[dict], chart_id: str, today: date, lang: str) -> List[dict]:
-    """One follow-up per recent Ask question that has a known topic, newest first, from the
-    existing follow-up engine (no new classifier)."""
+    """One timing ("when") follow-up per Ask question from the last FOLLOWUP_DAYS days that has a
+    known topic, newest first, from the existing follow-up engine (no new classifier)."""
     out = []
     try:
         from antar_engine import ask_followups as F
         for r in rows or []:
             q = str(r.get("question") or "").strip()
             t = C.topic_for_concern(r.get("domain")) or C.topic_for_question(q)
-            if not q or t not in _FOLLOWUP_BUCKET:
+            if not q or t not in _FOLLOWUP_BUCKET or not _recent(r, today):
                 continue
-            for p in F.pick(_FOLLOWUP_BUCKET[t], q, lang, k=3):
-                if p.get("lane") in ("when", "how", "now") and p.get("q"):
-                    out.append(_mk(chart_id, today, t, "followup", p["q"],
-                                   REASON[lang]["followup"].format(area=_area(lang, t))))
-                    break
+            # the follow-up engine's own timing ("when") question for that topic; read from its
+            # table because pick() drops the lane the reader just asked about
+            wq = (F._Q[F._lang(lang)].get(_FOLLOWUP_BUCKET[t]) or {}).get("when")
+            if wq and F._norm(wq) != F._norm(q) and not OUTCOME_WORDS.search(wq) \
+                    and C.topic_for_question(wq) in (t, None):   # timing, never an outcome; stays on its topic
+                out.append(_mk(chart_id, today, t, "followup", wq,
+                               REASON[lang]["followup"].format(area=_area(lang, t))))
     except Exception:
         logger.exception("[suggested-questions] followups skipped")
     return out
