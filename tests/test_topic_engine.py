@@ -133,7 +133,7 @@ def test_rank_shape_order_and_contiguous_ranks(ctxs):
         out = T.rank_topics(ctx, TODAY, "en")
         assert [r["rank"] for r in out] == list(range(1, 8))
         assert {r["key"] for r in out} == set(T.TOPIC_KEYS)
-        assert set(out[0]) == {"key", "label", "status", "tag", "tone", "rank"}
+        assert set(out[0]) == {"key", "label", "status", "tag", "tag_kind", "tone", "rank"}
         order = {"active": 0, "upcoming": 1, "steady": 2, "quiet": 3}
         st = [order[r["status"]] for r in out]
         assert st == sorted(st)
@@ -150,20 +150,12 @@ def test_topics_tone_equals_topic_read_tone_at_best_fit_scale(ctxs):
             assert out[k]["tone"] == full["tone"], (ctx.chart_id, k)
 
 
-def _tag_class(lang, tag):
-    """care | open | calm — which family a served tag belongs to, in `lang`."""
-    t = T.C.TAG[lang]
-    def is_(name):
-        pat = t[name]
-        if "{mon}" in pat:
-            pre, post = pat.split("{mon}")
-            return tag.startswith(pre) and tag.endswith(post)
-        return tag == pat
-    if any(is_(n) for n in ("care", "care_from", "steady_care")):
-        return "care"
-    if any(is_(n) for n in ("active", "open", "steady_open")):
-        return "open"
-    return "calm"
+KINDS = ("open_now", "opens", "care_now", "care_from", "quiet")
+
+
+def _tag_class(lang, tag, kind=None):
+    """care | open | calm — the family of a served tag, from its tag_kind."""
+    return {"open_now": "open", "opens": "open", "care_now": "care", "care_from": "care"}.get(kind, "calm")
 
 
 _DATES3 = [TODAY, date(2027, 1, 15), date(2027, 6, 2)]
@@ -171,17 +163,13 @@ _DATES3 = [TODAY, date(2027, 1, 15), date(2027, 6, 2)]
 
 @pytest.mark.parametrize("lang", ["en", "es", "pt", "hinglish"])
 def test_tag_never_contradicts_tone_and_tone_is_the_best_fit_read(ctxs, lang):
-    """4 charts x 7 topics x 3 dates: the words and the colour come from the same read."""
+    """4 charts x 7 topics x 3 dates: one plain kind per tile, and tone is the best-fit read's."""
     for ctx in ctxs:
         for d in _DATES3:
             for r in T.rank_topics(ctx, d, lang):
-                cls = _tag_class(lang, r["tag"])
-                if r["tone"] == "open":
-                    assert cls != "care", (ctx.chart_id, d, r)
-                if r["tone"] == "care":
-                    assert cls != "open", (ctx.chart_id, d, r)
-                if r["tone"] != "care":
-                    assert not r["tag"].startswith(T.C.TAG[lang]["care"]), (ctx.chart_id, d, r)
+                assert r["tag_kind"] in KINDS, (ctx.chart_id, d, r)
+                if r["tone"] == "steady":
+                    assert r["tag_kind"] == "quiet" or r["status"] == "active", (ctx.chart_id, d, r)
                 if lang == "en":
                     full = T.read_topic(ctx, r["key"], T.best_fit_scale(ctx, r["key"], d), d, "en")
                     assert r["tone"] == full["tone"], (ctx.chart_id, d, r["key"])
@@ -191,8 +179,8 @@ def test_the_maya_money_case_active_open_never_says_needs_care():
     """Regression: status active + tone open used to carry 'needs care now'."""
     ctx = _synth("Jupiter", [_ev("2026-10-12", "Jupiter", 2)])
     for r in T.rank_topics(ctx, TODAY, "en"):
-        assert not (r["tone"] == "open" and "care" in r["tag"]), r
-        assert not (r["tone"] == "care" and r["tag"] == "active now"), r
+        assert not (r["tone"] == "open" and r["tag_kind"] in ("care_now", "care_from")), r
+        assert not (r["tone"] == "care" and r["tag"] == "Open now"), r
 
 
 def test_tags_follow_tone_for_each_status(monkeypatch):
@@ -204,8 +192,8 @@ def test_tags_follow_tone_for_each_status(monkeypatch):
     tones = {"money": "open", "love": "care"}
     monkeypatch.setattr(T, "_tile_read", lambda c, k, t: (tones.get(k, "steady"), None))
     rows = {r["key"]: r for r in T.rank_topics(_synth(), TODAY, "en")}
-    assert rows["money"]["tag"] == "active now" and rows["money"]["tone"] == "open"
-    assert rows["love"]["tag"] == "needs care now" and rows["love"]["tone"] == "care"
+    assert rows["money"]["tag"] == "Open now" and rows["money"]["tone"] == "open"
+    assert rows["love"]["tag"] == "Care now" and rows["love"]["tone"] == "care"
 
 
 def test_topics_tone_can_be_care_while_status_is_active():
@@ -292,7 +280,7 @@ def test_neutral_topics_are_never_padded_into_activity():
 def test_active_topic_needs_real_activation():
     ctx = _synth("Saturn", [_ev("2026-10-12", "Jupiter", 10)])  # chapter + a supportive aspect on the 10th
     out = {r["key"]: r for r in T.rank_topics(ctx, TODAY, "en")}
-    assert out["career"]["status"] == "active" and out["career"]["tag"] == "active now"
+    assert out["career"]["status"] == "active" and out["career"]["tag"] == "Open now, until Oct 13"
     assert T.rank_topics(ctx, TODAY, "en")[0]["key"] == "career"
 
 
@@ -474,7 +462,7 @@ def test_today_windows_carry_no_invented_clock_times():
 
 def test_topic_labels_and_tags_localised():
     out = T.rank_topics(_synth("Saturn", [_ev("2026-10-12", "Jupiter", 10)]), TODAY, "pt")
-    assert out[0]["label"] == "Carreira" and out[0]["tag"] == "ativo agora"
+    assert out[0]["label"] == "Carreira" and out[0]["tag"] == "Aberto agora, até 13 out"
 
 
 # ── no jargon, no prices, honesty wording ───────────────────────────────────
@@ -647,7 +635,7 @@ def test_topics_route_returns_list_and_caches(main_mod, monkeypatch):
     b = _run(main_mod.get_chart_topics("c1", None, None))
     assert a == b and a[0]["key"] == "career" and a[0]["label"] == "Carrera"   # chart's stored language wins over a missing param
     assert len(calls) == 2    # context is rebuilt, the ranking itself is cached
-    assert all(set(r) == {"key", "label", "status", "tag", "tone", "rank"} for r in a)
+    assert all(set(r) == {"key", "label", "status", "tag", "tag_kind", "tone", "rank"} for r in a)
 
 
 def test_topics_route_falls_back_on_load_failure(main_mod, monkeypatch):
@@ -826,7 +814,7 @@ def test_the_observed_money_case_is_not_upcoming_when_today_is_already_open():
     read = T.read_topic(ctx, "money", T.best_fit_scale(ctx, "money", TODAY), TODAY, "en")
     assert read["tone"] == "open" and _primary(read)["start"] == "2026-10-07"
     money = {r["key"]: r for r in T.rank_topics(ctx, TODAY, "en")}["money"]
-    assert money["status"] == "active" and money["tag"] == "active now" and money["tone"] == "open"
+    assert money["status"] == "active" and money["tag"].startswith("Open now") and money["tag_kind"] == "open_now" and money["tone"] == "open"
 
 
 def _stub(monkeypatch, reads, opening=None):
@@ -841,7 +829,7 @@ def test_upcoming_names_the_month_of_the_reads_own_window(monkeypatch):
     _stub(monkeypatch, {"money": ("open", {"best_window": win, "watch_window": None})},
           opening=(date(2026, 11, 20), "open"))
     row = {r["key"]: r for r in T.rank_topics(_synth(), TODAY, "en")}["money"]
-    assert row["status"] == "upcoming" and row["tag"] == "window opens Jan"   # not Nov, the unrelated opening
+    assert row["status"] == "upcoming" and row["tag"] == "Opens Jan 5"   # not Nov, the unrelated opening
 
 
 def test_a_read_without_a_window_is_never_upcoming(monkeypatch):
@@ -855,10 +843,10 @@ def test_window_within_two_days_gets_near_term_words_then_a_month_after(monkeypa
     mk = lambda s: {"health": ("care", {"best_window": None, "watch_window": {"start": s, "end": "2026-10-20"}})}
     _stub(monkeypatch, mk("2026-10-09"), opening=(date(2027, 1, 5), "care"))
     row = {r["key"]: r for r in T.rank_topics(_synth(), TODAY, "en")}["health"]
-    assert (row["status"], row["tag"], row["tone"]) == ("steady", "take care this week", "care")
+    assert (row["status"], row["tag"], row["tone"]) == ("steady", "Care from Oct 9", "care")
     _stub(monkeypatch, mk("2026-10-10"), opening=(date(2027, 1, 5), "care"))
     row = {r["key"]: r for r in T.rank_topics(_synth(), TODAY, "en")}["health"]
-    assert (row["status"], row["tag"]) == ("upcoming", "take care from Oct")
+    assert (row["status"], row["tag"]) == ("upcoming", "Care from Oct 10")
 
 
 def test_promoted_running_windows_obey_the_active_cap_and_relative_cut(monkeypatch):
@@ -869,50 +857,41 @@ def test_promoted_running_windows_obey_the_active_cap_and_relative_cut(monkeypat
     rows = {r["key"]: r for r in T.rank_topics(_synth(), TODAY, "en")}
     active = [k for k, r in rows.items() if r["status"] == "active"]
     assert 1 <= len(active) <= T.ACTIVE_CAP and rows["money"]["status"] == "active"
-    assert all(rows[k]["tag"] == "open this week" and rows[k]["status"] == "steady"
+    assert all(rows[k]["tag"] == "Open now, until Oct 7" and rows[k]["status"] == "steady"
                for k in rows if k not in active)
     order = [r["status"] for r in sorted(rows.values(), key=lambda r: r["rank"])]
     assert order == sorted(order, key=["active", "upcoming", "steady", "quiet"].index)
 
 
-def _tag_is(lang, tag, name):
-    pat = T.C.TAG[lang][name]
-    if "{mon}" in pat:
-        pre, post = pat.split("{mon}")
-        return tag.startswith(pre) and tag.endswith(post)
-    return tag == pat
-
-
 @pytest.mark.parametrize("lang", ["en", "es", "pt", "hinglish"])
 def test_tile_status_tag_tone_and_read_agree(ctxs, lang):
-    """4 charts x 7 topics x 3 dates x 4 languages. The window a tag names exists
-    in topic-read at best_fit_scale, and nothing 'upcoming' is already running."""
-    care_names, open_names = ("care", "care_from", "steady_care", "care_soon"), ("active", "open", "steady_open", "open_soon")
+    """4 charts x 7 topics x 3 dates x 4 languages. The window a tag names exists in
+    topic-read at best_fit_scale: Open now = a window running today, Opens/Care from = start date."""
     for ctx in ctxs:
         for d in _DATES3:
-            lim = d + timedelta(days=T.NEAR_DAYS)
             for r in T.rank_topics(ctx, d, lang):
                 k = r["key"]
                 fit = T.best_fit_scale(ctx, k, d)
                 read = T.read_topic(ctx, k, fit, d, "en")
                 where = (ctx.chart_id, str(d), k, r)
                 assert read["best_fit_scale"] == fit and r["tone"] == read["tone"], where
-                w = _primary(read)
+                wins = {"open": read["best_window"], "care": read["watch_window"]}
+                kind = r["tag_kind"]
+                if kind == "open_now" and wins["open"]:
+                    assert wins["open"]["start"] <= d.isoformat() <= wins["open"]["end"], where
+                if kind == "opens":
+                    w = wins["open"]
+                    assert w and date.fromisoformat(w["start"]) > d, where
+                    s0 = date.fromisoformat(w["start"])
+                    key = "opens_far" if s0 > C.add_months(d, 11) else "opens"
+                    assert r["tag"] == T.C.TAG[lang][key].format(d=C.day_label(s0, lang), my=C.month_year_short(s0, lang)), where
+                if kind == "care_from":
+                    w = wins["care"]
+                    assert w and date.fromisoformat(w["start"]) > d, where
+                if kind == "care_now" and wins["care"]:
+                    assert wins["care"]["start"] <= d.isoformat() <= wins["care"]["end"], where
                 if r["status"] == "upcoming":
-                    assert w, where
-                    s = date.fromisoformat(w["start"])
-                    assert s > lim, where
-                    name = "care_from" if r["tone"] == "care" else "open"
-                    assert r["tag"] == T.C.TAG[lang][name].format(mon=T._mon(s, lang, d)), where   # year only when > 12 months out
-                elif w and r["status"] != "active" and date.fromisoformat(w["start"]) <= lim:
-                    assert r["status"] == "steady" and r["tone"] in ("open", "care"), where
-                for name, tone in (("open_soon", "open"), ("care_soon", "care")):
-                    if _tag_is(lang, r["tag"], name):
-                        assert r["tone"] == tone and w and date.fromisoformat(w["start"]) <= lim, where
-                if r["tone"] == "open":
-                    assert not any(_tag_is(lang, r["tag"], n) for n in care_names), where
-                if r["tone"] == "care":
-                    assert not any(_tag_is(lang, r["tag"], n) for n in open_names), where
+                    assert kind in ("opens", "care_from"), where
 
 
 def test_best_fit_scale_is_the_scale_that_shows_the_window():
@@ -922,12 +901,12 @@ def test_best_fit_scale_is_the_scale_that_shows_the_window():
     read = T.read_topic(ctx, "money", "season", TODAY, "en")
     assert read["best_window"]["start"].startswith("2027-01") and read["best_fit_scale"] == "season"
     row = {r["key"]: r for r in T.rank_topics(ctx, TODAY, "en")}["money"]
-    assert (row["status"], row["tag"]) == ("upcoming", "window opens Jan")
+    assert (row["status"], row["tag_kind"]) == ("upcoming", "opens") and row["tag"].startswith("Opens Jan")
 
 
-def test_near_term_copy_exists_in_every_language_and_hindi_falls_back():
+def test_tag_copy_complete_in_every_language_and_hindi_falls_back():
     for lang in LANGS:
-        assert T.C.TAG[lang]["open_soon"] and T.C.TAG[lang]["care_soon"]
+        assert set(C.TAG[lang]) == set(C.TAG["en"])
     assert T.C.serve_language("hi") == "en"
 
 
@@ -981,10 +960,10 @@ def _score_stub(monkeypatch, reads, opening=None, score=3.0):
 
 
 _FAR_TAGS = {
-    "en": ("steady, window opens Jun 2028", "steady, take care from Jun 2028"),
-    "es": ("estable, ventana en jun 2028", "estable, cuidado desde jun 2028"),
-    "pt": ("estável, janela em jun 2028", "estável, cuidado a partir de jun 2028"),
-    "hinglish": ("sthir, Jun 2028 mein window khulegi", "sthir, Jun 2028 se dhyaan rakhein"),
+    "en": ("Opens Jun 2028", "Care from Jun 2028"),
+    "es": ("Abre en jun 2028", "Con cuidado desde jun 2028"),
+    "pt": ("Abre em jun 2028", "Com cuidado a partir de jun 2028"),
+    "hinglish": ("Jun 2028 ko khulega", "Jun 2028 se savdhaani"),
 }
 
 
@@ -999,29 +978,25 @@ def test_observed_business_far_window_tag_names_the_month_and_year(monkeypatch, 
     assert rows["love"]["tag"] == _FAR_TAGS[lang][1] and rows["love"]["tone"] == "care"
 
 
-@pytest.mark.parametrize("months,far", [(11, False), (12, False), (13, True)])
-def test_far_tag_boundary_at_11_12_13_months(monkeypatch, months, far):
+@pytest.mark.parametrize("months,far", [(10, False), (11, False), (12, True), (13, True)])
+def test_far_tag_boundary_at_11_months(monkeypatch, months, far):
     s = C.add_months(TODAY, months)
     win = {"start": s.isoformat(), "end": (s + timedelta(days=40)).isoformat()}
     reads = {"business": ("open", {"best_window": win, "watch_window": None}),
              "health": ("care", {"best_window": None, "watch_window": win})}
-    _score_stub(monkeypatch, reads)                       # steady path
-    rows = {r["key"]: r for r in T.rank_topics(_synth(), TODAY, "en")}
-    assert (rows["business"]["tag"] == f"steady, window opens {C.month_year_short(s, 'en')}") is far
-    assert (rows["business"]["tag"] == "steady, a good window") is (not far)
-    assert (rows["health"]["tag"] == f"steady, take care from {C.month_year_short(s, 'en')}") is far
-    assert (rows["health"]["tag"] == "steady, go gently") is (not far)
-    _score_stub(monkeypatch, reads, opening=(s, "open"))  # upcoming path
-    rows = {r["key"]: r for r in T.rank_topics(_synth(), TODAY, "en")}
-    want = C.month_year_short(s, "en") if far else C.month_name(s, "en")
-    assert rows["business"]["status"] == "upcoming" and rows["business"]["tag"] == f"window opens {want}"
-    assert rows["health"]["tag"] == f"take care from {want}"
+    for opening in (None, (s, "open")):                   # steady/quiet path and upcoming path
+        _score_stub(monkeypatch, reads, opening=opening)
+        rows = {r["key"]: r for r in T.rank_topics(_synth(), TODAY, "en")}
+        want = C.month_year_short(s, "en") if far else C.day_label(s, "en")
+        assert rows["business"]["tag"] == f"Opens {want}"
+        assert rows["health"]["tag"] == f"Care from {want}"
 
 
-def test_far_tag_copy_exists_in_every_language_and_has_no_jargon():
+def test_tag_copy_has_no_jargon_and_no_old_words():
+    old = re.compile(r"steady|go gently|take care|estable|estável|sthir|dhyaan", re.I)
     for lang in LANGS:
-        for n in ("steady_open_far", "steady_care_far"):
-            assert "{mon}" in C.TAG[lang][n] and not _JARGON.search(C.TAG[lang][n])
+        for v in C.TAG[lang].values():
+            assert not _JARGON.search(v) and not old.search(v), (lang, v)
 
 
 def _fake_reads(monkeypatch, by_scale):
@@ -1342,3 +1317,80 @@ def test_chip_copy_passes_jargon_guard():
                 assert not _JARGON.search(s), (lang, s)
     for lang in LANGS:
         assert set(C.CHIP[lang]) == {"today", "month", "season", "chapter"}
+
+
+# ── one plain tag per tile: Open now / Opens / Care now / Care from / Quiet ───
+_WIN = lambda a, b: {"start": a, "end": b}
+
+
+def _tag(lang, tone, read, today=TODAY, **kw):
+    return T._tile_tag(lang, tone, read, today, **kw)
+
+
+_EXPECT = {
+    "open_now": {"en": "Open now", "es": "Abierto ahora", "pt": "Aberto agora", "hinglish": "Abhi khula hai"},
+    "open_now_until": {"en": "Open now, until Oct 30", "es": "Abierto ahora, hasta el 30 oct",
+                       "pt": "Aberto agora, até 30 out", "hinglish": "Abhi khula hai, Oct 30 tak"},
+    "opens": {"en": "Opens Nov 3", "es": "Abre el 3 nov", "pt": "Abre em 3 nov", "hinglish": "Nov 3 ko khulega"},
+    "opens_far": {"en": "Opens Nov 2027", "es": "Abre en nov 2027", "pt": "Abre em nov 2027",
+                  "hinglish": "Nov 2027 ko khulega"},
+    "care_now": {"en": "Care now, until Oct 20", "es": "Con cuidado ahora, hasta el 20 oct",
+                 "pt": "Com cuidado agora, até 20 out", "hinglish": "Abhi savdhaani, Oct 20 tak"},
+    "care_from": {"en": "Care from Nov 3", "es": "Con cuidado desde 3 nov",
+                  "pt": "Com cuidado a partir de 3 nov", "hinglish": "Nov 3 se savdhaani"},
+    "quiet": {"en": "Quiet", "es": "Tranquilo", "pt": "Tranquilo", "hinglish": "Shaant"},
+}
+
+
+@pytest.mark.parametrize("lang", LANGS)
+def test_each_tag_kind_in_every_language(lang):
+    cases = {
+        "open_now": ("open", {"best_window": _WIN("2026-10-01", "2027-02-01"), "watch_window": None}, "open_now"),
+        "open_now_until": ("open", {"best_window": _WIN("2026-10-01", "2026-10-30"), "watch_window": None}, "open_now"),
+        "opens": ("open", {"best_window": _WIN("2026-11-03", "2026-12-01"), "watch_window": None}, "opens"),
+        "opens_far": ("open", {"best_window": _WIN("2027-11-03", "2027-12-01"), "watch_window": None}, "opens"),
+        "care_now": ("care", {"best_window": None, "watch_window": _WIN("2026-10-01", "2026-10-20")}, "care_now"),
+        "care_from": ("care", {"best_window": None, "watch_window": _WIN("2026-11-03", "2026-12-01")}, "care_from"),
+        "quiet": ("steady", {"best_window": None, "watch_window": None}, "quiet"),
+    }
+    for name, (tone, read, kind) in cases.items():
+        tag, k = _tag(lang, tone, read)
+        assert (tag, k) == (_EXPECT[name][lang], kind), (lang, name, tag)
+
+
+def test_tag_priority_current_then_sooner_never_two_phrases():
+    both = lambda o, c: {"best_window": _WIN(*o), "watch_window": _WIN(*c)}
+    # care running now beats an open window that starts later, even when the tone is open
+    assert _tag("en", "open", both(("2026-11-03", "2026-12-01"), ("2026-10-01", "2026-10-20"))) == ("Care now, until Oct 20", "care_now")
+    # open running now beats a care window later
+    assert _tag("en", "care", both(("2026-10-01", "2027-03-01"), ("2026-11-03", "2026-12-01")))[1] == "open_now"
+    # both ahead: the sooner one
+    assert _tag("en", "open", both(("2026-12-03", "2027-01-01"), ("2026-11-03", "2026-12-01"))) == ("Care from Nov 3", "care_from")
+    assert _tag("en", "care", both(("2026-11-03", "2026-12-01"), ("2026-12-03", "2027-01-01"))) == ("Opens Nov 3", "opens")
+    for t in (_tag("en", "open", both(("2026-11-03", "2026-12-01"), ("2026-12-03", "2027-01-01")))[0],):
+        assert t.count(",") == 0
+
+
+def test_status_values_unchanged_and_kind_present_on_the_list(ctxs):
+    for ctx in ctxs:
+        for d in _DATES3:
+            for r in T.rank_topics(ctx, d, "en"):
+                assert r["status"] in ("active", "upcoming", "quiet", "steady")
+                assert r["tag_kind"] in KINDS
+                assert not re.search(r"steady|go gently|take care", r["tag"], re.I)
+    assert {r["tag_kind"] for r in T.fallback_topics("en")} == {"quiet"}
+
+
+def test_open_now_tile_opens_a_read_whose_window_is_running():
+    ctx = _fast_ctx(_january(), _burst("2026-10-07"))
+    money = {r["key"]: r for r in T.rank_topics(ctx, TODAY, "en")}["money"]
+    read = T.read_topic(ctx, "money", T.best_fit_scale(ctx, "money", TODAY), TODAY, "en")
+    assert money["tag_kind"] == "open_now" and read["best_window"]["start"] <= TODAY.isoformat() <= read["best_window"]["end"]
+
+
+def test_opens_tile_names_the_start_of_the_reads_best_window():
+    ctx = _fast_ctx(_january(), [])
+    row = {r["key"]: r for r in T.rank_topics(ctx, TODAY, "en")}["money"]
+    read = T.read_topic(ctx, "money", T.best_fit_scale(ctx, "money", TODAY), TODAY, "en")
+    s0 = date.fromisoformat(read["best_window"]["start"])
+    assert row["tag_kind"] == "opens" and row["tag"] == f"Opens {C.day_label(s0, 'en')}"
