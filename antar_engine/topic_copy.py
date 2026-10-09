@@ -180,23 +180,24 @@ def range_label(start: date, end: date, lang: str) -> str:
 
 
 # ── segmented-control chips + rung order ─────────────────────────────────────
-# `period.chip` is the short chip text; `period.rung` names the rung. Year chip
-# is "To <birthday>" (the day the next solar-return year starts); never "this
-# year" / "365" / "season".
-RUNG_BY_SCALE = {"today": "now", "month": "30d", "year": "year", "season": "stretch"}
+# `period.chip` is the short chip text; `period.rung` names the rung. The year chip is
+# the numeric birthday-to-birthday range; never "this year" / "365" / "season".
+RUNG_BY_SCALE = {"today": "now", "month": "30d", "year": "year", "season": "stretch", "chapter": "chapter"}
 CHIP: Dict[str, Dict[str, str]] = {
-    "en": {"today": "Right now", "month": "Next 30 days", "season": "This chapter"},
-    "es": {"today": "Ahora", "month": "Próximos 30 días", "season": "Este capítulo"},
-    "pt": {"today": "Agora", "month": "Próximos 30 dias", "season": "Este capítulo"},
-    "hinglish": {"today": "Abhi", "month": "Agle 30 din", "season": "Yeh chapter"},
+    "en": {"today": "Right now", "month": "Next 30 days", "season": "This chapter", "chapter": "Life chapter"},
+    "es": {"today": "Ahora", "month": "Próximos 30 días", "season": "Este capítulo", "chapter": "Capítulo de vida"},
+    "pt": {"today": "Agora", "month": "Próximos 30 dias", "season": "Este capítulo", "chapter": "Capítulo de vida"},
+    "hinglish": {"today": "Abhi", "month": "Agle 30 din", "season": "Yeh chapter", "chapter": "Life chapter"},
 }
-CHIP_YEAR: Dict[str, str] = {"en": "To {end}", "es": "Hasta {end}", "pt": "Até {end}",
-                             "hinglish": "{end} tak"}
 
 
-def year_chip(end: date, today: date, lang: str) -> str:
-    far = end > add_months(today, 11)
-    return pick(CHIP_YEAR, lang).format(end=day_label_y(end, lang) if far else day_label(end, lang))
+def year_chip(start: date, bday: date, lang: str) -> str:
+    """The birthday range as numbers, in the reader's date order: en 11/26/25 – 11/26/26,
+    es / pt / hinglish 26/11/25 – 26/11/26. `start` = last birthday, `bday` = next birthday."""
+    def num(d: date) -> str:
+        yy = f"{d.year % 100:02d}"
+        return f"{d.month}/{d.day}/{yy}" if lang == "en" else f"{d.day}/{d.month}/{yy}"
+    return f"{num(start)} – {num(bday)}"
 
 
 def rung_order(year_end: Optional[date], stretch_end: Optional[date]) -> list:
@@ -207,21 +208,21 @@ def rung_order(year_end: Optional[date], stretch_end: Optional[date]) -> list:
 
 # ── time-scale lead-ins ──────────────────────────────────────────────────────
 SPAN_LEAD: Dict[str, Dict[str, str]] = {
-    "en": {"today": "Today", "month": "This month", "season": "Over this stretch", "year": "This year"},
-    "es": {"today": "Hoy", "month": "Este mes", "season": "En este tramo", "year": "Este año"},
-    "pt": {"today": "Hoje", "month": "Este mês", "season": "Neste trecho", "year": "Este ano"},
-    "hinglish": {"today": "Aaj", "month": "Is mahine", "season": "Is stretch mein", "year": "Is saal"},
+    "en": {"today": "Today", "month": "Over the next 30 days", "season": "Over this stretch", "year": "Over your year, to your birthday"},
+    "es": {"today": "Hoy", "month": "Durante los próximos 30 días", "season": "En este tramo", "year": "Durante tu año, hasta tu cumpleaños"},
+    "pt": {"today": "Hoje", "month": "Nos próximos 30 dias", "season": "Neste trecho", "year": "Ao longo do seu ano, até o seu aniversário"},
+    "hinglish": {"today": "Aaj", "month": "Agle 30 din mein", "season": "Is stretch mein", "year": "Aapke saal mein, janamdin tak"},
 }
 
 PERIOD_LABEL: Dict[str, Dict[str, str]] = {
     "en": {"today": "Today", "month": "Next 30 days", "season": "The next few months",
-           "year": "Your year · {start} to {end} (your birthday)"},
+           "year": "Your year · birthday to birthday"},
     "es": {"today": "Hoy", "month": "Próximos 30 días", "season": "Los próximos meses",
-           "year": "Tu año · del {start} al {end} (tu cumpleaños)"},
+           "year": "Tu año · de cumpleaños a cumpleaños"},
     "pt": {"today": "Hoje", "month": "Próximos 30 dias", "season": "Os próximos meses",
-           "year": "O seu ano · de {start} a {end} (o seu aniversário)"},
+           "year": "O seu ano · de aniversário a aniversário"},
     "hinglish": {"today": "Aaj", "month": "Agle 30 din", "season": "Agle kuch mahine",
-                 "year": "Aapka saal · {start} se {end} tak (aapka janamdin)"},
+                 "year": "Aapka saal · janamdin se janamdin tak"},
 }
 
 # ── the "season" scale, framed by its real length ────────────────────────────
@@ -251,6 +252,15 @@ SPAN_LEAD_SEASON: Dict[str, Dict[str, str]] = {   # "<lead>, <core>."
     "hinglish": {"few": "Agle kuch mahine mein", "months": "Agle {n} mahine mein", "1y": "Agle saal mein",
                  "1.5y": "Agle 1½ saal mein", "2y": "Agle 2 saal mein", "2.5y": "Agle 2½ saal mein", "3y": "Agle 3 saal mein"},
 }
+CHAPTER_LABEL: Dict[str, str] = {   # the whole current major period; the stretch label stays the secondary line
+    "en": "Your current life chapter · to {end}", "es": "Tu capítulo de vida actual · hasta {end}",
+    "pt": "O seu capítulo de vida atual · até {end}", "hinglish": "Aapka maujooda life chapter · {end} tak"}
+CHAPTER_LEAD: Dict[str, str] = {
+    "en": "Across your current life chapter", "es": "A lo largo de tu capítulo de vida actual",
+    "pt": "Ao longo do seu capítulo de vida atual", "hinglish": "Aapke maujooda life chapter mein"}
+KEEP_SMALL: Dict[str, str] = {   # appended to Your move when the day's read says to go easy on risk
+    "en": "But keep any bet small.", "es": "Eso sí, mantén cualquier apuesta pequeña.",
+    "pt": "Mas mantenha qualquer aposta pequena.", "hinglish": "Bas koi bhi daav chhota rakhein."}
 SPAN_END: Dict[str, str] = {"en": "{span} · to {end}", "es": "{span} · hasta {end}",
                             "pt": "{span} · até {end}", "hinglish": "{span} · {end} tak"}
 WHOLE_SEASON: Dict[str, Dict[str, str]] = {   # "All of <this>"

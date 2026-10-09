@@ -347,7 +347,8 @@ def test_year_is_the_solar_return_year_with_its_range():
     ctx = _real_ctx("1990-10-15", "14:10")
     r = T.read_topic(ctx, "money", "year", TODAY, "en", with_best_fit=False)
     assert (r["period"]["start"], r["period"]["end"]) == ("2025-10-15", "2026-10-14")
-    assert "2025" in r["period"]["label"] and "2026" in r["period"]["label"]
+    assert r["period"]["label"] == "Your year · birthday to birthday"
+    assert r["period"]["chip"] == "10/15/25 – 10/15/26"
     r2 = T.read_topic(ctx, "money", "year", date(2026, 10, 15), "en", with_best_fit=False)
     assert (r2["period"]["start"], r2["period"]["end"]) == ("2026-10-15", "2027-10-14")
 
@@ -385,15 +386,15 @@ def test_language_fallback_is_whole_english_never_mixed(raw, served):
     r = T.read_topic(_synth("Saturn", [_ev("2026-10-20", "Jupiter", 10)]), "career", "month", TODAY, raw)
     assert r["language"] == served
     if served == "en":
-        assert r["label"] == "Career" and r["claim"].startswith("This month")
+        assert r["label"] == "Career" and r["claim"].startswith("Over the next 30 days")
 
 
 def test_each_language_is_actually_translated():
     ctx = _synth("Saturn", [_ev("2026-10-20", "Jupiter", 10)])
     claims = {l: T.read_topic(ctx, "career", "month", TODAY, l)["claim"] for l in LANGS}
     assert len(set(claims.values())) == 4
-    assert claims["es"].startswith("Este mes") and claims["pt"].startswith("Este mês")
-    assert claims["hinglish"].startswith("Is mahine")
+    assert claims["es"].startswith("Durante los próximos 30 días") and claims["pt"].startswith("Nos próximos 30 dias")
+    assert claims["hinglish"].startswith("Agle 30 din mein")
 
 
 def test_copy_tables_are_complete_for_every_language_topic_and_scale():
@@ -1100,7 +1101,7 @@ def test_later_window_names_its_opening_date_and_prepares():
 def test_soon_window_month_scale():
     r = T.read_topic(_soon_ctx(), "career", "month", TODAY, "en")
     assert r["tone"] == "open" and r["window_phase"] == "soon"
-    assert r["claim"] == "This month, your best stretch for work starts Oct 14."
+    assert r["claim"] == "Over the next 30 days, your best stretch for work starts Oct 14."
     assert r["your_move"].startswith("Use the time before Oct 14")
 
 
@@ -1287,21 +1288,20 @@ def test_chip_text_and_rung_per_scale(lang):
     assert (got["month"]["chip"], got["month"]["rung"]) == (m30, "30d")
     assert (got["season"]["chip"], got["season"]["rung"]) == (ch, "stretch")
     assert got["year"]["rung"] == "year"
-    assert got["year"]["chip"] == {"en": "To Oct 15", "es": "Hasta 15 oct", "pt": "Até 15 out",
-                                   "hinglish": "Oct 15 tak"}[lang]
+    assert got["year"]["chip"] == ("10/15/25 – 10/15/26" if lang == "en" else "15/10/25 – 15/10/26")
 
 
-@pytest.mark.parametrize("lang,exp", [("en", "To Sep 8, 2027"), ("es", "Hasta 8 sep 2027"),
-                                      ("pt", "Até 8 set 2027"), ("hinglish", "Sep 8, 2027 tak")])
-def test_year_chip_carries_year_only_past_eleven_months(lang, exp):
-    assert T._period(_chip_ctx("1990-09-08"), "year", TODAY, lang)["chip"] == exp          # 11 months + 1 day
-    near = T._period(_chip_ctx("1990-09-07"), "year", TODAY, lang)["chip"]                 # exactly 11 months
-    assert "2027" not in near
+@pytest.mark.parametrize("lang,exp", [("en", "9/8/26 – 9/8/27"), ("es", "8/9/26 – 8/9/27"),
+                                      ("pt", "8/9/26 – 8/9/27"), ("hinglish", "8/9/26 – 8/9/27")])
+def test_year_chip_is_the_numeric_birthday_range_in_locale_order(lang, exp):
+    p = T._period(_chip_ctx("1990-09-08"), "year", TODAY, lang)
+    assert p["chip"] == exp
+    assert p["label"] == C.PERIOD_LABEL[lang]["year"]
 
 
-def test_year_long_label_shows_start_and_birthday_end():
+def test_year_long_label_is_birthday_to_birthday():
     p = T._period(_chip_ctx(), "year", TODAY, "en")
-    assert p["label"] == "Your year · Oct 15, 2025 to Oct 15, 2026 (your birthday)"
+    assert p["label"] == "Your year · birthday to birthday"
     assert (p["start"], p["end"]) == (date(2025, 10, 15), date(2026, 10, 14))
 
 
@@ -1330,15 +1330,15 @@ def test_rung_order_sorts_year_and_stretch_by_end_date():
 def test_read_topic_period_carries_chip_rung_and_order():
     ctx = _chip_ctx()
     out = T.read_topic(ctx, "money", "year", TODAY, "en")
-    assert out["period"]["chip"] == "To Oct 15" and out["period"]["rung"] == "year"
+    assert out["period"]["chip"] == "10/15/25 – 10/15/26" and out["period"]["rung"] == "year"
     assert out["rung_order"][0] == "now" and out["rung_order"][-1] == "chapter"
 
 
 def test_chip_copy_passes_jargon_guard():
-    for tbl in (C.CHIP, C.CHIP_YEAR, C.PERIOD_LABEL):
+    for tbl in (C.CHIP, C.PERIOD_LABEL, C.CHAPTER_LABEL, C.CHAPTER_LEAD, C.KEEP_SMALL):
         for lang in LANGS:
             vals = tbl[lang].values() if isinstance(tbl[lang], dict) else [tbl[lang]]
             for s in vals:
                 assert not _JARGON.search(s), (lang, s)
     for lang in LANGS:
-        assert set(C.CHIP[lang]) == {"today", "month", "season"} and lang in C.CHIP_YEAR
+        assert set(C.CHIP[lang]) == {"today", "month", "season", "chapter"}

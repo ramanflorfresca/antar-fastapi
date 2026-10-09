@@ -50510,6 +50510,69 @@ def _topic_read_compute(chart_id: str, topic: str, scale: str, language, tz_offs
     return out
 
 
+_TOPIC_SRC_TIMEOUT = 8.0   # seconds a detail source may take; a slow one keeps filling its own cache and shows next time
+_TOPIC_SRC_LANGS = {"daily": ("en", "es", "pt", "hinglish"), "month": ("en", "es", "pt"),
+                    "year": ("en", "es", "pt"), "arc": ("en", "es", "pt")}
+
+
+async def _topic_source(name: str, chart_id: str, lang: str, today):
+    """One source engine's payload for the topic `detail`, loaded ONCE per (chart, language, local day)
+    and shared by every topic. These are the existing engines, read through their own caches (a warm
+    cache is the normal case); a slow or failed one is None and its sections hide. No new LLM calls."""
+    import antar_engine.topic_engine as _te
+    src_lang = lang if lang in _TOPIC_SRC_LANGS[name] else "en"
+    ck = ("topic-src", "v1", name, chart_id, src_lang, today.isoformat())
+    hit = _te.cache_get(ck)
+    if hit is not None:
+        return hit or None
+    try:
+        if name == "daily":
+            co = get_daily_signal_endpoint(chart_id=chart_id, language=src_lang, date=today.isoformat())
+        elif name == "month":
+            co = get_monthly_deepdive(chart_id=chart_id, language=src_lang)
+        elif name == "year":
+            co = get_annual_plan(chart_id=chart_id, language=src_lang)
+        else:
+            co = get_life_arc(chart_id=chart_id, language=src_lang, authorization=None)
+        val = await asyncio.wait_for(asyncio.shield(asyncio.ensure_future(co)), _TOPIC_SRC_TIMEOUT)
+        val = _safe_jsonb(val) if not isinstance(val, dict) else val
+        if not isinstance(val, dict):
+            return None
+        try:
+            _te.cache_put(ck, val, _TOPIC_READ_TTL)
+        except Exception:
+            pass
+        return val
+    except Exception as e:
+        print(f"[topic-detail] {name} source skipped: {e!r}")
+        return None
+
+
+async def _topic_read_full(chart_id: str, topic: str, scale: str, language, tz_offset):
+    """The cached engine read + `detail` (+ the caution reconciliation for Right now)."""
+    import antar_engine.topic_engine as _te
+    from antar_engine import topic_detail as _td
+    out = await run_in_threadpool(_topic_read_compute, chart_id, topic, scale, language, tz_offset)
+    if out is None:
+        return None
+    lang, today = out.get("language") or "en", _prac_local_date(tz_offset)
+    ck = ("topic-read", "v6-detail", chart_id, topic, scale, lang, today.isoformat())
+    hit = _te.cache_get(ck)
+    if hit is not None:
+        return hit
+    need = {"today": ("daily",), "month": ("month",), "year": ("year",), "season": ("arc",), "chapter": ("arc",)}[scale]
+    try:
+        got = await asyncio.gather(*[_topic_source(n, chart_id, lang, today) for n in need])
+        src = dict(zip(need, got))
+        full = dict(out, detail=_td.build_detail(topic, scale, src, today))
+        full = _td.reconcile(full, src.get("daily"), lang)
+    except Exception as e:
+        print(f"[topic-detail] skipped: {e!r}")
+        full = dict(out, detail=None)
+    _te.cache_put(ck, full, _TOPIC_READ_TTL)
+    return full
+
+
 @app.get("/api/v1/chart/{chart_id}/topic-read")
 async def get_chart_topic_read(chart_id: str, topic: str, scale: str = "month",
                                language: Optional[str] = None,
@@ -50523,11 +50586,12 @@ async def get_chart_topic_read(chart_id: str, topic: str, scale: str = "month",
     solar-return year; season = the current sub-period (end date returned)."""
     from antar_engine.topic_copy import TOPIC_KEYS as _TK, SCALES as _SC
     topic, scale = (topic or "").strip().lower(), (scale or "").strip().lower()
+    _SC = tuple(_SC) + ("chapter",)   # the whole current life chapter: an extra rung, not a new engine scale
     if topic not in _TK:
         raise HTTPException(status_code=422, detail=f"topic must be one of {list(_TK)}")
     if scale not in _SC:
         raise HTTPException(status_code=422, detail=f"scale must be one of {list(_SC)}")
-    out = await run_in_threadpool(_topic_read_compute, chart_id, topic, scale, language, tz_offset)
+    out = await _topic_read_full(chart_id, topic, scale, language, tz_offset)
     if out is None:
         raise HTTPException(status_code=404, detail="Chart not found")
     if background_tasks is not None:
