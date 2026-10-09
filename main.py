@@ -50468,7 +50468,7 @@ def _topics_compute(chart_id: str, language, tz_offset):
         return None
     lang = _topic_lang(language, row)
     today = _prac_local_date(tz_offset)
-    ck = ("topics", chart_id, lang, today.isoformat())
+    ck = ("topics", "tags2", chart_id, lang, today.isoformat())
     hit = _te.cache_get(ck)
     if hit is not None:
         return hit

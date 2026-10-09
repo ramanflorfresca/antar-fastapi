@@ -301,7 +301,7 @@ def _next_opening(ctx: TopicContext, key: str, today: date) -> Optional[Tuple[da
 def fallback_topics(language: str = "en") -> List[dict]:
     lang = C.serve_language(language)
     return [{"key": k, "label": C.LABEL[lang][k], "status": "steady",
-             "tag": C.TAG[lang]["steady"], "tone": "steady", "rank": i + 1}
+             "tag": C.TAG[lang]["quiet"], "tag_kind": "quiet", "tone": "steady", "rank": i + 1}
             for i, k in enumerate(TOPIC_KEYS)]
 
 
@@ -330,22 +330,48 @@ def _is_far(start: Optional[date], today: date) -> bool:
     return bool(start) and start > C.add_months(today, FAR_MONTHS)
 
 
-def _mon(d: date, lang: str, today: date) -> str:
-    """Month name for a tag; the year joins it once the date is > 12 months out."""
-    return C.month_year_short(d, lang) if _is_far(d, today) else C.month_name(d, lang)
+TAG_UNTIL_DAYS = 30      # "Open now" names its end only when it is this close
 
 
-def _calm_tag(lang: str, tone: str, quiet: bool = False,
-              start: Optional[date] = None, today: Optional[date] = None) -> str:
-    """Tag for a tile that is not "active now": the wording follows the read's tone.
-    A window that starts > 12 months out is never "a good window"/"go gently" with
-    no timing — the tag names when."""
+def _tag_date(d: date, lang: str, today: date, far_key: str, near_key: str) -> Tuple[str, str]:
+    """(copy key, value): a day ("Oct 30") within 11 months, a month + year beyond."""
+    if d > C.add_months(today, LABEL_YEAR_MONTHS):
+        return far_key, C.month_year_short(d, lang)
+    return near_key, C.day_label(d, lang)
+
+
+def _tile_tag(lang: str, tone: str, read: Optional[dict], today: date,
+              active: bool = False, opening: Optional[Tuple[date, str]] = None) -> Tuple[str, str]:
+    """(tag, tag_kind): exactly one of open_now | opens | care_now | care_from | quiet.
+
+    The windows come from the read the tile opens. A window running today wins;
+    otherwise the one that starts soonest (the tone's own on a tie). Never two phrases."""
     t = C.TAG[lang]
-    if tone in ("open", "care") and today and _is_far(start, today):
-        return t["steady_open_far" if tone == "open" else "steady_care_far"].format(
-            mon=C.month_year_short(start, lang))
-    return t["steady_open"] if tone == "open" else t["steady_care"] if tone == "care" \
-        else t["quiet" if quiet else "steady"]
+    wins = []                                   # (mode, start, end)
+    for mode, field in (("open", "best_window"), ("care", "watch_window")):
+        w = (read or {}).get(field)
+        if w:
+            wins.append((mode, date.fromisoformat(w["start"]), date.fromisoformat(w["end"])))
+    if not wins and opening and read is None:   # no read to agree with: the engine's own next opening
+        wins.append((opening[1], opening[0], opening[0]))
+    live = [w for w in wins if w[1] <= today <= w[2]]
+    ahead = [w for w in wins if w[1] > today]
+    pick = (sorted(live, key=lambda w: w[0] != tone) or sorted(ahead, key=lambda w: (w[1], w[0] != tone)) or [None])[0]
+    if pick is None:
+        if active:                              # lit today but the read carries no dated window
+            kind = "care_now" if tone == "care" else "open_now"
+            return t[kind], kind
+        return t["quiet"], "quiet"
+    mode, s0, e0 = pick
+    if s0 <= today:
+        if mode == "open":
+            if (e0 - today).days <= TAG_UNTIL_DAYS:
+                return t["open_now_until"].format(d=C.day_label(e0, lang)), "open_now"
+            return t["open_now"], "open_now"
+        return t["care_now_until"].format(d=C.day_label(e0, lang)), "care_now"
+    kind = "opens" if mode == "open" else "care_from"
+    key, val = _tag_date(s0, lang, today, kind + "_far", kind)
+    return t[key].format(d=val, my=val), kind
 
 
 def _tile_window(tone: str, read: Optional[dict]) -> Optional[Tuple[date, date]]:
@@ -398,17 +424,17 @@ def rank_topics(ctx: TopicContext, today: date, language: str = "en") -> List[di
             tone, read = tiles[k]
             if k in keep or k in promoted:
                 status = "active"
-                tag = C.TAG[lang]["care" if tone == "care" else "active"]
+                tag, kind = _tile_tag(lang, tone, read, today, active=True)
                 order = (0, -(near[k][1] if k in promoted else a["score"]), i)
             elif a["lit"]:
                 # really lit, but not among the chart's strongest: steady, not "now"
-                w0 = _tile_window(tone, read)
-                status, tag = "steady", _calm_tag(lang, tone, start=w0 and w0[0], today=today)
+                status = "steady"
+                tag, kind = _tile_tag(lang, tone, read, today)
                 order = (2, -a["score"], i)
             elif k in near:
                 # its own read is already inside a window: near-term words, never "opens {month}"
                 status = "steady"
-                tag = C.TAG[lang]["care_soon" if tone == "care" else "open_soon"]
+                tag, kind = _tile_tag(lang, tone, read, today)
                 order = (2, -near[k][1], i)
             else:
                 win = _tile_window(tone, read)
@@ -418,17 +444,18 @@ def rank_topics(ctx: TopicContext, today: date, language: str = "en") -> List[di
                 if opening and (win or read is None):
                     d, mode = (win[0], tone) if win else opening
                     status = "upcoming"
-                    tag = C.TAG[lang]["care_from" if mode == "care" else "open"].format(
-                        mon=_mon(d, lang, today))
+                    tag, kind = _tile_tag(lang, tone, read, today, opening=(d, mode))
                     order = (1, d.toordinal(), -a["score"], i)
                 elif a["score"] >= STEADY_MIN:
-                    status, tag = "steady", _calm_tag(lang, tone, start=win and win[0], today=today)
+                    status = "steady"
+                    tag, kind = _tile_tag(lang, tone, read, today)
                     order = (2, -a["score"], i)
                 else:
-                    status, tag = "quiet", _calm_tag(lang, tone, quiet=True)
+                    status = "quiet"
+                    tag, kind = _tile_tag(lang, tone, read, today)
                     order = (3, -a["score"], i)
             rows.append((order, {"key": k, "label": C.LABEL[lang][k], "status": status, "tag": tag,
-                                 "tone": tone}))
+                                 "tag_kind": kind, "tone": tone}))
         rows.sort(key=lambda r: r[0])
         return [dict(r[1], rank=n + 1) for n, r in enumerate(rows)]
     except Exception:
