@@ -464,11 +464,35 @@ def _best_run(runs: List[dict]) -> Optional[dict]:
     return max(runs, key=lambda r: (r["score"], -r["start"].toordinal())) if runs else None
 
 
+def _fold_in_today(ctx: TopicContext, key: str, today: date, opens: list, cares: list) -> None:
+    """The 30-day read starts today: a window that is lit today is part of it. The weekly buckets can
+    miss it (a lit day inside a quiet week), which let the month say 'nothing sharp' next to a
+    Right-now read that is open. Extend an adjoining run back to today, or add today as its own."""
+    try:
+        a = assess(ctx, key, today, ctx.events(today - timedelta(days=1), today + timedelta(days=2), True))
+    except Exception:
+        return
+    if not (a.get("lit") and a.get("mode") in ("open", "care")):
+        return
+    lst = opens if a["mode"] == "open" else cares
+    if any(r["start"] <= today <= r["end"] for r in lst):
+        return
+    near = next((r for r in lst if 0 < (r["start"] - today).days <= 7), None)
+    if near:
+        near["start"] = today
+        near["assessments"].append(a)
+        near["score"] += a["score"]
+    else:
+        lst.append({"start": today, "end": today, "score": a["score"], "assessments": [a]})
+
+
 def _span_out(per: dict) -> Optional[dict]:
     return dict(per["span"]) if per.get("span") else None
 
 
 def _lead(lang: str, scale: str, per: Optional[dict]) -> str:
+    if scale == "chapter":
+        return C.pick(C.CHAPTER_LEAD, lang)
     if scale == "season" and per and per.get("span"):
         return C.season_text(C.SPAN_LEAD_SEASON, lang, per["span"])
     return C.pick(C.SPAN_LEAD, lang)[scale]
@@ -498,6 +522,19 @@ def _period(ctx: TopicContext, scale: str, today: date, lang: str) -> dict:
             s, e = date.fromisoformat(ys), date.fromisoformat(ye)
         except Exception:
             s, e, approx = today, today + timedelta(days=364), True
+    if scale == "chapter":   # the whole current major period; the stretch label is the secondary line
+        s, e, approx = None, None, False
+        for r in (ctx.dashas or {}).get("vimsottari", []) or []:
+            lv = str(r.get("level") or "").lower()
+            rs, re_ = str(r.get("start_date") or r.get("start") or "")[:10], str(r.get("end_date") or r.get("end") or "")[:10]
+            if lv.startswith("maha") and rs <= today.isoformat() <= re_:
+                s, e = date.fromisoformat(rs), date.fromisoformat(re_)
+                break
+        if e is None or e < today:
+            s, e, approx = today, today + timedelta(days=365), True
+        return {"start": s, "end": e, "approximate": approx, "span": None,
+                "label": C.pick(C.CHAPTER_LABEL, lang).format(end=C.month_year_short(e, lang)),
+                "chip": C.pick(C.CHIP, lang)["chapter"], "rung": "chapter"}
     pl = C.PERIOD_LABEL[lang][scale]
     span = None
     if scale == "season":
@@ -510,17 +547,9 @@ def _period(ctx: TopicContext, scale: str, today: date, lang: str) -> dict:
                 "chip": C.pick(C.CHIP, lang)["season"], "rung": "stretch"}
     if scale == "year":
         bday = e + timedelta(days=1)   # the year runs birthday to the day before the next one
-        yrs = s.year != bday.year or bday > C.add_months(today, LABEL_YEAR_MONTHS)   # birthday to birthday: same day twice, so name the years
-        dl = C.day_label_y if yrs else C.day_label
-        label = pl.format(start=dl(s, lang), end=dl(bday, lang))
-        return {"start": s, "end": e, "approximate": approx, "label": label, "span": None,
-                "chip": C.year_chip(bday, today, lang), "rung": "year"}
-    else:
-        # a deadline in another calendar year (or > 11 months out) carries its year:
-        # "to Apr 25" would read as next April when the season runs to 2029
-        far = e.year != today.year or e > C.add_months(today, LABEL_YEAR_MONTHS)
-        label = pl.format(end=C.month_year_short(e, lang) if far else C.day_label(e, lang),
-                          start=C.day_label_y(s, lang))
+        return {"start": s, "end": e, "approximate": approx, "label": pl, "span": None,
+                "chip": C.year_chip(s, bday, lang), "rung": "year"}
+    label = pl
     return {"start": s, "end": e, "approximate": approx, "label": label, "span": span,
             "chip": C.pick(C.CHIP, lang)[scale], "rung": C.RUNG_BY_SCALE[scale]}
 
@@ -737,6 +766,7 @@ def _read_topic(ctx: TopicContext, key: str, scale: str, today: date, language: 
                 with_best_fit: bool) -> dict:
     lang = C.serve_language(language)
     per = _period(ctx, scale, today, lang)
+    view_scale, scale = scale, ("season" if scale == "chapter" else scale)   # the chapter scans like the long stretch
     area = C.pick(C.AREA, lang)[key]
     best = watch = None
     mode = "steady"
@@ -744,6 +774,8 @@ def _read_topic(ctx: TopicContext, key: str, scale: str, today: date, language: 
     try:
         results = _scan(ctx, key, scale, per, today)
         opens, cares = _runs(results, "open"), _runs(results, "care")
+        if scale == "month":
+            _fold_in_today(ctx, key, today, opens, cares)
         # a window may only start today or later, and only if it has not ended
         for lst in (opens, cares):
             for r in list(lst):
@@ -769,7 +801,7 @@ def _read_topic(ctx: TopicContext, key: str, scale: str, today: date, language: 
         best = watch = None
         mode = "steady"
 
-    lead = _lead(lang, scale, per)
+    lead = _lead(lang, view_scale, per)
     core = (C.pick(C.CORE, lang)[key][mode] if mode in ("open", "care")
             else C.pick(C.STEADY_CORE, lang).format(area=area))
     primary = best if mode == "open" else watch if mode == "care" else None
@@ -791,7 +823,7 @@ def _read_topic(ctx: TopicContext, key: str, scale: str, today: date, language: 
     why = " ".join(reasoning["bullets"][:2])
     out = {
         "chart_id": ctx.chart_id, "topic": key, "label": C.LABEL[lang][key],
-        "scale": scale, "language": lang, "as_of": today.isoformat(),
+        "scale": view_scale, "language": lang, "as_of": today.isoformat(),
         "rung_order": _rung_order(ctx, today, lang),
         "period": {"start": per["start"].isoformat(), "end": per["end"].isoformat(),
                    "label": per["label"], "approximate": per["approximate"], "span": _span_out(per),
@@ -807,6 +839,11 @@ def _read_topic(ctx: TopicContext, key: str, scale: str, today: date, language: 
         "reasoning": reasoning,
         "remedy": build_remedy(ctx, key, today, lang),
     }
+    if view_scale == "chapter":   # the stretch label stays as the secondary line inside the chapter rung
+        try:
+            out["period"]["stretch_label"] = _period(ctx, "season", today, lang)["label"]
+        except Exception:
+            pass
     if with_best_fit:
         out["best_fit_scale"] = best_fit_scale(ctx, key, today)
     return out
@@ -827,8 +864,11 @@ def windows_for(ctx: TopicContext, key: str, scale: str, today: date) -> dict:
         per = _period(ctx, scale, today, "en")
         out["period_end"], out["approximate"] = per["end"], per["approximate"]
         results = _scan(ctx, key, scale, per, today)
+        by_mode = {"open": _runs(results, "open"), "care": _runs(results, "care")}
+        if scale == "month":
+            _fold_in_today(ctx, key, today, by_mode["open"], by_mode["care"])
         for mode, name in (("open", "open"), ("care", "care")):
-            for r in _runs(results, mode):
+            for r in by_mode[mode]:
                 c = clamp_window(r["start"], r["end"], today)
                 if c is None:
                     continue
