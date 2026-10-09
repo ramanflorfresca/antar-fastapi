@@ -351,3 +351,29 @@ def reconcile(out: dict, daily: Optional[dict], lang: str) -> dict:
         return out
     except Exception:
         return out
+
+
+def reconcile_year(out: dict, lang: str) -> dict:
+    """The year claim vs the year's own caution stretch. A steady claim ('nothing sharp is pulling')
+    cannot sit beside a demanding month in the detail: the claim names that month, and the engine's
+    sentence for it rides in `detail.caution_note`. An open / care year keeps its claim and gains a
+    short 'Watch <month>.' Returns a new dict; never raises."""
+    try:
+        det = out.get("detail") or {}
+        cau = next((c for c in det.get("caution") or [] if c.get("when") and c.get("text")), None)
+        if out.get("scale") != "year" or not cau:
+            return out
+        out = dict(out)
+        out["detail"] = dict(det, caution_note=cau["text"])
+        if out.get("tone") == "steady":
+            area = C.pick(C.AREA, lang)[out["topic"]]
+            core = C.pick(C.YEAR_CAUTION_CORE, lang).format(area=area, when=cau["when"])
+            out["claim"] = C.pick(C.LEAD_JOIN, lang).format(lead=C.pick(C.SPAN_LEAD, lang)["year"], core=core)
+            out["why"] = out.get("why") or ""
+        else:
+            tail = C.pick(C.YEAR_CAUTION_TAIL, lang).format(when=cau["when"])
+            if tail not in out.get("claim", ""):
+                out["claim"] = f"{out['claim'].rstrip()} {tail}"
+        return out
+    except Exception:
+        return out

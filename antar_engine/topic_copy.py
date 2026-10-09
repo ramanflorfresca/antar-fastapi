@@ -384,6 +384,13 @@ STEADY_CORE: Dict[str, str] = {
     "pt": "nada forte puxa sobre {area}, então mantenha o seu ritmo habitual",
     "hinglish": "{area} par kuch tez nahin kheench raha, isliye apni aam raftaar rakhein",
 }
+YEAR_CAUTION_CORE: Dict[str, str] = {   # a steady year read that still has one demanding stretch for the topic
+    "en": "it is steady overall for {area}, with {when} the one stretch to watch",
+    "es": "en general todo está estable en {area}, con {when} como el tramo a vigilar",
+    "pt": "no geral tudo está estável em {area}, com {when} como o trecho a observar",
+    "hinglish": "{area} mein aam taur par sthirta hai, bas {when} par nazar rakhein"}
+YEAR_CAUTION_TAIL: Dict[str, str] = {   # appended to a year read that has a window but also a demanding stretch
+    "en": "Watch {when}.", "es": "Vigila {when}.", "pt": "Observe {when}.", "hinglish": "{when} par nazar rakhein."}
 LEAD_JOIN: Dict[str, str] = {"en": "{lead}, {core}.", "es": "{lead}, {core}.",
                              "pt": "{lead}, {core}.", "hinglish": "{lead} {core}."}
 

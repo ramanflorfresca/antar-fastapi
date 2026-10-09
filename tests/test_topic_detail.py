@@ -433,7 +433,7 @@ def test_route_attaches_detail_and_reconciles(client, monkeypatch):
     assert calls == ["daily"]
     c.get("/api/v1/chart/c/topic-read?topic=money&scale=today&tz_offset=-240")
     assert calls == ["daily"]                                                     # second hit is served from the cache
-    assert any(k[:2] == ("topic-read", "v6-detail") for k in te._CACHE)           # version-salted key
+    assert any(k[:2] == ("topic-read", "v7-detail") for k in te._CACHE)           # version-salted key
 
 
 @pytest.mark.parametrize("scale,need", [("month", "month"), ("year", "year"), ("season", "arc"), ("chapter", "arc")])
@@ -475,3 +475,38 @@ def test_one_source_load_serves_all_seven_topics(client, monkeypatch):
     for k in KEYS:
         assert c.get(f"/api/v1/chart/c/topic-read?topic={k}&scale=today").status_code == 200
     assert len(loads) == 1 and loads[0]["date"] == TODAY.isoformat()
+
+
+# ── the year claim names the year's own caution stretch ──────────────────────
+def _year_out(tone="steady", lang="en", topic="money"):
+    det = D.build_detail(topic, "year", SRC, TODAY)
+    return {"topic": topic, "scale": "year", "language": lang, "tone": tone, "detail": det,
+            "claim": "Over your year, to your birthday, nothing sharp is pulling on money, so keep your usual pace."}
+
+
+def test_steady_year_claim_names_the_caution_month():
+    out = D.reconcile_year(_year_out(), "en")
+    assert out["claim"] == "Over your year, to your birthday, it is steady overall for money and income, with Nov 2026 the one stretch to watch."
+    assert "nothing sharp" not in out["claim"]
+    assert out["detail"]["caution_note"] == "Money comes under pressure — protect savings."
+
+
+@pytest.mark.parametrize("lang", LANGS)
+def test_year_claim_reconciles_in_every_language(lang):
+    out = D.reconcile_year(_year_out(lang=lang), lang)
+    assert "Nov 2026" in out["claim"] and out["claim"].startswith(C.SPAN_LEAD[lang]["year"])
+    assert not _JARGON.search(out["claim"])
+
+
+def test_open_year_keeps_its_claim_and_gains_a_watch_note():
+    base = _year_out("open")
+    out = D.reconcile_year(base, "en")
+    assert out["claim"] == base["claim"] + " Watch Nov 2026."
+    assert D.reconcile_year(out, "en")["claim"] == out["claim"]
+
+
+def test_year_without_a_caution_is_untouched():
+    base = _year_out(topic="career")
+    assert D.reconcile_year(base, "en") == base
+    other = dict(_year_out(), scale="month")
+    assert D.reconcile_year(other, "en") == other
