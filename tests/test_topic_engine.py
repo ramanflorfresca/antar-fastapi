@@ -1081,11 +1081,13 @@ def test_soon_window_month_scale():
     assert r["your_move"].startswith("Use the time before Oct 14")
 
 
-def test_care_running_today_with_an_open_window_ahead_leads_with_the_open_one():
-    r = T.read_topic(_soon_ctx(), "career", "season", TODAY, "en")   # care Oct 7 - Nov 5, open Oct 14 - 20
-    assert r["tone"] == "open" and r["window_phase"] == "soon"
-    assert r["best_window"]["start"] == "2026-10-14" and r["watch_window"]["window_phase"] == "now"
-    assert r["claim"] == "Over the next 5 months, your best stretch for work starts Oct 14."
+def test_long_read_leads_with_whichever_window_comes_first():
+    r = T.read_topic(_soon_ctx(), "career", "season", TODAY, "en")   # care Oct 7 - Nov 5 (running), open Oct 14 - 20
+    assert r["tone"] == "care" and r["window_phase"] == "now"
+    assert r["watch_window"]["window_phase"] == "now" and r["best_window"]["start"] == "2026-10-14"
+    assert r["claim"].startswith("Over the next 5 months, work asks for patience")
+    # the 30-day read keeps its own rule (open wins when both exist)
+    assert T.read_topic(_soon_ctx(), "career", "month", TODAY, "en")["tone"] == "open"
 
 
 def test_steady_read_has_null_phase():

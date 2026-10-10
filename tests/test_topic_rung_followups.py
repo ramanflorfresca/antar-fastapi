@@ -240,3 +240,21 @@ def test_right_now_do_is_one_deduped_list_with_topic_items_first():
 def test_the_two_long_rungs_have_different_chips_and_labels(lang):
     st, ch = T._period(_ctx(), "season", TODAY, lang), T._period(_ctx(), "chapter", TODAY, lang)
     assert st["chip"] != ch["chip"] and st["label"] != ch["label"] and (st["rung"], ch["rung"]) == ("stretch", "chapter")
+
+
+def test_long_read_with_care_before_open_leads_with_the_care_window(monkeypatch):
+    ctx = _ctx()
+    _scan_with(monkeypatch, ctx, {**{i: ("care", 2.0) for i in (3, 4)}, **{i: ("open", 3.0) for i in (13, 14)}})
+    r = T.read_topic(ctx, "money", "season", TODAY, "en", with_best_fit=False)
+    first = _bucket(3)[0]
+    assert r["tone"] == "care" and r["window_phase"] == "later"
+    assert C.day_label_y(first, "en") in r["claim"] and r["claim"].startswith("Over the next 2½ years, money asks for care from")
+    assert r["best_window"]["start"] == _bucket(13)[0].isoformat()      # the later open window is still returned
+    assert r["watch_window"]["start"] == first.isoformat()
+
+
+def test_long_read_with_open_before_care_still_leads_with_open(monkeypatch):
+    ctx = _ctx()
+    _scan_with(monkeypatch, ctx, {**{i: ("open", 3.0) for i in (3, 4)}, **{i: ("care", 2.0) for i in (13, 14)}})
+    r = T.read_topic(ctx, "money", "season", TODAY, "en", with_best_fit=False)
+    assert r["tone"] == "open" and "best stretch for money starts" in r["claim"]
