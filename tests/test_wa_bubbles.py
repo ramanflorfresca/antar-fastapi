@@ -105,3 +105,36 @@ def test_basis_rides_the_whatsapp_answer_as_its_own_bubble():
     text, _ = m.format_ask_whatsapp_v2(p, "en", asked="x")
     bubbles, _fu = m.split_ask_bubbles(text)
     assert "📍 You're running Rahu–Saturn (sub-period ends Apr 25, 2029)." in bubbles
+
+
+def _chart():
+    return ({"lagna": {"sign": "Capricorn"}, "planets": {
+        "Sun": {"sign": "Scorpio", "house": 11, "longitude": 220.0},
+        "Venus": {"sign": "Scorpio", "house": 11, "longitude": 225.0},
+        "Moon": {"sign": "Pisces", "house": 3, "longitude": 340.0}}},
+        {"vimsottari": [
+            {"level": "mahadasha", "planet_or_sign": "Rahu", "start_date": "2000-01-01", "end_date": "2100-01-01"},
+            {"level": "antardasha", "planet_or_sign": "Rahu", "start_date": "2000-01-01", "end_date": "2100-04-25"}]})
+
+
+def test_chart_move_follows_the_topic_and_the_chart():
+    from antar_engine.ask_basis import chart_move
+    chart, dashas = _chart()
+    career = chart_move("career", chart, dashas)
+    assert "10th house is weakened" in career or "ruler of your 10th house is weakened" in career
+    assert "your network and gains" in career and "Apr 25, 2100" in career
+    love = chart_move("love", chart, dashas)
+    assert "7th house sits in your 3rd house" in love and "first move" in love
+    assert chart_move("career", chart, dashas, "es") == ""          # English only
+    assert chart_move("legal", chart, dashas) == ""                  # no template → canned fallback stays
+
+
+def test_polish_uses_chart_move_before_canned_line_and_drops_invented_health_move():
+    from antar_engine.answer_polish import polish_answer
+    chart, dashas = _chart()
+    p = polish_answer({"read": "Likely. The window is Oct 2026.", "next": None}, "en", "Will I get promoted?",
+                      concern="career", chart_data=chart, dashas=dashas)
+    assert "Block one hour" not in p["next"] and "network and gains" in p["next"]
+    p = polish_answer({"read": "Likely.", "next": "Book a medical consultation this month."}, "en",
+                      "Will I have children?", concern="children", chart_data=chart, dashas=dashas)
+    assert "medical" not in (p["next"] or "").lower()

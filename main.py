@@ -30771,6 +30771,32 @@ async def _ask_endpoint_impl(request: AskRequest):
             except Exception as _lce:
                 logger.warning(f"[ask] life-chapter block skipped (non-fatal): {_lce}")
 
+            # [ask-direct 2026-10-10] the named chart facts, handed to the narrator so the READ and the MOVE
+            # follow from them (owner: advice stays, but specific to the question and linked to the chart).
+            _ask_basis_block = ""
+            try:
+                from antar_engine.ask_basis import build_basis as _bb_pre
+                _bf = _bb_pre(_ask_concern, chart_data, _ask_dashas, "en") if isinstance(chart_data, dict) else ""
+                if _bf:
+                    _ask_basis_block = (
+                        "CHART FACTS BEHIND THIS ANSWER (authoritative — reason FROM these, never contradict "
+                        "them; do not quote them as jargon, translate them into plain life terms):\n"
+                        f"  {_bf}\n"
+                        "How to use them: (1) the read must say what these facts mean for THIS question, in "
+                        "plain words — e.g. a combust or debilitated ruler = that area comes through weaker or "
+                        "slower than the effort put in; a ruler placed in the 11th = it comes through gains, "
+                        "networks, big goals; the sub-period end date is when the tone changes. "
+                        "(2) `next` must be advice that FOLLOWS from those facts and is about the subject the "
+                        "person asked — what to do, with whom or with what, and by when (use the sub-period "
+                        "end date or a window already given), with the reason in the same sentence "
+                        "('Because X is slow to pay off, do Y before Z'). "
+                        "BANNED moves — anything that would fit any question: 'have an honest conversation', "
+                        "'block an hour this week', 'reach out to three contacts', 'book a check-up' on a "
+                        "non-health question, 'write down your goals'."
+                    )
+            except Exception as _bbe:
+                logger.warning(f"[ask] basis block skipped (non-fatal): {_bbe}")
+
             diagnostic_block = ""
             try:
                 from antar_engine.symptom_library import build_diagnostic_prompt_block
@@ -31639,6 +31665,7 @@ async def _ask_endpoint_impl(request: AskRequest):
                     + (f"\n\n{_ask_life_block}" if _ask_life_block else "")
                     + (f"\n\n{_ask_career_block}" if _ask_career_block else "")
                     + (f"\n\n{_ask_chapter_block}" if _ask_chapter_block else "")
+                    + (f"\n\n{_ask_basis_block}" if _ask_basis_block else "")
                     + (f"\n\n{_ask_relationship_block}" if _ask_relationship_block else "")
                     + (f"\n\n{_ask_legal_block}" if _ask_legal_block else "")
                     + (f"\n\n{_ask_health_block}" if _ask_health_block else "")
@@ -31875,6 +31902,7 @@ async def _ask_endpoint_impl(request: AskRequest):
                     + (f"\n\n{_ask_life_block}" if _ask_life_block else "")
                     + (f"\n\n{_ask_career_block}" if _ask_career_block else "")
                     + (f"\n\n{_ask_chapter_block}" if _ask_chapter_block else "")
+                    + (f"\n\n{_ask_basis_block}" if _ask_basis_block else "")
                     + (f"\n\n{_ask_relationship_block}" if _ask_relationship_block else "")
                     + (f"\n\n{_ask_legal_block}" if _ask_legal_block else "")
                     + (f"\n\n{_ask_health_block}" if _ask_health_block else "")
@@ -33055,7 +33083,9 @@ async def _ask_endpoint_impl(request: AskRequest):
                         concern=locals().get("_ask_concern") or "general",
                         chart_lean=locals().get("_ask_chart_lean") or "",
                         thread_text=" ".join(str(t.get("q") or "") for t in (locals().get("_ask_thread") or [])),
-                        prev_moves=[t.get("m") for t in (locals().get("_ask_thread") or [])])
+                        prev_moves=[t.get("m") for t in (locals().get("_ask_thread") or [])],
+                        chart_data=chart_data if isinstance(chart_data, dict) else None,
+                        dashas=locals().get("_ask_dashas"))
             except Exception as _pole:
                 print(f"[ask][polish] non-fatal: {_pole}")
             # [es-leak 2026-10-04] English business words left in a Spanish/Portuguese answer

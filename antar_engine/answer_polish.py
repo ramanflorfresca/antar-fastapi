@@ -254,7 +254,7 @@ _SUPPORT_BOLD = re.compile(r"(?i)\b(strongly )?(supports?|backs|favou?rs|green-?
 
 def polish_answer(payload: dict, language: str = "en", typed_question: str = "",
                   concern: str = "general", chart_lean: str = "", thread_text: str = "",
-                  prev_moves=()) -> dict:
+                  prev_moves=(), chart_data=None, dashas=None) -> dict:
     try:
         if not isinstance(payload, dict) or payload.get("needs_clarification"):
             return payload
@@ -325,6 +325,14 @@ def polish_answer(payload: dict, language: str = "en", typed_question: str = "",
         if isinstance(nx, str) and nx.strip() and _FRAGMENT.match(nx.strip()):
             print(f"[ask][polish] fragment move dropped: {nx[:60]!r}")
             payload["next"] = None
+        # "book a medical check-up" as the move on a love / children question nobody asked about health on
+        # is an invented worry ("The children area shows pressure that a doctor can help with")
+        nx = payload.get("next")
+        if (isinstance(nx, str) and (concern or "") in ("children", "love", "marriage", "reconciliation")
+                and re.match(r"(?i)\s*(book|schedule|get)\b.{0,40}\b(medical|doctor|check-?up|consultation)", nx)
+                and not re.search(r"(?i)health|fertil|pregnan|ivf|doctor|medical|conceive", own)):
+            print(f"[ask][polish] invented-health move dropped: {nx[:60]!r}")
+            payload["next"] = None
         # the same move twice in one conversation — the narrator is told not to, but still does
         nx_now = payload.get("next")
         if (isinstance(nx_now, str) and nx_now.strip() and prev_moves
@@ -342,8 +350,16 @@ def polish_answer(payload: dict, language: str = "en", typed_question: str = "",
                     grp = "money"
             except Exception:
                 pass
-            payload["next"] = _pick_fallback(grp, lang, payload.get("read") or "", prev_moves)
-            print(f"[ask][polish] fallback move ({grp})")
+            _cm = ""
+            try:   # [ask-direct 2026-10-10] a move that follows from this chart + topic before any canned line
+                from antar_engine.ask_basis import chart_move as _cmove
+                _cm = _cmove((concern or "general").lower(), chart_data, dashas, lang)
+                if _cm and _norm_move(_cm) in {_norm_move(p) for p in (prev_moves or []) if p}:
+                    _cm = ""
+            except Exception:
+                _cm = ""
+            payload["next"] = _cm or _pick_fallback(grp, lang, payload.get("read") or "", prev_moves)
+            print(f"[ask][polish] fallback move ({'chart' if _cm else grp})")
     except Exception as e:
         print(f"[ask][polish] non-fatal: {e}")
     return payload
