@@ -50460,6 +50460,21 @@ async def _alias_predict_monthly(request: dict, language: str = "en"):
         except Exception as _m_te:
             print(f"[monthly] i18n pass skipped (non-fatal): {_m_te}")
 
+    # [month-decision 2026-10-10] one coherent prediction → why → holds → breaks → move block (additive; en only)
+    try:
+        if isinstance(_r_monthly, dict) and _m_lang == "en":
+            from antar_engine.month_decision import compose as _md_compose
+            from antar_engine.ask_basis import running_period as _md_rp
+            _md_line = ""
+            try:
+                _md_line = _md_rp(await asyncio.to_thread(get_dashas_for_chart, request.get("chart_id")))
+            except Exception:
+                pass
+            _md = _md_compose(_r_monthly, "en", period_line=_md_line.rstrip("."))
+            if _md:
+                _r_monthly["decision"] = _md
+    except Exception as _mde:
+        print(f"[monthly] decision block skipped (non-fatal): {_mde}")
     # [gate-debug 2026-06-08] hide internal evidence trail from client
     return _strip_debug_reasoning(_r_monthly, request)
 
