@@ -1418,6 +1418,48 @@ async def _ec_targets(label: str):
     return toks, charts
 
 
+async def _daily_check_job():
+    """[daily-check] HOURLY. At ~8 PM local, if today's daily check is still unanswered and was not
+    pushed yet, push "How did today go?" -> /ask (the card lives on Home). Push only; OFF unless
+    DAILY_CHECK_PUSH=on. Only charts with a device token are considered."""
+    from antar_engine import push_sender, daily_check as _dc, evening_checkin as ec
+    import asyncio as _aio_dc
+    if not _ec_flag("DAILY_CHECK_PUSH"):
+        return
+    if not push_sender.is_configured():
+        print("[daily_check] push not configured - skipping")
+        return
+    now = datetime.now(timezone.utc)
+    try:
+        toks, charts = await _ec_targets("daily_check")
+        due_charts = [cid for cid, c in charts.items() if ec.is_local_hour(now, _ec_tz_hours(c), _dc.PUSH_HOUR)]
+    except Exception as e:
+        print(f"[daily_check] FATAL fetch: {e}")
+        return
+    stats = {"charts_at_8pm": len(due_charts), "sent": 0}
+    for cid in due_charts:
+        c = charts.get(cid) or {}
+        try:
+            local = now + timedelta(hours=_ec_tz_hours(c))
+            lang = ec.norm_lang(c.get("language_preference"), c.get("language"))
+            claim = await _dc_ensure_claim(cid, local.date(), lang)
+            if not claim or not claim.get("id") or claim.get("checkin_sent_at"):
+                continue
+            if await _aio_dc.to_thread(_dc_is_answered, claim["id"]):
+                continue
+            title, body = _dc.push_message(lang)
+            res = await push_sender.send_to_tokens(
+                supabase, toks.get(cid) or [], title=title, body=body,
+                data={"type": "daily_check", "route": "/ask", "claim_id": str(claim["id"])})
+            if res.get("sent"):
+                stats["sent"] += 1
+                await _aio_dc.to_thread(lambda: supabase.table("prediction_claims").update(
+                    {"checkin_sent_at": now.isoformat(), "checkin_channel": "push"}).eq("id", claim["id"]).execute())
+        except Exception as e:
+            print(f"[daily_check] chart {str(cid)[:8]} non-fatal: {e}")
+    print(f"[daily_check] @{now.hour:02d}:xx UTC - {stats}")
+
+
 async def _evening_checkin_job():
     """[evening-checkin 2026-10-02] HOURLY. At ~8 PM local, if today's daily claim
     (key daily-<local date>) is still unanswered, push "Did today land?" → Today,
@@ -2007,6 +2049,8 @@ scheduler.add_job(_wa_alert_job, "cron", minute=25, id="wa_alerts", replace_exis
 scheduler.add_job(_demo_reset_job, "cron", hour=4, minute=10, id="demo_reset", replace_existing=True)
 scheduler.add_job(_window_open_job, "cron", minute=25,
                   id="window_open", replace_existing=True)  # hourly; saved decisions whose window just opened
+scheduler.add_job(_daily_check_job, "cron", minute=22,
+                  id="daily_check", replace_existing=True)  # hourly; ~8 PM local "How did today go?" push (flag DAILY_CHECK_PUSH)
 scheduler.add_job(_outcome_checkin_job, "cron", minute=15,
                   id="outcome_checkin", replace_existing=True)  # hourly; dated Ask claims "did it happen?" at local ~8 AM
 scheduler.add_job(_accuracy_board_job, "cron", hour=3, minute=40,
@@ -6948,6 +6992,96 @@ def outcomes_answer(claim_id: str, body: _OutcomeIn, authorization: str = Header
     if not _oc.record_outcome(supabase, claim_id, body.outcome, body.note, via="app"):
         raise HTTPException(503, "could not save the answer")
     return {"saved": True, "claim_id": claim_id, "outcome": body.outcome}
+
+
+# ── Daily check: "How did today go?" about a day we rated (see antar_engine/daily_check.py) ──
+def _dc_find_claim(chart_id: str, d_iso: str):
+    rows = (supabase.table("prediction_claims").select("id,chart_id,source,window_end,checkin_sent_at,language")
+            .eq("chart_id", chart_id).eq("source", "daily_check").eq("window_end", d_iso)
+            .limit(1).execute()).data or []
+    return rows[0] if rows else None
+
+
+def _dc_is_answered(claim_id: str) -> bool:
+    return bool((supabase.table("prediction_outcomes").select("claim_id").eq("claim_id", claim_id)
+                 .limit(1).execute()).data)
+
+
+async def _dc_signal(chart_id: str, language: str, d_iso: str):
+    """The day's rating from the same daily-signal path the app uses; None when it is a fallback."""
+    try:
+        co = get_daily_signal_endpoint(chart_id=chart_id, language=language, date=d_iso)
+        val = await asyncio.wait_for(co, 8.0)
+        val = _safe_jsonb(val) if not isinstance(val, dict) else val
+        return val if isinstance(val, dict) else None
+    except Exception as e:
+        print(f"[daily-check] signal skipped {str(chart_id)[:8]} {d_iso}: {e}")
+        return None
+
+
+async def _dc_ensure_claim(chart_id: str, d, language: str):
+    """(claim row or None). Finds today's claim or records it from the day's signal. Never raises."""
+    from antar_engine import daily_check as _dc, outcomes as _oc
+    try:
+        found = await run_in_threadpool(_dc_find_claim, chart_id, d.isoformat())
+        if found:
+            return found
+        sig = await _dc_signal(chart_id, language, d.isoformat())
+        row = _dc.build_claim(chart_id, d, sig, language)
+        if not row:
+            return None
+        cid = await run_in_threadpool(_oc.record_claim, supabase, row)
+        return {"id": cid, "chart_id": chart_id, "window_end": d.isoformat(), "checkin_sent_at": None,
+                "language": language} if cid else None
+    except Exception as e:
+        print(f"[daily-check] ensure claim failed {str(chart_id)[:8]}: {e}")
+        return None
+
+
+@app.get("/api/v1/daily-check/{chart_id}")
+async def daily_check_get(chart_id: str, language: str = "en", tz_offset: Optional[int] = None,
+                          authorization: str = Header(...)):
+    """The one-tap card for Home: {"available": true, claim_id, date, day, question, options[]} from ~5 PM
+    local (and "yesterday" until noon the next day), else {"available": false}. The engine's own rating
+    of the day is never returned here, so the answer is not primed."""
+    from antar_engine import daily_check as _dc
+    user_id = verify_token(authorization)
+    if not await run_in_threadpool(_oc_owned_chart, user_id, chart_id):
+        raise HTTPException(403, "not your chart")
+    local = _dc.local_now(datetime.now(timezone.utc), tz_offset)
+    which = _dc.which_day(local)
+    if not which:
+        return {"available": False}
+    d = _dc.target_date(local, which)
+    claim = await _dc_ensure_claim(chart_id, d, language)
+    if not claim or not claim.get("id"):
+        return {"available": False}
+    if await run_in_threadpool(_dc_is_answered, claim["id"]):
+        return {"available": False, "answered": True}
+    return dict(_dc.card(claim["id"], d, which, language), available=True)
+
+
+class _DailyCheckIn(BaseModel):
+    answer: str
+
+
+@app.post("/api/v1/daily-check/{claim_id}/answer")
+def daily_check_answer(claim_id: str, body: _DailyCheckIn, authorization: str = Header(...)):
+    """Record good | mixed | hard (stored as yes | partly | no). Idempotent per claim."""
+    from antar_engine import daily_check as _dc, outcomes as _oc
+    user_id = verify_token(authorization)
+    if body.answer not in _dc.RATINGS:
+        raise HTTPException(400, f"answer must be one of {list(_dc.RATINGS)}")
+    try:
+        rows = (supabase.table("prediction_claims").select("chart_id,source,language").eq("id", claim_id)
+                .limit(1).execute()).data or []
+    except Exception:
+        rows = []
+    if not rows or rows[0].get("source") != "daily_check" or not _oc_owned_chart(user_id, rows[0]["chart_id"]):
+        raise HTTPException(404, "check not found")
+    if not _oc.record_outcome(supabase, claim_id, _dc.RATINGS[body.answer], None, via="app"):
+        raise HTTPException(503, "could not save the answer")
+    return {"saved": True, "claim_id": claim_id, "answer": body.answer, "thanks": _dc.thanks(rows[0].get("language"))}
 
 
 # ── Saved decisions: the user's own list, and the window-OPEN reminder ──
