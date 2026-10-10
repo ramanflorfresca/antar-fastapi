@@ -331,6 +331,81 @@ _DISTRESS = re.compile(r"(?i)\b(stuck|anxious|anxiety|worried|worry|scared|afrai
                        r"dar lag\w*)\b")
 
 
+# ── [scale-chips 2026-10-10] a month or year answer gets chips at that scale ──
+# After "how is my money this month?" the useful next questions are about WHICH WEEK and the year
+# beyond, not another generic window; after a year answer they are about WHICH MONTHS and the next 30
+# days. Same astrologer voice as the bank above. {a} = the topic as a phrase (_SCALE_AREA).
+_SCALE_AREA = {
+    "en": {"money": "my money", "career": "my career", "business": "my venture", "love": "my love life",
+           "family": "my family life", "health": "my health", "spiritual": "my inner life",
+           "place": "a move or property", "speculation": "taking risks", "choice": "this decision",
+           "funding": "funding", "general": "my life"},
+    "hi": {"money": "paise", "career": "career", "business": "venture", "love": "pyaar", "family": "parivaar",
+           "health": "sehat", "spiritual": "mann", "place": "ghar ya shift hone", "speculation": "risk lene",
+           "choice": "is faisle", "funding": "funding", "general": "zindagi"},
+    "es": {"money": "mi dinero", "career": "mi carrera", "business": "mi proyecto", "love": "mi vida amorosa",
+           "family": "mi vida familiar", "health": "mi salud", "spiritual": "mi vida interior",
+           "place": "una mudanza o propiedad", "speculation": "asumir riesgos", "choice": "esta decisión",
+           "funding": "la financiación", "general": "mi vida"},
+    "pt": {"money": "meu dinheiro", "career": "minha carreira", "business": "meu projeto", "love": "minha vida amorosa",
+           "family": "minha vida familiar", "health": "minha saúde", "spiritual": "minha vida interior",
+           "place": "uma mudança ou imóvel", "speculation": "assumir riscos", "choice": "esta decisão",
+           "funding": "o financiamento", "general": "minha vida"},
+}
+_SCALE_Q = {
+    "en": {"month": {"when": "Which week this month is best for {a}?",
+                     "how": "What can I do to support {a} this month?",
+                     "now": "What does the rest of this month look like for {a}?",
+                     "wide": "How does the year ahead look for {a}?"},
+           "year": {"when": "Which months this year are strongest for {a}?",
+                    "how": "What can I do to support {a} through this year?",
+                    "now": "Which months this year ask for the most care with {a}?",
+                    "wide": "How do the next 30 days look for {a}?"}},
+    "hi": {"month": {"when": "Is mahine {a} ke liye kaun sa hafta sabse achha hai?",
+                     "how": "Is mahine {a} ko sahaara dene ke liye main kya kar sakta hoon?",
+                     "now": "Is mahine ke baaki din {a} ke liye kaise dikh rahe hain?",
+                     "wide": "Agle 12 mahine {a} ke liye kaise dikh rahe hain?"},
+           "year": {"when": "Is saal ke kaun se mahine {a} ke liye sabse strong hain?",
+                    "how": "Is saal {a} ko sahaara dene ke liye main kya kar sakta hoon?",
+                    "now": "Is saal ke kaun se mahine {a} mein sabse zyada dhyaan maangte hain?",
+                    "wide": "Agle 30 din {a} ke liye kaise dikh rahe hain?"}},
+    "es": {"month": {"when": "¿Qué semana de este mes es mejor para {a}?",
+                     "how": "¿Qué puedo hacer para apoyar {a} este mes?",
+                     "now": "¿Cómo se ve el resto de este mes para {a}?",
+                     "wide": "¿Cómo se ven los próximos 12 meses para {a}?"},
+           "year": {"when": "¿Qué meses de este año son más fuertes para {a}?",
+                    "how": "¿Qué puedo hacer para apoyar {a} durante este año?",
+                    "now": "¿Qué meses de este año piden más cuidado con {a}?",
+                    "wide": "¿Cómo se ven los próximos 30 días para {a}?"}},
+    "pt": {"month": {"when": "Qual semana deste mês é melhor para {a}?",
+                     "how": "O que posso fazer para apoiar {a} neste mês?",
+                     "now": "Como está o resto deste mês para {a}?",
+                     "wide": "Como estão os próximos 12 meses para {a}?"},
+           "year": {"when": "Quais meses deste ano são mais fortes para {a}?",
+                    "how": "O que posso fazer para apoiar {a} ao longo deste ano?",
+                    "now": "Quais meses deste ano pedem mais cuidado com {a}?",
+                    "wide": "Como estão os próximos 30 dias para {a}?"}},
+}
+_SCALE_ORDER = ("when", "wide", "how", "now")
+_MONTH_Q = re.compile(r"(?i)\bthis month\b|\bnext month\b|\bnext 30 days\b|\bthe month\b|\beste mes\b|\beste m[eê]s\b"
+                      r"|\bpr[oó]ximo mes\b|\bpr[oó]ximo m[eê]s\b|\bpr[oó]ximos 30 d\w+|\bis mahine\b|\bagle 30 din\b|\bagle mahine\b")
+_YEAR_Q = re.compile(r"(?i)\bthis year\b|\bnext year\b|\bcoming year\b|\bnext 12 months\b|\beste a[nñ]o\b|\beste ano\b"
+                     r"|\bpr[oó]ximo a[nñ]o\b|\bpr[oó]ximo ano\b|\bpr[oó]ximos 12 m\w+|\bis saal\b|\bagle saal\b")
+
+
+def asked_scale(question: str):
+    """'month' / 'year' when the question is about that span, else None (year wins when both appear)."""
+    q = question or ""
+    if _YEAR_Q.search(q):
+        return "year"
+    return "month" if _MONTH_Q.search(q) else None
+
+
+def scale_pool(bucket: str, scale: str, lang: str) -> dict:
+    a = _SCALE_AREA[lang].get(bucket) or _SCALE_AREA[lang]["general"]
+    return {lane: q.format(a=a) for lane, q in _SCALE_Q[lang][scale].items()}
+
+
 def asked_lane(question: str):
     q = question or ""
     for lane, rx in (("why", _WHY), ("when", _WHEN), ("how", _HOW), ("now", _NOW)):
@@ -366,6 +441,11 @@ def pick(bucket: str, question: str, language: str = "en", answered_when: bool =
         pool = {**pool, **_Q_PARTNERED[lang]}
     lane = asked_lane(question)
     order = DISTRESS_ORDER if is_distressed(question) else ORDER[lane]
+    scale = asked_scale(question) if bucket != "day" else None
+    if scale:   # month / year answer: chips at that scale (the 'why' lane keeps the topic's own question)
+        pool = {**pool, **scale_pool(bucket, scale, lang)}
+        if not is_distressed(question):
+            order = _SCALE_ORDER
     covered = {lane} | ({"when"} if answered_when and lane != "when" else set())
     if bucket == "day":
         # today ≠ tomorrow: a day read leads on tomorrow → best hour → the week; the
@@ -494,6 +574,11 @@ def bucket_of(question: str):
     qn = _norm(question)
     if not qn:
         return None
+    for lang in _SCALE_Q:   # a tapped month / year chip keeps its topic
+        for bucket in _SCALE_AREA[lang]:
+            for scale in _SCALE_Q[lang]:
+                if any(_norm(q) == qn for q in scale_pool(bucket, scale, lang).values()):
+                    return None if bucket == "general" else bucket
     for bucket, old in _LEGACY.items():
         if any(_norm(q) == qn for q in old):
             return bucket
