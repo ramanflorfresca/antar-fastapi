@@ -2172,14 +2172,17 @@ app = FastAPI(title="Antar API", version="2.1.0", lifespan=lifespan)
 # two never drift. Regex (not exact allow_origins) so Lovable per-PR preview URLs
 # (https://<uuid>.lovableproject.com / .lovable.app) match without allow-listing.
 # Keeps every antar.world (sub)domain, plus localhost for local dev.
+# capacitor://localhost is the origin of the bundled iOS app (UI served from the
+# binary, no server.url); without it every API call from the native app is a
+# CORS 400. https://localhost is the Android equivalent and is already covered.
 _ANTAR_CORS_ORIGIN_REGEX = (
-    r"^https://("
+    r"^(https://("
     r"([a-z0-9-]+\.)*antar\.world|"
     r"antar-world\.lovable\.app|"
     r"[a-z0-9-]+\.lovableproject\.com|"
     r"[a-z0-9-]+\.lovable\.app|"
     r"localhost(:\d+)?"
-    r")$"
+    r")|capacitor://localhost)$"
 )
 
 # [demo-mode 2026-10-05] added BEFORE CORS so CORS wraps it (its 403/429 carry CORS headers).
