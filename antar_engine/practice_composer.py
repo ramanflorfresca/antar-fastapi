@@ -92,7 +92,7 @@ def _why_now(entry: dict, lang: str) -> str:
             "this_year":      f"Tu carta anual pone {e} en foco este año — es la ventana para trabajarla.",
             "this_month":     f"Este mes una presión pasajera cruza {e} — atiéndela ahora; cede al cambiar el mes.",
             "current_cycle":  f"Estás en un capítulo de vida construido sobre {e} — esta es la práctica que ese capítulo premia.",
-            "natal_baseline": f"El trabajo de por vida con {e} — tu práctica de fondo, no atada a ninguna temporada.",
+            "natal_baseline": f"El trabajo de por vida con {e} — tu práctica de fondo, no atada a ningún período.",
             "today":          f"Hoy algo presiona {e} — una pequeña práctica estabiliza el día.",
         }.get(tf, f"{E} pide atención constante.")
     if merged_with_natal:
@@ -102,7 +102,7 @@ def _why_now(entry: dict, lang: str) -> str:
         "this_year":      f"Your annual chart puts {e} in focus this year — this is the window to work it.",
         "this_month":     f"This month a passing pressure crosses {e} — tend it now; it eases as the month turns.",
         "current_cycle":  f"You're in a life chapter built on {e} — this is the practice that chapter rewards.",
-        "natal_baseline": f"The lifelong work on {e} — your steady background practice, not tied to any one season.",
+        "natal_baseline": f"The lifelong work on {e} — your steady background practice, not tied to any one period.",
         "today":          f"Today something presses on {e} — a small practice steadies the day.",
     }.get(tf, f"{E} wants steady attention.")
 
@@ -412,18 +412,18 @@ def compose_practice_response(
         # [practice-why 2026-10-02] Every material remedy carries a plain WHY so the FE
         # can show what / how-it-helps / why — not a bare spec (owner ask). setdefault
         # preserves any reason the item already supplies (e.g. food's embedded line).
-        # Generic by design: references "the energy you're tending this season" so it's
+        # Generic by design: references "the area you're working on right now" so it's
         # always accurate regardless of the focus planet.
         _REMEDY_WHY = {
             "gemstone": {
-                "en": "Worn continuously, it strengthens the energy you're tending this season — one-time setup, then it works quietly in the background.",
-                "es": "Usada de forma continua, fortalece la energía que estás cuidando esta temporada — se configura una vez y luego trabaja en segundo plano.",
-                "pt": "Usada continuamente, fortalece a energia que você está cuidando nesta temporada — configura uma vez e depois trabalha em segundo plano.",
+                "en": "Worn continuously, it supports the area you're working on right now — set it up once, then it works quietly in the background.",
+                "es": "Usada de forma continua, apoya el área en la que trabajas ahora — se configura una vez y luego trabaja en segundo plano.",
+                "pt": "Usada continuamente, apoia a área em que você está trabalhando agora — configura uma vez e depois trabalha em segundo plano.",
             },
             "food": {
-                "en": "Eating this way on its day feeds the same energy — a small weekly rhythm that compounds over the season.",
-                "es": "Comer así en su día alimenta esa misma energía — un pequeño ritmo semanal que se acumula con la temporada.",
-                "pt": "Comer assim no seu dia alimenta essa mesma energia — um pequeno ritmo semanal que se acumula ao longo da temporada.",
+                "en": "Eating this way on its day feeds the same energy — a small weekly rhythm that adds up over the months.",
+                "es": "Comer así en su día alimenta esa misma energía — un pequeño ritmo semanal que se acumula con los meses.",
+                "pt": "Comer assim no seu dia alimenta essa mesma energia — um pequeno ritmo semanal que se acumula ao longo dos meses.",
             },
             "yantra": {
                 "en": "A geometric focus you set up once; it anchors this energy in your space so each session lands deeper.",
@@ -453,9 +453,9 @@ def compose_practice_response(
         # whole set; this says what each individual step contributes.
         _STEP_WHY = {
             "mantra": {
-                "en": "Repeating this sound holds your attention on this season's focus and quiets the mind — the repetition itself is the work.",
-                "es": "Repetir este sonido mantiene tu atención en el foco de esta temporada y aquieta la mente — la repetición misma es el trabajo.",
-                "pt": "Repetir este som mantém sua atenção no foco desta temporada e aquieta a mente — a repetição em si é o trabalho.",
+                "en": "Repeating this sound holds your attention on what you're working on right now and quiets the mind — the repetition itself is the work.",
+                "es": "Repetir este sonido mantiene tu atención en lo que trabajas ahora y aquieta la mente — la repetición misma es el trabajo.",
+                "pt": "Repetir este som mantém sua atenção no que você está trabalhando agora e aquieta a mente — a repetição em si é o trabalho.",
             },
             "body": {
                 "en": "This posture works the body where this energy sits, so the practice lands physically — not just in your head.",

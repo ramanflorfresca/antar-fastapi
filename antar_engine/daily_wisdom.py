@@ -753,19 +753,19 @@ SEASON_THEMES = {
 
 WHY_NOW = {
     "consolidating": {
-        "en": "You're in a season that rewards patience and steady effort — let this sit with you as you build through the slow stretch.",
-        "es": "Estás en una temporada que premia la paciencia y el esfuerzo constante — deja que esto te acompañe mientras construyes en el tramo lento.",
-        "pt": "Você está numa temporada que recompensa a paciência e o esforço constante — deixe isto te acompanhar enquanto constrói no trecho lento.",
+        "en": "You're in a slow-and-steady phase that rewards patience — let this verse sit with you while you build.",
+        "es": "Estás en una fase lenta y constante que premia la paciencia — deja que este verso te acompañe mientras construyes.",
+        "pt": "Você está numa fase lenta e constante que recompensa a paciência — deixe este verso te acompanhar enquanto constrói.",
     },
     "expansive": {
-        "en": "You're in a forward-leaning, expansive season — let this give shape to the push.",
-        "es": "Estás en una temporada expansiva y de impulso — deja que esto dé forma al empuje.",
-        "pt": "Você está numa temporada expansiva e de impulso — deixe isto dar forma ao avanço.",
+        "en": "You're in a push-forward phase. Let this verse steady it.",
+        "es": "Estás en una fase de impulso hacia adelante. Deja que este verso le dé firmeza.",
+        "pt": "Você está numa fase de avanço. Deixe este verso dar firmeza a ela.",
     },
     "steady": {
-        "en": "You're in a steady, clear stretch — let this keep your mind even and sharp.",
-        "es": "Estás en un tramo estable y claro — deja que esto mantenga tu mente serena y lúcida.",
-        "pt": "Você está num trecho estável e claro — deixe isto manter sua mente equilibrada e lúcida.",
+        "en": "You're in a steady, clear phase — let this verse keep your mind even and sharp.",
+        "es": "Estás en una fase estable y clara — deja que este verso mantenga tu mente serena y lúcida.",
+        "pt": "Você está numa fase estável e clara — deixe este verso manter sua mente equilibrada e lúcida.",
     },
 }
 
@@ -951,9 +951,9 @@ def build_daily_wisdom(chart_data: dict, dashas: dict, chart_id: str = "",
         tr = verse.get(f"translation_{lang}") or verse["translation"]
         suggested = [s[lang] for s in SUGGESTED]
         ask_context = (
-            f"The reader is in a '{season}' season (its theme is {primary}) and is "
+            f"The reader is in a '{season}' phase (its theme is {primary}) and is "
             f"reflecting on Bhagavad Gita {verse['ref']}: \"{verse['translation']}\". "
-            f"Let the season shape your tone — a consolidating reader needs steadying, "
+            f"Let that phase shape your tone, but never say the word \"season\" to the reader; say \"right now\" or \"this phase\" — a consolidating reader needs steadying, "
             f"an expansive one needs encouragement to move, a steady one needs clarity. "
             f"Answer their question about this verse or about spiritual practice in plain, "
             f"warm language — no Sanskrit jargon unless they ask, and no astrological predictions."

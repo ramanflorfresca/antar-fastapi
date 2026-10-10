@@ -12873,6 +12873,9 @@ from antar_engine.places_conditions import compute_all_conditions as _prac_condi
 from antar_engine.places_intel import compute_age as _prac_age
 
 _PRACTICE_CACHE = {}
+# Bump when the practice copy changes (Rituals wording 2026-10-10: no "season") so cached
+# same-day cards, L1 and the shared DB L2, are not served with the old text.
+_PRACTICE_COPY_VER = "w2"
 _PRACTICE_TTL = 86400
 
 
@@ -13251,7 +13254,7 @@ async def daily_practice(request: DailyPracticeRequest, authorization: Optional[
 
     local_today = _prac_local_date(request.tz_offset)
     ckey = ("practice", request.chart_id, request.language, local_today.isoformat(),
-            bool(request.include_chart_food))
+            bool(request.include_chart_food), _PRACTICE_COPY_VER)   # ver LAST: callers index k[1] = chart_id
     cached = _PRACTICE_CACHE.get(ckey)
     if cached and cached[0] >= _prac_time.time():
         # refresh only the streak/completion fields (cheap) so a same-day
@@ -13260,7 +13263,7 @@ async def daily_practice(request: DailyPracticeRequest, authorization: Optional[
             _prac_apply_completion(cached[1], request.chart_id, local_today),
             request.chart_id)
     # [daily-db-cache 2026-06-16] L1 miss -> shared DB L2 before recompute.
-    _db_variant = "food" if request.include_chart_food else ""
+    _db_variant = f"{_PRACTICE_COPY_VER}-food" if request.include_chart_food else _PRACTICE_COPY_VER
     _db_payload = _daily_surface_get(request.chart_id, "practice",
                                      request.language, local_today.isoformat(),
                                      _db_variant)
@@ -13482,7 +13485,7 @@ async def daily_practice(request: DailyPracticeRequest, authorization: Optional[
     # [daily-db-cache 2026-06-16] write-through to the shared DB cache
     _daily_surface_put(request.chart_id, "practice", request.language,
                        local_today.isoformat(), resp,
-                       "food" if request.include_chart_food else "")
+                       f"{_PRACTICE_COPY_VER}-food" if request.include_chart_food else _PRACTICE_COPY_VER)
     return _ent_practice_view(resp, request.chart_id)
 
 
