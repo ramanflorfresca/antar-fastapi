@@ -1465,7 +1465,8 @@ _BARE_PRASHNA = frozenset({"prashna", "prashn", "prashan", "horary", "horaria", 
                            "yes or no", "yes/no", "yesno", "yes-no", "yes no",
                            "sí o no", "si o no", "sí/no", "si/no",
                            "sim ou não", "sim ou nao", "sim/não", "sim/nao",
-                           "haan ya na", "haan ya naa", "haan/na"})
+                           "haan ya na", "haan ya naa", "haan/na",
+                           "हाँ या ना", "हां या ना", "हाँ/ना", "हां/ना"})
 
 
 def is_bare_prashna(text: str) -> bool:

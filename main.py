@@ -5138,7 +5138,8 @@ _WA_L = {
     "yn_footer": {"en": "_Want a quick yes/no instead? Reply *yes or no*._",
                   "es": "_¿Prefieres un sí o no rápido? Responde *sí o no*._",
                   "pt": "_Prefere um sim ou não rápido? Responda *sim ou não*._",
-                  "hinglish": "_Seedha haan ya na chahiye? *haan ya na* likhiye._"},
+                  "hinglish": "_Seedha haan ya na chahiye? *haan ya na* likhiye._",
+                  "hi": "_सीधा हाँ या ना चाहिए? *हाँ या ना* लिखिए।_"},
     "btn_answer": {"en": "Choose", "es": "Elegir", "pt": "Escolher", "hinglish": "Chuniye"},
     "opt_yesno": {"en": "Yes or no", "es": "Sí o no", "pt": "Sim ou não", "hinglish": "Haan ya na"},
     "opt_detail": {"en": "Detailed reading", "es": "Lectura detallada", "pt": "Leitura detalhada",
@@ -6601,7 +6602,7 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
             text = text + "\n\n" + _travel_note
         ctx.pop("last_q", None)
         try:   # [ask-direct 2026-10-10] the quick yes/no is an offer under the read, not a step before it
-            if (text and (locals().get("_mode") or "explore") == "explore" and lang in ("en", "es", "pt", "hinglish")
+            if (text and (locals().get("_mode") or "explore") == "explore" and lang in ("en", "es", "pt", "hinglish", "hi")
                     and _msg.is_yesno_question(question) and not payload.get("needs_clarification")
                     and not locals().get("_kp_lock_note") and not locals().get("_spec_note")):
                 _foot = _wa_text("yn_footer", lang)
