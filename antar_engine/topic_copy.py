@@ -927,6 +927,22 @@ REVEAL_AREA: Dict[str, Dict[int, str]] = {
 }
 
 
+# ── tile headline + verdict: what the Home row says in plain words (no status jargon) ──
+TILE_QUIET: Dict[str, str] = {
+    "en": "Nothing pressing right now.", "es": "Nada urgente por ahora.",
+    "pt": "Nada urgente por enquanto.", "hinglish": "Abhi kuchh zaroori nahi."}
+TILE_VERDICT: Dict[str, Dict[str, str]] = {      # by tag_kind
+    "en": {"open_now": "Good time", "opens": "Good time ahead", "care_now": "Be careful",
+           "care_from": "Be careful ahead", "quiet": "Quiet"},
+    "es": {"open_now": "Buen momento", "opens": "Buen momento más adelante", "care_now": "Ten cuidado",
+           "care_from": "Cuidado más adelante", "quiet": "Tranquilo"},
+    "pt": {"open_now": "Bom momento", "opens": "Bom momento mais à frente", "care_now": "Tenha cuidado",
+           "care_from": "Cuidado mais à frente", "quiet": "Tranquilo"},
+    "hinglish": {"open_now": "Achha samay", "opens": "Aage achha samay", "care_now": "Savdhaan rahein",
+                 "care_from": "Aage savdhaani", "quiet": "Shaant"},
+}
+
+
 def pick(table: Dict[str, dict], lang: str):
     """The language's table, English if the language has none."""
     return table.get(lang) or table["en"]
