@@ -1351,6 +1351,24 @@ async def _wa_alert_job():
     print(f"[wa_alerts] @{now.hour:02d}:25 UTC — {stats}")
 
 
+async def _decoy_seed_job():
+    """[outcome-decoys 2026-10-10] DAILY 04:10 UTC: seed a few decoy check-ins (a
+    past window we made no claim about) so the accuracy board gets a measured base
+    rate now. Owner-approved. Max 25 a run, one per chart per 30 days; the hourly
+    check-in job delivers them like any other claim, real claims first."""
+    import asyncio as _aio_dc
+    from antar_engine import outcomes as _oc
+    try:
+        rows = await _aio_dc.to_thread(_oc.decoy_candidates, supabase)
+        n = 0
+        for r in rows:
+            if await _aio_dc.to_thread(_oc.record_claim, supabase, r):
+                n += 1
+        print(f"[decoy_seed] {n}/{len(rows)} decoy claims recorded")
+    except Exception as e:
+        print(f"[decoy_seed] skipped: {e}")
+
+
 def _accuracy_snapshot_save(board: dict) -> bool:
     """Write one board as a dated row (accuracy_board_snapshots). Fail-open until
     the table exists (sql_accuracy_board.sql, Lovable DDL)."""
@@ -2009,6 +2027,8 @@ scheduler.add_job(_window_open_job, "cron", minute=25,
                   id="window_open", replace_existing=True)  # hourly; saved decisions whose window just opened
 scheduler.add_job(_outcome_checkin_job, "cron", minute=15,
                   id="outcome_checkin", replace_existing=True)  # hourly; dated Ask claims "did it happen?" at local ~8 AM
+scheduler.add_job(_decoy_seed_job, "cron", hour=4, minute=10,
+                  id="decoy_seed", replace_existing=True)  # daily; past-window decoys → base rate
 scheduler.add_job(_accuracy_board_job, "cron", hour=3, minute=40,
                   id="accuracy_board", replace_existing=True)  # nightly; board → accuracy_board_snapshots
 scheduler.add_job(_evening_checkin_job, "cron", minute=17,
