@@ -241,6 +241,20 @@ _ES_PERIPHRASTIC = re.compile(r"\b(?:voy|vas|va|vamos|van) a (?!ser\b|estar\b|ha
 _ES_CHANCE = ("tengo posibilidades", "tengo chance", "tengo oportunidades", "tengo alguna oportunidad", "tengo opciones de")
 
 
+# [pt-decision 2026-10-10] Portuguese had the same gap, bigger: the everyday Brazilian future is "vou / vai +
+# infinitive" ("Vou me casar?", "Meu ex vai voltar?", "Minha saúde vai melhorar?") plus the simple future
+# ("Voltarei?", "Conseguirei?"), and the list only had a few fixed phrases. Measured on 48 natural questions the
+# gate passed 14/48. Same rules as Spanish: a yes/no question carrying a future form is a decision question; open
+# questions ("Como será…?", "Qual é…?", "O que…?") and the auxiliaries (será, haverá, estará, fará) stay reflective.
+_PT_PERIPHRASTIC = re.compile(
+    r"\b(?:vou|vai|vamos|vão|vao|irei|irá|ira|iremos|irão|irao)\s+(?:(?:me|te|se|lhe|nos|o|a)\s+)?"
+    r"(?!estar\b|haver\b|ter que\b|ter de\b|fazer\b)[a-zçãõáéíóúâêô]+(?:ar|er|ir)\b")
+_PT_FUTURE_WORD = re.compile(r"\b([a-zçãõáéíóúâêô]{2,}(?:rei|rás|rá|remos|rão))\b")
+_PT_FUTURE_NOT = {"será", "serão", "haverá", "estará", "estarão", "fará", "farão", "farei"}
+_PT_OPEN_START = re.compile(r"^\s*(?:e\s+)?(?:como|o que|que|qual|quais|quem|onde|por que|porque|quanto|quantos|quanta|quantas)\b")
+_PT_CHANCE = ("tenho chances", "tenho chance", "tenho possibilidade", "tenho oportunidade", "tenho alguma chance")
+
+
 def is_decision_question(question: str) -> bool:
     """True if the question wants a verdict and/or a timing window."""
     q = " " + (question or "").lower().strip() + " "
@@ -252,6 +266,13 @@ def is_decision_question(question: str) -> bool:
         if _ES_PERIPHRASTIC.search(q):
             return True
     if any(t in q for t in _ES_CHANCE):
+        return True
+    if "?" in q and "¿" not in q and not _PT_OPEN_START.match(q):      # "¿" = Spanish: its own rules above
+        if _PT_PERIPHRASTIC.search(q):
+            return True
+        if any(w not in _PT_FUTURE_NOT and w not in _ES_FUTURE_NOT for w in _PT_FUTURE_WORD.findall(q)):
+            return True
+    if any(t in q for t in _PT_CHANCE):
         return True
     return any(t in q for t in _DECISION_TRIGGERS)
 

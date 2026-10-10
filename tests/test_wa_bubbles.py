@@ -309,3 +309,16 @@ def test_spanish_future_tense_yes_no_questions_take_the_decision_path():
               "Cuéntame sobre mi carrera", "¿Qué cualidades tengo?"):
         assert not d(q), q
     assert d("Will my ex come back?")                                   # English unchanged
+
+
+def test_portuguese_future_questions_take_the_decision_path():
+    from antar_engine.ask_consultation import is_decision_question as d
+    for q in ("Meu ex vai voltar?", "Vou me casar logo?", "Meu relacionamento vai durar?", "Vou ter um problema de saúde?",
+              "Minha saúde vai melhorar este ano?", "Voltarei a trabalhar com meu sócio?", "Tenho chances de ganhar o processo?",
+              "Ela vai me procurar de novo?", "Meu filho vai conseguir o emprego?", "Vou mudar de carreira?",
+              "Minha esposa vai voltar para casa?", "Vou viajar este ano?", "Conseguirei pagar a dívida?", "Vou ser aceito na faculdade?"):
+        assert d(q), q
+    for q in ("Como será meu ano?", "Qual é minha maior qualidade?", "Fale sobre minha carreira", "Como vai minha saúde?",
+              "Ele é a pessoa certa para mim?"):
+        assert not d(q), q
+    assert d("¿Volverá mi ex?") and d("Will my ex come back?") and not d("¿Cómo será mi año?")      # es / en unchanged
