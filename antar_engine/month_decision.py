@@ -53,6 +53,23 @@ def _text_dates(text: str, today: date):
     return out
 
 
+def _wk(x) -> dict:
+    """best_week / caution_week arrive as {"label": ...} from the v2 overlay but as a legacy sentence
+    ("Week of October 26 — your communication…") from GET /monthly-deepdive: normalise to {"label": ...}."""
+    if isinstance(x, dict):
+        return x
+    if isinstance(x, str) and x.strip():
+        return {"label": _lower_first(x.split(" \u2014 ")[0].strip())}
+    return {}
+
+
+def _range(p: dict) -> str:
+    if p.get("range"):
+        return str(p["range"]).title()
+    a, b = _d(p.get("period_start")), _d(p.get("period_end"))
+    return f"{a.strftime('%b %-d')} \u2013 {b.strftime('%b %-d')}" if a and b else ""
+
+
 def _lower_first(s: str) -> str:
     s = (s or "").strip()
     return s[:1].lower() + s[1:] if s else s
@@ -78,14 +95,14 @@ def compose(p: dict, language: str = "en", today: date | None = None, period_lin
         if not lead:
             return None
         names = [x[0].get("label") or x[0].get("key") for x in lead]
-        rng = p.get("range") or ""
-        pred = f"This month ({rng.title() if rng else p.get('month')}) favours {' and '.join(n.lower() for n in names)}."
+        rng = _range(p)
+        pred = f"This month ({rng or p.get('month')}) favours {' and '.join(n.lower() for n in names)}."
         lead_keys = [l[0] for l in lead]
         cautions = [x[0].get("label") for x in live if x[0] not in lead_keys
                     and (x[0].get("label") in restrain or x[0].get("caution"))][:2]
         if cautions:
             pred += f" {' and '.join(c.lower() for c in cautions).capitalize()} call{'s' if len(cautions) == 1 else ''} for caution."
-        bw = p.get("best_week") or {}
+        bw = _wk(p.get("best_week"))
         if bw.get("label"):
             pred += f" The strongest stretch is {bw['label']}."
 
@@ -108,7 +125,7 @@ def compose(p: dict, language: str = "en", today: date | None = None, period_lin
         holds = f"It holds if you time {' and '.join(parts)}"
         holds += (f"; the strongest week overall is {bw['label']}." if bw.get("label") else ".")
 
-        cw = p.get("caution_week") or {}
+        cw = _wk(p.get("caution_week"))
         risky = [_RISK.get(x[0].get("key"), x[0].get("label", "").lower()) for x in live
                  if x[0] not in lead_keys and (x[0].get("label") in restrain or x[0].get("caution"))]
         brk = "It breaks if you commit to " + (" or ".join(risky[:2]) or "big commitments")

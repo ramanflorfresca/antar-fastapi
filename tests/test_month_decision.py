@@ -48,3 +48,12 @@ def test_a_move_whose_dates_have_passed_is_never_offered():
 
 def test_other_languages_and_empty_payloads_get_no_block():
     assert compose(P, "es", TODAY) is None and compose({}, "en", TODAY) is None
+
+
+def test_get_route_shapes_are_handled():
+    q = dict(P, best_week="Week of October 26 \u2014 your pitch sharpens", caution_week="Week of October 10 \u2014 a bet can backfire")
+    q.pop("range"); q["period_start"] = "2026-09-26"; q["period_end"] = "2026-10-26"
+    d = compose(q, "en", TODAY)
+    assert d["prediction"].startswith("This month (Sep 26 \u2013 Oct 26) favours")
+    assert "The strongest stretch is week of October 26." in d["prediction"]
+    assert "during week of October 10" in d["breaks"]
