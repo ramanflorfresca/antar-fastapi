@@ -13047,7 +13047,7 @@ from antar_engine.places_intel import compute_age as _prac_age
 _PRACTICE_CACHE = {}
 # Bump when the practice copy changes (Rituals wording 2026-10-10: no "season") so cached
 # same-day cards, L1 and the shared DB L2, are not served with the old text.
-_PRACTICE_COPY_VER = "w3"
+_PRACTICE_COPY_VER = "w4"
 _PRACTICE_TTL = 86400
 
 
@@ -13164,7 +13164,8 @@ def _prac_scrub_str(x):
     translate_dict calls run AFTER this, so translation output is clean by
     construction."""
     try:
-        return apply_user_facing_strips(x, language="en", field_type="timing", source="llm")
+        from antar_engine.output_strips import tidy_energy_phrases
+        return tidy_energy_phrases(apply_user_facing_strips(x, language="en", field_type="timing", source="llm"))
     except Exception:
         return x
 
