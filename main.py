@@ -50411,7 +50411,7 @@ async def _topic_read_full(chart_id: str, topic: str, scale: str, language, tz_o
     if out is None:
         return None
     lang, today = out.get("language") or "en", _prac_local_date(tz_offset)
-    ck = ("topic-read", "v10-balanced", chart_id, topic, scale, lang, today.isoformat())
+    ck = ("topic-read", "v11-balanced", chart_id, topic, scale, lang, today.isoformat())
     hit = _te.cache_get(ck)
     if hit is not None:
         return hit
