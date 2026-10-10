@@ -413,6 +413,17 @@ def polish_answer(payload: dict, language: str = "en", typed_question: str = "",
                         print("[ask][polish] conditions appended")
             except Exception as _ce:
                 print(f"[ask][polish] conditions skipped: {_ce}")
+        # [ex-move 2026-10-10] a reconnection question's move follows from the ENGINE verdict, identically in en / es / pt
+        # (the model's own move varied run to run: "send one message" / "don't send another" / "decide first")
+        if (concern or "") == "reconciliation" and lang in ("en", "es", "pt"):
+            try:
+                from antar_engine.ask_basis import stable_reconnection_move as _srm
+                _mv = _srm(payload.get("verdict"), chart_data, dashas, lang, payload.get("timing") or "")
+                if _mv:
+                    payload["next"] = _mv
+                    print("[ask][polish] stable reconnection move")
+            except Exception as _sme:
+                print(f"[ask][polish] stable move skipped: {_sme}")
         # never ship without a move
         if not (isinstance(payload.get("next"), str) and payload["next"].strip()):
             grp = _CONCERN_GROUP.get((concern or "general").lower(), "work")
