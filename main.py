@@ -34463,6 +34463,32 @@ DAILY_SIGNAL_I18N_FIELDS = [
 
 
 @app.post("/api/v1/daily-signal")
+def _attach_month_decision(fn):
+    """[month-decision 2026-10-10] adds the one-coherent-answer `decision` block to This Month on the GET route
+    the card may call (the /predict/monthly alias reuses it). en only, additive, never blocks the response."""
+    import functools as _ft
+
+    @_ft.wraps(fn)
+    async def _wrapper(*args, **kwargs):
+        r = await fn(*args, **kwargs)
+        try:
+            if isinstance(r, dict) and "decision" not in r and (kwargs.get("language") or "en").split("-")[0].lower() == "en":
+                from antar_engine.month_decision import compose as _md_compose
+                from antar_engine.ask_basis import running_period as _md_rp
+                _line = ""
+                try:
+                    _line = _md_rp(await asyncio.to_thread(get_dashas_for_chart, kwargs.get("chart_id") or (args[0] if args else None)))
+                except Exception:
+                    pass
+                _md = _md_compose(r, "en", period_line=_line.rstrip("."))
+                if _md:
+                    r["decision"] = _md
+        except Exception as _mde:
+            print(f"[monthly] decision block skipped (non-fatal): {_mde}")
+        return r
+    return _wrapper
+
+
 def _attach_today_decision(fn):
     """[today-decision 2026-10-10] The Today card calls GET /daily-signal/{id} (confirmed by the front end), so the
     decision block is attached HERE — to the payload the card actually renders — not only on the /predict/daily
@@ -41655,6 +41681,7 @@ def _md_age_from(birth_date) -> Optional[int]:
     ],
     endpoint_name="monthly-deepdive",
 )
+@_attach_month_decision
 async def get_monthly_deepdive(chart_id: str, refresh: bool = False, language: str = "en", force_refresh: bool = False, wait: bool = False):
     """
     Returns the monthly deep-dive for the current month.
@@ -50514,7 +50541,7 @@ async def _alias_predict_monthly(request: dict, language: str = "en"):
 
     # [month-decision 2026-10-10] one coherent prediction → why → holds → breaks → move block (additive; en only)
     try:
-        if isinstance(_r_monthly, dict) and _m_lang == "en":
+        if isinstance(_r_monthly, dict) and _m_lang == "en" and "decision" not in _r_monthly:
             from antar_engine.month_decision import compose as _md_compose
             from antar_engine.ask_basis import running_period as _md_rp
             _md_line = ""
