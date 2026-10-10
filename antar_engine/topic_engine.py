@@ -880,6 +880,7 @@ def _read_topic(ctx: TopicContext, key: str, scale: str, today: date, language: 
     view_scale, scale = scale, ("season" if scale == "chapter" else scale)   # the chapter scans like the long stretch
     area = C.pick(C.AREA, lang)[key]
     best = watch = strongest = None
+    open_today = False
     mode = "steady"
     a_main = assess(ctx, key, today, [])
     try:
@@ -899,6 +900,7 @@ def _read_topic(ctx: TopicContext, key: str, scale: str, today: date, language: 
                 else:
                     r["start"], r["end"] = c
         if scale == "month":   # a single day is not the headline of a 30-day read (the Windows feed still lists it)
+            open_today = any(r["start"] == r["end"] == today for r in opens)
             opens = [r for r in opens if r["start"] != r["end"]]
             cares = [r for r in cares if r["start"] != r["end"]]
         pick_run = (lambda rs: _lead_run(rs, today)) if long_scale else _best_run
@@ -939,6 +941,8 @@ def _read_topic(ctx: TopicContext, key: str, scale: str, today: date, language: 
         core = C.pick(C.CORE_AHEAD, lang)[key][mode].format(date=dlab)
         your_move = C.pick(C.MOVE_AHEAD, lang)[key][mode].format(date=dlab)
     claim = C.pick(C.LEAD_JOIN, lang).format(lead=lead, core=core)
+    if open_today and scale == "month" and not (best and phase == "now"):   # the lone open day is not the lead, but is not hidden
+        claim = f"{claim.rstrip()} " + C.pick(C.MONTH_OPEN_TODAY, lang).format(area=area)
     if strongest and mode in ("open", "care"):
         claim = f"{claim.rstrip()} " + C.pick(C.STRONGEST_TAIL, lang)[mode].format(
             start=C.day_label_y(date.fromisoformat(strongest["start"]), lang),
