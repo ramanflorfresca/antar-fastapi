@@ -91,6 +91,7 @@ class TopicContext:
     jaimini_data: Optional[dict] = None
     birth_time_accuracy: Optional[str] = None   # exact|approximate|unknown|None
     _events_cache: Dict[Any, list] = field(default_factory=dict, repr=False)
+    degraded: bool = field(default=False, repr=False)   # a transit feed / scale read failed: result is partial
 
     @property
     def lagna_sign(self) -> str:
@@ -105,13 +106,18 @@ class TopicContext:
         """Transit events in [start,end], memoised per context (one ephemeris pass)."""
         key = (start, end, fast)
         if key not in self._events_cache:
-            try:
-                from antar_engine.transit_events import compute_transit_events_in_range
-                self._events_cache[key] = compute_transit_events_in_range(
-                    self.chart_data, start, end, include_fast=fast) or []
-            except Exception as e:  # swisseph missing → dasha-only, never an error
-                logger.warning("[topics] transit feed skipped: %s", e)
-                self._events_cache[key] = []
+            for attempt in (1, 2):
+                try:
+                    from antar_engine.transit_events import compute_transit_events_in_range
+                    self._events_cache[key] = compute_transit_events_in_range(
+                        self.chart_data, start, end, include_fast=fast) or []
+                    break
+                except Exception as e:  # swisseph missing → dasha-only, never an error
+                    if attempt == 2:
+                        logger.warning("[topics] transit feed skipped chart=%s %s..%s fast=%s: %s",
+                                       str(self.chart_id)[:8], start, end, fast, e)
+                        self.degraded = True
+                        self._events_cache[key] = []
         return self._events_cache[key]
 
 
@@ -325,6 +331,8 @@ def active_set(now: Dict[str, dict]) -> set:
 NEAR_DAYS = 2   # a window starting this soon is "now-ish", never "opens {month}"
 FAR_MONTHS = 12          # a window starting later than this is "far": its tag names the date
 LABEL_YEAR_MONTHS = 11   # a period ending later than this carries its year in the label
+TAG_DAY_DAYS = 45        # a window start further out than this is named by month: the scan is bucketed
+                         # from today, so a day-exact date there would slide a day every day
 
 
 def _is_far(start: Optional[date], today: date) -> bool:
@@ -335,8 +343,8 @@ TAG_UNTIL_DAYS = 30      # "Open now" names its end only when it is this close
 
 
 def _tag_date(d: date, lang: str, today: date, far_key: str, near_key: str) -> Tuple[str, str]:
-    """(copy key, value): a day ("Oct 30") within 11 months, a month + year beyond."""
-    if d > C.add_months(today, LABEL_YEAR_MONTHS):
+    """(copy key, value): a day ("Oct 30") within TAG_DAY_DAYS, a month + year beyond."""
+    if d > today + timedelta(days=TAG_DAY_DAYS):
         return far_key, C.month_year_short(d, lang)
     return near_key, C.day_label(d, lang)
 
@@ -1008,6 +1016,7 @@ def _best_fit(ctx: TopicContext, key: str, today: date) -> Tuple[str, Optional[d
         try:
             r = read_topic(ctx, key, scale, today, "en", with_best_fit=False)
         except Exception:
+            ctx.degraded = True
             continue
         if scale == "season":
             season = r

@@ -50273,6 +50273,22 @@ async def support_agent_endpoint(request: SupportRequest, http_request: Request 
 # ═════════════════════════════════════════════════════════════════════════════
 _TOPIC_LIST_TTL = 6 * 3600
 _TOPIC_READ_TTL = 3 * 3600
+_TOPIC_DEGRADED_TTL = 60   # a partial (degraded) compute is retried within a minute, never pinned
+
+
+def _topic_log_fingerprint(what: str, chart_id: str, ctx, out) -> None:
+    """One log line per compute: worker pid + short hash of the result + degraded flag, so
+    workers that disagree (8 uvicorn workers, per-process caches) show up in the logs."""
+    try:
+        import hashlib, os
+        if isinstance(out, list):
+            basis = [(r.get("key"), r.get("tag"), r.get("window_start"), r.get("window_end")) for r in out]
+        else:
+            basis = [out.get("tone"), out.get("best_window"), out.get("watch_window")]
+        fp = hashlib.sha1(json.dumps(basis, sort_keys=True, default=str).encode()).hexdigest()[:8]
+        print(f"[topics-fp] {what} chart={str(chart_id)[:8]} pid={os.getpid()} fp={fp} degraded={bool(ctx.degraded)}")
+    except Exception:
+        pass
 
 
 def _topic_ctx_load(chart_id: str):
@@ -50309,7 +50325,9 @@ def _topics_compute(chart_id: str, language, tz_offset):
     if hit is not None:
         return hit
     out = _te.rank_topics(ctx, today, lang)
-    _te.cache_put(ck, out, _TOPIC_LIST_TTL)
+    _topic_log_fingerprint("topics", chart_id, ctx, out)
+    # a partial result (transit feed or a scale read failed) must not be pinned for hours
+    _te.cache_put(ck, out, _TOPIC_DEGRADED_TTL if ctx.degraded else _TOPIC_LIST_TTL)
     return out
 
 
@@ -50342,7 +50360,8 @@ def _topic_read_compute(chart_id: str, topic: str, scale: str, language, tz_offs
     if hit is not None:
         return hit
     out = _te.read_topic(ctx, topic, scale, today, lang)
-    _te.cache_put(ck, out, _TOPIC_READ_TTL)
+    _topic_log_fingerprint(f"topic-read:{topic}:{scale}", chart_id, ctx, out)
+    _te.cache_put(ck, out, _TOPIC_DEGRADED_TTL if ctx.degraded else _TOPIC_READ_TTL)
     return out
 
 
