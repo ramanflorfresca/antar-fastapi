@@ -295,3 +295,17 @@ def test_chara_detection_understands_spanish_sign_names():
     main = _main()
     assert main._wants_chara("H\u00e1blame de mi dasha de Tauro") and main._wants_chara("mi dasha de Escorpio")
     assert not main._wants_chara("\u00bfCu\u00e1l es el resultado de mi dasha actual?")
+
+
+def test_spanish_future_tense_yes_no_questions_take_the_decision_path():
+    from antar_engine.ask_consultation import is_decision_question as d
+    for q in ("¿Volverá mi ex?", "¿Mejorará mi salud?", "¿Me casaré este año?", "¿Ganaré dinero con mi negocio?",
+              "¿Mi pareja va a volver conmigo?", "¿Se recuperará mi negocio?", "y ¿conseguiré el trabajo?"):
+        assert d(q), q
+    for q in ("¿Me darán el ascenso este año?", "¿Mi hijo conseguirá el trabajo?", "¿Tengo posibilidades de ganar el caso?"):
+        assert d(q), q
+    for q in ("¿Será que estoy en el camino correcto?", "¿Habrá cambios en mi vida?", "¿Cómo está mi salud?",
+              "¿Cómo será mi año?", "¿Cuál es mi mayor fortaleza?",
+              "Cuéntame sobre mi carrera", "¿Qué cualidades tengo?"):
+        assert not d(q), q
+    assert d("Will my ex come back?")                                   # English unchanged

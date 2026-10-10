@@ -18,6 +18,8 @@ No LLM calls in this module. No prose duplication of /predict's context.
 
 from __future__ import annotations
 
+import re
+
 from datetime import date, timedelta
 from typing import Optional
 
@@ -224,10 +226,32 @@ def prescan_domain(concern: str) -> str:
     return PRESCAN_DOMAIN_ALIAS.get(concern, concern or "general")
 
 
+# [es-decision 2026-10-10] A Spanish yes/no question that carries a future-tense verb — "¿Volverá mi ex?",
+# "¿Mejorará mi salud?", "¿Me casaré?", "¿Ganaré dinero?" — is a will-it-happen question. The trigger list above only
+# had a handful of fixed phrases ("volveremos", "tendré"…), so these fell to the reflective path: no engine verdict,
+# no window, and the same chart + question answered "Yes — window open" in English and "uncertain … wait" in Spanish.
+# Auxiliaries that open open-ended ("¿Será…?", "¿Habrá…?") questions are excluded; so is anything that doesn't
+# START with the verb (a "¿Qué pasará…?" question is already covered by the list).
+_ES_FUTURE_WORD = re.compile(r"\b([a-zñáéíóú]{2,}(?:ré|rás|rá|remos|rán))\b")
+_ES_FUTURE_NOT = {"será", "serán", "habrá", "habrán", "estará", "estarán", "haré", "hará", "harán"}
+# an open question ("¿Cómo será mi año?", "¿Qué pasará…?", "¿Cuál es…?") asks for a description, not a yes/no
+_ES_OPEN_START = re.compile(r"^\s*[¿¡]?\s*(?:y\s+)?(?:cómo|como|qué|que|cuál|cuáles|cuales|quién|quien|quiénes|dónde|donde|"
+                            r"por qué|porque|cuánto|cuanto|cuántos|cuantos|cuántas|cuantas)\b")
+_ES_PERIPHRASTIC = re.compile(r"\b(?:voy|vas|va|vamos|van) a (?!ser\b|estar\b|haber\b)[a-zñáéíóú]{3,}(?:ar|er|ir)\b")
+_ES_CHANCE = ("tengo posibilidades", "tengo chance", "tengo oportunidades", "tengo alguna oportunidad", "tengo opciones de")
+
+
 def is_decision_question(question: str) -> bool:
     """True if the question wants a verdict and/or a timing window."""
     q = " " + (question or "").lower().strip() + " "
     if q.strip().startswith(("when", "cuándo", "cuando", "quando")):
+        return True
+    if "?" in q and not _ES_OPEN_START.match(q):
+        if any(w not in _ES_FUTURE_NOT for w in _ES_FUTURE_WORD.findall(q)):
+            return True
+        if _ES_PERIPHRASTIC.search(q):
+            return True
+    if any(t in q for t in _ES_CHANCE):
         return True
     return any(t in q for t in _DECISION_TRIGGERS)
 
