@@ -73,7 +73,8 @@ def test_a_tapped_chip_keeps_its_topic():
 _ADVISOR = ("concentrate or diversify", "which profession", "business or a job", "build alone", "partner or alone",
             "first real customers", "kind of founder", "cash flow", "protect my cash", "keep speculation small",
             "debo concentrarme", "qué profesión", "devo concentrar", "qual profissão", "emprender solo", "empreender sozinho",
-            "diversify karun", "kaun sa profession", "akele build")
+            "diversify karun", "kaun sa profession", "akele build",
+            "how do i handle", "which daily practice", "what should i focus on", "which practice fits", "how do i steady")
 
 
 def test_followups_read_like_a_client_asking_an_astrologer():
@@ -94,3 +95,10 @@ def test_what_to_do_lane_is_titled_what_helps():
     assert af._LANE_TITLE["en"]["how"] == "🪔 What helps"
     out = af.pick("money", "When does my strongest money window open?", "en")
     assert [o["title"] for o in out if o["lane"] == "how"] == ["🪔 What helps"]
+
+
+def test_remaining_advisor_questions_are_gone_but_old_chips_still_map():
+    assert af.bucket_of("How do I handle the tension at home right now?") == "family"
+    assert af.bucket_of("Which daily practice fits me now?") == "health"
+    assert af.bucket_of("How do I steady my mind this month?") == "spiritual"
+    assert af.bucket_of("What helps steady my mind during this period?") == "spiritual"
