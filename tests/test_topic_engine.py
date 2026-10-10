@@ -133,7 +133,7 @@ def test_rank_shape_order_and_contiguous_ranks(ctxs):
         out = T.rank_topics(ctx, TODAY, "en")
         assert [r["rank"] for r in out] == list(range(1, 8))
         assert {r["key"] for r in out} == set(T.TOPIC_KEYS)
-        assert set(out[0]) == {"key", "label", "status", "tag", "tag_kind", "tone", "rank", "window_start", "window_end"}
+        assert set(out[0]) == {"key", "label", "status", "tag", "tag_kind", "tone", "rank", "window_start", "window_end", "headline", "verdict", "ends_today"}
         order = {"active": 0, "upcoming": 1, "steady": 2, "quiet": 3}
         st = [order[r["status"]] for r in out]
         assert st == sorted(st)
@@ -636,7 +636,7 @@ def test_topics_route_returns_list_and_caches(main_mod, monkeypatch):
     b = _run(main_mod.get_chart_topics("c1", None, None))
     assert a == b and a[0]["key"] == "career" and a[0]["label"] == "Carrera"   # chart's stored language wins over a missing param
     assert len(calls) == 2    # context is rebuilt, the ranking itself is cached
-    assert all(set(r) == {"key", "label", "status", "tag", "tag_kind", "tone", "rank", "window_start", "window_end"} for r in a)
+    assert all(set(r) == {"key", "label", "status", "tag", "tag_kind", "tone", "rank", "window_start", "window_end", "headline", "verdict", "ends_today"} for r in a)
 
 
 def test_topics_route_falls_back_on_load_failure(main_mod, monkeypatch):
@@ -1458,3 +1458,44 @@ def test_a_transient_feed_failure_is_retried_once(monkeypatch):
     monkeypatch.setattr(TE, "compute_transit_events_in_range", flaky)
     ctx = _plain_ctx()
     assert ctx.events(TODAY, TODAY + timedelta(days=30), True) == ["ev"] and ctx.degraded is False
+
+
+def test_tile_rows_carry_a_plain_headline_verdict_and_ends_today():
+    ctx = _fast_ctx(_january(), _burst("2026-10-07"))
+    rows = {r["key"]: r for r in T.rank_topics(ctx, TODAY, "en")}
+    money = rows["money"]
+    assert money["tag_kind"] == "open_now"
+    assert money["headline"].startswith("Money matters have better backing") and money["headline"].endswith(".")
+    assert money["verdict"] == "Good time"
+    for r in rows.values():
+        assert r["headline"] and r["verdict"]
+        if r["tag_kind"] == "quiet":
+            assert r["headline"].startswith(("Nothing sharp is pulling", "Nothing pressing")) and r["verdict"] == "Quiet" and r["ends_today"] is False
+        if r["tag_kind"] in ("care_now", "care_from"):
+            assert r["verdict"].startswith("Be careful") and r["headline"].endswith(".") and r["headline"][0].isupper()
+
+
+def test_ends_today_is_true_only_for_a_window_that_ends_on_today(monkeypatch):
+    win = {"start": TODAY.isoformat(), "end": TODAY.isoformat()}
+    _stub(monkeypatch, {"money": ("open", {"best_window": win, "watch_window": None})})
+    row = {r["key"]: r for r in T.rank_topics(_synth(), TODAY, "en")}["money"]
+    if row["tag_kind"] == "open_now":
+        assert row["ends_today"] is True
+    later = {"start": TODAY.isoformat(), "end": (TODAY + timedelta(days=20)).isoformat()}
+    _stub(monkeypatch, {"money": ("open", {"best_window": later, "watch_window": None})})
+    row = {r["key"]: r for r in T.rank_topics(_synth(), TODAY, "en")}["money"]
+    assert row["ends_today"] is False
+
+
+def test_care_headlines_are_distinct_per_topic():
+    ctx = _fast_ctx(_january(), [])
+    heads = [r["headline"] for r in T.rank_topics(ctx, TODAY, "en") if r["tag_kind"] in ("care_now", "care_from")]
+    assert len(heads) == len(set(heads))
+
+
+def test_headline_and_verdict_are_localised():
+    for lang in ("es", "pt", "hinglish"):
+        ctx = _fast_ctx(_january(), _burst("2026-10-07"))
+        rows = {r["key"]: r for r in T.rank_topics(ctx, TODAY, lang)}
+        assert not rows["money"]["headline"].startswith("Money matters") and rows["money"]["verdict"] != "Good time", lang
+        assert rows["peace"]["headline"] and not rows["peace"]["headline"].startswith("Nothing sharp"), lang

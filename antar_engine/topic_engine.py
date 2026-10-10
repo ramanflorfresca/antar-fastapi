@@ -308,7 +308,9 @@ def fallback_topics(language: str = "en") -> List[dict]:
     lang = C.serve_language(language)
     return [{"key": k, "label": C.LABEL[lang][k], "status": "steady",
              "tag": C.TAG[lang]["quiet"], "tag_kind": "quiet", "tone": "steady", "rank": i + 1,
-             "window_start": None, "window_end": None}
+             "window_start": None, "window_end": None,
+             "headline": C.pick(C.TILE_QUIET, lang), "verdict": C.pick(C.TILE_VERDICT, lang)["quiet"],
+             "ends_today": False}
             for i, k in enumerate(TOPIC_KEYS)]
 
 
@@ -399,6 +401,26 @@ def _tile_window(tone: str, read: Optional[dict]) -> Optional[Tuple[date, date]]
     return date.fromisoformat(w["start"]), date.fromisoformat(w["end"])
 
 
+def _cap(t: str) -> str:
+    return (t[:1].upper() + t[1:]) if t else t
+
+
+def _tile_headline(lang: str, key: str, tone: str, kind: str) -> str:
+    """One plain sentence for the Home row: what this area means and what to do, from the same
+    per-topic claim cores the topic page uses (CORE open / care, STEADY_CORE for a quiet area).
+    No extra reads, no dates (the tag carries the timing)."""
+    try:
+        if kind in ("open_now", "opens") or (tone == "open" and kind != "quiet"):
+            core = C.pick(C.CORE, lang)[key]["open"]
+        elif kind in ("care_now", "care_from") or (tone == "care" and kind != "quiet"):
+            core = C.pick(C.CORE, lang)[key]["care"]
+        else:
+            core = C.pick(C.STEADY_CORE, lang).format(area=C.pick(C.AREA, lang)[key])
+        return _cap(core) + "."
+    except Exception:
+        return C.pick(C.TILE_QUIET, lang)
+
+
 def _near_score(ctx: TopicContext, key: str, today: date, now_score: float) -> float:
     try:
         a = assess(ctx, key, today, ctx.events(today - timedelta(days=1), today + timedelta(days=NEAR_DAYS), True))
@@ -473,7 +495,10 @@ def rank_topics(ctx: TopicContext, today: date, language: str = "en") -> List[di
             rows.append((order, {"key": k, "label": C.LABEL[lang][k], "status": status, "tag": tag,
                                  "tag_kind": kind, "tone": tone,
                                  "window_start": pw[1].isoformat() if pw else None,
-                                 "window_end": pw[2].isoformat() if pw else None}))
+                                 "window_end": pw[2].isoformat() if pw else None,
+                                 "headline": _tile_headline(lang, k, tone, kind),
+                                 "verdict": C.pick(C.TILE_VERDICT, lang)[kind],
+                                 "ends_today": bool(pw and pw[2] == today and kind in ("open_now", "care_now"))}))
         rows.sort(key=lambda r: r[0])
         return [dict(r[1], rank=n + 1) for n, r in enumerate(rows)]
     except Exception:
