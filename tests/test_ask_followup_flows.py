@@ -102,3 +102,46 @@ def test_remaining_advisor_questions_are_gone_but_old_chips_still_map():
     assert af.bucket_of("Which daily practice fits me now?") == "health"
     assert af.bucket_of("How do I steady my mind this month?") == "spiritual"
     assert af.bucket_of("What helps steady my mind during this period?") == "spiritual"
+
+
+# ── month / year answers get chips at that scale ─────────────────────────────
+def test_scale_is_read_from_the_question_in_every_language():
+    for q in ("How is my money this month?", "¿Cómo está mi dinero este mes?", "Como está meu dinheiro neste mês? próximo mês",
+              "Is mahine mera paisa kaisa hai?", "What about the next 30 days?"):
+        assert af.asked_scale(q) == "month", q
+    for q in ("How is my career this year?", "¿Cómo está mi salud este año?", "E o próximo ano?", "Is saal mera career kaisa hai?"):
+        assert af.asked_scale(q) == "year", q
+    assert af.asked_scale("this month or this year?") == "year"
+    assert af.asked_scale("How is my money?") is None and af.asked_scale("How is my day today?") is None
+
+
+def test_month_answer_offers_the_week_and_the_year_beyond():
+    out = af.pick("money", "How is my money this month?", "en")
+    assert out[0] == {"q": "Which week this month is best for my money?", "lane": "when", "title": "⏳ Timing"}
+    assert out[1]["q"] == "How does the year ahead look for my money?" and out[1]["lane"] == "wide"
+    assert len(out) == 3 and out[2]["lane"] == "bridge"
+
+
+def test_year_answer_offers_the_months_and_the_next_30_days():
+    out = af.pick("career", "How is my career looking this year?", "en")
+    assert out[0]["q"] == "Which months this year are strongest for my career?"
+    assert out[1]["q"] == "How do the next 30 days look for my career?"
+
+
+def test_scale_chips_exist_in_every_language_for_every_topic_and_read_like_a_client():
+    for lang in af._SCALE_Q:
+        for bucket in af._SCALE_AREA[lang]:
+            for scale in ("month", "year"):
+                pool = af.scale_pool(bucket, scale, lang)
+                assert set(pool) == {"when", "how", "now", "wide"}
+                for q in pool.values():
+                    assert "{" not in q and not any(w in q.lower() for w in _ADVISOR), (lang, bucket, q)
+    assert af.pick("money", "¿Cómo está mi dinero este año?", "es")[0]["q"] == "¿Qué meses de este año son más fuertes para mi dinero?"
+    assert af.pick("money", "Is saal mera paisa kaisa hai?", "hinglish")[0]["q"].startswith("Is saal ke kaun se mahine paise")
+
+
+def test_tapped_scale_chips_keep_their_topic_and_day_questions_are_untouched():
+    assert af.bucket_of("Which months this year are strongest for my career?") == "career"
+    assert af.bucket_of("Which week this month is best for my health?") == "health"
+    assert [o["lane"] for o in af.pick("day", "How is my day today?", "en")] != ["when", "wide"]
+    assert af.pick("money", "How is my money this month?", "en")[0]["q"] != af.pick("money", "How is my money?", "en")[0]["q"]
