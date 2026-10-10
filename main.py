@@ -26880,9 +26880,13 @@ _ASK_SIGNS = ("aries", "taurus", "gemini", "cancer", "leo", "virgo", "libra", "s
               "sagittarius", "capricorn", "aquarius", "pisces")
 
 
+_ASK_SIGNS_ES = ("tauro", "géminis", "geminis", "cáncer", "escorpio", "sagitario", "capricornio", "acuario", "piscis")
+
+
 def _wants_chara(q):
     ql = (q or "").lower()
-    return "chara" in ql or "jaimini" in ql or any(sg in ql for sg in _ASK_SIGNS)
+    return ("chara" in ql or "jaimini" in ql or any(sg in ql for sg in _ASK_SIGNS)
+            or any(re.search(r"\b" + sg + r"\b", ql) for sg in _ASK_SIGNS_ES))
 
 
 def _ask_chara_payload(chart_data, dashas):
@@ -30925,11 +30929,22 @@ async def _ask_endpoint_impl(request: AskRequest):
                         if _plang in ("es", "pt"):
                             from antar_engine.translation_middleware import translate_dict as _per_td
                             _per_payload = await _per_td(_per_payload, language=_plang,
-                                                         fields_to_translate=["read"],
+                                                         fields_to_translate=["read", "next"],
                                                          fields_to_skip=["verdict", "mode"],
                                                          endpoint_name="ask", chart_id=chart_id)
+                            try:   # English sign names the translator kept ("Taurus chara dasha") -> Spanish
+                                from antar_engine import decision_i18n as _i18
+                                for _k in ("read", "next"):
+                                    if isinstance(_per_payload.get(_k), str):
+                                        for _en, _es in _i18.SIGN["es"].items():
+                                            if _en != _es:
+                                                _per_payload[_k] = re.sub(r"\b" + _en + r"\b", _es, _per_payload[_k])
+                            except Exception:
+                                pass
                         elif _plang == "hinglish":
                             _per_payload["read"] = (await _ask_to_hinglish(_per_payload["read"])) or _per_payload["read"]
+                            if _per_payload.get("next"):
+                                _per_payload["next"] = (await _ask_to_hinglish(_per_payload["next"])) or _per_payload["next"]
                     except Exception as _ple:
                         print(f"[ask][period] localize non-fatal: {_ple}")
                     try:
@@ -34491,15 +34506,16 @@ def _attach_month_decision(fn):
     async def _wrapper(*args, **kwargs):
         r = await fn(*args, **kwargs)
         try:
-            if isinstance(r, dict) and "decision" not in r and (kwargs.get("language") or "en").split("-")[0].lower() == "en":
+            _ml = (kwargs.get("language") or "en").split("-")[0].lower()
+            if isinstance(r, dict) and "decision" not in r and _ml in ("en", "es"):
                 from antar_engine.month_decision import compose as _md_compose
                 from antar_engine.ask_basis import running_period as _md_rp
                 _line = ""
                 try:
-                    _line = _md_rp(await asyncio.to_thread(get_dashas_for_chart, kwargs.get("chart_id") or (args[0] if args else None)))
+                    _line = _md_rp(await asyncio.to_thread(get_dashas_for_chart, kwargs.get("chart_id") or (args[0] if args else None)), _ml)
                 except Exception:
                     pass
-                _md = _md_compose(r, "en", period_line=_line.rstrip("."))
+                _md = _md_compose(r, _ml, period_line=_line.rstrip("."))
                 if _md:
                     r["decision"] = _md
         except Exception as _mde:
@@ -34518,9 +34534,10 @@ def _attach_today_decision(fn):
     async def _wrapper(*args, **kwargs):
         r = await fn(*args, **kwargs)
         try:
-            if isinstance(r, dict) and "decision" not in r and (kwargs.get("language") or "en").split("-")[0].lower() == "en":
+            _tl = (kwargs.get("language") or "en").split("-")[0].lower()
+            if isinstance(r, dict) and "decision" not in r and _tl in ("en", "es"):
                 from antar_engine.today_decision import compose as _td_compose
-                _td = _td_compose(r, "en")
+                _td = _td_compose(r, _tl)
                 if _td:
                     r["decision"] = _td
         except Exception as _tde:
@@ -42129,15 +42146,27 @@ def _attach_year_decision(fn):
     async def _wrapper(*args, **kwargs):
         r = await fn(*args, **kwargs)
         try:
-            if isinstance(r, dict) and "decision" not in r and (kwargs.get("language") or "en").split("-")[0].lower() == "en":
+            _yl = (kwargs.get("language") or "en").split("-")[0].lower()
+            if isinstance(r, dict) and "decision" not in r and _yl in ("en", "es"):
                 from antar_engine.year_decision import compose as _yd_compose
                 from antar_engine.ask_basis import running_period as _yd_rp
                 _line = ""
                 try:
-                    _line = _yd_rp(await asyncio.to_thread(get_dashas_for_chart, kwargs.get("chart_id") or (args[0] if args else None)))
+                    _line = _yd_rp(await asyncio.to_thread(get_dashas_for_chart, kwargs.get("chart_id") or (args[0] if args else None)), _yl)
                 except Exception:
                     pass
-                _yd = _yd_compose(r, "en", period_line=_line.rstrip("."))
+                _src = r
+                if _yl == "es":
+                    # the Spanish plan can come back without dated events / arc signal: take the engine structure
+                    # from the canonical plan (cached) and keep the Spanish prose lists
+                    try:
+                        from antar_engine.year_decision import merge_structure as _yd_merge
+                        _en = await fn(*args, **{**kwargs, "language": "en"})
+                        if isinstance(_en, dict):
+                            _src = _yd_merge(r, _en)
+                    except Exception as _yme:
+                        print(f"[annual] es structure merge skipped (non-fatal): {_yme}")
+                _yd = _yd_compose(_src, _yl, period_line=_line.rstrip("."))
                 if _yd:
                     r["decision"] = _yd
         except Exception as _yde:
@@ -50455,7 +50484,7 @@ async def _alias_predict_daily(request: dict):
             from antar_engine.today_decision import compose as _td_compose
             # already attached by get_daily_signal_endpoint (from the same base fields the card renders); only
             # compose here if that path didn't
-            if "decision" not in _r_daily:
+            if "decision" not in _r_daily and (request.get("language") or "en").split("-")[0].lower() in ("en", "es"):
                 _td = _td_compose(_r_daily, (request.get("language") or "en").split("-")[0].lower())
                 if _td:
                     _r_daily["decision"] = _td
@@ -50560,15 +50589,15 @@ async def _alias_predict_monthly(request: dict, language: str = "en"):
 
     # [month-decision 2026-10-10] one coherent prediction → why → holds → breaks → move block (additive; en only)
     try:
-        if isinstance(_r_monthly, dict) and _m_lang == "en" and "decision" not in _r_monthly:
+        if isinstance(_r_monthly, dict) and _m_lang in ("en", "es") and "decision" not in _r_monthly:
             from antar_engine.month_decision import compose as _md_compose
             from antar_engine.ask_basis import running_period as _md_rp
             _md_line = ""
             try:
-                _md_line = _md_rp(await asyncio.to_thread(get_dashas_for_chart, request.get("chart_id")))
+                _md_line = _md_rp(await asyncio.to_thread(get_dashas_for_chart, request.get("chart_id")), _m_lang)
             except Exception:
                 pass
-            _md = _md_compose(_r_monthly, "en", period_line=_md_line.rstrip("."))
+            _md = _md_compose(_r_monthly, _m_lang, period_line=_md_line.rstrip("."))
             if _md:
                 _r_monthly["decision"] = _md
     except Exception as _mde:

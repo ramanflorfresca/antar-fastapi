@@ -47,7 +47,43 @@ def test_a_move_whose_dates_have_passed_is_never_offered():
 
 
 def test_other_languages_and_empty_payloads_get_no_block():
-    assert compose(P, "es", TODAY) is None and compose({}, "en", TODAY) is None
+    assert compose(P, "pt", TODAY) is None and compose(P, "hi", TODAY) is None and compose({}, "en", TODAY) is None
+
+
+# a Spanish payload as the live API ships it: Spanish prose, English domain labels, a legacy week sentence
+PES = dict(P, overview="Cuida los gastos inesperados: pueden aparecer sin aviso.",
+           best_week="Semana del 26 de octubre \u2014 tu energ\u00eda de comunicaci\u00f3n se une a tu empuje",
+           caution_week="Semana del 10 de octubre \u2014 evita decisiones de autoridad.",
+           priority_actions=[
+               {"action": "Limita tu exposici\u00f3n a cualquier apuesta especulativa antes del 8 de octubre.", "domain": "Risk & speculation"},
+               {"action": "Pospon cualquier viaje largo hasta despu\u00e9s del 18 de octubre.", "domain": "Travel & foreign"},
+               {"action": "Avanza en una decisi\u00f3n de ahorro o asegura un cobro entre el 14 y el 23 de octubre.", "domain": "Money & wealth"},
+               {"action": "Pon tu nombre en un trabajo visible la semana del 19 de octubre.", "domain": "Work & reputation"}])
+PES.pop("range")
+PES["period_start"], PES["period_end"] = "2026-09-26", "2026-10-26"
+_EN_LEAK = (" the ", " your ", " you ", " favours ", " holds ", " breaks ", " strong ", " strain ", "week of", " and ")
+
+
+def test_spanish_month_block_is_native_spanish():
+    d = compose(PES, "es", TODAY, "Est\u00e1s en el periodo Rahu\u2013Rahu (el subperiodo termina el 25 de abril de 2029)")
+    assert d["prediction"] == ("Este mes (26 sep \u2013 26 oct) favorece el dinero y el trabajo. Ten cautela con los viajes. "
+                               "El tramo m\u00e1s fuerte es la semana del 26 de octubre.")
+    assert d["why"] == ("Marte y Mercurio est\u00e1n fuertes este mes; Sol, Rahu y Venus est\u00e1n bajo tensi\u00f3n. "
+                        "Est\u00e1s en el periodo Rahu\u2013Rahu (el subperiodo termina el 25 de abril de 2029).")
+    assert d["holds"] == ("Se sostiene si programas la decisi\u00f3n de ahorro o cobro del 14 al 23 de octubre y el trabajo visible "
+                          "del 12 al 24 de octubre; la mejor semana en conjunto es la semana del 26 de octubre.")
+    assert d["breaks"] == ("Se rompe si te comprometes con viajes largos durante la semana del 10 de octubre, "
+                           "o dejas que el gasto se adelante a los ingresos.")
+    assert d["move"].startswith("Avanza en una decisi\u00f3n de ahorro")
+    for k in ("prediction", "why", "holds", "breaks"):
+        assert not any(w in f" {d[k].lower()} " for w in _EN_LEAK), (k, d[k])
+
+
+def test_spanish_stale_action_is_skipped_by_spanish_dates():
+    q = dict(PES, priority_actions=[
+        {"action": "Limita tu exposici\u00f3n antes del 8 de octubre.", "domain": "Money & wealth"},
+        {"action": "Pon tu nombre en un trabajo visible la semana del 19 de octubre.", "domain": "Work & reputation"}])
+    assert compose(q, "es", TODAY)["move"].startswith("Pon tu nombre en un trabajo visible")
 
 
 def test_get_route_shapes_are_handled():
