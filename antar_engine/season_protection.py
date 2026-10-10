@@ -1,6 +1,6 @@
 """
 antar_engine/season_protection.py
-"Protect this season" — the dedicated remedy section for the CURRENT malefic
+"Protect this phase" — the dedicated remedy section for the CURRENT malefic
 pressure, gathered in one place. 2026-09-24
 
 Owner's ask: the app diagnoses hard moments (This Year TAKE CARE, the daily
@@ -133,7 +133,7 @@ def _affliction_card(planet: str, scope: str, window: str,
 
 def protect_this_season(chart_data: dict, birth_date, dashas: dict,
                         lk_data: Optional[dict] = None) -> dict:
-    """The 'Protect this season' section. Gathers the varshphal-year and current-
+    """The 'Protect this phase' section. Gathers the varshphal-year and current-
     dasha afflictions that actually run hard, each with a plain steadying step and
     an optional classical observance. Empty (available False) on a clear season."""
     try:
@@ -201,9 +201,9 @@ def protect_this_season(chart_data: dict, birth_date, dashas: dict,
             # A genuinely clear season — say so honestly, offer no busy-work remedy.
             return {
                 "available": True,
-                "headline": "Protect this season",
+                "headline": "Protect this phase",
                 "clear": True,
-                "intro": ("Nothing at the season level is running hard enough to need "
+                "intro": ("Nothing at the phase level is running hard enough to need "
                           "protecting right now — clear at the big-picture level. Keep your "
                           "usual steady habits, and check This Month for any finer, dated "
                           "windows to time around."),
@@ -213,9 +213,9 @@ def protect_this_season(chart_data: dict, birth_date, dashas: dict,
 
         return {
             "available": True,
-            "headline": "Protect this season",
+            "headline": "Protect this phase",
             "clear": False,
-            "intro": ("These soften the season — they don't undo it or guarantee an outcome. "
+            "intro": ("These soften the phase — they don't undo it or guarantee an outcome. "
                       "Start with the steadying step; the traditional observance is there if "
                       "you want it. Small, steady, and entirely optional."),
             "cards": cards[:3],

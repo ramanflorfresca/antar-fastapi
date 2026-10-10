@@ -54,8 +54,8 @@ _GENERIC = {
     },
     "lifepath": {
         "FLOW":   "Your timing and {b_name}'s are moving in step right now.",
-        "MIXED":  "Your seasons and {b_name}'s only partly overlap.",
-        "STRAIN": "You and {b_name} are in different seasons at the moment.",
+        "MIXED":  "Your phases and {b_name}'s only partly overlap.",
+        "STRAIN": "You and {b_name} are in different phases at the moment.",
     },
     "communication": {
         "FLOW":   "You and {b_name} understand each other quickly.",
@@ -89,8 +89,8 @@ _BASE_LINES = {
         },
         "lifepath": {
             "FLOW":   "Your life chapters and {b_name}'s are opening in the same direction right now.",
-            "MIXED":  "You and {b_name} are partly in step on timing — some seasons align, some don't.",
-            "STRAIN": "You and {b_name} are in different life seasons, which tests patience.",
+            "MIXED":  "You and {b_name} are partly in step on timing — some phases align, some don't.",
+            "STRAIN": "You and {b_name} are in different life phases, which tests patience.",
         },
         "communication": {
             "FLOW":   "You and {b_name} feel heard by each other; trust comes easily.",
@@ -120,7 +120,7 @@ _BASE_LINES = {
             "STRAIN": "You and {b_name} project different things to the market — align the story.",
         },
         "lifepath": {
-            "FLOW":   "You and {b_name} are in matching seasons — good timing to build together.",
+            "FLOW":   "You and {b_name} are in matching phases — good timing to build together.",
             "MIXED":  "Your timing and {b_name}'s partly line up; sequence the big moves carefully.",
             "STRAIN": "You and {b_name} are on different clocks right now — pace the commitments.",
         },
@@ -184,8 +184,8 @@ _BASE_LINES = {
             "STRAIN": "In groups you and {b_name} pull in different social directions.",
         },
         "lifepath": {
-            "FLOW":   "You and {b_name} are in life seasons that keep you close right now.",
-            "MIXED":  "Your seasons and {b_name}'s overlap enough to stay connected with effort.",
+            "FLOW":   "You and {b_name} are in life phases that keep you close right now.",
+            "MIXED":  "Your phases and {b_name}'s overlap enough to stay connected with effort.",
             "STRAIN": "You and {b_name} are in different chapters — staying close takes intention.",
         },
         "communication": {
@@ -216,9 +216,9 @@ _BASE_LINES = {
             "STRAIN": "You and {b_name} get read differently by the family — mind the dynamics.",
         },
         "lifepath": {
-            "FLOW":   "Your life seasons and {b_name}'s support each other right now.",
-            "MIXED":  "You and {b_name} are partly in step — some seasons help, some strain.",
-            "STRAIN": "You and {b_name} are in different seasons, which colors the relationship now.",
+            "FLOW":   "Your life phases and {b_name}'s support each other right now.",
+            "MIXED":  "You and {b_name} are partly in step — some phases help, some strain.",
+            "STRAIN": "You and {b_name} are in different phases, which colors the relationship now.",
         },
         "communication": {
             "FLOW":   "You and {b_name} can speak openly and be understood.",
@@ -255,9 +255,9 @@ _NEW_LINES = {
                 "STRAIN": "{b_name} may present the work differently than you'd choose — align on the message.",
             },
             "lifepath": {
-                "FLOW":   "{b_name} is in a season that fits steady commitment to your team right now.",
+                "FLOW":   "{b_name} is in a phase that fits steady commitment to your team right now.",
                 "MIXED":  "{b_name}'s timing partly fits the role — expect some pull from other priorities.",
-                "STRAIN": "{b_name} is in a season that may pull them elsewhere before long.",
+                "STRAIN": "{b_name} is in a phase that may pull them elsewhere before long.",
             },
             "communication": {
                 "FLOW":   "{b_name} takes direction well and keeps you in the loop.",
@@ -289,9 +289,9 @@ _NEW_LINES = {
                 "STRAIN": "{b_name} may not surface your work the way you'd want — be proactive about visibility.",
             },
             "lifepath": {
-                "FLOW":   "{b_name} is in a season that supports investing in you right now.",
+                "FLOW":   "{b_name} is in a phase that supports investing in you right now.",
                 "MIXED":  "{b_name}'s timing partly supports your growth — some windows are better than others.",
-                "STRAIN": "{b_name} is in a season focused elsewhere — don't expect heavy mentorship now.",
+                "STRAIN": "{b_name} is in a phase focused elsewhere — don't expect heavy mentorship now.",
             },
             "communication": {
                 "FLOW":   "{b_name} gives clear direction and is easy to read.",
@@ -333,7 +333,7 @@ _NEW_LINES["employee"]["sales"] = {
     "lifepath": {
         "FLOW":   "{b_name}'s timing supports a push — they have the appetite for a heavy quarter.",
         "MIXED":  "{b_name}'s attention is partly elsewhere; a big number this year is a stretch, not a gift.",
-        "STRAIN": "This isn't {b_name}'s season for grind — pipeline will slip before they say so.",
+        "STRAIN": "This isn't {b_name}'s phase for grind — pipeline will slip before they say so.",
     },
     "communication": {
         "FLOW":   "{b_name} handles objections cleanly and updates you without being chased.",
@@ -364,7 +364,7 @@ _NEW_LINES["employee"]["marketing"] = {
         "STRAIN": "{b_name}'s public instincts could cost you brand equity — supervise external work.",
     },
     "lifepath": {
-        "FLOW":   "{b_name} is in a building season — good for a brand that needs patient compounding.",
+        "FLOW":   "{b_name} is in a building phase — good for a brand that needs patient compounding.",
         "MIXED":  "{b_name} can run campaigns now but a long brand arc may outlast their focus.",
         "STRAIN": "{b_name}'s timing favours short bursts, not the slow work brand actually needs.",
     },
@@ -397,7 +397,7 @@ _NEW_LINES["employee"]["finance"] = {
         "STRAIN": "Don't put {b_name} in front of investors or auditors unaccompanied.",
     },
     "lifepath": {
-        "FLOW":   "{b_name}'s season supports steady, unglamorous work — exactly what closes books.",
+        "FLOW":   "{b_name}'s phase supports steady, unglamorous work — exactly what closes books.",
         "MIXED":  "{b_name} can hold the cadence, though month-end may compete with other pulls.",
         "STRAIN": "{b_name}'s timing pulls toward change, which is the wrong energy for controls.",
     },
@@ -432,7 +432,7 @@ _NEW_LINES["boss-or-manager"]["sales"] = {
         "STRAIN": "{b_name} takes the room. Expect to fight to be seen.",
     },
     "lifepath": {
-        "FLOW":   "{b_name} is in a season of expansion — good years to be on their team.",
+        "FLOW":   "{b_name} is in a phase of expansion — good years to be on their team.",
         "MIXED":  "{b_name}'s trajectory supports you in some windows, not all.",
         "STRAIN": "{b_name} is in a contracting phase; their pressure will land on you.",
     },
@@ -465,7 +465,7 @@ _NEW_LINES["boss-or-manager"]["marketing"] = {
         "STRAIN": "Your work will travel under {b_name}'s name more than yours.",
     },
     "lifepath": {
-        "FLOW":   "{b_name}'s season supports patient brand work — you'll be allowed to build.",
+        "FLOW":   "{b_name}'s phase supports patient brand work — you'll be allowed to build.",
         "MIXED":  "{b_name} will back long work in some quarters and demand numbers in others.",
         "STRAIN": "{b_name} needs short-term proof right now. Brand work will be squeezed.",
     },
@@ -498,7 +498,7 @@ _NEW_LINES["boss-or-manager"]["finance"] = {
         "STRAIN": "{b_name} may not defend your numbers when they're questioned. Document everything.",
     },
     "lifepath": {
-        "FLOW":   "{b_name} is in a steady season — good for learning the craft properly.",
+        "FLOW":   "{b_name} is in a steady phase — good for learning the craft properly.",
         "MIXED":  "{b_name}'s focus shifts; some periods will be well-supervised and some won't.",
         "STRAIN": "{b_name} is distracted right now. In finance that means you carry the risk.",
     },
@@ -532,7 +532,7 @@ _HEADLINES = {
         "STRAIN": "Different chapters, different missions — this would be high-maintenance to build.",
     },
     "friend": {
-        "FLOW":   "An easy, energizing friendship that holds across seasons.",
+        "FLOW":   "An easy, energizing friendship that holds across phases.",
         "MIXED":  "A good friendship that stays close with a little intention.",
         "STRAIN": "A friendship across a real gap — it survives on effort, not autopilot.",
     },
@@ -572,7 +572,7 @@ _DETAILS = {
     },
     "friend": {
         "FLOW":   "{a_name} and {b_name} have an easy, energizing friendship that tends to hold through life's changes. Little maintenance required — the connection refills itself.",
-        "MIXED":  "{a_name} and {b_name} have a solid friendship that stays close with a little intention. Keep showing up through the off-seasons and it deepens.",
+        "MIXED":  "{a_name} and {b_name} have a solid friendship that stays close with a little intention. Keep showing up through the quieter stretches and it deepens.",
         "STRAIN": "{a_name} and {b_name} are good for each other across a real gap in rhythm or values. The friendship lasts on effort and honesty rather than autopilot.",
     },
     "family": {
@@ -642,8 +642,8 @@ _LAYER_HEADLINES = {
         "STRAIN": "Mixed signals to others.",
     },
     "lifepath": {
-        "FLOW": "Timing moves in step.", "MIXED": "Seasons partly overlap.",
-        "STRAIN": "Different life seasons.",
+        "FLOW": "Timing moves in step.", "MIXED": "Phases partly overlap.",
+        "STRAIN": "Different life phases.",
     },
     "communication": {
         "FLOW": "You understand each other.", "MIXED": "Works with deliberate effort.",
@@ -729,7 +729,7 @@ _NEW_LINES["employee"]["social"] = {
         "STRAIN": "{b_name} posting unsupervised is a real risk — put a review gate in place.",
     },
     "lifepath": {
-        "FLOW":   "{b_name} is in a visible season — their reach compounds while they're with you.",
+        "FLOW":   "{b_name} is in a visible phase — their reach compounds while they're with you.",
         "MIXED":  "{b_name} can hold a calendar, but the always-on cadence may wear thin.",
         "STRAIN": "The relentlessness of social will burn {b_name} out in this period.",
     },
@@ -762,7 +762,7 @@ _NEW_LINES["employee"]["operations"] = {
         "STRAIN": "Don't hand {b_name} your vendor relationships without oversight.",
     },
     "lifepath": {
-        "FLOW":   "{b_name} is in a consolidating season — the right energy for building systems.",
+        "FLOW":   "{b_name} is in a consolidating phase — the right energy for building systems.",
         "MIXED":  "{b_name} can maintain the machine, though rebuilding it may be a stretch now.",
         "STRAIN": "{b_name} is in a restless phase. Ops needs someone who wants the steady grind.",
     },
@@ -795,7 +795,7 @@ _NEW_LINES["employee"]["cfo"] = {
         "STRAIN": "{b_name} will not hold up under board or diligence pressure.",
     },
     "lifepath": {
-        "FLOW":   "{b_name}'s season supports the long view a CFO seat requires.",
+        "FLOW":   "{b_name}'s phase supports the long view a CFO seat requires.",
         "MIXED":  "{b_name} can steward the near term; a multi-year arc is less certain.",
         "STRAIN": "{b_name} is in a volatile phase — wrong timing for custody of the balance sheet.",
     },
@@ -828,7 +828,7 @@ _NEW_LINES["employee"]["ceo"] = {
         "STRAIN": "{b_name} as the public face of this company is a liability, not an asset.",
     },
     "lifepath": {
-        "FLOW":   "{b_name} is entering a season of authority — the timing supports a top seat.",
+        "FLOW":   "{b_name} is entering a phase of authority — the timing supports a top seat.",
         "MIXED":  "{b_name}'s arc supports leading for a while, not necessarily for the whole ride.",
         "STRAIN": "{b_name}'s period pulls away from responsibility. Wrong moment for this seat.",
     },
@@ -861,7 +861,7 @@ _NEW_LINES["employee"]["engineering"] = {
         "STRAIN": "Keep {b_name} away from customer-facing technical conversations.",
     },
     "lifepath": {
-        "FLOW":   "{b_name}'s season supports deep focused building.",
+        "FLOW":   "{b_name}'s phase supports deep focused building.",
         "MIXED":  "{b_name} can deliver, though attention may fragment across the year.",
         "STRAIN": "{b_name} is in a scattered period — bad timing for a hard technical push.",
     },
@@ -894,7 +894,7 @@ _NEW_LINES["employee"]["people"] = {
         "STRAIN": "{b_name} will misrepresent your culture externally, in either direction.",
     },
     "lifepath": {
-        "FLOW":   "{b_name} is in a settled season — the steadiness people work needs.",
+        "FLOW":   "{b_name} is in a settled phase — the steadiness people work needs.",
         "MIXED":  "{b_name} can hold the function though their own attention may wander.",
         "STRAIN": "{b_name} is in a turbulent period. People will sense it and trust less.",
     },
@@ -927,7 +927,7 @@ _NEW_LINES["employee"]["legal"] = {
         "STRAIN": "{b_name} will be outmatched in a serious external negotiation.",
     },
     "lifepath": {
-        "FLOW":   "{b_name}'s season supports the patience long matters require.",
+        "FLOW":   "{b_name}'s phase supports the patience long matters require.",
         "MIXED":  "{b_name} can carry current matters; a multi-year case is less certain.",
         "STRAIN": "{b_name} is in a period that fights against patience. Litigation would suffer.",
     },
@@ -961,7 +961,7 @@ _NEW_LINES["marriage"] = {"managerial": {
         "STRAIN": "The public and family side of this marriage will take real work.",
     },
     "lifepath": {
-        "FLOW":   "Your life arcs with {b_name} move in step — the seasons of growth line up.",
+        "FLOW":   "Your life arcs with {b_name} move in step — the phases of growth line up.",
         "MIXED":  "Some of your years with {b_name} align and some pull apart. Plan around the gaps.",
         "STRAIN": "Your timelines diverge. Long stretches will feel like living parallel lives.",
     },
@@ -1031,9 +1031,9 @@ _BASE_LINES["sibling"] = {
         "STRAIN": "The family sees you and {b_name} differently — try not to let others referee.",
     },
     "lifepath": {
-        "FLOW":   "Your life seasons and {b_name}'s are supporting each other right now.",
+        "FLOW":   "Your life phases and {b_name}'s are supporting each other right now.",
         "MIXED":  "You and {b_name} are partly in step — some years bring you close, some pull you apart.",
-        "STRAIN": "You and {b_name} are in very different seasons, which colors how you show up for each other.",
+        "STRAIN": "You and {b_name} are in very different phases, which colors how you show up for each other.",
     },
     "communication": {
         "FLOW":   "You and {b_name} can say things straight and still be fine afterwards.",
@@ -1064,9 +1064,9 @@ _BASE_LINES["parent"] = {
         "STRAIN": "The family sees your bond with {b_name} through its own lens — you don't owe anyone an explanation.",
     },
     "lifepath": {
-        "FLOW":   "{b_name}'s life season and yours are supporting each other right now.",
+        "FLOW":   "{b_name}'s life phase and yours are supporting each other right now.",
         "MIXED":  "You and {b_name} are partly in step — some stretches bring you close, some call for patience.",
-        "STRAIN": "You and {b_name} are in very different seasons, so your needs can miss each other for a while.",
+        "STRAIN": "You and {b_name} are in very different phases, so your needs can miss each other for a while.",
     },
     "communication": {
         "FLOW":   "You and {b_name} can speak openly and be heard.",
@@ -1097,9 +1097,9 @@ _BASE_LINES["child"] = {
         "STRAIN": "{b_name} may show the world a different side than they show you — trust the bond underneath.",
     },
     "lifepath": {
-        "FLOW":   "{b_name}'s season and yours are lining up well right now.",
+        "FLOW":   "{b_name}'s phase and yours are lining up well right now.",
         "MIXED":  "You and {b_name} are partly in step — some stretches are easy, some ask for patience.",
-        "STRAIN": "You and {b_name} are in very different seasons, so what they need and what you can give may not match yet.",
+        "STRAIN": "You and {b_name} are in very different phases, so what they need and what you can give may not match yet.",
     },
     "communication": {
         "FLOW":   "{b_name} opens up to you, and you can hear them.",
@@ -1131,8 +1131,8 @@ _BASE_LINES["advisor"] = {
     },
     "lifepath": {
         "FLOW":   "Your timing and {b_name}'s line up — their guidance lands when you're ready for it.",
-        "MIXED":  "Your seasons and {b_name}'s partly overlap — some advice will fit now, some later.",
-        "STRAIN": "You and {b_name} are in different seasons — their advice may suit a stage you're not in yet.",
+        "MIXED":  "Your phases and {b_name}'s partly overlap — some advice will fit now, some later.",
+        "STRAIN": "You and {b_name} are in different phases — their advice may suit a stage you're not in yet.",
     },
     "communication": {
         "FLOW":   "You and {b_name} understand each other quickly — their counsel is easy to trust and to use.",
@@ -1168,7 +1168,7 @@ _HEADLINES["advisor"] = {
 }
 
 _DETAILS["sibling"] = {
-    "FLOW":   "{a_name} and {b_name} share a bond that runs easily — similar instincts and a natural understanding that tends to last through every season of life.",
+    "FLOW":   "{a_name} and {b_name} share a bond that runs easily — similar instincts and a natural understanding that tends to last through every phase of life.",
     "MIXED":  "{a_name} and {b_name} love each other with the ordinary sibling edges. Leaving the old childhood roles behind and listening to who the other is now makes the bond warmer.",
     "STRAIN": "{a_name} and {b_name} are quite different people with a lot of history. The bond endures, and it softens when each of you lets the other be who they are now.",
 }

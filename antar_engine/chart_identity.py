@@ -210,7 +210,7 @@ def _reading(asc_sign, asc_lord, sun, moon, atma, chapter, lang: str = "en") -> 
             if chapter.get("maha_ends"):
                 line += f", y se cierra el {chapter['maha_ends']}"
                 if chapter.get("next_maha") and PL(chapter["next_maha"]):
-                    line += f", dando paso a una temporada de {PL(chapter['next_maha'])}"
+                    line += f", dando paso a una fase de {PL(chapter['next_maha'])}"
             bits.append(line + ".")
     elif lang == "pt":
         if asc_sign:
@@ -231,7 +231,7 @@ def _reading(asc_sign, asc_lord, sun, moon, atma, chapter, lang: str = "en") -> 
             if chapter.get("maha_ends"):
                 line += f", e ele se encerra em {chapter['maha_ends']}"
                 if chapter.get("next_maha") and PL(chapter["next_maha"]):
-                    line += f", passando para uma temporada de {PL(chapter['next_maha'])}"
+                    line += f", passando para uma fase de {PL(chapter['next_maha'])}"
             bits.append(line + ".")
     else:
         if asc_sign:
@@ -254,7 +254,7 @@ def _reading(asc_sign, asc_lord, sun, moon, atma, chapter, lang: str = "en") -> 
             if chapter.get("maha_ends"):
                 line += f", and it closes on {chapter['maha_ends']}"
                 if chapter.get("next_maha") and PL(chapter["next_maha"]):
-                    line += f", handing over to a season of {PL(chapter['next_maha'])}"
+                    line += f", handing over to a phase of {PL(chapter['next_maha'])}"
             bits.append(line + ".")
     return " ".join(bits)
 

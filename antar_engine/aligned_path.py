@@ -69,7 +69,7 @@ def build_aligned_path(chart_data, dashas, stance="", running_lords=None,
     out = {
         "edge":   {"title": "Your edge", "text": ""},
         "trap":   {"title": "Your trap", "text": ""},
-        "season": {"title": "Your season", "text": ""},
+        "season": {"title": "Right now", "text": ""},
         "move":   {"title": "Your move", "text": ""},
         "_facts": {},
     }
@@ -129,19 +129,19 @@ def build_aligned_path(chart_data, dashas, stance="", running_lords=None,
         st = (stance or "").lower()
         if "consolidate" in st or "protect" in st:
             out["season"]["text"] = (
-                "Right now is a consolidate-and-protect season — guard what you've "
+                "Right now is a consolidate-and-protect phase — guard what you've "
                 "built, collect what you're owed, and tighten before you widen. Not "
                 "the window to raise, over-extend, or make a big new bet.")
             out["_facts"]["season"] = "consolidate"
         elif "expand" in st:
             out["season"]["text"] = (
-                "Right now is a build-and-expand season — the momentum is with you, "
+                "Right now is a build-and-expand phase — the momentum is with you, "
                 "so this is the time to push on the thing you're built for, with "
                 "discipline, not to sit still.")
             out["_facts"]["season"] = "expand"
         else:
             out["season"]["text"] = (
-                "Right now is a steady season — no need to force a big move; keep "
+                "Right now is a steady phase — no need to force a big move; keep "
                 "compounding the work that's already yours.")
             out["_facts"]["season"] = "steady"
 
