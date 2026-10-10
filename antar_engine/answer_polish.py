@@ -135,7 +135,10 @@ _THIRD_PARTY_CLAIM = re.compile(r"(?i)\b(your |the )?(ex|partner|he|she|they|his
                                 r"\b(his|her|their) (chart|timing)\b")
 _FINALITY = re.compile(r"(?i)\bchapter has closed\b|\bit'?s not coming back\b|\bmarriage ended\b|\bis over for good\b")
 _THIRD_FEELING = re.compile(r"(?i)\b(they|he|she)(?:'re| is| are)\s+(open|ready|waiting|thinking|missing|still in love|willing|receptive)\b|"
-                            r"\b(they|he|she) (will|would) (say yes|reply|respond|come back)\b")
+                            r"\b(they|he|she) (will|would) (say yes|reply|respond|come back)\b|"
+                            r"\bboth of you (are|is|seem|feel)\s+(open|ready|willing|receptive)\b")
+_GENERIC_PARTNER_MOVE = re.compile(r"(?i)what a good partnership looks like|new connection rather than reopening|"
+                                   r"honest,? unhurried conversation about what you need|reopening a closed door")
 _PAST_MARRIAGE = re.compile(r"(?i)\byour (past|previous|former|earlier) (marriage|relationship)s?\b|\bpast marriage\b")
 _HERB = re.compile(r"(?i)\b(brahmi|gotu kola|abhyanga|sesame|ashwagandha|neem|triphala|guduchi|shatavari|turmeric|amla)\b|"
                    r"traditionally, ayurveda")
@@ -374,6 +377,7 @@ def polish_answer(payload: dict, language: str = "en", typed_question: str = "",
         read0 = payload.get("read")
         if isinstance(read0, str) and read0.strip():
             for _rx, _why in ((_FILLER_OPENER, "filler opener"), (_VAGUE_FILLER, "vague filler"), (_THIRD_PARTY_CLAIM, "claim about another person's chart"),
+                              (_THIRD_FEELING, "claim about another person's feelings"),
                               (_FINALITY, "harsh finality")):
                 payload["read"], _d = _drop_sentences(payload.get("read"), _rx, keep_min=2)
                 if _d:
@@ -388,6 +392,10 @@ def polish_answer(payload: dict, language: str = "en", typed_question: str = "",
                 kept = [x for x in _SENT.split(nx3.strip()) if x.strip() and not _THIRD_FEELING.search(x)]
                 payload["next"] = " ".join(kept) if kept else None
                 print("[ask][polish] claim about another person's feelings dropped from the move")
+            nx4 = payload.get("next")
+            if isinstance(nx4, str) and _GENERIC_PARTNER_MOVE.search(nx4):   # self-help that ignores the question
+                payload["next"] = None
+                print("[ask][polish] generic partnership move dropped")
             if not _HERB_ASKED.search(own):
                 payload["read"], _d = _drop_sentences(payload.get("read"), _HERB, keep_min=1)
                 nxh = payload.get("next")

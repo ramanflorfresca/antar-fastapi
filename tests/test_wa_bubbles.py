@@ -230,3 +230,27 @@ def test_filler_openers_and_count_claims_are_removed_but_substance_stays():
                       "en", "any health issues this year", concern="health", chart_data=chart, dashas=dashas)
     assert "concern is real" not in p["read"] and "Five separate" not in p["read"]
     assert "several signals flag it" in p["read"] and "skin and sleep" in p["read"]
+
+
+def test_a_short_question_with_its_own_topic_is_not_a_chapter_followup():
+    import main
+    prev = "What is the outcome of my current dasha?"
+    assert not main._chapter_followup(prev, "Will my ex come back?", own_topic=True)
+    assert not main._chapter_followup(prev, "Is it a good time to ask for a raise?", own_topic=True)
+    assert main._chapter_followup(prev, "what happens in it?", own_topic=False)          # real follow-up
+    assert main._chapter_followup(prev, "tell me more about the next five years", own_topic=True)
+    assert main._chapter_followup(prev, "and then?", own_topic=False)
+    assert not main._chapter_followup("Will my ex come back?", "what happens in it?", own_topic=False)  # prev not a chapter q
+
+
+def test_reconciliation_gets_a_topic_specific_fallback_move_and_generic_ones_are_dropped():
+    from antar_engine.ask_basis import chart_move
+    from antar_engine.answer_polish import polish_answer
+    chart, dashas = _chart()
+    mv = chart_move("reconciliation", chart, dashas)
+    assert "first contact" in mv and "let them choose the next step" in mv
+    p = polish_answer({"read": "Yes — reconnection window is open now, through Jan 2027. Both of you are open to talking. Keep it short.",
+                       "next": "This week, write down what a good partnership looks like for you now."},
+                      "en", "Will my ex come back?", concern="reconciliation", chart_data=chart, dashas=dashas)
+    assert "good partnership looks like" not in p["next"] and "first contact" in p["next"]
+    assert "Both of you are open" not in p["read"]

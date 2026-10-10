@@ -118,6 +118,7 @@ _CHANNEL = {1: "own effort and presence", 2: "savings and family money", 3: "you
 _ACT = {
     "career": "put the effort into {ch}, and get one concrete result in front of the people who decide",
     "business": "put the effort into {ch}, and launch the smallest version that can earn",
+    "reconciliation": "make one short, direct first contact in your window — closeness reaches you through {ch}, so reach out that way, then let them choose the next step",
     "love": "closeness reaches you through {ch}, so make the first move there instead of waiting to be found",
     "marriage": "closeness reaches you through {ch}, so make the first move there instead of waiting to be found",
     "wealth": "grow income through {ch}, and keep that money separate from what the venture draws on",
