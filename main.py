@@ -50988,6 +50988,7 @@ class _CircleInviteIn(BaseModel):
     relation: str
     first_name: str
     language: Optional[str] = None
+    invitee_language: Optional[str] = None     # the language THEY read the link in (defaults to `language`)
     private_chart_id: Optional[str] = None
     position: Optional[int] = None
 
@@ -51027,10 +51028,11 @@ def circle_create_invite(body: _CircleInviteIn, authorization: Optional[str] = H
         priv = None
     try:
         out = _circle.create_invite(supabase, body.chart_id, row.get("user_id"), rel, name,
-                                    _circle_lang(body.language, row), priv, body.position)
+                                    _circle_lang(body.invitee_language or body.language, row), priv, body.position)
     except (_circle.CircleError, _circle.CircleUnavailable) as e:
         raise _circle_err(e)
-    return {"invite_id": out["invite_id"], "link": out["link"], "expires_at": out["expires_at"]}
+    return {"invite_id": out["invite_id"], "link": out["link"], "expires_at": out["expires_at"],
+            "share": _circle.share_message(name, _circle_lang(body.invitee_language or body.language, row), out["link"])}
 
 
 @app.delete("/api/v1/circle/{chart_id}/invites/{invite_id}")
@@ -51181,10 +51183,11 @@ def _circle_invite_rows(invite_id: str) -> list:
 
 # ── invitee side: public landing, accept, decline ────────────────────────────
 @app.get("/api/v1/circle/invite/{code}")
-def circle_invite_landing(code: str):
-    """Public (no auth): ONLY who invited you, the relation, the link's state and the language.
-    status: valid | used | expired. Nothing else, ever."""
-    out = _circle.peek_invite(supabase, code)
+def circle_invite_landing(code: str, language: Optional[str] = None):
+    """Public (no auth): ONLY who invited you, the relation, the link's state, the language and
+    the static landing copy. `?language=` (the visitor's own choice / browser language) overrides
+    the language the inviter picked. status: valid | used | expired. Nothing else, ever."""
+    out = _circle.peek_invite(supabase, code, language=language)
     if out is None:
         raise HTTPException(status_code=404, detail={"error": "invite_not_found"})
     return out
@@ -51194,6 +51197,7 @@ class _CircleAcceptIn(BaseModel):
     chart_id: str
     claim_token: Optional[str] = None
     share_day: bool = False
+    language: Optional[str] = None              # the language they read the landing in
 
 
 @app.post("/api/v1/circle/invite/{code}/accept")
@@ -51207,6 +51211,12 @@ def circle_accept_invite(code: str, body: _CircleAcceptIn, authorization: Option
         out = _circle.accept_invite(supabase, code, body.chart_id, body.share_day)
     except (_circle.CircleError, _circle.CircleUnavailable) as e:
         raise _circle_err(e)
+    if body.language and not (_circle.chart_row(supabase, body.chart_id) or {}).get("language_preference"):
+        try:        # a brand-new account keeps the language it joined in; never overrides a saved choice
+            supabase.table("charts").update({"language_preference": _circle_lang(body.language, None)}) \
+                .eq("id", body.chart_id).execute()
+        except Exception as e:
+            print(f"[circle] accept: language not saved: {e!r}")
     return {"status": "accepted", **out}
 
 

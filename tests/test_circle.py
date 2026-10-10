@@ -147,14 +147,26 @@ def test_an_invite_creates_nothing_about_the_invitee():
     assert len(db.rows("charts")) == 3          # no chart was created or touched
 
 
+def test_landing_language_override_and_share_message():
+    db = seed()
+    out = invite(db, relation="friend")
+    v = K.peek_invite(db, out["code"], NOW, language="es")
+    assert v["language"] == "es" and "Raman" in v["landing"]["headline"]
+    assert v["landing"]["cta"] and v["landing"]["privacy"]
+    assert K.peek_invite(db, out["code"], NOW)["language"] == v["invite_language"]
+    m = K.share_message("Dinesh", "pt", "https://antar.world/c/X")
+    assert m["language"] == "pt" and "Dinesh" in m["message"] and m["message"].endswith("https://antar.world/c/X")
+    assert "{" not in K.share_message("", "hinglish", "L")["message"]
+
+
 def test_landing_exposes_only_four_fields():
     db = seed()
     code = invite(db, relation="parent")["code"]
     v = K.peek_invite(db, code, NOW)
-    assert set(v) == {"inviter_first_name", "relation", "status", "language"}
+    assert set(v) == {"inviter_first_name", "relation", "status", "language", "invite_language", "landing"}
     assert v["inviter_first_name"] == "Raman" and v["status"] == "valid"
     assert v["relation"]["key"] == "child"          # what the inviter is to the invitee
-    blob = str(v)
+    blob = str({k: x for k, x in v.items() if k != "landing"})   # landing is static copy that talks ABOUT birth details
     for secret in ("1980", "uA", A, "Singh", "birth"):
         assert secret not in blob
 
