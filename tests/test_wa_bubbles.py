@@ -78,3 +78,30 @@ def test_dasha_question_detection():
     assert main._is_dasha_q("what's the outcome of this dasha?")
     assert main._wants_chara("tell me specifics for my Taurus dasha")
     assert not main._is_dasha_q("how is my money this month")
+
+
+def test_basis_names_real_chart_facts():
+    from antar_engine.ask_basis import build_basis
+    from datetime import date
+    y = date.today().year
+    dashas = {"vimsottari": [
+        {"level": "mahadasha", "planet_or_sign": "Rahu", "start_date": f"{y-1}-01-01", "end_date": f"{y+9}-01-01"},
+        {"level": "antardasha", "planet_or_sign": "Saturn", "start_date": f"{y-1}-01-01", "end_date": f"{y+2}-04-25"}]}
+    chart = {"lagna": {"sign": "Capricorn"}, "planets": {
+        "Sun": {"sign": "Scorpio", "house": 11, "longitude": 220.0},
+        "Venus": {"sign": "Scorpio", "house": 11, "longitude": 225.0},
+        "Saturn": {"sign": "Gemini", "house": 6, "longitude": 70.0}}}
+    b = build_basis("career", chart, dashas)
+    assert "Rahu–Saturn" in b and f"Apr 25, {y+2}" in b
+    assert "10th house (career) is ruled by Venus" in b and "11th house in Scorpio" in b and "combust" in b
+    assert "Saturn, the main significator" in b or "Sun, the main significator" in b
+    assert build_basis("career", chart, dashas, "es") == ""          # no wrong-language text
+    assert build_basis("career", {}, dashas) == ""                    # nothing true to say → nothing
+
+
+def test_basis_rides_the_whatsapp_answer_as_its_own_bubble():
+    p = {"mode": "explore", "read": "Hold until spring. The stronger move opens in March.",
+         "basis": "You're running Rahu–Saturn (sub-period ends Apr 25, 2029)."}
+    text, _ = m.format_ask_whatsapp_v2(p, "en", asked="x")
+    bubbles, _fu = m.split_ask_bubbles(text)
+    assert "📍 You're running Rahu–Saturn (sub-period ends Apr 25, 2029)." in bubbles

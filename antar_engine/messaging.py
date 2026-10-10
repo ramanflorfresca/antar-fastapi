@@ -1141,6 +1141,9 @@ def format_ask_whatsapp_v2(payload: dict, language: str = "en",
     except Exception:
         pass
     move = ("→ " + nxt) if nxt else ""
+    # [ask-direct 2026-10-10] the named chart facts behind the answer, own bubble; not under compact trimming
+    _bs = (p.get("basis") or "").strip()
+    basis_line = f"📍 {_bs}" if _bs else ""
     pc = p.get("practice_cta") or {}
     practice = ""
     if include_practice and pc.get("available") and pc.get("label"):
@@ -1155,7 +1158,7 @@ def format_ask_whatsapp_v2(payload: dict, language: str = "en",
             parts.append(opener_)
         if head:
             parts.append(f"*{head}*" if len(head) <= 180 else head)
-        parts += [x for x in (rest_, win, move_, practice_, checkback, disc) if x]
+        parts += [x for x in (rest_, win, basis_line, move_, practice_, checkback, disc) if x]
         if fus_:
             # [followup-flows] same paragraph as the numbers → dropped when the tappable list
             # (which has its own "Ask your own" row) replaces them
@@ -1207,7 +1210,7 @@ def split_ask_bubbles(text: str, max_sentences: int = 2, max_chars: int = 170) -
         body, fu = body[:m.start()].strip(), body[m.start():].strip()
     out: list = []
     for para in [x.strip() for x in re.split(r"\n\s*\n", body) if x.strip()]:
-        if para[0] in "🗓→🧘_" or para.startswith("*Antar") or "\n" in para:
+        if para[0] in "🗓→🧘📍_" or para.startswith("*Antar") or "\n" in para:
             out.append(para)
             continue
         if para.startswith("*") and para.endswith("*") and para.count("*") == 2:
