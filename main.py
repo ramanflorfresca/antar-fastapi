@@ -30951,6 +30951,17 @@ async def _ask_endpoint_impl(request: AskRequest):
             except Exception as _bbe:
                 logger.warning(f"[ask] basis block skipped (non-fatal): {_bbe}")
 
+            # [positioning 2026-10-10] Marketing frame = decision intelligence; the ANSWER stays a precise, direct
+            # prediction, followed by the decisions that make it come true (owner: the "billionaire potential"
+            # answer — possible, but through the right field, precision and long-term planning, not luck).
+            _ask_frame_block = (
+                "ANSWER SHAPE (obey): (1) the precise, direct prediction first — yes / no / not yet, with the "
+                "window; never hedge it away. (2) What makes it come true: the specific decisions, habits or "
+                "conditions that turn the chart's possibility into the outcome — and what would break it. "
+                "(3) ONE concrete move with its date. Success is earned through choices, never luck: say which "
+                "choices. Remedies or herbs only when the question asks for them, as mitigation of a named risk."
+            )
+
             diagnostic_block = ""
             try:
                 from antar_engine.symptom_library import build_diagnostic_prompt_block
@@ -31820,6 +31831,7 @@ async def _ask_endpoint_impl(request: AskRequest):
                     + (f"\n\n{_ask_career_block}" if _ask_career_block else "")
                     + (f"\n\n{_ask_chapter_block}" if _ask_chapter_block else "")
                     + (f"\n\n{_ask_basis_block}" if _ask_basis_block else "")
+                    + f"\n\n{_ask_frame_block}"
                     + (f"\n\n{_ask_relationship_block}" if _ask_relationship_block else "")
                     + (f"\n\n{_ask_legal_block}" if _ask_legal_block else "")
                     + (f"\n\n{_ask_health_block}" if _ask_health_block else "")
@@ -32057,6 +32069,7 @@ async def _ask_endpoint_impl(request: AskRequest):
                     + (f"\n\n{_ask_career_block}" if _ask_career_block else "")
                     + (f"\n\n{_ask_chapter_block}" if _ask_chapter_block else "")
                     + (f"\n\n{_ask_basis_block}" if _ask_basis_block else "")
+                    + f"\n\n{_ask_frame_block}"
                     + (f"\n\n{_ask_relationship_block}" if _ask_relationship_block else "")
                     + (f"\n\n{_ask_legal_block}" if _ask_legal_block else "")
                     + (f"\n\n{_ask_health_block}" if _ask_health_block else "")
@@ -32761,7 +32774,12 @@ async def _ask_endpoint_impl(request: AskRequest):
                 # herbs for the asker's own body
                 # [audit r12] and only when the question is about THEIR health: a question about a
                 # son's exam stream got brahmi / neem / sesame-oil tips appended
-                if _hc and (locals().get("_ask_u") or {}).get("area") in (None, "", "health_self", "general"):
+                # [ask-direct 2026-10-10] herbs only when the question is about care / remedies — "why am I tired",
+                # "what should I watch out for", "is surgery advisable" got brahmi + sesame oil bolted on
+                _wants_care = bool(re.search(
+                    r"(?i)\b(herb|herbal|remed|ayurved|natural|supplement|diet|eat|food|medicine|treat|cure|"
+                    r"what (can|should|do) i do|how (can|do|should) i|home ?remed|naturally)", question or ""))
+                if _hc and _wants_care and (locals().get("_ask_u") or {}).get("area") in (None, "", "health_self", "general"):
                     _blob = " ".join(str(payload.get(_k) or "")
                                      for _k in ("read", "next")).lower()
                     _HERBS = ("ashwagandha", "triphala", "brahmi", "gotu", "abhyanga",

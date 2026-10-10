@@ -124,6 +124,21 @@ _FUND = re.compile(r"(?i)\b((?<!emergency )(?<!rainy-day )(?<!rainy day )(?<!sav
                    r"financiaci[oó]n|financiamiento|financiamento|captar (capital|recursos|inversi[oó]n)|"
                    r"inversionistas?|investidor(es)?)\b")
 _FUND_OK_CONCERNS = {"funding", "business", "startup"}
+_VAGUE_FILLER = re.compile(r"(?i)\bthe timing (genuinely )?shows\b|\bthe setup (for [\w ]{1,30})?is real\b|"
+                           r"\bhasn'?t (fully )?(arrived|formed)\b|\bright moment\b|\bgenuine (pressure|promise)\b")
+_THIRD_PARTY_CLAIM = re.compile(r"(?i)\b(your |the )?(ex|partner|he|she|they|his|her|their)(?:'s)?\s+(side|chart|timing|stars?|planets?)\b|"
+                                r"\b(his|her|their) (chart|timing)\b")
+_FINALITY = re.compile(r"(?i)\bchapter has closed\b|\bit'?s not coming back\b|\bmarriage ended\b|\bis over for good\b")
+_THIRD_FEELING = re.compile(r"(?i)\b(they|he|she)(?:'re| is| are)\s+(open|ready|waiting|thinking|missing|still in love|willing|receptive)\b|"
+                            r"\b(they|he|she) (will|would) (say yes|reply|respond|come back)\b")
+_PAST_MARRIAGE = re.compile(r"(?i)\byour (past|previous|former|earlier) (marriage|relationship)s?\b|\bpast marriage\b")
+_HERB = re.compile(r"(?i)\b(brahmi|gotu kola|abhyanga|sesame|ashwagandha|neem|triphala|guduchi|shatavari|turmeric|amla)\b|"
+                   r"traditionally, ayurveda")
+_HERB_ASKED = re.compile(r"(?i)herb|remed|ayurved|natural|supplement|diet|\beat\b|food|medicine|treat|cure|"
+                         r"what (can|should|do) i do|how (can|do|should) i")
+_HOLDS = re.compile(r"(?i)\bit holds if\b|\bit breaks if\b|\bonly if\b|\bdepends on\b")
+_NOT_IN_REL = re.compile(r"(?i)\byou(?:'re| are)\s+(?:not\s+(?:currently\s+|presently\s+)?(?:in|seeing)|(?:currently\s+)?single|between)|"
+                         r"no current (?:relationship|partner)|\b(?:your|the)\s+past\s+(?:marriage|relationship)\b")
 
 # ── receivables / debts nobody mentioned ([audit-b4]) ──
 _OWED = re.compile(
@@ -319,6 +334,17 @@ def polish_answer(payload: dict, language: str = "en", typed_question: str = "",
                 payload["next"] = nx2 if (nx2 != nx and nx2.strip()) else None
             if d1:
                 print("[ask][polish] unasked funding sentence dropped")
+        # [ask-direct 2026-10-10] "is my current relationship going to last?" answered "you're not in a
+        # relationship — so this reads as a question about your past marriage": the reader's own words win
+        if re.search(r"(?i)\b(my|our)\s+(current\s+|present\s+)?(relationship|partner|boyfriend|girlfriend|husband|wife|spouse|fianc\w*)\b", own):
+            payload["read"], d_rel = _drop_sentences(payload.get("read"), _NOT_IN_REL, keep_min=2)
+            if d_rel:
+                print("[ask][polish] contradicted 'not in a relationship' sentence dropped")
+        # a move whose first sentence was cut ("Then build or improve it until it's perfect.") is no move
+        nx = payload.get("next")
+        if isinstance(nx, str) and re.match(r"(?i)\s*(then|and|but|so|also|that)\b", nx):
+            print(f"[ask][polish] dangling move dropped: {nx[:60]!r}")
+            payload["next"] = None
         # a move that is only a fragment ("before it touches either venture.",
         # "untouched by either venture.") is no move — conversation audit
         nx = payload.get("next")
@@ -339,6 +365,40 @@ def polish_answer(payload: dict, language: str = "en", typed_question: str = "",
                 and _norm_move(nx_now) in {_norm_move(p) for p in prev_moves if p}):
             print("[ask][polish] repeated move → alternate")
             payload["next"] = None
+        # ── [ask-direct 2026-10-10] prediction → what makes it true → what breaks it ──
+        read0 = payload.get("read")
+        if isinstance(read0, str) and read0.strip():
+            for _rx, _why in ((_VAGUE_FILLER, "vague filler"), (_THIRD_PARTY_CLAIM, "claim about another person's chart"),
+                              (_FINALITY, "harsh finality")):
+                payload["read"], _d = _drop_sentences(payload.get("read"), _rx, keep_min=2)
+                if _d:
+                    print(f"[ask][polish] {_why} sentence dropped")
+            if not re.search(r"(?i)marriage|married|divorc|separat|spouse|wife|husband", own):
+                payload["read"], _d = _drop_sentences(payload.get("read"), _PAST_MARRIAGE, keep_min=2)
+                if _d:
+                    print("[ask][polish] unasked 'past marriage' sentence dropped")
+            nx3 = payload.get("next")
+            if isinstance(nx3, str) and _THIRD_FEELING.search(nx3):   # "they're open to hearing from you" is invented
+                kept = [x for x in _SENT.split(nx3.strip()) if x.strip() and not _THIRD_FEELING.search(x)]
+                payload["next"] = " ".join(kept) if kept else None
+                print("[ask][polish] claim about another person's feelings dropped from the move")
+            if not _HERB_ASKED.search(own):
+                payload["read"], _d = _drop_sentences(payload.get("read"), _HERB, keep_min=1)
+                nxh = payload.get("next")
+                if isinstance(nxh, str) and _HERB.search(nxh):
+                    kept = [x for x in _SENT.split(nxh.strip()) if x.strip() and not _HERB.search(x)]
+                    kept = [x for x in kept if not re.search(r"(?i)not medical advice|qualified doctor", x)] or []
+                    payload["next"] = " ".join(kept) if kept else None   # only a disclaimer left = no move
+                    print("[ask][polish] unasked herb advice dropped from the move")
+            try:
+                if not _HOLDS.search(payload.get("read") or ""):
+                    from antar_engine.ask_basis import conditions as _cond
+                    _c = _cond((concern or "general").lower(), chart_data, dashas, lang)
+                    if _c:
+                        payload["read"] = (payload["read"].rstrip() + " " + _c).strip()
+                        print("[ask][polish] conditions appended")
+            except Exception as _ce:
+                print(f"[ask][polish] conditions skipped: {_ce}")
         # never ship without a move
         if not (isinstance(payload.get("next"), str) and payload["next"].strip()):
             grp = _CONCERN_GROUP.get((concern or "general").lower(), "work")
