@@ -305,3 +305,17 @@ def test_steady_month_careful_without_a_window_and_untouched_cases():
     assert D.reconcile_month(calm, "en") == calm
     openm = dict(_careful_month(None), tone="open")
     assert D.reconcile_month(openm, "en") == openm
+
+
+def test_month_read_does_not_lead_with_a_one_day_window(monkeypatch):
+    ctx = _ctx()
+    base = T.assess(ctx, "money", TODAY, [])
+    lit = dict(base, lit=True, mode="open", score=3.0, n_signals=1)
+    monkeypatch.setattr(T, "_scan", lambda *a, **k: [((TODAY, TODAY), lit)])
+    monkeypatch.setattr(T, "_fold_in_today", lambda *a, **k: None)
+    r = T.read_topic(ctx, "money", "month", TODAY, "en", with_best_fit=False)
+    assert r["best_window"] is None and r["tone"] == "steady"
+    # a week-long window still leads
+    monkeypatch.setattr(T, "_scan", lambda *a, **k: [((TODAY, TODAY + timedelta(days=6)), lit)])
+    r = T.read_topic(ctx, "money", "month", TODAY, "en", with_best_fit=False)
+    assert r["best_window"]["end"] == (TODAY + timedelta(days=6)).isoformat()

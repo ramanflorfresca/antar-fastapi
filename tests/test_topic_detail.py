@@ -337,20 +337,25 @@ def test_fold_in_today_extends_a_window_that_starts_soon_and_skips_covered_days(
         T.assess = orig
 
 
-def test_month_read_lists_a_window_open_today_instead_of_saying_nothing_sharp(monkeypatch):
+def test_month_read_folds_today_into_an_adjoining_window_but_drops_a_lone_day(monkeypatch):
     ctx = T.TopicContext("c", {"lagna": {"sign": "Aries"}}, {}, birth_date="1990-10-15")
     quiet = {"lit": False, "mode": "steady", "score": 0.0, "n_signals": 0, "dasha_kind": "none",
              "chara_confirm": False, "polarity": "neutral", "tone": 0, "first_date": "", "last_date": ""}
-    monkeypatch.setattr(T, "_scan", lambda c, k, sc, per, today: [((TODAY, TODAY + timedelta(days=6)), quiet)])
     monkeypatch.setattr(T, "assess", lambda c, k, on, ev: dict(
         quiet, **_lit("open"), dasha_kind="core", chara_confirm=True, polarity="opportunity",
         first_date=on.isoformat(), last_date=on.isoformat()))
     monkeypatch.setattr(ctx, "events", lambda *a, **k: [], raising=False)
+    lit = T.assess(ctx, "money", TODAY, [])
+    # a window opening in three days is extended back to today: it leads, and it is "now"
+    soon = (TODAY + timedelta(days=3), TODAY + timedelta(days=9))
+    monkeypatch.setattr(T, "_scan", lambda c, k, sc, per, today: [(soon, lit)])
     r = T.read_topic(ctx, "money", "month", TODAY, "en", with_best_fit=False)
-    assert r["tone"] == "open"
-    assert r["best_window"]["start"] == TODAY.isoformat() and r["best_window"]["window_phase"] == "now"
-    assert "nothing" not in r["claim"].lower()
+    assert r["tone"] == "open" and r["best_window"]["start"] == TODAY.isoformat() and r["best_window"]["window_phase"] == "now"
     assert r["claim"].startswith("Over the next 30 days")
+    # nothing near: today alone is a one-day window, which is not the headline of a 30-day read
+    monkeypatch.setattr(T, "_scan", lambda c, k, sc, per, today: [((TODAY + timedelta(days=20), TODAY + timedelta(days=26)), quiet)])
+    r = T.read_topic(ctx, "money", "month", TODAY, "en", with_best_fit=False)
+    assert r["tone"] == "steady" and r["best_window"] is None
 
 
 # ── labels ───────────────────────────────────────────────────────────────────
