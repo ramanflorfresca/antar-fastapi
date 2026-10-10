@@ -482,6 +482,22 @@ def _lang(language: str) -> str:
     return "es" if str(language).lower().startswith("es") else "en"
 
 
+_AFFLICTED_CONDS = {"enemy", "debilitated", "combust", "sleeping"}
+
+
+def _reason_key(status: Optional[str], state: str, rulers_states: list) -> str:
+    """Which verdict the reason ends on. It follows the SAME 3-state status the map shows
+    (strong / steady / needs_attention), never a separate legacy enum, so the sentence cannot
+    say "balanced" under a Needs-attention pill, or "balanced" next to an overshadowed ruler."""
+    if status == "strong":
+        return "strong"
+    if status == "needs_attention":
+        return "weak"            # the pill says "Needs attention"; the sentence must not say harsher ("blocked")
+    if status == "steady":
+        return "mixed" if any(c in _AFFLICTED_CONDS for _, c in rulers_states) else "steady"
+    return state
+
+
 def _reason(rulers_states: list[tuple], state: str, lang: str) -> str:
     from antar_engine.practice_scopes import _energy as _nrg
     _conn = "se lee" if lang == "es" else "reads"
@@ -490,11 +506,15 @@ def _reason(rulers_states: list[tuple], state: str, lang: str) -> str:
         ((", ".join(parts[:-1])) + (" y " if lang == "es" else " and ") + parts[-1])
     if lang == "es":
         tail = {"strong": "— este centro tiene buen sostén.",
+                "steady": "— este centro está estable; no necesita acción.",
+                "mixed": "— panorama mixto: se puede usar, con una parte que cuidar.",
                 "balanced": "— este centro está equilibrado.",
                 "weak": "— este centro pide atención.",
                 "blocked": "— este centro está bloqueado y necesita trabajo."}[state]
         return f"{joined.capitalize()} {tail}"
     tail = {"strong": "— this center is well supported.",
+            "steady": "— this center is steady; no action needed.",
+            "mixed": "— a mixed picture: workable, with one part to tend.",
             "balanced": "— this center is balanced.",
             "weak": "— this center needs attention.",
             "blocked": "— this center is blocked and needs work."}[state]
@@ -646,7 +666,7 @@ def compute_chakra_states(
             c = (conditions or {}).get(p, {}).get("condition")
             if c:
                 states_for_reason.append((p, c))
-        legacy_state = _LEGACY_STATE_FROM_NEW.get(chakra_state, "balanced")
+        legacy_state = _reason_key(_status_3state(chakra_wellness), chakra_state, states_for_reason)
         try:
             reason = _reason(states_for_reason, legacy_state, lang) if states_for_reason else ""
         except Exception:
