@@ -186,3 +186,17 @@ def test_polish_builds_prediction_holds_breaks_and_drops_invented_or_unasked_tex
     h2 = polish_answer({"read": "Likely — Oct 2026.", "next": "Take brahmi daily."}, "en",
                        "Any herbs for stress?", concern="health", chart_data=chart, dashas=dashas)
     assert "brahmi" in h2["next"]
+
+
+def test_health_and_speculation_wording_is_topic_specific():
+    from antar_engine.ask_basis import conditions, chart_move
+    chart, dashas = _chart()
+    chart["planets"]["Jupiter"] = {"sign": "Taurus", "house": 5, "longitude": 40.0}
+    h = conditions("health", chart, dashas)
+    assert h.startswith("Risk stays small if you act early and protect sleep and recovery time.")
+    assert "recovery runs slower" in h and "public work" not in h and "It breaks if strain" in h
+    assert "results lag effort" not in chart_move("health", chart, dashas)
+    assert "sleep and meal times" in chart_move("health", chart, dashas)
+    sp = conditions("speculation", chart, dashas)
+    assert "afford to lose" in sp and "It breaks if position size" in sp
+    assert "afford to lose" in chart_move("speculation", chart, dashas)

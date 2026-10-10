@@ -151,9 +151,16 @@ def chart_move(concern, chart_data, dashas, language="en") -> str:
         if not ch:
             return ""
         weak = [n for n in _dignity(lord, pl["sign"], planets) if n in ("debilitated",) or n.startswith("combust")]
-        act = _ACT[concern].format(ch=ch)
         per = _period(dashas)
         end = per[per.find("ends ") + 5:per.rfind(")")] if "ends " in per else ""
+        if concern == "health":
+            when = f" Plan on slower recovery through the current sub-period (to {end}) — don't wait for it to fix itself." if (weak and end) else ""
+            return "Fix sleep and meal times first, and get anything unusual checked early." + when
+        if concern == "speculation":
+            tail2 = f" Reassess when the current sub-period ends on {end}." if (weak and end) else ""
+            return ("Set the most you can afford to lose, write it down before you place anything, and stop at that number — "
+                    "gains here arrive in surges and leak back." + tail2)
+        act = _ACT[concern].format(ch=ch)
         lead = (f"Because the ruler of your {_o(h)} house is weakened, results lag effort — " if weak
                 else "")
         tail = f" Reassess when the current sub-period ends on {end}." if (weak and end) else ""
@@ -234,7 +241,22 @@ def conditions(concern, chart_data, dashas, language="en") -> str:
         weak = any(n == "debilitated" or n.startswith("combust") for n in _dignity(lord, pl["sign"], planets))
         per = _period(dashas)
         end = per[per.find("ends ") + 5:per.rfind(")")] if "ends " in per else ""
-        fine, weak_t, meaning = _HOLDS[_GROUP[concern]]
+        grp = _GROUP[concern]
+        if grp == "health":
+            holds = ("Risk stays small if you act early and protect sleep and recovery time. "
+                     + (f"The ruler of your {_o(h)} house is weakened, so recovery runs slower than the effort you put in"
+                        f"{f' (the current sub-period runs to {end})' if end else ''}"
+                        if weak else "Your health house is well supported, so small habits go a long way"))
+            return holds + ". It breaks if strain is pushed through without recovery time."
+        if grp == "speculation":
+            holds = "It holds if you cap what you commit at an amount you can afford to lose. "
+            if weak:
+                holds += (f"The ruler of your {_o(h)} house is weakened, so gains tend to arrive in surges and leak back"
+                          f"{f' (the current sub-period runs to {end})' if end else ''}")
+            else:
+                holds += "Your chart supports measured, planned positions over impulsive ones"
+            return holds + ". It breaks if position size outruns what you can afford to lose."
+        fine, weak_t, meaning = _HOLDS[grp]
         until = f" (the current sub-period runs to {end})" if end else ""
         if weak:
             holds = (weak_t.format(ch=ch) + f" — the ruler of your {_o(h)} house is weakened: "
