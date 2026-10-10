@@ -36,8 +36,8 @@ _T = {
     "en": {
         "losses": "The timing doesn't support speculation — it points to losses from speculative bets rather than gains. The honest answer is no.",
         "no": "The timing doesn't show gains from speculation, so the honest answer is no.",
-        "open": "The timing supports gains from speculation, and the window for unearned gains is open now{w}.",
-        "later": "The timing supports gains from speculation — but not yet. The window for unearned gains opens {w}.",
+        "open": "The timing supports gains from speculation, and the window for speculative gains is open now{w}.",
+        "later": "The timing supports gains from speculation — but not yet. The window for speculative gains opens {w}.",
         "later_nowin": "The timing supports gains from speculation — but not yet; the timing isn't active right now.",
         "through": " — through {w}",
         "gambling": "That's the timing for speculation in general — Antar doesn't give casino, lottery or betting-specific answers.",
@@ -242,8 +242,8 @@ _RISK = {
                   "any loans; decide a hard loss limit before you start and stop when you reach it; never "
                   "borrow to speculate; and keep it a small share of what you have."),
         "no": "Given your timing, the safest way is to not speculate at all for now.",
-        "timing": " Your window for unearned gains opens {w} — until then, keep it to a very small amount.",
-        "open": " Your window for unearned gains is open now{t}, so a small, capped amount fits.",
+        "timing": " Your window for speculative gains opens {w} — until then, keep it to a very small amount.",
+        "open": " Your window for speculative gains is open now{t}, so a small, capped amount fits.",
         "next_no": "Put that money into steady, earned income or a cushion instead.",
         "next": "Write down your loss limit today, before any decision.",
         "gambling": " Antar doesn't give casino, lottery or betting-specific answers.",
@@ -317,8 +317,8 @@ def is_day_question(question: str) -> bool:
 
 
 _DAYCTX = {
-    "en": {"open": "Your window for unearned gains is open now{t} — keep any position small and capped.",
-           "later": "Your window for unearned gains opens {w} — until then, treat any single day as low-conviction and keep positions small.",
+    "en": {"open": "Your window for speculative gains is open now{t} — keep any position small and capped.",
+           "later": "Your window for speculative gains opens {w} — until then, treat any single day as low-conviction and keep positions small.",
            "later_nowin": "Treat any single day as low-conviction and keep positions small."},
     "es": {"open": "Tu ventana de ganancias no ganadas está abierta ahora{t} — mantén cualquier posición pequeña y con tope.",
            "later": "Tu ventana de ganancias no ganadas se abre {w} — hasta entonces, trata cualquier día como de baja convicción y mantén posiciones pequeñas.",
