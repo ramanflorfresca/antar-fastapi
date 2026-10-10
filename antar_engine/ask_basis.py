@@ -107,3 +107,55 @@ def build_basis(concern, chart_data, dashas, language="en") -> str:
         return " ".join(bits).strip()
     except Exception:
         return ""
+
+
+# where the topic's ruler sits = the channel the topic actually comes through
+_CHANNEL = {1: "own effort and presence", 2: "savings and family money", 3: "your own initiative and communication",
+            4: "home base and property", 5: "creative work and teaching", 6: "daily work, service and routines",
+            7: "partnerships and one-to-one deals", 8: "shared money and deep restructuring",
+            9: "mentors, teaching and long-range plans", 10: "your public work and reputation",
+            11: "your network and gains", 12: "behind-the-scenes work, foreign ties and rest"}
+_ACT = {
+    "career": "put the effort into {ch}, and get one concrete result in front of the people who decide",
+    "business": "put the effort into {ch}, and launch the smallest version that can earn",
+    "love": "closeness reaches you through {ch}, so make the first move there instead of waiting to be found",
+    "marriage": "closeness reaches you through {ch}, so make the first move there instead of waiting to be found",
+    "wealth": "grow income through {ch}, and keep that money separate from what the venture draws on",
+    "finance": "grow income through {ch}, and keep that money separate from what the venture draws on",
+    "property": "decide your ceiling and must-haves before viewing anything — {ch} drives this",
+    "funding": "prepare the records first — the ask runs through {ch}",
+    "health": "protect the routine that {ch} depends on — sleep and meal times first",
+    "children": "get your finances and support in order before the window opens — {ch} is where this area shows up",
+}
+
+
+def chart_move(concern, chart_data, dashas, language="en") -> str:
+    """[ask-direct 2026-10-10] A fallback move that follows from THIS chart and THIS topic (replaces the generic
+    'Block one hour…' / 'Have one honest conversation…'). "" when the chart can't support one."""
+    try:
+        if language != "en" or concern not in _ACT:
+            return ""
+        from antar_engine.ask_consultation import CONCERN_HOUSES
+        planets = (chart_data or {}).get("planets") or {}
+        lagna = ((chart_data or {}).get("lagna") or {}).get("sign")
+        houses = CONCERN_HOUSES.get(concern)
+        if not houses or lagna not in _SIGNS or not planets:
+            return ""
+        h = _PRIMARY.get(concern, houses[0])
+        lord = _LORD[_SIGNS[(_SIGNS.index(lagna) + h - 1) % 12]]
+        pl = planets.get(lord) or {}
+        if not isinstance(pl.get("house"), int) or not pl.get("sign"):
+            return ""
+        ch = _CHANNEL.get(pl["house"], "")
+        if not ch:
+            return ""
+        weak = [n for n in _dignity(lord, pl["sign"], planets) if n in ("debilitated",) or n.startswith("combust")]
+        act = _ACT[concern].format(ch=ch)
+        per = _period(dashas)
+        end = per[per.find("ends ") + 5:per.rfind(")")] if "ends " in per else ""
+        lead = (f"Because the ruler of your {_o(h)} house is weakened, results lag effort — " if weak
+                else f"The ruler of your {_o(h)} house sits in your {_o(pl['house'])} house: ")
+        tail = f" Reassess when the current sub-period ends on {end}." if (weak and end) else ""
+        return (lead + act + "." + tail).replace(" — put", " — put")
+    except Exception:
+        return ""
