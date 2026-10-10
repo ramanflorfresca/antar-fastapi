@@ -285,6 +285,10 @@ def checkin_text(claim: dict) -> str:
     said = ((claim.get("text_shown") or "").strip()
             if claim.get("source") in ("ask_explore", "ask_yesno") else "")
     head = said_t.format(said=said) if said and not sensitive else ""
+    if claim.get("source") == "decoy" and claim.get("text_shown"):
+        # no prediction was made — name the period, then the SAME question a real
+        # check-in asks, so the two yes-rates are comparable
+        head = _DECOY_HEAD.get(lang, _DECOY_HEAD["en"]).format(span=claim["text_shown"])
     tail = moved_t.format(noun=noun) if (noun and claim.get("claim_type") == "window"
                                          and not sensitive) else plain_t
     if claim.get("_reask"):
@@ -304,11 +308,131 @@ def due_claims(sb, chart_id: str, now: Optional[datetime] = None, limit: int = 2
             return []
         answered = {r["claim_id"] for r in (sb.table("prediction_outcomes").select("claim_id")
                     .in_("claim_id", [r["id"] for r in rows]).execute().data or [])}
-        return [r for r in rows if r["id"] not in answered][:limit]
+        open_ = [r for r in rows if r["id"] not in answered]
+        open_.sort(key=lambda r: r.get("source") == "decoy")   # real claims first (stable)
+        return open_[:limit]
     except Exception as e:
         if not _table_missing(e):
             print(f"[outcomes] due_claims failed: {e}")
         return []
+
+
+# ── decoys: the base rate ──
+# [outcome-decoys 2026-10-10] A "hit" only means something against how often the
+# same thing happens in a window we made NO claim about. A decoy asks the same
+# did-things-move question about a random window that has already ended, so the
+# base rate starts accruing now instead of waiting months for future windows.
+# Same wording as a real check-in's tail, so the two yes-rates are comparable.
+DECOY_TOPICS = ("career", "finance", "business", "love")
+DECOY_WINDOW_DAYS = 90
+DECOY_MIN_AGO_DAYS = 30          # window ends at least this long ago…
+DECOY_MAX_AGO_DAYS = 400         # …and at most this long ago
+DECOY_COOLDOWN_DAYS = 30         # one decoy per chart per month, never a pile
+_BUSINESS_STAGES = {"entrepreneur", "running_business"}
+_DECOY_HEAD = {"en": "Looking back at {span}:", "es": "Mirando atrás, {span}:",
+               "pt": "Olhando para trás, {span}:"}
+
+
+def decoy_topics_for(chart: dict) -> list:
+    """Topics a decoy can sensibly ask this person about."""
+    out = ["career", "finance"]
+    if (chart.get("career_stage") in _BUSINESS_STAGES) or chart.get("ventures"):
+        out.append("business")
+    if (chart.get("marital_status") or "") != "widowed":
+        out.append("love")
+    return out
+
+
+def _overlaps_any(start: date, end: date, windows: list) -> bool:
+    return any(s and e and s <= end and start <= e for s, e in windows)
+
+
+def _span_label(start: date, end: date, lang: str) -> str:
+    def mon(d):
+        return calendar.month_abbr[d.month] + (f" {d.year}" if d.year != end.year else "")
+    return f"{mon(start)} – {calendar.month_abbr[end.month]} {end.year}"
+
+
+def build_decoy(chart_id: str, topic: str, language: str, existing_windows: list,
+                *, today: Optional[date] = None, rng=None) -> Optional[dict]:
+    """A prediction_claims row (source 'decoy') for a past 90-day window that no
+    real claim on this chart+topic covers, or None if no free window is found."""
+    import random
+    rng = rng or random
+    today = today or date.today()
+    if topic not in DECOY_TOPICS:
+        return None
+    for _ in range(12):
+        end = today - timedelta(days=rng.randint(DECOY_MIN_AGO_DAYS, DECOY_MAX_AGO_DAYS))
+        start = end - timedelta(days=DECOY_WINDOW_DAYS - 1)
+        if not _overlaps_any(start, end, existing_windows):
+            return {
+                "chart_id": chart_id, "source": "decoy", "topic": topic,
+                "claim_type": "window", "window_start": start.isoformat(),
+                "window_end": end.isoformat(),
+                "text_shown": _span_label(start, end, language or "en"),
+                "question": None, "language": language or "en", "channel": "app",
+                "verdict": None, "confidence_word": None, "engines": {},
+                "dedupe_key": f"{chart_id}|{topic}|decoy|{start.isoformat()}|{end.isoformat()}",
+                "checkin_due_at": datetime.now(timezone.utc).isoformat(),
+            }
+    return None
+
+
+def decoy_candidates(sb, now: Optional[datetime] = None, limit: int = 25) -> list:
+    """New decoy rows to insert: engaged charts (they have asked Ask a dated
+    question), no decoy in the last DECOY_COOLDOWN_DAYS, none still unanswered."""
+    import random
+    now = now or datetime.now(timezone.utc)
+    today = now.date()
+    cut = (now - timedelta(days=DECOY_COOLDOWN_DAYS)).isoformat()
+    real = sb.table("prediction_claims").select("chart_id,topic,window_start,window_end") \
+        .in_("source", ["ask_explore", "ask_yesno"]).limit(2000).execute().data or []
+    engaged = sorted({r["chart_id"] for r in real})
+    if not engaged:
+        return []
+    recent = {r["chart_id"] for r in (sb.table("prediction_claims").select("chart_id")
+              .eq("source", "decoy").gte("created_at", cut).in_("chart_id", engaged)
+              .execute().data or [])}
+    pending = {r["id"]: r["chart_id"] for r in (sb.table("prediction_claims").select("id,chart_id")
+               .eq("source", "decoy").in_("chart_id", engaged).execute().data or [])}
+    if pending:
+        done = {r["claim_id"] for r in (sb.table("prediction_outcomes").select("claim_id")
+                .in_("claim_id", list(pending)).execute().data or [])}
+        recent |= {c for i, c in pending.items() if i not in done}
+    todo = [c for c in engaged if c not in recent][:limit * 3]
+    if not todo:
+        return []
+    charts = sb.table("charts").select("id,language,career_stage,ventures,marital_status,chart_type") \
+        .in_("id", todo).is_("deleted_at", "null").execute().data or []
+    wins: dict = {}
+    for r in real:
+        wins.setdefault(r["chart_id"], []).append(
+            (_d(r.get("window_start")), _d(r.get("window_end"))))
+    allclaims = sb.table("prediction_claims").select("chart_id,window_start,window_end") \
+        .in_("chart_id", todo).eq("source", "decoy").execute().data or []
+    for r in allclaims:    # never re-ask a window a past decoy already covered
+        wins.setdefault(r["chart_id"], []).append(
+            (_d(r.get("window_start")), _d(r.get("window_end"))))
+    out = []
+    for c in charts:
+        if c.get("chart_type") not in (None, "primary"):
+            continue
+        topic = random.choice(decoy_topics_for(c))
+        row = build_decoy(c["id"], topic, c.get("language") or "en",
+                          wins.get(c["id"], []), today=today)
+        if row:
+            out.append(row)
+        if len(out) >= limit:
+            break
+    return out
+
+
+def _d(v) -> Optional[date]:
+    try:
+        return date.fromisoformat(str(v)[:10]) if v else None
+    except ValueError:
+        return None
 
 
 # ── week 2: sending check-ins ──
@@ -316,7 +440,7 @@ def due_claims(sb, chart_id: str, now: Optional[datetime] = None, limit: int = 2
 # "did it happen?" after the window ends, at ~8 AM local, at most 2 a week per
 # person, one a day. Yes/No claims keep the existing yesno_checkback job (their
 # answers live in user_correlations) — bridging is a follow-up.
-CHECKIN_SOURCES = ("ask_explore",)
+CHECKIN_SOURCES = ("ask_explore", "decoy")
 # [reask-not-sure 2026-10-02] owner: a "Not sure yet" is asked ONCE more, 30 days
 # later, then never again. The re-ask is marked in checkin_channel ("push+reask")
 # — no DDL.
@@ -333,7 +457,8 @@ LOOKBACK_DAYS = 30
 def pick_due(claims: list, sent_last_week: dict, answered: set) -> list:
     """At most ONE claim per chart per run, honouring the weekly cap; oldest due first."""
     chosen, seen = [], set()
-    for c in sorted(claims, key=lambda r: r.get("checkin_due_at") or ""):
+    # a real prediction check-in always beats a decoy for the same person's slot
+    for c in sorted(claims, key=lambda r: (r.get("source") == "decoy", r.get("checkin_due_at") or "")):
         cid = c.get("chart_id")
         if (not cid or cid in seen or c.get("source") not in CHECKIN_SOURCES
                 or (not c.get("_reask") and (c.get("id") in answered or c.get("checkin_sent_at")))):

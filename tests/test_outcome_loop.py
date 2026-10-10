@@ -280,3 +280,45 @@ def test_reask_awaiting_answer_until_answered_again():
         return SB()
     assert [r["id"] for r in oc.reasks_awaiting_answer(sb_with(first), "a")] == ["k1"]
     assert oc.reasks_awaiting_answer(sb_with(again), "a") == []      # answered again → done
+
+
+# ── decoys: the base rate (2026-10-10) ──
+import random as _random
+
+
+def test_decoy_window_is_past_and_avoids_real_claims():
+    real = [(date(2026, 4, 1), date(2026, 6, 30))]
+    for seed in range(40):
+        d = oc.build_decoy("c1", "career", "en", real, today=T, rng=_random.Random(seed))
+        s, e = date.fromisoformat(d["window_start"]), date.fromisoformat(d["window_end"])
+        assert e <= T - __import__("datetime").timedelta(days=oc.DECOY_MIN_AGO_DAYS)
+        assert (e - s).days == oc.DECOY_WINDOW_DAYS - 1
+        assert not (s <= real[0][1] and real[0][0] <= e)
+        assert d["source"] == "decoy" and d["verdict"] is None and d["engines"] == {}
+
+
+def test_decoy_unknown_topic_and_no_free_window():
+    assert oc.build_decoy("c1", "health", "en", [], today=T) is None
+    everything = [(date(2000, 1, 1), date(2030, 1, 1))]
+    assert oc.build_decoy("c1", "career", "en", everything, today=T) is None
+
+
+def test_decoy_question_matches_real_checkin_tail():
+    d = oc.build_decoy("c1", "career", "en", [], today=T, rng=_random.Random(1))
+    real = {"source": "ask_explore", "topic": "career", "claim_type": "window",
+            "language": "en", "text_shown": "Strong stretch."}
+    assert oc.checkin_text(d).endswith("Did things move for your work in that time?")
+    assert oc.checkin_text(d).split("\n\n")[1] == oc.checkin_text(real).split("\n\n")[1]
+    assert "We said" not in oc.checkin_text(d)
+
+
+def test_decoy_topics_respect_the_person():
+    assert oc.decoy_topics_for({}) == ["career", "finance", "love"]
+    assert "business" in oc.decoy_topics_for({"career_stage": "entrepreneur"})
+    assert "love" not in oc.decoy_topics_for({"marital_status": "widowed"})
+
+
+def test_real_claim_beats_decoy_for_the_slot():
+    claims = [{"id": "d", "chart_id": "c1", "source": "decoy", "checkin_due_at": "2026-01-01"},
+              {"id": "r", "chart_id": "c1", "source": "ask_explore", "checkin_due_at": "2026-09-01"}]
+    assert [c["id"] for c in oc.pick_due(claims, {}, set())] == ["r"]
