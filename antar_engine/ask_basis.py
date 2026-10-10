@@ -355,24 +355,43 @@ _RECON_TX = {
 }
 
 
-def stable_reconnection_move(verdict, chart_data, dashas, language="en", timing="") -> str:
-    """The same move for the same verdict in en / es / pt; "" when the verdict, language or chart can't support one."""
+# "will I get married?" — same idea (a move that follows the engine verdict, identical across languages). The model's own
+# moves for it varied AND invented a recipient the question never mentioned ("escribe el mensaje que llevas tiempo
+# pensando — mándalo", "faz um contacto direto"): a yes -> go where serious partnership starts and accept introductions;
+# a not-yet -> don't force a timeline, widen where you meet people until the window opens.
+_MARRIAGE_TX = {
+    "en": {"go": "Your window is open{w}: put yourself where serious partnership starts — closeness reaches you through {ch} — and say yes to introductions. Decide before you meet anyone what you won't compromise on.",
+           "wait": "Don't force a timeline. Use the time until your window{w} to widen where you meet people — this area of your chart opens through {ch} — and write down what you won't compromise on; then act when it opens.",
+           "w": " ({t})"},
+    "es": {"go": "Tu ventana está abierta{w}: ponte donde empiezan las relaciones serias — la cercanía te llega a través de {ch} — y acepta las presentaciones. Decide antes de conocer a alguien qué no vas a negociar.",
+           "wait": "No fuerces los tiempos. Usa el tiempo hasta tu ventana{w} para ampliar dónde conoces gente — esta área de tu carta se abre a través de {ch} — y escribe qué no vas a negociar; luego actúa cuando se abra.",
+           "w": " ({t})"},
+    "pt": {"go": "Sua janela está aberta{w}: coloque-se onde as relações sérias começam — a proximidade chega até você por este canal: {ch} — e aceite apresentações. Decida antes de conhecer alguém o que você não vai negociar.",
+           "wait": "Não force os prazos. Use o tempo até a sua janela{w} para ampliar onde você conhece pessoas — esta área do seu mapa se abre por este canal: {ch} — e escreva o que você não vai negociar; depois aja quando ela abrir.",
+           "w": " ({t})"},
+}
+_UNION_TX = {"reconciliation": _RECON_TX, "marriage": _MARRIAGE_TX}
+
+
+def stable_reconnection_move(verdict, chart_data, dashas, language="en", timing="", concern="reconciliation") -> str:
+    """The same move for the same verdict in en / es / pt; "" when the verdict, language, concern or chart can't
+    support one. concern: "reconciliation" (ex) or "marriage"."""
     try:
         v = str(verdict or "").upper()
-        tx = _RECON_TX.get(language)
+        tx = (_UNION_TX.get(concern) or {}).get(language)
         if not tx or v not in (_STABLE_GO | _STABLE_WAIT):
             return ""
         t = (timing or "").strip()
         w = tx["w"].format(t=t) if t else ""
-        if v in _STABLE_WAIT:
+        if v in _STABLE_WAIT and concern == "reconciliation":
             return tx["wait"].format(w=w)
         from antar_engine.ask_consultation import CONCERN_HOUSES
         planets = (chart_data or {}).get("planets") or {}
         lagna = ((chart_data or {}).get("lagna") or {}).get("sign")
-        houses = CONCERN_HOUSES.get("reconciliation")
+        houses = CONCERN_HOUSES.get(concern)
         if not houses or lagna not in _SIGNS or not planets:
             return ""
-        h = _PRIMARY.get("reconciliation", houses[0])
+        h = _PRIMARY.get(concern, houses[0])
         lord = _LORD[_SIGNS[(_SIGNS.index(lagna) + h - 1) % 12]]
         hs = (planets.get(lord) or {}).get("house")
         if not isinstance(hs, int):
@@ -381,6 +400,7 @@ def stable_reconnection_move(verdict, chart_data, dashas, language="en", timing=
         if language == "es":
             from antar_engine.ask_basis_es import _CHANNEL as _ES_CH
             ch = _ES_CH
-        return tx["go"].format(w=w, ch=ch.get(hs, ""))
+        out = tx["wait" if v in _STABLE_WAIT else "go"].format(w=w, ch=ch.get(hs, ""))
+        return out.replace(" de el ", " del ") if language == "es" else out
     except Exception:
         return ""
