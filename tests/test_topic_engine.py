@@ -830,7 +830,7 @@ def test_upcoming_names_the_month_of_the_reads_own_window(monkeypatch):
     _stub(monkeypatch, {"money": ("open", {"best_window": win, "watch_window": None})},
           opening=(date(2026, 11, 20), "open"))
     row = {r["key"]: r for r in T.rank_topics(_synth(), TODAY, "en")}["money"]
-    assert row["status"] == "upcoming" and row["tag"] == "Opens Jan 5"   # not Nov, the unrelated opening
+    assert row["status"] == "upcoming" and row["tag"] == "Opens Jan 2027"   # not Nov, the unrelated opening; month-level beyond 45 days
 
 
 def test_a_read_without_a_window_is_never_upcoming(monkeypatch):
@@ -979,9 +979,9 @@ def test_observed_business_far_window_tag_names_the_month_and_year(monkeypatch, 
     assert rows["love"]["tag"] == _FAR_TAGS[lang][1] and rows["love"]["tone"] == "care"
 
 
-@pytest.mark.parametrize("months,far", [(10, False), (11, False), (12, True), (13, True)])
-def test_far_tag_boundary_at_11_months(monkeypatch, months, far):
-    s = C.add_months(TODAY, months)
+@pytest.mark.parametrize("days,far", [(30, False), (45, False), (46, True), (330, True), (400, True)])
+def test_tag_names_a_day_only_within_45_days(monkeypatch, days, far):
+    s = TODAY + timedelta(days=days)
     win = {"start": s.isoformat(), "end": (s + timedelta(days=40)).isoformat()}
     reads = {"business": ("open", {"best_window": win, "watch_window": None}),
              "health": ("care", {"best_window": None, "watch_window": win})}
@@ -1395,7 +1395,8 @@ def test_opens_tile_names_the_start_of_the_reads_best_window():
     row = {r["key"]: r for r in T.rank_topics(ctx, TODAY, "en")}["money"]
     read = T.read_topic(ctx, "money", T.best_fit_scale(ctx, "money", TODAY), TODAY, "en")
     s0 = date.fromisoformat(read["best_window"]["start"])
-    assert row["tag_kind"] == "opens" and row["tag"] == f"Opens {C.day_label(s0, 'en')}"
+    want = C.month_year_short(s0, "en") if s0 > TODAY + timedelta(days=T.TAG_DAY_DAYS) else C.day_label(s0, "en")
+    assert row["tag_kind"] == "opens" and row["tag"] == f"Opens {want}"
 
 
 def test_tile_rows_carry_the_window_their_tag_names():
@@ -1408,3 +1409,50 @@ def test_tile_rows_carry_the_window_their_tag_names():
     for r in rows.values():
         if r["tag_kind"] == "quiet":
             assert r["window_start"] is None and r["window_end"] is None
+
+
+def test_a_far_window_tag_does_not_slide_with_today(monkeypatch):
+    """Windows beyond 45 days are named by month: the scan is bucketed from today, so a day-exact
+    date there moved a day every day. The tag for the same real window is identical on adjacent days."""
+    tags = set()
+    for d in (0, 1, 2):
+        today = TODAY + timedelta(days=d)
+        s = date(2027, 8, 6)                     # the same real window start each day
+        win = {"start": s.isoformat(), "end": (s + timedelta(days=40)).isoformat()}
+        _stub(monkeypatch, {"career": ("care", {"best_window": None, "watch_window": win})}, opening=None)
+        tags.add({r["key"]: r for r in T.rank_topics(_synth(), today, "en")}["career"]["tag"])
+    assert tags == {"Care from Aug 2027"}
+
+
+def _plain_ctx():
+    """A real TopicContext (its own events()), unlike _synth which replaces events."""
+    return T.TopicContext("plain", {"lagna": {"sign": "Aries", "sign_index": 0}, "planets": {}}, {"vimsottari": []})
+
+
+def test_a_failed_transit_feed_marks_the_context_degraded(monkeypatch):
+    import antar_engine.transit_events as TE
+    monkeypatch.setattr(TE, "compute_transit_events_in_range", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom")))
+    ctx = _plain_ctx()
+    assert ctx.events(TODAY, TODAY + timedelta(days=30), True) == []
+    assert ctx.degraded is True
+
+
+def test_a_healthy_transit_feed_is_not_degraded(monkeypatch):
+    import antar_engine.transit_events as TE
+    monkeypatch.setattr(TE, "compute_transit_events_in_range", lambda *a, **k: [])
+    ctx = _plain_ctx()
+    ctx.events(TODAY, TODAY + timedelta(days=30), True)
+    assert ctx.degraded is False
+
+
+def test_a_transient_feed_failure_is_retried_once(monkeypatch):
+    import antar_engine.transit_events as TE
+    calls = {"n": 0}
+    def flaky(*a, **k):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise RuntimeError("transient")
+        return ["ev"]
+    monkeypatch.setattr(TE, "compute_transit_events_in_range", flaky)
+    ctx = _plain_ctx()
+    assert ctx.events(TODAY, TODAY + timedelta(days=30), True) == ["ev"] and ctx.degraded is False
