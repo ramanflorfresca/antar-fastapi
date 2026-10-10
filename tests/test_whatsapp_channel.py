@@ -888,40 +888,29 @@ def test_ritual_can_be_switched_off(m, monkeypatch):
     assert cv.asked[-1].mode == "yesno" and cv.asked[-1].horary_number is None
 
 
-def test_yesno_question_first_asks_which_answer(m, monkeypatch):
-    # owner 2026-10-03: "do you want yes or no, or detailed?" → only then the number
+def test_yesno_question_gets_the_read_first_then_offers_the_quick_yes_no(m, monkeypatch):
+    # [ask-direct 2026-10-10] owner: no "How would you like this answered?" step. The detailed read comes straight
+    # away; a one-line footer offers the KP yes/no, and replying "yes or no" casts the question just asked.
     link = _link()
     cv = _Conv(m, monkeypatch, link=link, answer=dict(_YN_ANSWER, method="kp_number", horary_number=7))
     q = "Will I make good money doing defence deals with the government?"
     cv.run(q)
-    assert cv.asked == [] and "1  *Yes or no*" in cv.sent[-1] and "2  *Detailed reading*" in cv.sent[-1]
-    assert "Prashna" not in cv.sent[-1]
-    cv.run("1")
-    assert cv.asked == [] and "number from 1 to 249" in cv.sent[-1]
+    assert cv.asked[-1].mode == "explore" and cv.asked[-1].question == q
+    assert "How would you like this answered" not in " ".join(cv.sent)
+    assert "Want a quick yes/no instead? Reply *yes or no*." in " ".join(cv.sent)
+    cv.run("yes or no")
+    assert "number from 1 to 249" in cv.sent[-1]
     cv.run("7")
     assert cv.asked[-1].mode == "yesno" and cv.asked[-1].question == q
 
 
-@pytest.mark.parametrize("reply", ["2", "detailed", "Detailed reading", "lectura detallada"])
-def test_choosing_detailed_gives_the_regular_read(m, monkeypatch, reply):
+def test_yesno_footer_is_localised_and_absent_for_open_questions(m, monkeypatch):
     cv = _Conv(m, monkeypatch, link=_link())
-    cv.run("Will I get the job?")
-    cv.run(reply)
-    assert cv.asked[-1].mode == "explore" and cv.asked[-1].question == "Will I get the job?"
-    assert "Reply *yes or no*" not in cv.sent[-1]
-
-
-def test_choosing_yes_or_no_by_words_and_list_tap(m, monkeypatch):
-    cv = _Conv(m, monkeypatch, link=_link(), answer=dict(_YN_ANSWER))
     cv.run("¿Voy a conseguir el trabajo?")
-    assert "1  *Sí o no*" in cv.sent[-1]
-    cv.run("sí o no")
-    assert "1 al 249" in cv.sent[-1]                      # stays Spanish on a short reply
-    cv.run("7")
-    assert cv.asked[-1].mode == "yesno" and cv.asked[-1].language == "es"
-    cv.run("Will I get the job?")
-    cv.run("Detailed reading", choice_id="yn:read")             # list tap
-    assert cv.asked[-1].mode == "explore" and cv.asked[-1].question == "Will I get the job?"
+    assert "sí o no" in " ".join(cv.sent).lower() and "Want a quick" not in " ".join(cv.sent)
+    cv2 = _Conv(m, monkeypatch, link=_link())
+    cv2.run("How is my career looking this year overall")
+    assert "quick yes/no" not in " ".join(cv2.sent)
 
 
 def test_a_new_question_instead_of_choosing_moves_on(m, monkeypatch):
