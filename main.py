@@ -12893,7 +12893,7 @@ from antar_engine.places_intel import compute_age as _prac_age
 _PRACTICE_CACHE = {}
 # Bump when the practice copy changes (Rituals wording 2026-10-10: no "season") so cached
 # same-day cards, L1 and the shared DB L2, are not served with the old text.
-_PRACTICE_COPY_VER = "w2"
+_PRACTICE_COPY_VER = "w3"
 _PRACTICE_TTL = 86400
 
 
@@ -13499,6 +13499,11 @@ async def daily_practice(request: DailyPracticeRequest, authorization: Optional[
                     endpoint_name="daily-practice-names", chart_id=request.chart_id)
         except Exception as _ne:
             print(f"[practice names i18n] {_ne}")
+    try:
+        from antar_engine.remedy_schedule import annotate_practice_response
+        annotate_practice_response(resp, local_today, request.language)
+    except Exception as _rse:
+        print(f"[remedy-schedule] non-fatal: {_rse}")
     _PRACTICE_CACHE[ckey] = (_prac_time.time() + _PRACTICE_TTL, resp)
     # [daily-db-cache 2026-06-16] write-through to the shared DB cache
     _daily_surface_put(request.chart_id, "practice", request.language,
