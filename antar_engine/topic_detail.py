@@ -94,6 +94,55 @@ _JARGON = re.compile(
     r"rahu|ketu|saturn|jupiter|mars|venus|mercury|d-?\d{1,2}|houses? \d+|\d+(?:st|nd|rd|th) house)\b", re.I)
 
 
+# ── one balanced headline for an open window that also carries a caution ─────────────────────────
+_CONFLICT_RX = re.compile(r"conflict|argument|fight|tension|friction|quarrel|dispute|sharp word|"
+                          r"conflicto|discusi|tensi|conflito|disputa|tanaav|jhagd|behes", re.I)
+_TIMING_RX = re.compile(r"sign|commit|decision|decid|rush|delay|timing|talk|message|negotiat|promise|"
+                        r"firm|decisi|compromet|prisa|assin|decis|pressa|vaada|faisl|jaldi", re.I)
+
+
+def caution_kind(note: Optional[str], topic: str) -> str:
+    """risk / conflict / timing / neutral for the caution's own text (the risk cue is the one the
+    Right-now caution already uses; `relevance` keeps it to a sentence about this topic or no topic)."""
+    t = str(note or "")
+    if not t or relevance(t, topic) == "other":
+        return "neutral"
+    if _RISK_RX.search(t):
+        return "risk"
+    if _CONFLICT_RX.search(t):
+        return "conflict"
+    if _TIMING_RX.search(t):
+        return "timing"
+    return "neutral"
+
+
+def _week_tail(note: Optional[str], lang: str) -> str:
+    """', especially the week of October 10' from 'Week of October 10 - ...', else ''."""
+    head = re.split(r"\s[\u2014\u2013-]\s", str(note or ""), maxsplit=1)[0].strip().rstrip(".")
+    if not head or len(head) > 40 or not _WEEK_RX.match(head):
+        return ""
+    w = head[0].lower() + head[1:]
+    return C.pick(C.BAL_TAIL, lang).format(when=C.pick(C.BAL_WEEK, lang).format(w=w))
+
+
+def balanced(out: dict, lang: str, note: Optional[str], tail: str = "") -> dict:
+    """Open window + caution -> ONE headline sentence ('Today, good for income and pricing, but careful
+    with speculative moves.') and a Your move that agrees. The raw caution text stays in
+    `detail.caution_note`. Returns a new dict."""
+    topic, scale = out.get("topic"), out.get("scale")
+    kind = caution_kind(note, topic)
+    good = C.pick(C.BAL_GOOD, lang)[topic]
+    care = C.pick(C.BAL_CARE, lang)[topic][kind]
+    out = dict(out)
+    out["claim"] = C.pick(C.BAL_JOIN, lang).format(
+        lead=C.pick(C.SPAN_LEAD, lang)[scale], good=good, care=care, tail=tail)
+    if out.get("your_move"):
+        add = C.pick(C.KEEP_SMALL, lang) if kind == "risk" else C.pick(C.BAL_MOVE, lang).format(care=care)
+        if add not in out["your_move"] and not (kind == "risk" and re.search(r"\b(bet|bets|apuesta|aposta|daav)\b", out["your_move"], re.I)):
+            out["your_move"] = f"{out['your_move'].rstrip()} {add}"
+    return out
+
+
 def _s(v, cap: int = 600) -> Optional[str]:
     """A clean engine string, or None (empty / jargon / not text)."""
     if not isinstance(v, str):
@@ -481,16 +530,13 @@ def reconcile(out: dict, daily: Optional[dict], lang: str) -> dict:
             return out
         out = dict(out)
         out["detail"] = dict(out.get("detail") or {}, caution_note=note)
-        if out.get("tone") == "open" and out.get("your_move"):
-            add = C.pick(C.KEEP_SMALL, out.get("language") or "en")
-            if add not in out["your_move"]:
-                out["your_move"] = f"{out['your_move'].rstrip()} {add}"
-        if out.get("tone") in ("open", "steady") and out.get("claim"):   # the claim says it too, in the day's own words
-            if out["tone"] == "steady":
-                area = C.pick(C.AREA, out.get("language") or "en")[out["topic"]]
-                out["claim"] = C.pick(C.LEAD_JOIN, out.get("language") or "en").format(
-                    lead=C.pick(C.SPAN_LEAD, out.get("language") or "en")["today"],
-                    core=C.pick(C.TODAY_CAUTION_CORE, out.get("language") or "en").format(area=area))
+        if out.get("tone") == "open" and out.get("claim"):   # one balanced sentence; the raw caution stays in the detail
+            return balanced(out, out.get("language") or "en", note)
+        if out.get("tone") == "steady" and out.get("claim"):   # the claim says it too, in the day's own words
+            area = C.pick(C.AREA, out.get("language") or "en")[out["topic"]]
+            out["claim"] = C.pick(C.LEAD_JOIN, out.get("language") or "en").format(
+                lead=C.pick(C.SPAN_LEAD, out.get("language") or "en")["today"],
+                core=C.pick(C.TODAY_CAUTION_CORE, out.get("language") or "en").format(area=area))
             if note not in out["claim"]:
                 out["claim"] = f"{out['claim'].rstrip()} {note}"
         return out
@@ -515,6 +561,8 @@ def reconcile_year(out: dict, lang: str) -> dict:
             core = C.pick(C.YEAR_CAUTION_CORE, lang).format(area=area, when=cau["when"])
             out["claim"] = C.pick(C.LEAD_JOIN, lang).format(lead=C.pick(C.SPAN_LEAD, lang)["year"], core=core)
             out["why"] = out.get("why") or ""
+        elif out.get("tone") == "open":
+            return balanced(out, lang, cau["text"], C.pick(C.BAL_TAIL, lang).format(when=cau["when"]))
         else:
             tail = C.pick(C.YEAR_CAUTION_TAIL, lang).format(when=cau["when"])
             if tail not in out.get("claim", ""):
@@ -541,6 +589,8 @@ def reconcile_month(out: dict, lang: str) -> dict:
             area = C.pick(C.AREA, lang)[out["topic"]]
             core = C.pick(C.MONTH_CAUTION_CORE, lang).format(area=area)
             out["claim"] = C.pick(C.LEAD_JOIN, lang).format(lead=C.pick(C.SPAN_LEAD, lang)["month"], core=core)
+        if out.get("tone") == "open":
+            return balanced(out, lang, note, _week_tail(note, lang))
         if note not in out.get("claim", ""):
             out["claim"] = f"{out['claim'].rstrip()} {note}"
         return out
