@@ -630,7 +630,7 @@ def _period(ctx: TopicContext, scale: str, today: date, lang: str) -> dict:
         if e is None or e < today:
             s, e, approx = today, today + timedelta(days=365), True
         return {"start": s, "end": e, "approximate": approx, "span": None,
-                "label": C.pick(C.CHAPTER_LABEL, lang).format(end=C.month_year_short(e, lang)),
+                "label": C.pick(C.CHAPTER_LABEL_WHOLE, lang).format(end=C.month_year_short(e, lang)),
                 "chip": C.pick(C.CHIP, lang)["chapter"], "rung": "chapter"}
     pl = C.PERIOD_LABEL[lang][scale]
     span = None

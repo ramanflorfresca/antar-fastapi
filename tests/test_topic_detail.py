@@ -371,21 +371,21 @@ def test_year_chip_uses_real_previous_and_next_birthdays():
     assert T._period(_ctx("1990-11-26"), "year", TODAY, "es")["chip"] == "26/11/25 – 26/11/26"
 
 
-@pytest.mark.parametrize("lang,chip", [("en", "Life chapter"), ("es", "Capítulo de vida"),
-                                       ("pt", "Capítulo de vida"), ("hinglish", "Life chapter")])
+@pytest.mark.parametrize("lang,chip", [("en", "Whole chapter"), ("es", "Capítulo completo"),
+                                       ("pt", "Capítulo completo"), ("hinglish", "Poora chapter")])
 def test_chapter_period_chip_and_label(lang, chip):
     p = T._period(_ctx(), "chapter", TODAY, lang)
     assert p["chip"] == chip and p["rung"] == "chapter"
     assert (p["start"], p["end"]) == (date(2023, 1, 1), date(2044, 8, 13))
-    assert p["label"] == C.CHAPTER_LABEL[lang].format(end=C.month_year_short(date(2044, 8, 13), lang))
-    assert p["label"].startswith({"en": "Your current life chapter · to", "es": "Tu capítulo de vida actual · hasta",
-                                  "pt": "O seu capítulo de vida atual · até", "hinglish": "Aapka maujooda life chapter"}[lang])
+    assert p["label"] == C.CHAPTER_LABEL_WHOLE[lang].format(end=C.month_year_short(date(2044, 8, 13), lang))
+    assert p["label"].startswith({"en": "Your whole life chapter · to", "es": "Todo tu capítulo de vida · hasta",
+                                  "pt": "Todo o seu capítulo de vida · até", "hinglish": "Aapka poora life chapter"}[lang])
 
 
 def test_chapter_read_keeps_the_stretch_label_as_the_secondary_line():
     r = T.read_topic(_ctx(), "money", "chapter", TODAY, "en", with_best_fit=False)
-    assert r["scale"] == "chapter" and r["period"]["rung"] == "chapter" and r["period"]["chip"] == "Life chapter"
-    assert r["period"]["label"] == "Your current life chapter · to Aug 2044"
+    assert r["scale"] == "chapter" and r["period"]["rung"] == "chapter" and r["period"]["chip"] == "Whole chapter"
+    assert r["period"]["label"] == "Your whole life chapter · to Aug 2044"
     assert r["period"]["stretch_label"].startswith("The next ") and "2029" in r["period"]["stretch_label"]
     assert r["claim"].startswith("Across your current life chapter")
     assert (r["period"]["start"], r["period"]["end"]) == ("2023-01-01", "2044-08-13")

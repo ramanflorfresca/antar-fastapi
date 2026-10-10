@@ -184,10 +184,10 @@ def range_label(start: date, end: date, lang: str) -> str:
 # the numeric birthday-to-birthday range; never "this year" / "365" / "season".
 RUNG_BY_SCALE = {"today": "now", "month": "30d", "year": "year", "season": "stretch", "chapter": "chapter"}
 CHIP: Dict[str, Dict[str, str]] = {
-    "en": {"today": "Right now", "month": "Next 30 days", "season": "Life chapter", "chapter": "Life chapter"},
-    "es": {"today": "Ahora", "month": "Próximos 30 días", "season": "Capítulo de vida", "chapter": "Capítulo de vida"},
-    "pt": {"today": "Agora", "month": "Próximos 30 dias", "season": "Capítulo de vida", "chapter": "Capítulo de vida"},
-    "hinglish": {"today": "Abhi", "month": "Agle 30 din", "season": "Life chapter", "chapter": "Life chapter"},
+    "en": {"today": "Right now", "month": "Next 30 days", "season": "Life chapter", "chapter": "Whole chapter"},
+    "es": {"today": "Ahora", "month": "Próximos 30 días", "season": "Capítulo de vida", "chapter": "Capítulo completo"},
+    "pt": {"today": "Agora", "month": "Próximos 30 dias", "season": "Capítulo de vida", "chapter": "Capítulo completo"},
+    "hinglish": {"today": "Abhi", "month": "Agle 30 din", "season": "Life chapter", "chapter": "Poora chapter"},
 }
 
 
@@ -255,6 +255,9 @@ SPAN_LEAD_SEASON: Dict[str, Dict[str, str]] = {   # "<lead>, <core>."
 CHAPTER_LABEL: Dict[str, str] = {   # the whole current major period; the stretch label stays the secondary line
     "en": "Your current life chapter · to {end}", "es": "Tu capítulo de vida actual · hasta {end}",
     "pt": "O seu capítulo de vida atual · até {end}", "hinglish": "Aapka maujooda life chapter · {end} tak"}
+CHAPTER_LABEL_WHOLE: Dict[str, str] = {   # the chapter rung's own label, distinct from the stretch's "current life chapter"
+    "en": "Your whole life chapter · to {end}", "es": "Todo tu capítulo de vida · hasta {end}",
+    "pt": "Todo o seu capítulo de vida · até {end}", "hinglish": "Aapka poora life chapter · {end} tak"}
 CHAPTER_LEAD: Dict[str, str] = {
     "en": "Across your current life chapter", "es": "A lo largo de tu capítulo de vida actual",
     "pt": "Ao longo do seu capítulo de vida atual", "hinglish": "Aapke maujooda life chapter mein"}
