@@ -38802,6 +38802,11 @@ def get_network(chart_id: str, language: str = "en"):
     _notes = _connection_notes_bulk(chart_id, [p["connection_chart_id"] for p in people])
     for p in people:
         p["note"] = _notes.get(p["connection_chart_id"], "")
+        try:
+            from antar_engine.connection_note import split_note
+            p.update(split_note(p["note"]))
+        except Exception:
+            pass
 
     # fire-and-forget: warm the first few COLD connections for next time (see
     # _network_prewarm). /network's own response stays a pure cache read.
@@ -39282,7 +39287,13 @@ def get_connection_note(chart_id: str, connection_chart_id: str):
     """The user's free-text note on this saved person. Always 200 (empty if none)."""
     if not chart_id or not connection_chart_id:
         raise HTTPException(status_code=400, detail="chart_id and connection_chart_id required")
-    return {"success": True, **_connection_note_get(chart_id, connection_chart_id)}
+    _n = _connection_note_get(chart_id, connection_chart_id)
+    try:
+        from antar_engine.connection_note import split_note
+        _parts = split_note((_n or {}).get("note"))
+    except Exception:
+        _parts = {}
+    return {"success": True, **_n, **_parts}
 
 
 @app.put("/api/v1/network/{chart_id}/person/{connection_chart_id}/note")
