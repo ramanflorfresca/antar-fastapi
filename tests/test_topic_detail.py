@@ -252,7 +252,8 @@ def test_caution_is_reconciled_with_an_open_window():
     d = D.build_detail("money", "today", SRC, TODAY)
     assert d["caution_note"] == DAILY["headline"]
     out = D.reconcile(_open_today(detail=d), DAILY, "en")
-    assert out["claim"] == _open_today()["claim"] + " " + DAILY["headline"]    # the open-window headline stays, then the day's own caution
+    assert out["claim"] == "Today, good for income and pricing, but careful with speculative moves."   # ONE balanced sentence
+    assert DAILY["headline"] not in out["claim"]
     assert out["your_move"] == "Act on one income or pricing decision today. But keep any bet small."
     assert out["detail"]["caution_note"] == DAILY["headline"]
     assert D.reconcile(out, DAILY, "en")["your_move"] == out["your_move"]      # idempotent
@@ -431,11 +432,11 @@ def test_route_attaches_detail_and_reconciles(client, monkeypatch):
     assert r.status_code == 200
     body = r.json()
     assert body["detail"]["do"] and body["detail"]["caution_note"] == DAILY["headline"]
-    assert body["your_move"].endswith("But keep any bet small.") and body["claim"] == "Today, a good stretch. " + DAILY["headline"]
+    assert body["your_move"].endswith("But keep any bet small.") and body["claim"] == "Today, good for income and pricing, but careful with speculative moves."
     assert calls == ["daily"]
     c.get("/api/v1/chart/c/topic-read?topic=money&scale=today&tz_offset=-240")
     assert calls == ["daily"]                                                     # second hit is served from the cache
-    assert any(k[:2] == ("topic-read", "v9-detail") for k in te._CACHE)           # version-salted key
+    assert any(k[:2] == ("topic-read", "v10-balanced") for k in te._CACHE)           # version-salted key
 
 
 @pytest.mark.parametrize("scale,need", [("month", "month"), ("year", "year"), ("season", "arc"), ("chapter", "arc")])
@@ -503,7 +504,7 @@ def test_year_claim_reconciles_in_every_language(lang):
 def test_open_year_keeps_its_claim_and_gains_a_watch_note():
     base = _year_out("open")
     out = D.reconcile_year(base, "en")
-    assert out["claim"] == base["claim"] + " Watch Nov 2026."
+    assert out["claim"] == "Over your year, to your birthday, good for income and pricing, but gentle with big commitments, especially Nov 2026."
     assert D.reconcile_year(out, "en")["claim"] == out["claim"]
 
 
@@ -524,7 +525,9 @@ def _month_out(tone="open", lang="en", topic="money"):
 def test_open_month_claim_gains_the_caution_week():
     base = _month_out()
     out = D.reconcile_month(base, "en")
-    assert out["claim"] == base["claim"] + " " + MONTH["caution_week"]
+    assert out["claim"] == ("Over the next 30 days, good for income and pricing, but careful with speculative moves, "
+                            "especially the week of October 9.")
+    assert MONTH["caution_week"] not in out["claim"]
     assert out["detail"]["caution_note"] == MONTH["caution_week"]
     assert D.reconcile_month(out, "en")["claim"] == out["claim"]               # idempotent
 
@@ -539,7 +542,7 @@ def test_steady_month_claim_is_replaced_not_contradicted():
 @pytest.mark.parametrize("lang", LANGS)
 def test_month_claim_reconciles_in_every_language(lang):
     out = D.reconcile_month(_month_out("steady", lang), lang)
-    assert out["claim"].startswith(C.SPAN_LEAD[lang]["month"]) and out["claim"].endswith(MONTH["caution_week"])
+    assert out["claim"].startswith(C.SPAN_LEAD[lang]["month"]) and out["claim"].endswith(MONTH["caution_week"]), out["claim"]
     assert not _JARGON.search(C.MONTH_CAUTION_CORE[lang])
 
 
@@ -561,10 +564,81 @@ def test_steady_today_claim_is_replaced_by_the_caution():
 def test_today_claim_carries_the_caution_in_every_language(lang):
     for tone in ("open", "steady"):
         out = D.reconcile(_open_today(tone=tone, language=lang), DAILY, lang)
-        assert out["claim"].endswith(DAILY["headline"])
+        if tone == "steady":
+            assert out["claim"].endswith(DAILY["headline"])
+        else:
+            assert DAILY["headline"] not in out["claim"]
     assert not _JARGON.search(C.TODAY_CAUTION_CORE[lang])
 
 
 def test_care_today_claim_is_left_alone():
     base = _open_today(tone="care")
     assert D.reconcile(base, DAILY, "en")["claim"] == base["claim"]
+
+
+# ── one balanced headline: open window + caution -> one sentence, not two ────
+_SENT = re.compile(r"[.!?](?:\s|$)")
+_OUTCOME = re.compile(r"\b(will (get|win|succeed|earn|gain)|you.ll (win|get|succeed)|guaranteed|"
+                      r"ganar|vas a (ganar|lograr)|vai (ganhar|conseguir)|jeetenge)\b", re.I)
+
+
+def _one_sentence(claim):
+    return len(_SENT.findall(claim.strip())) == 1
+
+
+@pytest.mark.parametrize("lang", LANGS)
+def test_today_balanced_headline_is_one_sentence_with_both_halves(lang):
+    out = D.reconcile(_open_today(language=lang), DAILY, lang)
+    assert _one_sentence(out["claim"]), out["claim"]
+    assert C.BAL_GOOD[lang]["money"] in out["claim"] and C.BAL_CARE[lang]["money"]["risk"] in out["claim"]
+    assert DAILY["headline"] not in out["claim"] and "hold off" not in out["claim"].lower()
+    assert out["detail"]["caution_note"] == DAILY["headline"]
+    assert out["your_move"].count(C.KEEP_SMALL[lang]) == 1
+
+
+@pytest.mark.parametrize("lang", LANGS)
+def test_month_balanced_headline_carries_the_week_in_the_same_sentence(lang):
+    out = D.reconcile_month(_month_out("open", lang), lang)
+    assert _one_sentence(out["claim"]), out["claim"]
+    assert C.BAL_GOOD[lang]["money"] in out["claim"] and C.BAL_CARE[lang]["money"]["risk"] in out["claim"]
+    assert MONTH["caution_week"] not in out["claim"] and "October 9" in out["claim"] or lang != "en"
+    assert out["detail"]["caution_note"] == MONTH["caution_week"]
+
+
+@pytest.mark.parametrize("lang", LANGS)
+def test_year_balanced_headline_is_one_sentence(lang):
+    out = D.reconcile_year(_year_out("open", lang), lang)
+    assert _one_sentence(out["claim"]) and "Nov 2026" in out["claim"], out["claim"]
+
+
+def test_non_risk_caution_picks_a_matching_careful_phrase_and_move():
+    note = {"headline": "Tension is high today - a sharp argument with a colleague is likely.",
+            "domains": [{"key": "work", "state": "caution", "line": "Tension is high today - a sharp argument with a colleague is likely."}]}
+    out = D.reconcile(_open_today(topic="career", your_move="Make your ask."), note, "en")
+    assert out["claim"] == "Today, open for making your ask, but careful about burning bridges."
+    assert out["your_move"] == "Make your ask. But stay careful about burning bridges."
+    assert "bet" not in out["your_move"]
+
+
+def test_unmappable_caution_uses_the_neutral_phrase():
+    assert D.caution_kind("Something is off.", "money") == "neutral"
+    assert D.caution_kind(None, "money") == "neutral"
+
+
+def test_balanced_copy_is_complete_plain_and_outcome_free():
+    for lang in LANGS:
+        assert set(C.BAL_GOOD[lang]) == set(KEYS) == set(C.BAL_CARE[lang])
+        strings = [C.BAL_JOIN[lang], C.BAL_TAIL[lang], C.BAL_WEEK[lang], C.BAL_MOVE[lang]] + list(C.BAL_GOOD[lang].values())
+        for t in KEYS:
+            assert set(C.BAL_CARE[lang][t]) == {"risk", "timing", "conflict", "neutral"}
+            strings += list(C.BAL_CARE[lang][t].values())
+        for x in strings:
+            assert not _JARGON.search(x) and not _OUTCOME.search(x), (lang, x)
+
+
+def test_no_caution_and_steady_cases_are_unchanged():
+    base = _open_today()
+    assert D.reconcile(base, dict(DAILY, headline="A calm day.", active_domains=[], domains=[]), "en") == base
+    steady = D.reconcile(_open_today(tone="steady"), DAILY, "en")
+    assert steady["claim"].startswith("Today, keep it quiet on money and income.")
+    assert D.reconcile_month(_month_out("care"), "en")["claim"].endswith(MONTH["caution_week"])

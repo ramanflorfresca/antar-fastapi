@@ -402,6 +402,102 @@ TODAY_CAUTION_CORE: Dict[str, str] = {   # a steady Right-now read on a day that
     "pt": "vá com calma em {area}", "hinglish": "{area} mein shaant rahein"}
 YEAR_CAUTION_TAIL: Dict[str, str] = {   # appended to a year read that has a window but also a demanding stretch
     "en": "Watch {when}.", "es": "Vigila {when}.", "pt": "Observe {when}.", "hinglish": "{when} par nazar rakhein."}
+# ── one balanced headline: "<lead>, good for X, but careful with Y" (open window + a caution) ──
+BAL_GOOD: Dict[str, Dict[str, str]] = {
+    "en": {"money": "good for income and pricing", "career": "open for making your ask",
+           "love": "good for honest, warm conversations", "health": "good for steady movement and rest",
+           "business": "good for talks and follow-ups", "peace": "good for quiet focus and reflection",
+           "family": "good for time with the people at home"},
+    "es": {"money": "bueno para ingresos y precios", "career": "abierto para hacer tu petición",
+           "love": "bueno para conversaciones cálidas y sinceras", "health": "bueno para moverte con constancia y descansar",
+           "business": "bueno para conversaciones y seguimientos", "peace": "bueno para el enfoque tranquilo y la reflexión",
+           "family": "bueno para estar con la gente de casa"},
+    "pt": {"money": "bom para renda e preços", "career": "aberto para fazer o seu pedido",
+           "love": "bom para conversas calorosas e sinceras", "health": "bom para movimento constante e descanso",
+           "business": "bom para conversas e acompanhamentos", "peace": "bom para foco tranquilo e reflexão",
+           "family": "bom para o tempo com as pessoas de casa"},
+    "hinglish": {"money": "income aur pricing ke liye achha", "career": "apni baat rakhne ke liye khula",
+                 "love": "saaf, garm baat-cheet ke liye achha", "health": "sthir movement aur aaram ke liye achha",
+                 "business": "baat-cheet aur follow-up ke liye achha", "peace": "shaant focus aur sochne ke liye achha",
+                 "family": "ghar ke logon ke saath samay ke liye achha"},
+}
+# the careful half, by what the caution is about: risk (spending / speculation), timing (talk / commitments),
+# conflict (friction), neutral (cannot tell). Each reads after "but" and after the Your-move hedge prefix.
+BAL_CARE: Dict[str, Dict[str, Dict[str, str]]] = {
+    "en": {
+        "money": {"risk": "careful with speculative moves", "timing": "careful with signing or committing fast",
+                  "conflict": "careful with money arguments", "neutral": "gentle with big commitments"},
+        "career": {"risk": "careful with risky bets", "timing": "careful with rushed decisions",
+                   "conflict": "careful about burning bridges", "neutral": "gentle with big commitments"},
+        "love": {"risk": "careful with big leaps", "timing": "careful with rushed promises",
+                 "conflict": "careful with sharp words", "neutral": "gentle with big commitments"},
+        "health": {"risk": "careful with pushing too hard", "timing": "careful with skipping rest",
+                   "conflict": "careful with stress and strain", "neutral": "gentle with big commitments"},
+        "business": {"risk": "careful with risky bets", "timing": "careful with signing too fast",
+                     "conflict": "careful with tense negotiations", "neutral": "gentle with big commitments"},
+        "peace": {"risk": "careful with overreaching", "timing": "careful with overloading your day",
+                  "conflict": "careful with heated moments", "neutral": "gentle with big commitments"},
+        "family": {"risk": "careful with big family spending", "timing": "careful with rushed decisions at home",
+                   "conflict": "careful with old arguments", "neutral": "gentle with big commitments"},
+    },
+    "es": {
+        "money": {"risk": "con cuidado con las jugadas especulativas", "timing": "con cuidado al firmar o comprometerte rápido",
+                  "conflict": "con cuidado con las discusiones de dinero", "neutral": "con calma con los grandes compromisos"},
+        "career": {"risk": "con cuidado con las apuestas arriesgadas", "timing": "con cuidado con las decisiones apuradas",
+                   "conflict": "con cuidado de no quemar puentes", "neutral": "con calma con los grandes compromisos"},
+        "love": {"risk": "con cuidado con los grandes saltos", "timing": "con cuidado con las promesas apuradas",
+                 "conflict": "con cuidado con las palabras duras", "neutral": "con calma con los grandes compromisos"},
+        "health": {"risk": "con cuidado de no exigirte demasiado", "timing": "con cuidado de no saltarte el descanso",
+                   "conflict": "con cuidado con el estrés y la tensión", "neutral": "con calma con los grandes compromisos"},
+        "business": {"risk": "con cuidado con las apuestas arriesgadas", "timing": "con cuidado al firmar demasiado rápido",
+                     "conflict": "con cuidado con las negociaciones tensas", "neutral": "con calma con los grandes compromisos"},
+        "peace": {"risk": "con cuidado de no abarcar demasiado", "timing": "con cuidado de no sobrecargar el día",
+                  "conflict": "con cuidado con los momentos acalorados", "neutral": "con calma con los grandes compromisos"},
+        "family": {"risk": "con cuidado con los grandes gastos familiares", "timing": "con cuidado con las decisiones apuradas en casa",
+                   "conflict": "con cuidado con las viejas discusiones", "neutral": "con calma con los grandes compromisos"},
+    },
+    "pt": {
+        "money": {"risk": "com cuidado com jogadas especulativas", "timing": "com cuidado ao assinar ou se comprometer rápido",
+                  "conflict": "com cuidado com discussões de dinheiro", "neutral": "com calma nos grandes compromissos"},
+        "career": {"risk": "com cuidado com apostas arriscadas", "timing": "com cuidado com decisões apressadas",
+                   "conflict": "com cuidado para não queimar pontes", "neutral": "com calma nos grandes compromissos"},
+        "love": {"risk": "com cuidado com grandes saltos", "timing": "com cuidado com promessas apressadas",
+                 "conflict": "com cuidado com palavras duras", "neutral": "com calma nos grandes compromissos"},
+        "health": {"risk": "com cuidado para não se exigir demais", "timing": "com cuidado para não pular o descanso",
+                   "conflict": "com cuidado com o estresse e a tensão", "neutral": "com calma nos grandes compromissos"},
+        "business": {"risk": "com cuidado com apostas arriscadas", "timing": "com cuidado ao assinar rápido demais",
+                     "conflict": "com cuidado com negociações tensas", "neutral": "com calma nos grandes compromissos"},
+        "peace": {"risk": "com cuidado para não abraçar demais", "timing": "com cuidado para não sobrecarregar o dia",
+                  "conflict": "com cuidado com momentos acalorados", "neutral": "com calma nos grandes compromissos"},
+        "family": {"risk": "com cuidado com grandes gastos da família", "timing": "com cuidado com decisões apressadas em casa",
+                   "conflict": "com cuidado com discussões antigas", "neutral": "com calma nos grandes compromissos"},
+    },
+    "hinglish": {
+        "money": {"risk": "risky daav se savdhaan", "timing": "jaldi sign ya commit karne se savdhaan",
+                  "conflict": "paison ki behes se savdhaan", "neutral": "bade commitments se pehle savdhaan"},
+        "career": {"risk": "risky daav se savdhaan", "timing": "jaldbaazi ke faislon se savdhaan",
+                   "conflict": "rishte bigaadne se savdhaan", "neutral": "bade commitments se pehle savdhaan"},
+        "love": {"risk": "bade chhalaang se savdhaan", "timing": "jaldbaazi ke vaadon se savdhaan",
+                 "conflict": "tikhe shabdon se savdhaan", "neutral": "bade commitments se pehle savdhaan"},
+        "health": {"risk": "zyada zor lagane se savdhaan", "timing": "aaram chhodne se savdhaan",
+                   "conflict": "stress aur khichaav se savdhaan", "neutral": "bade commitments se pehle savdhaan"},
+        "business": {"risk": "risky daav se savdhaan", "timing": "bahut jaldi sign karne se savdhaan",
+                     "conflict": "tanaav bhari negotiation se savdhaan", "neutral": "bade commitments se pehle savdhaan"},
+        "peace": {"risk": "zyada bojh lene se savdhaan", "timing": "din par zyada bojh daalne se savdhaan",
+                  "conflict": "garm pallon se savdhaan", "neutral": "bade commitments se pehle savdhaan"},
+        "family": {"risk": "ghar ke bade kharch se savdhaan", "timing": "ghar mein jaldbaazi ke faislon se savdhaan",
+                   "conflict": "purani behes se savdhaan", "neutral": "bade commitments se pehle savdhaan"},
+    },
+}
+BAL_JOIN: Dict[str, str] = {   # {lead}, {good}, but {care}{tail}.
+    "en": "{lead}, {good}, but {care}{tail}.", "es": "{lead}, {good}, pero {care}{tail}.",
+    "pt": "{lead}, {good}, mas {care}{tail}.", "hinglish": "{lead} {good}, lekin {care}{tail}."}
+BAL_TAIL: Dict[str, str] = {   # the specific week or month, inside the same sentence
+    "en": ", especially {when}", "es": ", sobre todo {when}", "pt": ", principalmente {when}",
+    "hinglish": ", khaaskar {when}"}
+BAL_WEEK: Dict[str, str] = {"en": "the {w}", "es": "la {w}", "pt": "a {w}", "hinglish": "{w}"}
+BAL_MOVE: Dict[str, str] = {   # Your move hedge when the caution is not about risk (risk uses KEEP_SMALL)
+    "en": "But stay {care}.", "es": "Eso sí, ve {care}.", "pt": "Mas vá {care}.", "hinglish": "Bas {care} rahein."}
 LEAD_JOIN: Dict[str, str] = {"en": "{lead}, {core}.", "es": "{lead}, {core}.",
                              "pt": "{lead}, {core}.", "hinglish": "{lead} {core}."}
 
