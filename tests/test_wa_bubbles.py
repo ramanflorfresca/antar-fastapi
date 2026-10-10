@@ -322,3 +322,32 @@ def test_portuguese_future_questions_take_the_decision_path():
               "Ele é a pessoa certa para mim?"):
         assert not d(q), q
     assert d("¿Volverá mi ex?") and d("Will my ex come back?") and not d("¿Cómo será mi año?")      # es / en unchanged
+
+
+def test_reconnection_move_is_the_same_for_the_same_verdict_in_every_language():
+    from antar_engine.ask_basis import stable_reconnection_move as mv
+    from antar_engine.answer_polish import polish_answer
+    chart, dashas = _chart()
+    en = mv("YES", chart, dashas, "en", "Oct 2026 – Jan 2027")
+    es = mv("YES", chart, dashas, "es", "oct 2026 – ene 2027")
+    pt = mv("YES", chart, dashas, "pt", "out 2026 – jan 2027")
+    assert en.startswith("Make one short, direct first contact inside your window (Oct 2026 – Jan 2027) — closeness reaches you through your own initiative and communication")
+    assert en.endswith("Don't follow up more than once.")
+    assert es.startswith("Haz un primer contacto breve y directo dentro de tu ventana (oct 2026 – ene 2027)") and "tu iniciativa y tu comunicación" in es
+    assert pt.startswith("Faça um primeiro contato breve e direto dentro da sua janela (out 2026 – jan 2027)") and "por este canal: a sua iniciativa e a sua comunicação." in pt and "por a " not in pt
+    assert mv("LIKELY", chart, dashas, "en", "x") == mv("SUPPORTED", chart, dashas, "en", "x")
+    wait = mv("NOT_YET", chart, dashas, "en", "Nov 2026 – Jan 2027")
+    assert wait.startswith("Don't initiate yet.") and "(Nov 2026 – Jan 2027)" in wait
+    assert mv("NO", chart, dashas, "pt", "").startswith("Não tome a iniciativa ainda.") and "()" not in mv("NO", chart, dashas, "pt", "")
+    assert mv("YES", chart, dashas, "hi", "x") == "" and mv("MAYBE", chart, dashas, "en", "x") == ""
+    # the polish pass replaces whatever the model wrote ("don't send another message") for a reconciliation answer
+    p = polish_answer({"read": "Yes — window open.", "verdict": "YES", "timing": "Oct 2026 – Jan 2027",
+                       "next": "Do not send another message this week."}, "en", "Will my ex come back?",
+                      concern="reconciliation", chart_data=chart, dashas=dashas)
+    assert p["next"] == en.replace("Oct 2026 – Jan 2027", "Oct 2026 – Jan 2027")
+    q = polish_answer({"read": "Not yet.", "verdict": "NOT_YET", "timing": "Nov 2026", "next": "Send a message today."},
+                      "en", "Will my ex come back?", concern="reconciliation", chart_data=chart, dashas=dashas)
+    assert q["next"].startswith("Don't initiate yet.")
+    other = polish_answer({"read": "ok", "verdict": "YES", "next": "Keep my move."}, "en", "Will I get the job?",
+                          concern="career", chart_data=chart, dashas=dashas)
+    assert other["next"] == "Keep my move."            # only the reconnection concern is touched

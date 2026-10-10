@@ -327,3 +327,60 @@ def running_period(dashas, language: str = "en") -> str:
         from antar_engine import ask_basis_es as _es
         return _es.running_period(dashas)
     return _period(dashas)
+
+
+# ── stable reconnection move ([ex-move 2026-10-10]) ─────────────────────────────────────────────────────
+# The verdict and window for "will my ex come back?" are the ENGINE's and now agree across en / es / pt, but the
+# move was rewritten by the model on every run: the same chart + verdict said "send one message", "don't send
+# another message" (assuming a first one) and "decide what you want first". A move that follows from the verdict
+# is deterministic: reach out ONCE inside the window on a yes / likely; hold off until it opens on a not-yet / no.
+_PT_CHANNEL = {1: "o seu esforço e a sua presença pessoal", 2: "a poupança e o dinheiro da família",
+               3: "a sua iniciativa e a sua comunicação", 4: "a sua base em casa e o patrimônio",
+               5: "o trabalho criativo e o ensino", 6: "o trabalho do dia a dia, o serviço e as rotinas",
+               7: "as parcerias e os acordos um a um", 8: "o dinheiro compartilhado e as reestruturações profundas",
+               9: "os mentores, o ensino e os planos de longo prazo", 10: "o seu trabalho público e a sua reputação",
+               11: "a sua rede de contatos e os seus ganhos", 12: "o trabalho nos bastidores, os vínculos com o exterior e o descanso"}
+_STABLE_GO = {"YES", "SUPPORTED", "LIKELY"}
+_STABLE_WAIT = {"NOT_YET", "NO", "NOT_THIS_YEAR"}
+_RECON_TX = {
+    "en": {"go": "Make one short, direct first contact inside your window{w} — closeness reaches you through {ch}, so reach out that way, then let them choose the next step. Don't follow up more than once.",
+           "wait": "Don't initiate yet. Use the time until your window{w} to decide what you want from it — then make one short, direct first contact when it opens.",
+           "w": " ({t})"},
+    "es": {"go": "Haz un primer contacto breve y directo dentro de tu ventana{w} — la cercanía te llega a través de {ch}, así que acércate por ahí y deja que la otra persona decida el siguiente paso. No insistas más de una vez.",
+           "wait": "No tomes la iniciativa todavía. Usa el tiempo hasta tu ventana{w} para decidir qué quieres de esto — y luego haz un primer contacto breve y directo cuando se abra.",
+           "w": " ({t})"},
+    "pt": {"go": "Faça um primeiro contato breve e direto dentro da sua janela{w} — a proximidade chega até você por este canal: {ch}. Procure por aí e deixe a outra pessoa decidir o próximo passo. Não insista mais de uma vez.",
+           "wait": "Não tome a iniciativa ainda. Use o tempo até a sua janela{w} para decidir o que você quer disso — e depois faça um primeiro contato breve e direto quando ela abrir.",
+           "w": " ({t})"},
+}
+
+
+def stable_reconnection_move(verdict, chart_data, dashas, language="en", timing="") -> str:
+    """The same move for the same verdict in en / es / pt; "" when the verdict, language or chart can't support one."""
+    try:
+        v = str(verdict or "").upper()
+        tx = _RECON_TX.get(language)
+        if not tx or v not in (_STABLE_GO | _STABLE_WAIT):
+            return ""
+        t = (timing or "").strip()
+        w = tx["w"].format(t=t) if t else ""
+        if v in _STABLE_WAIT:
+            return tx["wait"].format(w=w)
+        from antar_engine.ask_consultation import CONCERN_HOUSES
+        planets = (chart_data or {}).get("planets") or {}
+        lagna = ((chart_data or {}).get("lagna") or {}).get("sign")
+        houses = CONCERN_HOUSES.get("reconciliation")
+        if not houses or lagna not in _SIGNS or not planets:
+            return ""
+        h = _PRIMARY.get("reconciliation", houses[0])
+        lord = _LORD[_SIGNS[(_SIGNS.index(lagna) + h - 1) % 12]]
+        hs = (planets.get(lord) or {}).get("house")
+        if not isinstance(hs, int):
+            return ""
+        ch = {"en": _CHANNEL, "es": None, "pt": _PT_CHANNEL}[language]
+        if language == "es":
+            from antar_engine.ask_basis_es import _CHANNEL as _ES_CH
+            ch = _ES_CH
+        return tx["go"].format(w=w, ch=ch.get(hs, ""))
+    except Exception:
+        return ""
