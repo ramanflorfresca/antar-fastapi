@@ -578,6 +578,12 @@ def reconcile_year(out: dict, lang: str) -> dict:
         return out
 
 
+def _open_today_sentence(out: dict, lang: str) -> str:
+    """The month claim's 'Today itself is open ...' sentence, if the engine read put one there."""
+    sent = C.pick(C.MONTH_OPEN_TODAY, lang).format(area=C.pick(C.AREA, lang)[out["topic"]])
+    return sent if sent in (out.get("claim") or "") else ""
+
+
 def _month_careful_only(out: dict, det: dict, lang: str) -> dict:
     """The monthly engine marks the topic careful but has no caution week: a steady claim ('nothing sharp')
     cannot sit beside that, so it says the month is steady with one stretch to watch (and when, if known)."""
@@ -589,7 +595,8 @@ def _month_careful_only(out: dict, det: dict, lang: str) -> dict:
         s_, e_ = span
         when = C.range_label(s_, e_, lang)
         claim = f"{claim.rstrip()} " + C.pick(C.MONTH_WATCH_TAIL, lang).format(when=when)
-    return dict(out, claim=claim)
+    tail = _open_today_sentence(out, lang)
+    return dict(out, claim=f"{claim.rstrip()} {tail}" if tail else claim)
 
 
 def reconcile_month(out: dict, lang: str) -> dict:
@@ -605,12 +612,15 @@ def reconcile_month(out: dict, lang: str) -> dict:
             return _month_careful_only(out, det, lang)
         if out.get("scale") != "month" or not note or not (careful or relevance(note, out.get("topic")) == "yes"):
             return out
+        tail = _open_today_sentence(out, lang)
         out = dict(out)
         out["detail"] = dict(det, caution_note=note)
         if out.get("tone") == "steady":
             area = C.pick(C.AREA, lang)[out["topic"]]
             core = C.pick(C.MONTH_CAUTION_CORE, lang).format(area=area)
             out["claim"] = C.pick(C.LEAD_JOIN, lang).format(lead=C.pick(C.SPAN_LEAD, lang)["month"], core=core)
+            if tail:
+                out["claim"] = f"{out['claim']} {tail}"
         if out.get("tone") == "open":
             return balanced(out, lang, note, _week_tail(note, lang))
         if note not in out.get("claim", ""):

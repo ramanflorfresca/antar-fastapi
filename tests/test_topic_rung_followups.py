@@ -319,3 +319,44 @@ def test_month_read_does_not_lead_with_a_one_day_window(monkeypatch):
     monkeypatch.setattr(T, "_scan", lambda *a, **k: [((TODAY, TODAY + timedelta(days=6)), lit)])
     r = T.read_topic(ctx, "money", "month", TODAY, "en", with_best_fit=False)
     assert r["best_window"]["end"] == (TODAY + timedelta(days=6)).isoformat()
+
+
+# ── the month claim keeps today's lone open day as a note ───────────────────
+def _lone_today_month(monkeypatch, lang="en"):
+    ctx = _ctx()
+    base = T.assess(ctx, "money", TODAY, [])
+    lit = dict(base, lit=True, mode="open", score=3.0, n_signals=1)
+    quiet = dict(base, lit=False, mode="steady", score=0.0, n_signals=0)
+    monkeypatch.setattr(T, "_scan", lambda *a, **k: [((TODAY + timedelta(days=20), TODAY + timedelta(days=26)), quiet)])
+    monkeypatch.setattr(T, "assess", lambda c, k, on, ev: lit)
+    return T.read_topic(ctx, "money", "month", TODAY, lang, with_best_fit=False)
+
+
+@pytest.mark.parametrize("lang", LANGS)
+def test_month_claim_notes_a_lone_open_today(monkeypatch, lang):
+    r = _lone_today_month(monkeypatch, lang)
+    sent = C.pick(C.MONTH_OPEN_TODAY, lang).format(area=C.pick(C.AREA, lang)["money"])
+    assert r["best_window"] is None and r["tone"] == "steady" and r["claim"].endswith(sent)
+    assert not _JARGON.search(sent)
+
+
+def test_open_today_note_survives_the_caution_week_rewrite(monkeypatch):
+    out = _lone_today_month(monkeypatch)
+    out["detail"] = D.build_detail("money", "month", {"month": dict(MONTH, caution_week="Week of October 10 — a money bet can backfire fast.")}, TODAY)
+    out = D.reconcile_month(out, "en")
+    sent = "Today itself is open for money and income."
+    assert sent in out["claim"] and out["claim"].count(sent) == 1
+    assert out["claim"].endswith("a money bet can backfire fast.")
+    assert D.reconcile_month(out, "en")["claim"] == out["claim"]          # idempotent
+
+
+def test_no_open_today_note_when_a_real_window_leads_or_today_is_not_open(monkeypatch):
+    ctx = _ctx()
+    base = T.assess(ctx, "money", TODAY, [])
+    lit = dict(base, lit=True, mode="open", score=3.0, n_signals=1)
+    monkeypatch.setattr(T, "_scan", lambda *a, **k: [((TODAY, TODAY + timedelta(days=6)), lit)])
+    monkeypatch.setattr(T, "assess", lambda c, k, on, ev: lit)
+    r = T.read_topic(ctx, "money", "month", TODAY, "en", with_best_fit=False)
+    assert "Today itself" not in r["claim"]
+    monkeypatch.setattr(T, "assess", lambda c, k, on, ev: dict(base, lit=False, mode="steady", score=0.0, n_signals=0))
+    assert "Today itself" not in T.read_topic(ctx, "money", "month", TODAY, "en", with_best_fit=False)["claim"]
