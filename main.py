@@ -5135,6 +5135,10 @@ _WA_L = {
                   "es": "¿Cómo quieres que te responda?\n\n1  *Sí o no* — una respuesta directa\n2  *Lectura detallada* — lo que muestra tu carta, los tiempos y qué hacer",
                   "pt": "Como você quer a resposta?\n\n1  *Sim ou não* — uma resposta direta\n2  *Leitura detalhada* — o que seu mapa mostra, o momento e o que fazer",
                   "hinglish": "Iska jawab kaise chahiye?\n\n1  *Haan ya na* — seedha jawab\n2  *Detailed reading* — aapka chart kya dikhata hai, timing aur kya karein"},
+    "yn_footer": {"en": "_Want a quick yes/no instead? Reply *yes or no*._",
+                  "es": "_¿Prefieres un sí o no rápido? Responde *sí o no*._",
+                  "pt": "_Prefere um sim ou não rápido? Responda *sim ou não*._",
+                  "hinglish": "_Seedha haan ya na chahiye? *haan ya na* likhiye._"},
     "btn_answer": {"en": "Choose", "es": "Elegir", "pt": "Escolher", "hinglish": "Chuniye"},
     "opt_yesno": {"en": "Yes or no", "es": "Sí o no", "pt": "Sim ou não", "hinglish": "Haan ya na"},
     "opt_detail": {"en": "Detailed reading", "es": "Lectura detallada", "pt": "Leitura detalhada",
@@ -6420,14 +6424,8 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
                 _mode, _force_read = "explore", True
         except Exception:
             pass
-        if (_mode == "explore" and not _force_read and question == body
-                and _msg.is_yesno_question(question)):
-            ctx["choice_pending"] = {"q": question, "at": int(_time.time()), "lang": lang}
-            _save(ctx)
-            send_choices(_wa_text("yn_choice", lang), "btn_answer",
-                         [(_wa_text("opt_yesno", lang), "yn:kp", ""),
-                          (_wa_text("opt_detail", lang), "yn:read", "")])
-            return
+        # [ask-direct 2026-10-10] owner: no "How would you like this answered?" step — a yes/no-shaped question gets the
+        # detailed read straight away; a one-line footer offers the quick yes/no (reply "yes or no").
         # [whatsapp-prashna] Prashna is once per 24h per chart (app rule). While
         # locked, don't run the number ritual to replay an old cast: answer as a
         # regular read and say when the next Prashna opens.
@@ -6602,6 +6600,16 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
         if text and locals().get("_travel_note"):
             text = text + "\n\n" + _travel_note
         ctx.pop("last_q", None)
+        try:   # [ask-direct 2026-10-10] the quick yes/no is an offer under the read, not a step before it
+            if (text and (locals().get("_mode") or "explore") == "explore" and lang in ("en", "es", "pt", "hinglish")
+                    and _msg.is_yesno_question(question) and not payload.get("needs_clarification")
+                    and not locals().get("_kp_lock_note") and not locals().get("_spec_note")):
+                _foot = _wa_text("yn_footer", lang)
+                _ix = text.find("\n\n1  ")
+                text = (text[:_ix] + "\n\n" + _foot + text[_ix:]) if _ix != -1 else (text + "\n\n" + _foot)
+                ctx["last_q"] = question
+        except Exception:
+            pass
         if not text:
             send(_wa_text("failed", lang))
         else:
