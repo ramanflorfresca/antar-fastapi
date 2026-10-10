@@ -249,6 +249,12 @@ def _live_invites(sb, chart_id: str, now: datetime) -> list:
     return rows
 
 
+def share_message(first_name: str, language, link: str) -> dict:
+    """The ready-to-paste note, in the language the INVITEE will read."""
+    lang = CC.lang_of(language)
+    return {"language": lang, "message": CC.invite_share_message(lang, norm_first_name(first_name), link)}
+
+
 def create_invite(sb, chart_id: str, user_id: Optional[str], relation: str, first_name: str,
                   language: str, private_chart_id: Optional[str] = None,
                   position: Optional[int] = None, now: Optional[datetime] = None) -> dict:
@@ -354,7 +360,7 @@ def resend_invite(sb, chart_id: str, invite_id: str, now: Optional[datetime] = N
 
 
 # ── the invitee side ─────────────────────────────────────────────────────────
-def peek_invite(sb, code: str, now: Optional[datetime] = None) -> Optional[dict]:
+def peek_invite(sb, code: str, now: Optional[datetime] = None, language: Optional[str] = None) -> Optional[dict]:
     """Public landing data and NOTHING else: {inviter_first_name, relation, status, language}.
     `relation` is what the inviter is to the invitee. None for an unknown code; a missing
     table reads as an expired link, never an error."""
@@ -366,7 +372,8 @@ def peek_invite(sb, code: str, now: Optional[datetime] = None) -> Optional[dict]
         return {"inviter_first_name": None, "relation": None, "status": "expired", "language": "en"}
     if not inv:
         return None
-    lang = CC.lang_of(inv.get("language"))
+    invite_lang = CC.lang_of(inv.get("language"))
+    lang = CC.lang_of(language) if language else invite_lang      # the invitee's own choice wins
     status = public_status(inv, now)
     ch = chart_row(sb, inv.get("inviter_chart_id"))
     if not ch:                                       # inviter deleted their chart
@@ -374,7 +381,8 @@ def peek_invite(sb, code: str, now: Optional[datetime] = None) -> Optional[dict]
     rel_for_invitee = CC.inverse_relation(inv.get("relation_type") or "friend")
     return {"inviter_first_name": first_name_of(ch) or None,
             "relation": {"key": rel_for_invitee, "label": CC.rel_noun(rel_for_invitee, lang)},
-            "status": status, "language": lang}
+            "status": status, "language": lang, "invite_language": invite_lang,
+            "landing": CC.invite_landing(lang, first_name_of(ch))}
 
 
 def decline_invite(sb, code: str) -> bool:

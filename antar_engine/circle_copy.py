@@ -254,6 +254,57 @@ JOINT_QUESTION: Dict[str, Dict[str, str]] = {
     },
 }
 
+# ── the invite link: what the invitee reads on the landing, and the note the inviter sends ──
+# {inviter} is the inviter's first name (the only thing the landing may say about anyone).
+INVITE_LANDING: Dict[str, dict] = {
+    "en": {"headline": "{inviter} invited you to see what is between you",
+           "sub": "Add your own birth details and you will both see the dates where your good stretches line up, and the ones that ask for care.",
+           "bullets": ["Your best shared dates, in plain words", "Where to go gently with each other", "Your own day-by-day guide too, free to start"],
+           "cta": "See what is between us", "decline": "Not now",
+           "privacy": "Only you and {inviter} see this page. {inviter} never sees your birth details or your private readings, and you can leave any time."},
+    "es": {"headline": "{inviter} te invitó a ver lo que hay entre ustedes",
+           "sub": "Agrega tus propios datos de nacimiento y los dos verán las fechas en que sus buenas etapas coinciden, y las que piden cuidado.",
+           "bullets": ["Sus mejores fechas compartidas, en palabras claras", "Dónde ir con suavidad el uno con el otro", "Tu propia guía día a día, gratis para empezar"],
+           "cta": "Ver lo que hay entre nosotros", "decline": "Ahora no",
+           "privacy": "Solo tú y {inviter} ven esta página. {inviter} nunca ve tus datos de nacimiento ni tus lecturas privadas, y puedes salir cuando quieras."},
+    "pt": {"headline": "{inviter} convidou você para ver o que há entre vocês",
+           "sub": "Adicione seus próprios dados de nascimento e vocês dois verão as datas em que as boas fases coincidem, e as que pedem cuidado.",
+           "bullets": ["Suas melhores datas em comum, em palavras simples", "Onde ir com delicadeza um com o outro", "Seu próprio guia dia a dia, grátis para começar"],
+           "cta": "Ver o que há entre nós", "decline": "Agora não",
+           "privacy": "Só você e {inviter} veem esta página. {inviter} nunca vê seus dados de nascimento nem suas leituras privadas, e você pode sair quando quiser."},
+    "hinglish": {"headline": "{inviter} ne aapko invite kiya hai dekhne ke liye ki aap dono ke beech kya hai",
+                 "sub": "Apni birth details daaliye, phir aap dono ko woh dates dikhengi jab aapke achhe stretch milte hain, aur woh jahan savdhaani chahiye.",
+                 "bullets": ["Aap dono ki sabse achhi shared dates, saaf shabdon mein", "Ek doosre ke saath kahan narmi rakhni hai", "Aapki apni din-ba-din guide bhi, shuru karna free"],
+                 "cta": "Dekhiye hum dono ke beech kya hai", "decline": "Abhi nahin",
+                 "privacy": "Sirf aap aur {inviter} yeh page dekhte hain. {inviter} aapki birth details ya private readings kabhi nahin dekhte, aur aap kabhi bhi nikal sakte hain."},
+}
+
+# The note the inviter pastes into WhatsApp / SMS, written in the INVITEE's language.
+# {greet} may be empty (no name), {link} is the one-time link.
+INVITE_SHARE: Dict[str, str] = {
+    "en": "{greet}I added you on Antar. It shows the dates where our good stretches line up. Open it, it takes a minute: {link}",
+    "es": "{greet}Te agregué en Antar. Muestra las fechas en que coinciden nuestras buenas etapas. Ábrelo, toma un minuto: {link}",
+    "pt": "{greet}Adicionei você no Antar. Ele mostra as datas em que nossas boas fases coincidem. Abra, leva um minuto: {link}",
+    "hinglish": "{greet}Maine aapko Antar par add kiya hai. Yeh un dates ko dikhata hai jab hamare achhe stretch milte hain. Kholiye, ek minute lagega: {link}",
+}
+_GREET = {"en": "Hi {n}, ", "es": "Hola {n}, ", "pt": "Oi {n}, ", "hinglish": "Namaste {n}, "}
+_SOMEONE = {"en": "Someone", "es": "Alguien", "pt": "Alguém", "hinglish": "Koi"}
+
+
+def invite_landing(lang: str, inviter: str) -> dict:
+    d = pick(INVITE_LANDING, lang)
+    who = inviter or _SOMEONE.get(lang, "Someone")
+    return {"headline": d["headline"].format(inviter=who), "sub": d["sub"],
+            "bullets": list(d["bullets"]), "cta": d["cta"], "decline": d["decline"],
+            "privacy": d["privacy"].format(inviter=who)}
+
+
+def invite_share_message(lang: str, invitee: str, link: str) -> str:
+    greet = pick(_GREET, lang).format(n=invitee) if invitee else ""
+    return pick(INVITE_SHARE, lang).format(greet=greet, link=link)
+
+
 TEXTS = (REL_NOUN, GROUP_HEADING, BULLET, BASED_ON_BOTH, NONE_BEST, NONE_ALL, CARE_NOTE, HEADLINE_BEST,
          HEADLINE_NONE, DAY_UNSHARED, CHIPS, ASK_BEST, ASK_NONE, ASK_CARE, ASK_NEXT,
-         JOINT_QUESTION["best"], JOINT_QUESTION["watch"], NEXT_WINDOW["open"], NEXT_WINDOW["care"])    # for the jargon guard
+         JOINT_QUESTION["best"], JOINT_QUESTION["watch"], NEXT_WINDOW["open"], NEXT_WINDOW["care"],
+         INVITE_SHARE)    # for the jargon guard
