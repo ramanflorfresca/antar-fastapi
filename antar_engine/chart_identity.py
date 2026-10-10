@@ -198,9 +198,13 @@ def _reading(asc_sign, asc_lord, sun, moon, atma, chapter, lang: str = "en") -> 
                 line += f", así que {PL(asc_lord)} moldea cómo apareces"
             bits.append(line + ".")
         if sun and moon:
-            bits.append(f"Tu ser esencial se mueve por {S(sun['sign'])} mientras que tu "
-                        f"mundo interior es {S(moon['sign'])} — cómo actúas y cómo sientes "
-                        f"vienen de fuentes distintas.")
+            if sun["sign"] == moon["sign"]:
+                bits.append(f"Tu ser esencial y tu mundo interior comparten {S(sun['sign'])} "
+                            f"— cómo actúas y cómo sientes tiran en la misma dirección.")
+            else:
+                bits.append(f"Tu ser esencial se mueve por {S(sun['sign'])} mientras que tu "
+                            f"mundo interior es {S(moon['sign'])} — cómo actúas y cómo sientes "
+                            f"vienen de fuentes distintas.")
         if atma and PL(atma):
             bits.append(f"El hilo al que tu vida vuelve una y otra vez es {PL(atma)}.")
         if chapter.get("maha"):
@@ -219,9 +223,13 @@ def _reading(asc_sign, asc_lord, sun, moon, atma, chapter, lang: str = "en") -> 
                 line += f", então {PL(asc_lord)} molda como você aparece"
             bits.append(line + ".")
         if sun and moon:
-            bits.append(f"Seu ser essencial funciona em {S(sun['sign'])} enquanto seu "
-                        f"mundo interior é {S(moon['sign'])} — como você age e como você "
-                        f"sente vêm de fontes diferentes.")
+            if sun["sign"] == moon["sign"]:
+                bits.append(f"Seu ser essencial e seu mundo interior compartilham {S(sun['sign'])} "
+                            f"— como você age e como você sente puxam na mesma direção.")
+            else:
+                bits.append(f"Seu ser essencial funciona em {S(sun['sign'])} enquanto seu "
+                            f"mundo interior é {S(moon['sign'])} — como você age e como você "
+                            f"sente vêm de fontes diferentes.")
         if atma and PL(atma):
             bits.append(f"O fio ao qual sua vida sempre retorna é {PL(atma)}.")
         if chapter.get("maha"):
@@ -240,9 +248,13 @@ def _reading(asc_sign, asc_lord, sun, moon, atma, chapter, lang: str = "en") -> 
                 line += f", so {PL(asc_lord)} shapes how you show up"
             bits.append(line + ".")
         if sun and moon:
-            bits.append(f"Your core self runs on {sun['sign']} while your inner world is "
-                        f"{moon['sign']} — how you act and how you feel are drawn from "
-                        f"different wells.")
+            if sun["sign"] == moon["sign"]:
+                bits.append(f"Your core self and your inner world share {sun['sign']} "
+                            f"— how you act and how you feel pull the same way.")
+            else:
+                bits.append(f"Your core self runs on {sun['sign']} while your inner world is "
+                            f"{moon['sign']} — how you act and how you feel are drawn from "
+                            f"different wells.")
         if atma and PL(atma):
             bits.append(f"The thread your life keeps returning to is {PL(atma)}.")
         if chapter.get("maha"):
@@ -257,6 +269,123 @@ def _reading(asc_sign, asc_lord, sun, moon, atma, chapter, lang: str = "en") -> 
                     line += f", handing over to a phase of {PL(chapter['next_maha'])}"
             bits.append(line + ".")
     return " ".join(bits)
+
+
+# ── chart_summary: the "your chart in 60 seconds" card ───────────────────────
+# Plain life-language only (no planet, house or yoga names) so the You tab can
+# render it verbatim. Deterministic, built in-language, no LLM. See
+# Antar.world/SPEC_backend_fields_chart_summary_relation_why_2026-10-10.md.
+
+_DEBILITATED = {"Sun": "Libra", "Moon": "Scorpio", "Mars": "Cancer", "Mercury": "Pisces",
+                "Jupiter": "Capricorn", "Venus": "Virgo", "Saturn": "Aries"}
+_HARD_HOUSES = (6, 8, 12)
+_GROWTH_ORDER = ["Sun", "Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn", "Rahu", "Ketu"]
+
+_MONTHS = {
+    "en": ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+    "es": ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"],
+    "pt": ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"],
+}
+
+_SUMMARY_COPY = {
+    "en": {
+        "acts_from": "You act from {x}.",
+        "shows_up": "{x} shapes how you show up.",
+        "edge": "Under pressure, your {x} can pull a decision off course — check it before you commit.",
+        "phase": "You are in a long chapter about {m}.",
+        "phase_next": "You are in a long chapter about {m}; around {d} it hands over to {n}.",
+    },
+    "es": {
+        "acts_from": "Actúas desde {x}.",
+        "shows_up": "{x} moldea cómo apareces.",
+        "edge": "Bajo presión, tu {x} puede desviar una decisión — revísala antes de comprometerte.",
+        "phase": "Estás en un largo capítulo sobre {m}.",
+        "phase_next": "Estás en un largo capítulo sobre {m}; hacia {d} da paso a {n}.",
+    },
+    "pt": {
+        "acts_from": "Você age a partir de {x}.",
+        "shows_up": "{x} molda como você aparece.",
+        "edge": "Sob pressão, sua {x} pode desviar uma decisão — revise antes de se comprometer.",
+        "phase": "Você está num longo capítulo sobre {m}.",
+        "phase_next": "Você está num longo capítulo sobre {m}; por volta de {d} ele passa para {n}.",
+    },
+}
+
+
+def _month_year(lang: str, iso: Any) -> str:
+    d = _parse_day(iso)
+    if not d:
+        return ""
+    return f"{_MONTHS.get(lang, _MONTHS['en'])[d.month - 1]} {d.year}"
+
+
+def _growth_planet(planets: Any, maha: str) -> Optional[str]:
+    """The planet most likely to pull this chart's decisions off course: a
+    debilitated one first, else one sitting in a hard house; ties go to the
+    running chapter's planet, then a fixed order (deterministic)."""
+    cands = []
+    for p in _GROWTH_ORDER:
+        pl = _placement(planets, p)
+        if not pl:
+            continue
+        debil = _DEBILITATED.get(p) == pl.get("sign")
+        hard = pl.get("house") in _HARD_HOUSES
+        if debil or hard:
+            cands.append((0 if debil else 1, 0 if p == maha else 1, _GROWTH_ORDER.index(p), p))
+    return min(cands)[3] if cands else None
+
+
+def build_chart_summary(planets: Any, asc_lord: Optional[str], atma: Optional[str],
+                        yogas: List[Dict[str, Any]], chapter: Dict[str, Any],
+                        lang: str = "en") -> Optional[Dict[str, Any]]:
+    """{strengths[3], growth_edge, phase, phase_ends}, or None when fewer than
+    three distinct strengths can be named (never padded with generic lines).
+    `yogas` is the already de-jargoned, ranked list from build_chart_identity."""
+    c = _SUMMARY_COPY[lang]
+    PL = lambda p: _plain_l(lang, p)
+    strengths: List[str] = []
+    used_planets = set()
+
+    def _add(text: str) -> None:
+        if text and text not in strengths:
+            strengths.append(text)
+
+    # Independence: a yoga title, the soul-planet line and the rising-sign-lord
+    # line each rest on different evidence; skip a planet line whose planet was
+    # already used so the same energy is never counted twice.
+    for y in yogas:
+        if y.get("kind") == "strength" and y.get("strength", "").lower() in ("strong", "moderate"):
+            _add(y.get("name", ""))
+        if len(strengths) >= 2:
+            break
+    for planet, key in ((atma, "acts_from"), (asc_lord, "shows_up")):
+        if planet and planet not in used_planets and PL(planet) and len(strengths) < 3:
+            used_planets.add(planet)
+            x = PL(planet)
+            _add(c[key].format(x=x[:1].upper() + x[1:] if key == "shows_up" else x))
+    if len(strengths) < 3:
+        return None
+
+    maha = chapter.get("maha") or ""
+    edge_planet = _growth_planet(planets, maha)
+    growth_edge = c["edge"].format(x=PL(edge_planet)) if edge_planet and PL(edge_planet) else None
+
+    # The nearer handover (sub-chapter vs chapter) — never lead with a date 15y out.
+    ends = nxt = None
+    ends_sub = chapter.get("antar_ends"); ends_maha = chapter.get("maha_ends")
+    if ends_sub and chapter.get("next_antar") and (not ends_maha or ends_sub < ends_maha):
+        ends, nxt = ends_sub, chapter.get("next_antar")
+    elif ends_maha and chapter.get("next_maha"):
+        ends, nxt = ends_maha, chapter.get("next_maha")
+    phase = None
+    if PL(maha):
+        when = _month_year(lang, ends)
+        phase = (c["phase_next"].format(m=PL(maha), d=when, n=PL(nxt))
+                 if when and nxt and PL(nxt) else c["phase"].format(m=PL(maha)))
+
+    return {"strengths": strengths[:3], "growth_edge": growth_edge,
+            "phase": phase, "phase_ends": ends if phase else None}
+
 
 
 def build_chart_identity(chart_data: Any, vim_rows: Any = None,
@@ -357,5 +486,6 @@ def build_chart_identity(chart_data: Any, vim_rows: Any = None,
         "atmakaraka": {"planet": _planet_l(lang, atma), "means": _plain_l(lang, atma)} if atma else None,
         "current_period": chapter_loc or None,
         "yogas": yogas[:3],
+        "chart_summary": build_chart_summary(planets, asc_lord, atma, yogas, chapter, lang),
         "reading": _reading(asc_sign, asc_lord, sun, moon, atma, chapter, lang),
     }
