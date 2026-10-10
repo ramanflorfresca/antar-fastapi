@@ -122,6 +122,7 @@ _ACT = {
     "marriage": "closeness reaches you through {ch}, so make the first move there instead of waiting to be found",
     "wealth": "grow income through {ch}, and keep that money separate from what the venture draws on",
     "finance": "grow income through {ch}, and keep that money separate from what the venture draws on",
+    "speculation": "cap the amount at what you can afford to lose before you place anything — gains here leak back through {ch}",
     "property": "decide your ceiling and must-haves before viewing anything — {ch} drives this",
     "funding": "prepare the records first — the ask runs through {ch}",
     "health": "protect the routine that {ch} depends on — sleep and meal times first",
@@ -154,8 +155,98 @@ def chart_move(concern, chart_data, dashas, language="en") -> str:
         per = _period(dashas)
         end = per[per.find("ends ") + 5:per.rfind(")")] if "ends " in per else ""
         lead = (f"Because the ruler of your {_o(h)} house is weakened, results lag effort — " if weak
-                else f"The ruler of your {_o(h)} house sits in your {_o(pl['house'])} house: ")
+                else "")
         tail = f" Reassess when the current sub-period ends on {end}." if (weak and end) else ""
-        return (lead + act + "." + tail).replace(" — put", " — put")
+        out = lead + act + "." + tail
+        return out[0].upper() + out[1:]
+    except Exception:
+        return ""
+
+
+_BREAKS = {
+    "career": "effort scatters across several fronts, or you wait for a title instead of delivering a visible result",
+    "business": "effort scatters across several fronts, or you launch before one paying customer proves it",
+    "wealth": "spending and commitments rise as fast as income does",
+    "finance": "spending and commitments rise as fast as income does",
+    "funding": "spending and commitments rise as fast as income does, or the numbers aren't clean when you ask",
+    "speculation": "position size outruns what you can afford to lose",
+    "property": "you commit before your ceiling and your debt picture are settled",
+    "love": "contact drifts and nobody makes the first deliberate move",
+    "marriage": "contact drifts and nobody makes the first deliberate move",
+    "reconciliation": "the old pattern repeats unchanged, or the first move is rushed",
+    "children": "the foundations — health, finances, support — are left to chance",
+    "family": "the foundations — time, money, patience — are left to chance",
+    "health": "strain is pushed through without recovery time",
+    "education": "practice is irregular",
+}
+
+
+# per-topic wording: (holds when the ruler is fine, holds when it is weakened, what the weakness means)
+_HOLDS = {
+    "career":   ("It holds if you route the effort through {ch}, where this area of your chart actually delivers",
+                 "It holds if you build it through {ch} and let results compound",
+                 "recognition lags effort; steady visible work beats waiting{until}"),
+    "money":    ("It holds if you grow income through {ch}, where your chart actually pays",
+                 "It holds if you grow income through {ch} and let it compound",
+                 "returns lag effort; compounding beats chasing{until}"),
+    "speculation": ("It holds if you cap what you commit at what you can afford to lose",
+                    "It holds if you cap what you commit at what you can afford to lose",
+                    "gains arrive in surges and leak back{until}"),
+    "property": ("It works if you fix your ceiling and must-haves first and move through {ch}",
+                 "It works if you fix your ceiling and must-haves first and move through {ch}",
+                 "the purchase meets friction; a cooling-off period protects you{until}"),
+    "love":     ("It holds if closeness is built deliberately through {ch}",
+                 "It holds if closeness is built deliberately through {ch}",
+                 "it won't arrive by drift{until}"),
+    "health":   ("Risk stays small if you act early — the strain shows up through {ch}, so protect recovery time there",
+                 "Risk stays small if you act early — the strain shows up through {ch}, so protect recovery time there",
+                 "recovery runs slower than effort; early action matters more{until}"),
+    "family":   ("It holds if you steady the foundations through {ch}",
+                 "It holds if you steady the foundations through {ch}",
+                 "results lag effort{until}"),
+}
+_GROUP = {"career": "career", "business": "career", "wealth": "money", "finance": "money", "funding": "money",
+          "property": "property", "speculation": "speculation", "love": "love", "marriage": "love", "reconciliation": "love",
+          "health": "health", "children": "family", "family": "family", "education": "family"}
+
+
+def conditions(concern, chart_data, dashas, language="en") -> str:
+    """[ask-direct 2026-10-10] 'What makes it come true / what breaks it' — two sentences derived from the topic's
+    ruler (where it sits, whether it is weakened) and its significator. English only; "" when there is no
+    template for the topic or the chart can't support one."""
+    try:
+        if language != "en" or concern not in _BREAKS:
+            return ""
+        from antar_engine.ask_consultation import CONCERN_HOUSES, CONCERN_KARAKAS
+        planets = (chart_data or {}).get("planets") or {}
+        lagna = ((chart_data or {}).get("lagna") or {}).get("sign")
+        houses = CONCERN_HOUSES.get(concern)
+        if not houses or lagna not in _SIGNS or not planets:
+            return ""
+        h = _PRIMARY.get(concern, houses[0])
+        lord = _LORD[_SIGNS[(_SIGNS.index(lagna) + h - 1) % 12]]
+        pl = planets.get(lord) or {}
+        if not isinstance(pl.get("house"), int) or not pl.get("sign"):
+            return ""
+        ch = _CHANNEL.get(pl["house"], "")
+        if not ch:
+            return ""
+        weak = any(n == "debilitated" or n.startswith("combust") for n in _dignity(lord, pl["sign"], planets))
+        per = _period(dashas)
+        end = per[per.find("ends ") + 5:per.rfind(")")] if "ends " in per else ""
+        fine, weak_t, meaning = _HOLDS[_GROUP[concern]]
+        until = f" (the current sub-period runs to {end})" if end else ""
+        if weak:
+            holds = (weak_t.format(ch=ch) + f" — the ruler of your {_o(h)} house is weakened: "
+                     + meaning.format(until=until))
+        else:
+            holds = fine.format(ch=ch)
+        out = holds + ". "
+        for k in (CONCERN_KARAKAS.get(concern) or [])[:1]:
+            kp = planets.get(k) or {}
+            if k != lord and kp.get("sign") and any(
+                    n == "debilitated" or n.startswith("combust") for n in _dignity(k, kp["sign"], planets)):
+                out += f"{k}, the main significator here, is weakened too, so this needs deliberate effort rather than arriving on its own. "
+        return out + f"It breaks if {_BREAKS[concern]}."
     except Exception:
         return ""

@@ -111,7 +111,9 @@ def _chart():
     return ({"lagna": {"sign": "Capricorn"}, "planets": {
         "Sun": {"sign": "Scorpio", "house": 11, "longitude": 220.0},
         "Venus": {"sign": "Scorpio", "house": 11, "longitude": 225.0},
-        "Moon": {"sign": "Pisces", "house": 3, "longitude": 340.0}}},
+        "Moon": {"sign": "Pisces", "house": 3, "longitude": 340.0},
+        "Mercury": {"sign": "Libra", "house": 10, "longitude": 215.0},
+        "Mars": {"sign": "Libra", "house": 10, "longitude": 218.0}}},
         {"vimsottari": [
             {"level": "mahadasha", "planet_or_sign": "Rahu", "start_date": "2000-01-01", "end_date": "2100-01-01"},
             {"level": "antardasha", "planet_or_sign": "Rahu", "start_date": "2000-01-01", "end_date": "2100-04-25"}]})
@@ -124,7 +126,7 @@ def test_chart_move_follows_the_topic_and_the_chart():
     assert "10th house is weakened" in career or "ruler of your 10th house is weakened" in career
     assert "your network and gains" in career and "Apr 25, 2100" in career
     love = chart_move("love", chart, dashas)
-    assert "7th house sits in your 3rd house" in love and "first move" in love
+    assert "your own initiative and communication" in love and "first move" in love and "7th" not in love
     assert chart_move("career", chart, dashas, "es") == ""          # English only
     assert chart_move("legal", chart, dashas) == ""                  # no template → canned fallback stays
 
@@ -138,3 +140,49 @@ def test_polish_uses_chart_move_before_canned_line_and_drops_invented_health_mov
     p = polish_answer({"read": "Likely.", "next": "Book a medical consultation this month."}, "en",
                       "Will I have children?", concern="children", chart_data=chart, dashas=dashas)
     assert "medical" not in (p["next"] or "").lower()
+
+
+def test_polish_keeps_the_readers_relationship_and_drops_dangling_moves():
+    from antar_engine.answer_polish import polish_answer
+    p = polish_answer({"read": "You're not currently in a relationship — so this reads as a question about your past marriage. "
+                               "The bond has real promise. Strain shows up as distance.",
+                       "next": "Then build or improve it until it's perfect."},
+                      "en", "Is my current relationship going to last?", concern="love")
+    assert "not currently in a relationship" not in p["read"] and "promise" in p["read"]
+    assert not p["next"].lower().startswith("then")
+    q = polish_answer({"read": "You're not in a relationship. Closeness takes effort. Keep it slow.", "next": "Go."},
+                      "en", "Will I find someone?", concern="love")
+    assert "not in a relationship" in q["read"]       # not presupposed → left alone
+
+
+
+def test_conditions_say_what_makes_it_true_and_what_breaks_it():
+    from antar_engine.ask_basis import conditions
+    chart, dashas = _chart()
+    c = conditions("career", chart, dashas)
+    assert c.startswith("It holds if you build it through your network and gains")
+    assert "weakened" in c and "It breaks if" in c and "recognition lags effort" in c
+    h = conditions("health", chart, dashas)
+    assert "recognition" not in h and "Risk stays small" in h
+    assert "recognition" not in conditions("property", chart, dashas)
+    assert conditions("career", chart, dashas, "es") == "" and conditions("legal", chart, dashas) == ""
+
+
+def test_polish_builds_prediction_holds_breaks_and_drops_invented_or_unasked_text():
+    from antar_engine.answer_polish import polish_answer
+    chart, dashas = _chart()
+    p = polish_answer({
+        "read": "Yes — reconnection window is open now, through Jan 2027. The timing shows your ex's side of the timing "
+                "is strong. Your marriage ended, so this chapter has closed. The window favours a direct first move.",
+        "next": "Send one short message this week."}, "en", "Will my ex come back?", concern="reconciliation",
+        chart_data=chart, dashas=dashas)
+    r = p["read"]
+    assert r.startswith("Yes — reconnection window") and "ex's side" not in r and "chapter has closed" not in r
+    assert "It holds if" in r and "It breaks if" in r
+    h = polish_answer({"read": "Likely — health window Oct 2026 – Jan 2027. Watch sleep.",
+                       "next": "Book a check-up. Traditionally, Ayurveda associates this period with brahmi — supportive practice."},
+                      "en", "Will I have a health scare?", concern="health", chart_data=chart, dashas=dashas)
+    assert "brahmi" not in h["next"].lower() and "check-up" in h["next"]
+    h2 = polish_answer({"read": "Likely — Oct 2026.", "next": "Take brahmi daily."}, "en",
+                       "Any herbs for stress?", concern="health", chart_data=chart, dashas=dashas)
+    assert "brahmi" in h2["next"]
