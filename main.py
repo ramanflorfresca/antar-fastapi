@@ -15328,8 +15328,8 @@ async def _create_chart_for_user(request: "ChartCreateRequest", user_id: Optiona
     _chart_type = "primary"
     if user_id:
         try:
-            _existing_ct = supabase.table("charts").select("id,chart_type") \
-                .eq("user_id", user_id).is_("deleted_at", "null").execute()
+            _existing_ct = (await run_in_threadpool(supabase.table("charts").select("id,chart_type") \
+                .eq("user_id", user_id).is_("deleted_at", "null").execute))
             if any((r.get("chart_type") or "primary") == "primary"
                    for r in (_existing_ct.data or [])):
                 _chart_type = "secondary"
@@ -15414,7 +15414,7 @@ async def _create_chart_for_user(request: "ChartCreateRequest", user_id: Optiona
             chart_row.get("chart_data"),
             label="/chart/create",
         )
-        supabase.table("charts").insert(chart_row).execute()
+        (await run_in_threadpool(supabase.table("charts").insert(chart_row).execute))
 
         # [admin-acq] acquisition attribution — SEPARATE fail-open update so
         # a missing column can never break signup. Referrer comes from the
@@ -15430,7 +15430,7 @@ async def _create_chart_for_user(request: "ChartCreateRequest", user_id: Optiona
             }
             _acq = {k: v for k, v in _acq.items() if v}
             if _acq:
-                supabase.table("charts").update(_acq).eq("id", chart_id).execute()
+                (await run_in_threadpool(supabase.table("charts").update(_acq).eq("id", chart_id).execute))
         except Exception as _acq_e:
             print(f"[chart/create] acquisition capture skipped (non-fatal): {_acq_e}")
 
@@ -15467,9 +15467,9 @@ async def _create_chart_for_user(request: "ChartCreateRequest", user_id: Optiona
                 )
                 _jaimini_db = _jaimini_result["db_json"]
                 _jaimini_db.pop("computed_at", None)
-                supabase.table("charts").update({
+                (await run_in_threadpool(supabase.table("charts").update({
                     "jaimini_data": _jaimini_db
-                }).eq("id", chart_id).execute()
+                }).eq("id", chart_id).execute))
                 print(f"[jaimini] Stored for chart {chart_id}")
             except Exception as _je:
                 print(f"[jaimini] v2 store failed (non-blocking): {_je}")
@@ -15494,7 +15494,7 @@ async def _create_chart_for_user(request: "ChartCreateRequest", user_id: Optiona
                 for y in detected_yogas
             ]
             try:
-                supabase.table("chart_yogas").insert(yoga_rows).execute()
+                (await run_in_threadpool(supabase.table("chart_yogas").insert(yoga_rows).execute))
                 print(f"[yogas] Saved {len(yoga_rows)} yogas for chart {chart_id}")
             except Exception as _ye:
                 print(f"[yogas] Save error (non-fatal): {_ye}")
@@ -15676,9 +15676,9 @@ async def _create_chart_for_user(request: "ChartCreateRequest", user_id: Optiona
             print(f"[lk] advanced compute failed (non-fatal): {_adve}")
 
         # Save to charts table for hot path reads
-        supabase.table("charts").update({
+        (await run_in_threadpool(supabase.table("charts").update({
             "lal_kitab_data": lk_data,
-        }).eq("id", chart_id).execute()
+        }).eq("id", chart_id).execute))
 
         print(f"[lk] Saved lal_kitab_data for chart {chart_id} "
               f"(advanced: {len((lk_data.get('advanced') or {}).get('sleeping_planets') or [])} sleeping)")
@@ -15707,7 +15707,7 @@ async def _create_chart_for_user(request: "ChartCreateRequest", user_id: Optiona
         if _signup_intent and "error" not in _signup_intent:
             print(f"[chart/create] Telepathic intent: house={_signup_intent.get('intent_house')}, domain={_signup_intent.get('domain')}")
             try:
-                supabase.table("charts").update({"signup_intent": _signup_intent}).eq("id", chart_id).execute()
+                (await run_in_threadpool(supabase.table("charts").update({"signup_intent": _signup_intent}).eq("id", chart_id).execute))
             except Exception:
                 pass
         else:
@@ -15721,10 +15721,10 @@ async def _create_chart_for_user(request: "ChartCreateRequest", user_id: Optiona
     try:
         _new_sigs      = compute_natal_signatures(chart_data)
         _new_archetype = derive_archetype(_new_sigs)
-        supabase.table("charts").update({
+        (await run_in_threadpool(supabase.table("charts").update({
             "planet_signatures":   _new_sigs,
             "character_archetype": _new_archetype,
-        }).eq("id", chart_id).execute()
+        }).eq("id", chart_id).execute))
         print(f"[chart/create] Signatures stored — {_new_archetype.get('name','?')}")
     except Exception as _sig_create_e:
         print(f"[chart/create] Signatures non-fatal: {_sig_create_e}")
@@ -37172,7 +37172,7 @@ async def get_alerts(chart_id: str, unread_only: bool = False, language: str = "
     if unread_only:
         query = query.is_("read_at", "null")
 
-    res = query.execute()
+    res = (await run_in_threadpool(query.execute))
     alerts = res.data or []
     unread_count = sum(1 for a in alerts if not a.get("read_at"))
     return {"alerts": alerts, "unread_count": unread_count}
@@ -41359,7 +41359,7 @@ async def get_welcome(chart_id: str, language: str = "en", force_refresh: bool =
         if signal:
             return signal
         # Not ready yet — generate now synchronously
-        chart_res = supabase.table("charts").select("*").eq("id", chart_id).execute()
+        chart_res = (await run_in_threadpool(supabase.table("charts").select("*").eq("id", chart_id).execute))
         if not chart_res.data:
             raise HTTPException(status_code=404, detail="Chart not found")
         chart_record = chart_res.data[0]
@@ -41369,14 +41369,14 @@ async def get_welcome(chart_id: str, language: str = "en", force_refresh: bool =
         _current_dasha = ""
         try:
             from datetime import date
-            _dasha_res = supabase.table("dasha_periods") \
+            _dasha_res = (await run_in_threadpool(supabase.table("dasha_periods") \
                 .select("planet_or_sign, start_date, end_date") \
                 .eq("chart_id", chart_id) \
                 .eq("system", "vimsottari") \
                 .eq("level", 1) \
                 .lte("start_date", str(date.today())) \
                 .gte("end_date", str(date.today())) \
-                .execute()
+                .execute))
             if _dasha_res.data:
                 _current_dasha = _dasha_res.data[0].get("planet_or_sign", "")
         except Exception:
@@ -41468,7 +41468,7 @@ async def get_welcome(chart_id: str, language: str = "en", force_refresh: bool =
                 # Pre-read defensively with _safe_jsonb (Supabase sometimes
                 # hands JSONB columns back as JSON strings).
                 try:
-                    _existing_w = supabase.table("welcome_signals").select("content_by_language").eq("chart_id", chart_id).execute()
+                    _existing_w = (await run_in_threadpool(supabase.table("welcome_signals").select("content_by_language").eq("chart_id", chart_id).execute))
                     _cbl = _safe_jsonb(_existing_w.data[0].get("content_by_language")) if _existing_w.data else {}
                 except Exception:
                     _cbl = {}
@@ -41478,7 +41478,7 @@ async def get_welcome(chart_id: str, language: str = "en", force_refresh: bool =
                 _welcome_row["content_by_language"] = _cbl
                 # upsert (not insert): a row may already exist from the background
                 # pre-warm or from a prior request in a different language.
-                supabase.table("welcome_signals").upsert(_welcome_row, on_conflict="chart_id").execute()
+                (await run_in_threadpool(supabase.table("welcome_signals").upsert(_welcome_row, on_conflict="chart_id").execute))
                 print(f"[welcome] v2 cached for {chart_id[:8]} lang={_v2_lang} langs={list(_cbl.keys())}")
         except Exception as _cache_err:
             # Race condition (unique-violation on concurrent request) or
@@ -46576,7 +46576,7 @@ async def predict_year_attention(request: dict, language: str = None):
                    or str((request or {}).get("lk_engine") or "").strip().lower() in ("1", "true", "yes"))
 
     # ── load chart row ──
-    res = supabase.table("charts").select("*").eq("id", chart_id).execute()
+    res = (await run_in_threadpool(supabase.table("charts").select("*").eq("id", chart_id).execute))
     if not res.data:
         raise HTTPException(status_code=404, detail="Chart not found")
     row = res.data[0]
@@ -46607,22 +46607,22 @@ async def predict_year_attention(request: dict, language: str = None):
     current_md_row = current_ad_row = next_md_row = None
     try:
         _today = str(_date.today())
-        _md = supabase.table("dasha_periods") \
+        _md = (await run_in_threadpool(supabase.table("dasha_periods") \
             .select("planet_or_sign,start_date,end_date,level,system") \
             .eq("chart_id", chart_id).eq("system", "vimsottari").eq("level", 1) \
-            .lte("start_date", _today).gte("end_date", _today).limit(1).execute()
+            .lte("start_date", _today).gte("end_date", _today).limit(1).execute))
         if _md.data:
             current_md_row = _md.data[0]
-        _ad = supabase.table("dasha_periods") \
+        _ad = (await run_in_threadpool(supabase.table("dasha_periods") \
             .select("planet_or_sign,start_date,end_date,level,system") \
             .eq("chart_id", chart_id).eq("system", "vimsottari").eq("level", 2) \
-            .lte("start_date", _today).gte("end_date", _today).limit(1).execute()
+            .lte("start_date", _today).gte("end_date", _today).limit(1).execute))
         if _ad.data:
             current_ad_row = _ad.data[0]
-        _nm = supabase.table("dasha_periods") \
+        _nm = (await run_in_threadpool(supabase.table("dasha_periods") \
             .select("planet_or_sign,start_date,end_date,level,system") \
             .eq("chart_id", chart_id).eq("system", "vimsottari").eq("level", 1) \
-            .gt("start_date", _today).order("start_date").limit(1).execute()
+            .gt("start_date", _today).order("start_date").limit(1).execute))
         if _nm.data:
             next_md_row = _nm.data[0]
     except Exception as _de:
@@ -47368,7 +47368,7 @@ async def get_home(
         language = "en"
 
     # ── load chart row ──
-    res = supabase.table("charts").select("*").eq("id", chart_id).execute()
+    res = (await run_in_threadpool(supabase.table("charts").select("*").eq("id", chart_id).execute))
     if not res.data:
         raise HTTPException(status_code=404, detail="Chart not found")
     row = res.data[0]
@@ -47402,8 +47402,8 @@ async def get_home(
     # [gate-a] debug=True bypasses cache so we always see fresh debug data.
     try:
         _bypass_cache = bool(force_refresh) or bool(debug)
-        cr = None if _bypass_cache else supabase.table("home_cache").select("payload,updated_at") \
-            .eq("chart_id", chart_id).eq("language", language).limit(1).execute()
+        cr = None if _bypass_cache else (await run_in_threadpool(supabase.table("home_cache").select("payload,updated_at") \
+            .eq("chart_id", chart_id).eq("language", language).limit(1).execute))
         if cr is not None and cr.data:
             cached = _hsj(cr.data[0].get("payload"))
             gen_at = (cached.get("generated_at") or "") if isinstance(cached, dict) else ""
@@ -47439,18 +47439,18 @@ async def get_home(
     try:
         from datetime import date as _date
         _today = str(_date.today())
-        _md = supabase.table("dasha_periods") \
+        _md = (await run_in_threadpool(supabase.table("dasha_periods") \
             .select("planet_or_sign,start_date,end_date,level,system") \
             .eq("chart_id", chart_id).eq("system", "vimsottari") \
             .eq("level", 1).lte("start_date", _today).gte("end_date", _today) \
-            .limit(1).execute()
+            .limit(1).execute))
         if _md.data:
             current_md_row = _md.data[0]
-        _ad = supabase.table("dasha_periods") \
+        _ad = (await run_in_threadpool(supabase.table("dasha_periods") \
             .select("planet_or_sign,start_date,end_date,level,system") \
             .eq("chart_id", chart_id).eq("system", "vimsottari") \
             .eq("level", 2).lte("start_date", _today).gte("end_date", _today) \
-            .limit(1).execute()
+            .limit(1).execute))
         if _ad.data:
             current_ad_row = _ad.data[0]
     except Exception as _de:
@@ -47494,12 +47494,12 @@ async def get_home(
 
     # ── cache write (best-effort) ──
     try:
-        supabase.table("home_cache").upsert({
+        (await run_in_threadpool(supabase.table("home_cache").upsert({
             "chart_id":   chart_id,
             "language":   language,
             "payload":    payload,
             "updated_at": datetime.utcnow().isoformat() + "Z",
-        }, on_conflict="chart_id,language").execute()
+        }, on_conflict="chart_id,language").execute))
     except Exception as _we:
         print(f"[home] cache write skipped (table may be missing): {_we}")
 
