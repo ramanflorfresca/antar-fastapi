@@ -50354,6 +50354,15 @@ async def _alias_predict_daily(request: dict):
     except Exception as _v2err:
         # Never block the daily payload on a v2 composer failure.
         print(f"[daily] v2 wire failed (non-fatal): {_v2err}")
+    # [today-decision 2026-10-10] one coherent prediction → why → holds → breaks → move block (additive; en only)
+    try:
+        if isinstance(_r_daily, dict):
+            from antar_engine.today_decision import compose as _td_compose
+            _td = _td_compose(_r_daily, (request.get("language") or "en").split("-")[0].lower())
+            if _td:
+                _r_daily["decision"] = _td
+    except Exception as _tde:
+        print(f"[today] decision block skipped (non-fatal): {_tde}")
     # [gate-debug 2026-06-08] hide internal evidence trail from client
     return _strip_debug_reasoning(_r_daily, request)
 
