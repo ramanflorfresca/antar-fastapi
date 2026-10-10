@@ -351,3 +351,55 @@ def test_reconnection_move_is_the_same_for_the_same_verdict_in_every_language():
     other = polish_answer({"read": "ok", "verdict": "YES", "next": "Keep my move."}, "en", "Will I get the job?",
                           concern="career", chart_data=chart, dashas=dashas)
     assert other["next"] == "Keep my move."            # only the reconnection concern is touched
+
+
+def test_marriage_window_verdict_is_kept_for_get_married_questions_and_dropped_for_existing_union_ones():
+    main = _main()
+    f = main._suppress_union_window
+    for ms in ("divorced", "single", "separated", "widowed"):
+        # "will I get married soon?" is the NEW-union question: keep the window verdict
+        for q in ("Will I get married soon?", "When will I get married?", "¿Me casaré pronto?", "Vou me casar logo?",
+                  "Will I get married this year?"):
+            assert f("marriage", ms, q) is False, (ms, q)
+        # a question about the existing marriage / partner: no new-union window
+        for q in ("Will my marriage improve?", "¿Mejorará mi matrimonio?", "Meu casamento vai melhorar?",
+                  "Is my husband going to change?"):
+            assert f("marriage", ms, q) is True, (ms, q)
+        assert f("existing_relationship", ms, "Is our relationship going to last?") is True
+        assert f("existing_relationship", ms, "Will we get back together again?") is False      # "again" = new union
+    assert f("family", "single", "How is my relationship with my father?") is True
+    assert f("marriage", "married", "Will my marriage improve?") is False                       # married readers unchanged
+    assert f("marriage", "", "Will I get married soon?") is False
+
+
+def test_marriage_move_is_stable_across_languages_and_never_invents_a_recipient():
+    from antar_engine.ask_basis import stable_reconnection_move as mv
+    from antar_engine.answer_polish import polish_answer
+    chart, dashas = _chart()
+    wait_en = mv("NOT_YET", chart, dashas, "en", "Nov 2026 – Jan 2027", "marriage")
+    wait_es = mv("NOT_YET", chart, dashas, "es", "nov 2026 – ene 2027", "marriage")
+    wait_pt = mv("NOT_YET", chart, dashas, "pt", "nov 2026 – jan 2027", "marriage")
+    assert wait_en.startswith("Don't force a timeline. Use the time until your window (Nov 2026 – Jan 2027) to widen where you meet people")
+    assert "this area of your chart opens through your own initiative and communication" in wait_en
+    assert wait_es.startswith("No fuerces los tiempos.") and "a través de tu iniciativa y tu comunicación" in wait_es
+    assert wait_pt.startswith("Não force os prazos.") and "por este canal: a sua iniciativa e a sua comunicação" in wait_pt
+    go_en = mv("YES", chart, dashas, "en", "Nov 2026 – Jan 2027", "marriage")
+    assert go_en.startswith("Your window is open (Nov 2026 – Jan 2027): put yourself where serious partnership starts")
+    assert mv("LIKELY", chart, dashas, "es", "x", "marriage").startswith("Tu ventana está abierta (x): ponte donde empiezan")
+    for t in (wait_en, wait_es, wait_pt, go_en):
+        assert "message" not in t.lower() and "mensaje" not in t.lower() and "mensagem" not in t.lower()
+    # the Spanish contraction: channel 2 ("el ahorro…") must read "a través del ahorro"
+    chart2 = dict(chart, planets=dict(chart["planets"], Moon={"sign": "Pisces", "house": 2, "longitude": 340.0}))
+    assert "a través del ahorro y el dinero de la familia" in mv("YES", chart2, dashas, "es", "x", "marriage")
+    # polish replaces the model's own move for a marriage answer; the reconciliation move is unchanged
+    p = polish_answer({"read": "Not yet.", "verdict": "NOT_YET", "timing": "Nov 2026 – Jan 2027",
+                       "next": "Write the message you've been thinking about — send it."}, "en", "Will I get married soon?",
+                      concern="marriage", chart_data=chart, dashas=dashas)
+    assert p["next"] == wait_en
+    r = polish_answer({"read": "Not yet.", "verdict": "NOT_YET", "timing": "Nov 2026", "next": "x"}, "en", "Will my ex come back?",
+                      concern="reconciliation", chart_data=chart, dashas=dashas)
+    assert r["next"].startswith("Don't initiate yet.")
+    # no verdict (e.g. an existing-marriage question whose window verdict was suppressed) -> the model's move stays
+    nv = polish_answer({"read": "ok", "next": "Keep this move."}, "en", "Will my marriage improve?", concern="marriage",
+                       chart_data=chart, dashas=dashas)
+    assert nv["next"] == "Keep this move."

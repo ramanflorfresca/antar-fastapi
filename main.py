@@ -27029,6 +27029,34 @@ def _ask_period_payload(chart_data, dashas, first_name=""):
         return None
 
 
+_NEW_UNION_RX = re.compile(
+    r"(?i)\b(remarry|re-?marry|new (partner|relationship|marriage)|again|de novo|otra vez|de nuevo|dobara|phir se)\b")
+# a question about the reader's EXISTING marriage / partner ("will MY marriage improve?"), not about getting married
+_EXISTING_UNION_RX = re.compile(
+    r"(?i)\b(my|our)\s+(marriage|spouse|wife|husband|relationship|partner)\b|"
+    r"\bmi\s+(matrimonio|esposa|esposo|marido|mujer|relaci\u00f3n|relacion|pareja)\b|"
+    r"\bmeu\s+(casamento|marido|relacionamento)\b|\bminha\s+(esposa|rela\u00e7\u00e3o|relacao)\b|"
+    r"\bmera\s+(shaadi|biwi|pati)\b")
+
+
+def _suppress_union_window(area, marital_status, question) -> bool:
+    """[ask-direct 2026-10-10] Should the new-union WINDOW verdict ("Not yet — next partnership window …") be dropped?
+    Always for a family / health_other question. For a divorced / separated / widowed / single reader it is dropped
+    only when the question is about an EXISTING union ("will my marriage improve?") — NOT for "will I get married
+    soon?", which IS the new-union question: that one used to lose its verdict, and the model then improvised
+    ("genuinely supportive right now" in one run, "the timing is slow" in the next)."""
+    if area in ("family", "health_other"):
+        return True
+    if (marital_status or "").lower() not in ("divorced", "separated", "widowed", "single"):
+        return False
+    q = question or ""
+    if _NEW_UNION_RX.search(q):
+        return False
+    if area == "existing_relationship":
+        return True
+    return area == "marriage" and bool(_EXISTING_UNION_RX.search(q))
+
+
 def _is_biz_vs_job_q(q):
     """[aptitude 2026-09-16] 'should I do business or a job / am I suited to run
     my own thing' — a business-vs-employment APTITUDE question (read from the
@@ -32327,12 +32355,7 @@ async def _ask_endpoint_impl(request: AskRequest):
                 _area_v = (locals().get("_ask_u") or {}).get("area")
                 # [audit r20] a divorced / single reader asking about "my marriage" gets no new-union window
                 # verdict ("Aún no — próxima ventana de asociación nov 2027") — it isn't the question asked
-                if _ask_conv and (_area_v in ("family", "health_other") or (
-                        _area_v in ("existing_relationship", "marriage") and _ms_v in (
-                            "divorced", "separated", "widowed", "single")
-                        and not re.search(
-                            r"(?i)\b(remarry|re-?marry|new (partner|relationship|marriage)|again|de novo|otra vez|"
-                            r"de nuevo|dobara|phir se)\b", question or ""))):
+                if _ask_conv and _suppress_union_window(_area_v, _ms_v, question):
                     _ask_conv["suppress_verdict"] = True
                     _ask_conv["verdict_phrase"] = ""
                     print(f"[ask][family] window verdict suppressed for {chart_id[:8]}")

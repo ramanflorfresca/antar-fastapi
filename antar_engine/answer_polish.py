@@ -415,10 +415,10 @@ def polish_answer(payload: dict, language: str = "en", typed_question: str = "",
                 print(f"[ask][polish] conditions skipped: {_ce}")
         # [ex-move 2026-10-10] a reconnection question's move follows from the ENGINE verdict, identically in en / es / pt
         # (the model's own move varied run to run: "send one message" / "don't send another" / "decide first")
-        if (concern or "") == "reconciliation" and lang in ("en", "es", "pt"):
+        if (concern or "") in ("reconciliation", "marriage") and lang in ("en", "es", "pt"):
             try:
                 from antar_engine.ask_basis import stable_reconnection_move as _srm
-                _mv = _srm(payload.get("verdict"), chart_data, dashas, lang, payload.get("timing") or "")
+                _mv = _srm(payload.get("verdict"), chart_data, dashas, lang, payload.get("timing") or "", concern)
                 if _mv:
                     payload["next"] = _mv
                     print("[ask][polish] stable reconnection move")
