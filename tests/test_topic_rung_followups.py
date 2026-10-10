@@ -258,3 +258,50 @@ def test_long_read_with_open_before_care_still_leads_with_open(monkeypatch):
     _scan_with(monkeypatch, ctx, {**{i: ("open", 3.0) for i in (3, 4)}, **{i: ("care", 2.0) for i in (13, 14)}})
     r = T.read_topic(ctx, "money", "season", TODAY, "en", with_best_fit=False)
     assert r["tone"] == "open" and "best stretch for money starts" in r["claim"]
+
+
+# ── a window about to end is not a long read's headline ─────────────────────
+def test_a_one_day_window_is_not_the_year_or_season_headline(monkeypatch):
+    ctx = _ctx()
+    _scan_with(monkeypatch, ctx, {0: ("open", 3.0)})
+    # the only window is the bucket running today; shrink it to a single day
+    monkeypatch.setattr(T, "_runs", lambda res, mode: [{"start": TODAY, "end": TODAY, "score": 3.0,
+                                                         "assessments": [res[0][1]]}] if mode == "open" else [])
+    r = T.read_topic(ctx, "money", "season", TODAY, "en", with_best_fit=False)
+    assert r["tone"] == "steady" and r["best_window"] is None and "nothing sharp" in r["claim"]
+
+
+def test_lead_run_none_when_only_a_short_live_window():
+    run = {"start": TODAY, "end": TODAY + timedelta(days=2), "score": 1.0, "assessments": []}
+    assert T._lead_run([run], TODAY) is None
+    later = {"start": TODAY + timedelta(days=40), "end": TODAY + timedelta(days=60), "score": 1.0, "assessments": []}
+    assert T._lead_run([run, later], TODAY) is later
+
+
+# ── a steady month the engine marks careful no longer says 'nothing sharp' ──
+def _careful_month(window):
+    m = {"month_theme": "x", "active_domains": [{"key": "work", "label": "Work & reputation", "window": window, "caution": True}]}
+    d = D.build_detail("career", "month", {"month": m}, TODAY)
+    return {"topic": "career", "scale": "month", "language": "en", "tone": "steady", "detail": d,
+            "claim": "Over the next 30 days, nothing sharp is pulling on your work, so keep your usual pace."}
+
+
+@pytest.mark.parametrize("lang", LANGS)
+def test_steady_month_with_a_careful_focus_names_the_stretch(lang):
+    base = _careful_month("2026-10-12 – 2026-10-24")
+    base["language"] = lang
+    out = D.reconcile_month(base, lang)
+    assert "nothing sharp" not in out["claim"] and out["claim"].startswith(C.SPAN_LEAD[lang]["month"])
+    assert C.range_label(date(2026, 10, 12), date(2026, 10, 24), lang) in out["claim"]
+    assert not _JARGON.search(out["claim"])
+    assert D.reconcile_month(out, lang)["claim"] == out["claim"]          # idempotent
+
+
+def test_steady_month_careful_without_a_window_and_untouched_cases():
+    out = D.reconcile_month(_careful_month(None), "en")
+    assert out["claim"] == "Over the next 30 days, it is steady overall for your work, with one stretch to watch."
+    calm = _careful_month(None)
+    calm["detail"]["focus"] = None
+    assert D.reconcile_month(calm, "en") == calm
+    openm = dict(_careful_month(None), tone="open")
+    assert D.reconcile_month(openm, "en") == openm

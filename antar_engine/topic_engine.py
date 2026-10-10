@@ -555,14 +555,15 @@ def _agree_with_feed(ctx: TopicContext, key: str, today: date, per: dict, scale:
 
 def _lead_run(runs: List[dict], today: date) -> Optional[dict]:
     """The window a long read leads with: the one running now (if it has days left), else the soonest
-    to start. A later, stronger window is mentioned separately."""
+    to start; None when all that exists is a window about to end. A later, stronger window is mentioned
+    separately."""
     live = [r for r in runs if r["start"] <= today <= r["end"] and (r["end"] - today).days >= MIN_LEAD_DAYS - 1]
     if live:
         return min(live, key=lambda r: r["start"])
     upcoming = [r for r in runs if r["start"] > today]
     if upcoming:
         return min(upcoming, key=lambda r: r["start"])
-    return _best_run(runs)
+    return None   # only a window about to end: not a headline for a long read
 
 
 def _peak(r: dict) -> float:

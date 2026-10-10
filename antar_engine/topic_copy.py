@@ -397,6 +397,9 @@ MONTH_CAUTION_CORE: Dict[str, str] = {   # a steady 30-day read that still has o
     "es": "en general todo está estable en {area}, con un tramo a vigilar",
     "pt": "no geral tudo está estável em {area}, com um trecho a observar",
     "hinglish": "{area} mein aam taur par sthirta hai, bas ek daur par nazar rakhein"}
+MONTH_WATCH_TAIL: Dict[str, str] = {   # after MONTH_CAUTION_CORE when the month's focus window is known
+    "en": "That stretch is {when}.", "es": "Ese tramo va del {when}.",
+    "pt": "Esse trecho vai de {when}.", "hinglish": "Woh daur {when} hai."}
 TODAY_CAUTION_CORE: Dict[str, str] = {   # a steady Right-now read on a day that advises going easy on risk
     "en": "keep it quiet on {area}", "es": "ve con calma en {area}",
     "pt": "vá com calma em {area}", "hinglish": "{area} mein shaant rahein"}

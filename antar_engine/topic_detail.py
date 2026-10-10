@@ -572,6 +572,20 @@ def reconcile_year(out: dict, lang: str) -> dict:
         return out
 
 
+def _month_careful_only(out: dict, det: dict, lang: str) -> dict:
+    """The monthly engine marks the topic careful but has no caution week: a steady claim ('nothing sharp')
+    cannot sit beside that, so it says the month is steady with one stretch to watch (and when, if known)."""
+    area = C.pick(C.AREA, lang)[out["topic"]]
+    claim = C.pick(C.LEAD_JOIN, lang).format(lead=C.pick(C.SPAN_LEAD, lang)["month"],
+                                             core=C.pick(C.MONTH_CAUTION_CORE, lang).format(area=area))
+    span = _window_span((det.get("focus") or {}).get("window"))
+    if span:
+        s_, e_ = span
+        when = C.range_label(s_, e_, lang)
+        claim = f"{claim.rstrip()} " + C.pick(C.MONTH_WATCH_TAIL, lang).format(when=when)
+    return dict(out, claim=claim)
+
+
 def reconcile_month(out: dict, lang: str) -> dict:
     """The 30-day claim vs the month's own caution week. When the monthly read flags a demanding
     week for this topic, the claim says so with the engine's own sentence ('Week of October 9 - ...').
@@ -581,6 +595,8 @@ def reconcile_month(out: dict, lang: str) -> dict:
         det = out.get("detail") or {}
         note = det.get("caution_week")
         careful = (det.get("focus") or {}).get("careful")
+        if out.get("scale") == "month" and not note and careful and out.get("tone") == "steady":
+            return _month_careful_only(out, det, lang)
         if out.get("scale") != "month" or not note or not (careful or relevance(note, out.get("topic")) == "yes"):
             return out
         out = dict(out)
