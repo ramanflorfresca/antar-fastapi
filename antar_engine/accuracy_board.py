@@ -36,7 +36,10 @@ from antar_engine.outcomes import parse_window
 MIN_N = 30
 MIN_ANSWER_RATE = 0.30
 SCORE = {"yes": 1.0, "partly": 0.5, "no": 0.0}
-SOURCES = ("ask_explore", "ask_yesno", "decoy", "topic_read", "circle_window", "circle_fit")
+SOURCES = ("ask_explore", "ask_yesno", "decoy", "topic_read", "circle_window", "circle_fit", "daily_check")
+# [daily-check] "How did today go?" about a day we rated. Not a hit/miss claim: scored as a within-person
+# comparison (steady days vs friction days) in its own section, never in the engine x topic cells.
+DAILY_CHECK = "daily_check"
 # [topic-checkback] topic-read windows: asked after the window ENDS, answered yes / no /
 # not_sure. A best window that held and a watch window that mattered are both "yes" = hit.
 TOPIC_READ = "topic_read"
@@ -194,6 +197,8 @@ def build(claims: list, outcomes: list) -> dict:
     """The whole board from raw rows (pure function — easy to test)."""
     outs = {o["claim_id"]: o for o in outcomes}
     claims = [c for c in claims if c.get("source") in SOURCES]
+    daily_claims = [c for c in claims if c.get("source") == DAILY_CHECK]
+    claims = [c for c in claims if c.get("source") != DAILY_CHECK]
     claims = _collapse_circle(claims, outs)
 
     # decoy base rates per topic (none until decoys exist)
@@ -276,7 +281,13 @@ def build(claims: list, outcomes: list) -> dict:
         "trend": [{"month": m, "answered": n, "hit_rate": round(s / n, 3)}
                   for m, (s, n) in sorted(months.items()) if m],
         "baselines": baselines,
+        "daily_check": _daily_check_section(daily_claims, outs),
     }
+
+
+def _daily_check_section(daily_claims: list, outs: dict) -> dict:
+    from antar_engine import daily_check as _dc
+    return _dc.summarize(daily_claims, outs)
 
 
 def without_charts(claims: list, chart_ids) -> list:
