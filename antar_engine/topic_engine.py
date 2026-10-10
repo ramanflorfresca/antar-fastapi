@@ -907,11 +907,12 @@ def _read_topic(ctx: TopicContext, key: str, scale: str, today: date, language: 
             watch = _window_obj(ctx, key, wr, scale, lang, "watch", whole_label=whole(wr), today=today, span=per.get("span"))
             if not br:
                 a_main = max(wr["assessments"], key=lambda x: x["score"])
-        if br:
+        care_first = bool(long_scale and br and wr and wr["start"] < br["start"])   # a long read leads with whichever window comes first
+        if br and not care_first:
             a_main = max(br["assessments"], key=lambda x: x["score"])
-        mode = "open" if best else "care" if watch else "steady"
+        mode = "open" if best and not care_first else "care" if watch else "steady"
         if long_scale:   # a later, clearly stronger window rides along as a second sentence
-            lead_r, lead_kind = (br, "open") if best else (wr, "care") if watch else (None, None)
+            lead_r, lead_kind = (br, "open") if mode == "open" else (wr, "care") if mode == "care" else (None, None)
             pool = opens if lead_kind == "open" else cares
             top = _best_run(pool) if lead_r else None
             if top and top is not lead_r and top["start"] > lead_r["end"] and _peak(top) >= _peak(lead_r) * STRONGER_RATIO:
