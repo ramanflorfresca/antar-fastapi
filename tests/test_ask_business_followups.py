@@ -16,7 +16,7 @@ def test_business_and_startup_get_business_followups():
         for lang in ("en", "es", "pt"):
             fus = m._ask_followups(concern, "When does my startup take off", lang)
             assert fus and not any("profes" in q.lower() for q in fus), (concern, lang, fus)
-    assert "Which profession fits me best?" in m._ask_followups("career", "x", "en")
+    assert "How does my career period look this year?" in m._ask_followups("career", "x", "en")
 
 
 def test_business_practice_is_not_the_career_one():

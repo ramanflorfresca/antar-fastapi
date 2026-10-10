@@ -67,3 +67,30 @@ def test_a_tapped_chip_keeps_its_topic():
     assert af.bucket_of("¿Debo concentrarme o diversificar?") == "money"
     assert af.bucket_of("Will I be rich?") is None
     assert af.bucket_of("How is my money looking right now?") is None   # general → resolved concern decides
+
+
+# ── [astrologer-voice 2026-10-10] a client's questions to an astrologer, not an advisor's ──
+_ADVISOR = ("concentrate or diversify", "which profession", "business or a job", "build alone", "partner or alone",
+            "first real customers", "kind of founder", "cash flow", "protect my cash", "keep speculation small",
+            "debo concentrarme", "qué profesión", "devo concentrar", "qual profissão", "emprender solo", "empreender sozinho",
+            "diversify karun", "kaun sa profession", "akele build")
+
+
+def test_followups_read_like_a_client_asking_an_astrologer():
+    for lang, table in af._Q.items():
+        for bucket, lanes in table.items():
+            for lane, q in lanes.items():
+                assert not any(w in q.lower() for w in _ADVISOR), (lang, bucket, lane, q)
+
+
+def test_old_advisor_chips_still_keep_their_topic_when_tapped():
+    assert af.bucket_of("Should I concentrate or diversify?") == "money"
+    assert af.bucket_of("Which profession fits me best?") == "career"
+    assert af.bucket_of("What can I do to strengthen my money period?") == "money"
+    assert af.bucket_of("How does my career period look this year?") == "career"
+
+
+def test_what_to_do_lane_is_titled_what_helps():
+    assert af._LANE_TITLE["en"]["how"] == "🪔 What helps"
+    out = af.pick("money", "When does my strongest money window open?", "en")
+    assert [o["title"] for o in out if o["lane"] == "how"] == ["🪔 What helps"]

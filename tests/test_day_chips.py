@@ -22,7 +22,7 @@ def test_day_chips_replace_career_chips_even_with_inherited_concern():
     chips = main._ask_followups("career", "How is my day today?", "en")
     assert chips == ["How is tomorrow looking?", "What is the best time of day for me today?",
                      "How is my week ahead?"]
-    assert "Which profession fits me best?" not in chips
+    assert "How does my career period look this year?" not in chips
     assert "career" in " ".join(main._ask_followups("career", "How is my career this year?", "en")).lower()
     assert main._ask_followups("general", "¿Cómo está mi día hoy?", "es")[0] == "¿Cómo se ve mañana?"
     # never repeats the question just asked

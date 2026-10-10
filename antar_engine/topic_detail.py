@@ -348,6 +348,14 @@ def reconcile(out: dict, daily: Optional[dict], lang: str) -> dict:
             add = C.pick(C.KEEP_SMALL, out.get("language") or "en")
             if add not in out["your_move"]:
                 out["your_move"] = f"{out['your_move'].rstrip()} {add}"
+        if out.get("tone") in ("open", "steady") and out.get("claim"):   # the claim says it too, in the day's own words
+            if out["tone"] == "steady":
+                area = C.pick(C.AREA, out.get("language") or "en")[out["topic"]]
+                out["claim"] = C.pick(C.LEAD_JOIN, out.get("language") or "en").format(
+                    lead=C.pick(C.SPAN_LEAD, out.get("language") or "en")["today"],
+                    core=C.pick(C.TODAY_CAUTION_CORE, out.get("language") or "en").format(area=area))
+            if note not in out["claim"]:
+                out["claim"] = f"{out['claim'].rstrip()} {note}"
         return out
     except Exception:
         return out

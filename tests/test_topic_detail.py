@@ -250,7 +250,7 @@ def test_caution_is_reconciled_with_an_open_window():
     d = D.build_detail("money", "today", SRC, TODAY)
     assert d["caution_note"] == DAILY["headline"]
     out = D.reconcile(_open_today(detail=d), DAILY, "en")
-    assert out["claim"] == _open_today()["claim"]                              # the open-window headline stays
+    assert out["claim"] == _open_today()["claim"] + " " + DAILY["headline"]    # the open-window headline stays, then the day's own caution
     assert out["your_move"] == "Act on one income or pricing decision today. But keep any bet small."
     assert out["detail"]["caution_note"] == DAILY["headline"]
     assert D.reconcile(out, DAILY, "en")["your_move"] == out["your_move"]      # idempotent
@@ -429,11 +429,11 @@ def test_route_attaches_detail_and_reconciles(client, monkeypatch):
     assert r.status_code == 200
     body = r.json()
     assert body["detail"]["do"] and body["detail"]["caution_note"] == DAILY["headline"]
-    assert body["your_move"].endswith("But keep any bet small.") and body["claim"] == "Today, a good stretch."
+    assert body["your_move"].endswith("But keep any bet small.") and body["claim"] == "Today, a good stretch. " + DAILY["headline"]
     assert calls == ["daily"]
     c.get("/api/v1/chart/c/topic-read?topic=money&scale=today&tz_offset=-240")
     assert calls == ["daily"]                                                     # second hit is served from the cache
-    assert any(k[:2] == ("topic-read", "v8-detail") for k in te._CACHE)           # version-salted key
+    assert any(k[:2] == ("topic-read", "v9-detail") for k in te._CACHE)           # version-salted key
 
 
 @pytest.mark.parametrize("scale,need", [("month", "month"), ("year", "year"), ("season", "arc"), ("chapter", "arc")])
@@ -547,3 +547,22 @@ def test_month_without_a_topic_caution_is_untouched():
         assert D.reconcile_month(base, "en") == base
     other = dict(_month_out(), scale="year")
     assert D.reconcile_month(other, "en") == other
+
+
+def test_steady_today_claim_is_replaced_by_the_caution():
+    out = D.reconcile(_open_today(tone="steady", claim="Today, nothing sharp is pulling on money, so keep your usual pace."), DAILY, "en")
+    assert out["claim"] == "Today, keep it quiet on money and income. " + DAILY["headline"]
+    assert "nothing sharp" not in out["claim"]
+
+
+@pytest.mark.parametrize("lang", LANGS)
+def test_today_claim_carries_the_caution_in_every_language(lang):
+    for tone in ("open", "steady"):
+        out = D.reconcile(_open_today(tone=tone, language=lang), DAILY, lang)
+        assert out["claim"].endswith(DAILY["headline"])
+    assert not _JARGON.search(C.TODAY_CAUTION_CORE[lang])
+
+
+def test_care_today_claim_is_left_alone():
+    base = _open_today(tone="care")
+    assert D.reconcile(base, DAILY, "en")["claim"] == base["claim"]
