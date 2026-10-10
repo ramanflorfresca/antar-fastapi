@@ -441,7 +441,7 @@ def test_route_attaches_detail_and_reconciles(client, monkeypatch):
     assert calls == ["daily"]
     c.get("/api/v1/chart/c/topic-read?topic=money&scale=today&tz_offset=-240")
     assert calls == ["daily"]                                                     # second hit is served from the cache
-    assert any(k[:2] == ("topic-read", "v10-balanced") for k in te._CACHE)           # version-salted key
+    assert any(k[:2] == ("topic-read", "v11-balanced") for k in te._CACHE)           # version-salted key
 
 
 @pytest.mark.parametrize("scale,need", [("month", "month"), ("year", "year"), ("season", "arc"), ("chapter", "arc")])
@@ -647,3 +647,16 @@ def test_no_caution_and_steady_cases_are_unchanged():
     steady = D.reconcile(_open_today(tone="steady"), DAILY, "en")
     assert steady["claim"].startswith("Today, keep it quiet on money and income.")
     assert D.reconcile_month(_month_out("care"), "en")["claim"].endswith(MONTH["caution_week"])
+
+
+def test_hold_off_is_timing_advice_outside_money_and_the_hedge_is_not_a_bet():
+    line = "Not a day for rushed promises - hold off on big commitments in close relationships."
+    daily = {"headline": line, "domains": [{"key": "people", "state": "caution", "line": line}]}
+    out = D.reconcile(_open_today(topic="love", your_move="Spend one unhurried hour with someone who matters."), daily, "en")
+    assert out["claim"] == "Today, good for honest, warm conversations, but careful with rushed promises."
+    assert out["your_move"].endswith("But stay careful with rushed promises.") and "bet" not in out["your_move"]
+    assert D.caution_kind("Hold off on new spending today.", "money") == "risk"
+    assert D.caution_kind("A risky bet on a project can backfire.", "career") == "risk"
+    out = D.reconcile(_open_today(topic="career", your_move="Make your ask."),
+                      {"headline": "A risky bet on a project can backfire.", "domains": [{"key": "work", "state": "caution", "line": "A risky bet on a project can backfire."}]}, "en")
+    assert C.KEEP_SMALL["en"] not in out["your_move"] and "risky bets" in out["claim"]

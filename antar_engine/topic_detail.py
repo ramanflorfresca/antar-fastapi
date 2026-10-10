@@ -101,14 +101,20 @@ _TIMING_RX = re.compile(r"sign|commit|decision|decid|rush|delay|timing|talk|mess
                         r"firm|decisi|compromet|prisa|assin|decis|pressa|vaada|faisl|jaldi", re.I)
 
 
+_MONEY_TOPICS = ("money", "business")
+_HARD_RISK_RX = re.compile(r"\brisk|speculat|gambl|\bbet\b|\bbets\b|riesgo|especul|apuesta|aposta|risco|jokhim|daav", re.I)
+
+
 def caution_kind(note: Optional[str], topic: str) -> str:
     """risk / conflict / timing / neutral for the caution's own text (the risk cue is the one the
     Right-now caution already uses; `relevance` keeps it to a sentence about this topic or no topic)."""
     t = str(note or "")
     if not t or relevance(t, topic) == "other":
         return "neutral"
+    if _RISK_RX.search(t) and (topic in _MONEY_TOPICS or _HARD_RISK_RX.search(t)):
+        return "risk"      # a bare "hold off" is timing advice outside money / business
     if _RISK_RX.search(t):
-        return "risk"
+        return "timing"
     if _CONFLICT_RX.search(t):
         return "conflict"
     if _TIMING_RX.search(t):
@@ -137,8 +143,8 @@ def balanced(out: dict, lang: str, note: Optional[str], tail: str = "") -> dict:
     out["claim"] = C.pick(C.BAL_JOIN, lang).format(
         lead=C.pick(C.SPAN_LEAD, lang)[scale], good=good, care=care, tail=tail)
     if out.get("your_move"):
-        add = C.pick(C.KEEP_SMALL, lang) if kind == "risk" else C.pick(C.BAL_MOVE, lang).format(care=care)
-        if add not in out["your_move"] and not (kind == "risk" and re.search(r"\b(bet|bets|apuesta|aposta|daav)\b", out["your_move"], re.I)):
+        add = C.pick(C.KEEP_SMALL, lang) if kind == "risk" and topic in _MONEY_TOPICS else C.pick(C.BAL_MOVE, lang).format(care=care)
+        if add not in out["your_move"] and not (kind == "risk" and topic in _MONEY_TOPICS and re.search(r"\b(bet|bets|apuesta|aposta|daav)\b", out["your_move"], re.I)):
             out["your_move"] = f"{out['your_move'].rstrip()} {add}"
     return out
 
