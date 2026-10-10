@@ -26740,6 +26740,18 @@ _ASK_CHAPTER_MARKERS = (
 )
 
 
+def _chapter_followup(prev_q: str, ql: str, own_topic: bool) -> bool:
+    """[ask-direct 2026-10-10] Is this short message a follow-up on the PREVIOUS chapter/dasha question
+    ("what happens in it?", "tell me more") rather than a new question? A short question that carries its own
+    topic ("Will my ex come back?") is a new question — treating it as a follow-up dropped the engine verdict."""
+    if not _is_life_chapter_q(prev_q):
+        return False
+    ql = (ql or "").strip().lower()
+    starts = ql.startswith(("what happens", "what about", "tell me", "and ", "so ", "what else", "qu\u00e9 pasa",
+                            "que pasa", "y ", "cu\u00e9ntame", "cuentame"))
+    return bool(starts or (len(ql.split()) <= 8 and not own_topic))
+
+
 def _is_life_chapter_q(q):
     """True for a 'what happens in my new/next chapter / phase / dasha' question —
     the reader wants to know their next major life period, however they phrase it."""
@@ -30939,11 +30951,18 @@ async def _ask_endpoint_impl(request: AskRequest):
                 if not _chap_q and _ask_thread:
                     _pq = (_ask_thread[-1].get("q") or "")
                     _ql2 = (question or "").strip().lower()
-                    if _is_life_chapter_q(_pq) and (
-                        len(_ql2.split()) <= 8
-                        or _ql2.startswith(("what happens", "what about", "tell me",
-                                            "and ", "so ", "what else", "qué pasa",
-                                            "que pasa", "y ", "cuéntame", "cuentame"))):
+                    # [ask-direct 2026-10-10] a short question that carries its OWN topic ("Will my ex come back?")
+                    # is a new question, not "tell me more about my chapter": live, asking it right after a dasha
+                    # question dropped the engine verdict, produced a different verdict from the same question asked
+                    # alone, and ended on a canned move.
+                    _own_topic = False
+                    try:
+                        _own_topic = bool(
+                            (_ask_concern_route(question) or "") not in ("", "general")
+                            or ((locals().get("_ask_u") or {}).get("area") not in (None, "", "general")))
+                    except Exception:
+                        _own_topic = False
+                    if _chapter_followup(_pq, _ql2, _own_topic):
                         _chap_q = True
                 if _chap_q and isinstance(chart_data, dict) and chart_data:
                     _ask_chapter_block = _ask_life_chapter_block(
