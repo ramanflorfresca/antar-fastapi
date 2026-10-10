@@ -51,3 +51,17 @@ def test_negative_lead_is_a_hold_day_and_no_shift_uses_best_window():
 
 def test_other_languages_and_empty_payloads_get_no_block():
     assert compose(P, "es") is None and compose({}) is None and compose({"evidence": {"chosen": []}}) is None
+
+
+def test_daily_signal_route_attaches_the_decision_block():
+    import asyncio
+    import main
+
+    async def base(chart_id=None, request=None, language="en", date=None):
+        return dict(P, date="2026-10-10")
+
+    wrapped = main._attach_today_decision(base)
+    out = asyncio.run(wrapped(chart_id="x", request={}, language="en"))
+    assert out["decision"]["prediction"].startswith("Today favours work and reputation")
+    es = asyncio.run(wrapped(chart_id="x", request={}, language="es"))
+    assert "decision" not in es

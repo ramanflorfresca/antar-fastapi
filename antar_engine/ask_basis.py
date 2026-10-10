@@ -309,3 +309,8 @@ _PERIOD_GUIDE = {
 def period_guidance(planet):
     """(use, waste, move) for a Vimśottarī lord, or None."""
     return _PERIOD_GUIDE.get(planet)
+
+
+def running_period(dashas) -> str:
+    """"You're running Rahu–Rahu (sub-period ends Apr 25, 2029)" or "" — shared by Ask basis and the horizon cards."""
+    return _period(dashas)

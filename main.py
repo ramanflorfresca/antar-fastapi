@@ -34463,11 +34463,33 @@ DAILY_SIGNAL_I18N_FIELDS = [
 
 
 @app.post("/api/v1/daily-signal")
+def _attach_today_decision(fn):
+    """[today-decision 2026-10-10] The Today card calls GET /daily-signal/{id} (confirmed by the front end), so the
+    decision block is attached HERE — to the payload the card actually renders — not only on the /predict/daily
+    alias. Additive, English only, never blocks the response."""
+    import functools as _ft
+
+    @_ft.wraps(fn)
+    async def _wrapper(*args, **kwargs):
+        r = await fn(*args, **kwargs)
+        try:
+            if isinstance(r, dict) and "decision" not in r and (kwargs.get("language") or "en").split("-")[0].lower() == "en":
+                from antar_engine.today_decision import compose as _td_compose
+                _td = _td_compose(r, "en")
+                if _td:
+                    r["decision"] = _td
+        except Exception as _tde:
+            print(f"[today] decision block skipped (non-fatal): {_tde}")
+        return r
+    return _wrapper
+
+
 @app.get("/api/v1/daily-signal/{chart_id}")
 @translate_response(
     fields_to_translate=DAILY_SIGNAL_I18N_FIELDS,
     endpoint_name="daily-signal",
 )
+@_attach_today_decision
 async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, language: str = "en", date: str = None,
                                     full_compute: bool = False):
     cid = chart_id or (request.get("chart_id") if request else None)
@@ -50358,9 +50380,12 @@ async def _alias_predict_daily(request: dict):
     try:
         if isinstance(_r_daily, dict):
             from antar_engine.today_decision import compose as _td_compose
-            _td = _td_compose(_r_daily, (request.get("language") or "en").split("-")[0].lower())
-            if _td:
-                _r_daily["decision"] = _td
+            # already attached by get_daily_signal_endpoint (from the same base fields the card renders); only
+            # compose here if that path didn't
+            if "decision" not in _r_daily:
+                _td = _td_compose(_r_daily, (request.get("language") or "en").split("-")[0].lower())
+                if _td:
+                    _r_daily["decision"] = _td
     except Exception as _tde:
         print(f"[today] decision block skipped (non-fatal): {_tde}")
     # [gate-debug 2026-06-08] hide internal evidence trail from client
@@ -50460,6 +50485,21 @@ async def _alias_predict_monthly(request: dict, language: str = "en"):
         except Exception as _m_te:
             print(f"[monthly] i18n pass skipped (non-fatal): {_m_te}")
 
+    # [month-decision 2026-10-10] one coherent prediction → why → holds → breaks → move block (additive; en only)
+    try:
+        if isinstance(_r_monthly, dict) and _m_lang == "en":
+            from antar_engine.month_decision import compose as _md_compose
+            from antar_engine.ask_basis import running_period as _md_rp
+            _md_line = ""
+            try:
+                _md_line = _md_rp(await asyncio.to_thread(get_dashas_for_chart, request.get("chart_id")))
+            except Exception:
+                pass
+            _md = _md_compose(_r_monthly, "en", period_line=_md_line.rstrip("."))
+            if _md:
+                _r_monthly["decision"] = _md
+    except Exception as _mde:
+        print(f"[monthly] decision block skipped (non-fatal): {_mde}")
     # [gate-debug 2026-06-08] hide internal evidence trail from client
     return _strip_debug_reasoning(_r_monthly, request)
 
