@@ -72,7 +72,7 @@ def test_build_shape_and_the_honesty_note_never_predicts():
     b = CB.build(me, other, "cofounder", [], {"badge": "MIXED", "score": 58, "headline": "h"}, [{"area": "communication"}], "en", TODAY)
     assert set(b) == {"lens", "family", "verdict", "phase", "fit", "people", "balance", "timing", "donts", "moves", "note"}
     assert [p["first_name"] for p in b["people"]] == ["Raman", "Andres"]
-    assert b["timing"]["shifts"][0]["line"] == "Andres moves into a season of discipline and time on Jun 5, 2027."
+    assert b["timing"]["shifts"][0]["line"] == "Andres moves into a phase of discipline and time on Jun 5, 2027."
     assert "does not predict funding" in b["note"]
 
 

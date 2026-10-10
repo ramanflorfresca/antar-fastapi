@@ -85,7 +85,7 @@ DASHA_ENERGY = {
     "Mars":    "a high-energy action period — courage and decisive action are your fuel",
     "Mercury": "an intellectual cycle — communication, business, and the power of your mind are highlighted",
     "Jupiter": "an expansive growth period — the universe is leaning toward yes for you",
-    "Venus":   "a long season of the heart — love, beauty, and creative expression as teachers",
+    "Venus":   "a long phase of the heart — love, beauty, and creative expression as teachers",
     "Saturn":  "a clarifying pressure — asking what is truly real and lasting in your life",
     "Rahu":    "a period of hungry becoming — ambition, transformation, and the pull toward something new",
     "Ketu":    "a releasing cycle — your soul is lightening its load to make room for something truer",
@@ -583,12 +583,12 @@ def layer3_yoga_activation(
                 "confidence": 0.72,
                 "type":       "yoga_upcoming",
                 "title":      "A Pattern Waiting for Its Season",
-                "what":       f"There is {yoga_energy} in your chart. Its full season has not yet arrived.",
+                "what":       f"There is {yoga_energy} in your chart. Its full phase has not yet arrived.",
                 "why":        (f"{yoga_desc} "
                                f"The current period is preparation. The full activation arrives "
                                f"when a {future_activator} cycle begins."),
                 "what_it_means": f"The potential is real. Right now is the time to plant seeds, not harvest them.",
-                "invitation": "Prepare now for what is coming. The foundation you build today is what that future season will stand on.",
+                "invitation": "Prepare now for what is coming. The foundation you build today is what that future phase will stand on.",
                 "window":     f"Full activation expected in a future {future_activator} period.",
                 "yoga_name":  yoga_name,
             })

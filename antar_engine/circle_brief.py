@@ -168,7 +168,7 @@ TIMING_LINE = {
     },
 }
 SHIFT = {
-    "en": "{name} moves into a season of {to} on {on}.",
+    "en": "{name} moves into a phase of {to} on {on}.",
     "es": "{name} entra en una etapa de {to} el {on}.",
     "pt": "{name} entra numa fase de {to} em {on}.",
     "hinglish": "{name} {on} ko {to} ke daur mein pravesh karta hai.",
