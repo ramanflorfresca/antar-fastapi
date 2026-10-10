@@ -333,7 +333,7 @@ def active_set(now: Dict[str, dict]) -> set:
 NEAR_DAYS = 2   # a window starting this soon is "now-ish", never "opens {month}"
 FAR_MONTHS = 12          # a window starting later than this is "far": its tag names the date
 LABEL_YEAR_MONTHS = 11   # a period ending later than this carries its year in the label
-TAG_DAY_DAYS = 45        # a window start further out than this is named by month: the scan is bucketed
+TAG_DAY_DAYS = C.DAY_PRECISION_DAYS        # a window start further out than this is named by month: the scan is bucketed
                          # from today, so a day-exact date there would slide a day every day
 
 
@@ -731,7 +731,8 @@ def _confidence(ctx: TopicContext, a: dict) -> str:
 
 
 def _reasoning(ctx: TopicContext, key: str, a: dict, scale: str, lang: str,
-               w_start: Optional[date] = None, w_end: Optional[date] = None) -> dict:
+               w_start: Optional[date] = None, w_end: Optional[date] = None,
+               today: Optional[date] = None) -> dict:
     B, area = C.pick(C.WHY_BULLET, lang), C.pick(C.AREA, lang)[key]
     bullets: List[str] = []
     if a["dasha_kind"] == "core":
@@ -744,7 +745,8 @@ def _reasoning(ctx: TopicContext, key: str, a: dict, scale: str, lang: str,
         sfx = "_day" if w_start == w_end else ""   # one day reads "on Oct 7", never "between Oct 7 and Oct 7"
         tmpl = B[("signals_care" if a["mode"] == "care" else "signals_open") + sfx]
         bullets.append(tmpl.format(n=a["n_signals"], area=area,
-                                   start=C.day_label(w_start, lang), end=C.day_label(w_end, lang)))
+                                   start=C.label_near_or_month(w_start, lang, today),
+                                   end=C.label_near_or_month(w_end, lang, today)))
     elif not a["n_signals"]:
         bullets.append(B["none_dated"])
     if ctx.time_quality == "approximate":
@@ -852,10 +854,10 @@ def _window_obj(ctx, key, run, scale, lang, kind, whole_label: bool = False, tod
     whole = (C.season_text(C.WHOLE_SEASON, lang, span) if scale == "season" and span
              else C.pick(C.WHOLE_SPAN, lang)[scale])
     label = (C.pick(C.WINDOW_LABEL, lang)["whole"].format(span=whole)
-             if whole_label else C.range_label(s, e, lang))
+             if whole_label else (C.span_near_or_month(s, e, lang, today) if today else C.range_label(s, e, lang)))
     return {"start": s.isoformat(), "end": e.isoformat(), "label": label,
             "window_phase": window_phase(s, e, today) if today else None,
-            "reasoning": _reasoning(ctx, key, a, scale, lang, s, e),
+            "reasoning": _reasoning(ctx, key, a, scale, lang, s, e, today),
             "evidence": {"chara_dependent": chara_dependent(a), "dated_signals": a.get("n_signals", 0)}}
 
 
@@ -962,7 +964,7 @@ def _read_topic(ctx: TopicContext, key: str, scale: str, today: date, language: 
     if phase in ("soon", "later"):
         # the window is still ahead: name when it opens and make the move a prepare step
         when = date.fromisoformat(primary["start"])
-        dlab = C.day_label(when, lang) if when.year == today.year else C.day_label_y(when, lang)
+        dlab = C.label_near_or_month(when, lang, today)
         core = C.pick(C.CORE_AHEAD, lang)[key][mode].format(date=dlab)
         your_move = C.pick(C.MOVE_AHEAD, lang)[key][mode].format(date=dlab)
     claim = C.pick(C.LEAD_JOIN, lang).format(lead=lead, core=core)
@@ -970,8 +972,8 @@ def _read_topic(ctx: TopicContext, key: str, scale: str, today: date, language: 
         claim = f"{claim.rstrip()} " + C.pick(C.MONTH_OPEN_TODAY, lang).format(area=area)
     if strongest and mode in ("open", "care"):
         claim = f"{claim.rstrip()} " + C.pick(C.STRONGEST_TAIL, lang)[mode].format(
-            start=C.day_label_y(date.fromisoformat(strongest["start"]), lang),
-            end=C.day_label_y(date.fromisoformat(strongest["end"]), lang))
+            start=C.label_near_or_month(date.fromisoformat(strongest["start"]), lang, today),
+            end=C.label_near_or_month(date.fromisoformat(strongest["end"]), lang, today))
     # the top-level reasoning is the PRIMARY window's own (the one `tone` names);
     # the other window keeps its own distinct reasoning
     if primary:

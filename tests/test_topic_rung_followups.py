@@ -62,12 +62,12 @@ def test_season_leads_with_the_earliest_upcoming_window_not_the_strongest(monkey
     first = _bucket(3)[0]
     assert r["best_window"]["start"] == first.isoformat()
     assert r["window_phase"] == "later"
-    dlab = C.day_label_y(first, "en")
+    dlab = C.label_near_or_month(first, "en", TODAY)
     assert dlab in r["claim"] and dlab in r["your_move"]
     strongest = _bucket(21)[0]
     assert r["strongest_window"]["start"] == strongest.isoformat()
     assert r["claim"].endswith(C.pick(C.STRONGEST_TAIL, "en")["open"].format(
-        start=C.day_label_y(strongest, "en"), end=C.day_label_y(_bucket(23)[1], "en")))
+        start=C.label_near_or_month(strongest, "en", TODAY), end=C.label_near_or_month(_bucket(23)[1], "en", TODAY)))
     # the read and the windows list name the same windows
     w = T.windows_for(ctx, "money", "season", TODAY)
     assert min(x["start"] for x in w["open"]) == first
@@ -214,7 +214,7 @@ def test_season_ahead_and_next_months_are_filled_for_a_topic_with_no_events(lang
     assert [m["start"] for m in d["next_months"]] == ["2026-10-10", "2027-01-08", "2027-06-01"]   # within 12 months
     assert d["next_months"][1]["title"] == C.pick(C.WINDOW_ITEM, lang)["open"].format(area=C.pick(C.AREA, lang)["money"])
     assert d["next_months"][1]["when"] == (
-        f"{C.day_label_y(date(2027, 1, 8), lang)} – {C.day_label_y(date(2027, 5, 7), lang)}")
+        C.span_near_or_month(date(2027, 1, 8), date(2027, 5, 7), lang, TODAY))
 
 
 def test_next_months_is_null_when_nothing_is_available():
@@ -248,7 +248,7 @@ def test_long_read_with_care_before_open_leads_with_the_care_window(monkeypatch)
     r = T.read_topic(ctx, "money", "season", TODAY, "en", with_best_fit=False)
     first = _bucket(3)[0]
     assert r["tone"] == "care" and r["window_phase"] == "later"
-    assert C.day_label_y(first, "en") in r["claim"] and r["claim"].startswith("Over the next 2½ years, money asks for care from")
+    assert C.label_near_or_month(first, "en", TODAY) in r["claim"] and r["claim"].startswith("Over the next 2½ years, money asks for care from")
     assert r["best_window"]["start"] == _bucket(13)[0].isoformat()      # the later open window is still returned
     assert r["watch_window"]["start"] == first.isoformat()
 
@@ -397,3 +397,16 @@ def test_year_key_month_is_left_out_when_a_caution_stretch_or_nothing_exists():
     assert D.reconcile_year(base, "en", TODAY) == base
     other = dict(_year_out("career", rows=[{"when": "November 2026", "text": "x"}]), scale="month")
     assert D.reconcile_year(other, "en", TODAY) == other
+
+
+def test_far_dates_in_topic_text_are_month_level_and_do_not_slide_with_today():
+    """Beyond 45 days a window start is a scan-bucket edge, so the read names the month; the claim for the
+    same real window is identical on adjacent days."""
+    from datetime import timedelta
+    start = date(2027, 8, 6)
+    labels = {C.label_near_or_month(start, "en", TODAY + timedelta(days=d)) for d in (0, 1, 2)}
+    assert labels == {"Aug 2027"}
+    assert C.label_near_or_month(TODAY + timedelta(days=30), "en", TODAY) == C.day_label(TODAY + timedelta(days=30), "en")
+    assert C.span_near_or_month(date(2027, 8, 6), date(2027, 8, 25), "en", TODAY) == "Aug 2027"
+    assert C.span_near_or_month(date(2027, 8, 6), date(2027, 10, 4), "en", TODAY) == "Aug 2027 – Oct 2027"
+    assert C.span_near_or_month(date(2026, 10, 12), date(2026, 10, 24), "en", TODAY) == "Oct 12 – Oct 24"
