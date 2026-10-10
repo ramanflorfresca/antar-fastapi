@@ -898,6 +898,9 @@ def _read_topic(ctx: TopicContext, key: str, scale: str, today: date, language: 
                     lst.remove(r)
                 else:
                     r["start"], r["end"] = c
+        if scale == "month":   # a single day is not the headline of a 30-day read (the Windows feed still lists it)
+            opens = [r for r in opens if r["start"] != r["end"]]
+            cares = [r for r in cares if r["start"] != r["end"]]
         pick_run = (lambda rs: _lead_run(rs, today)) if long_scale else _best_run
         br, wr = pick_run(opens), pick_run(cares)
         whole = lambda r: (r["start"], r["end"]) == (max(per["start"], today), per["end"]) and scale != "today"
