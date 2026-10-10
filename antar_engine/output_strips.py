@@ -317,6 +317,15 @@ _VEDIC_SUBS_EN: list[tuple[str, str]] = [
     (r'\bplanetary\s+combinations?\s+(?:are|is)\s+aligned\b',       'the timing is on your side'),
     (r'\bplanetary\s+combinations?\b',  'the current window'),
     (r'\bplanetary\s+alignments?\b',    'the current window'),
+    # [note-leak 2026-10-10] LLM compounds that name a planet by role ("the mind-planet and the wisdom-planet")
+    # and house-of phrases ("stacked in his house of work") leaked into saved person notes.
+    (r'\bthe\s+[a-z]+-planets?\b', 'another strong influence'),
+    (r'\b[a-z]+-planets?\b',        'influence'),
+    (r'\bhouse\s+of\s+(?:work|career|profession)\b',           'work life'),
+    (r'\bhouse\s+of\s+(?:money|wealth|income|finances?)\b',    'money life'),
+    (r'\bhouse\s+of\s+(?:home|family|mother)\b',               'home life'),
+    (r'\bhouse\s+of\s+(?:marriage|partnership|relationships?)\b', 'close relationships'),
+    (r'\bhouse\s+of\s+(?:health|body)\b',                      'health'),
     (r'\bcurrent\s+planetary\s+period\b', 'the current window'),
     # [bija-confine] seed syllables belong ONLY to mantra fields (which the
     # strip walks skip). Chant-context rewrite + uppercase-only standalone
@@ -899,6 +908,26 @@ def _strip_markdown_emphasis(text: str) -> str:
     t = t.replace("**", "")                               # any stray unpaired **
     t = _re_md.sub(r"(?m)^\s{0,3}#{1,6}\s+", "", t)       # # ATX headers at line start
     return t
+
+
+_ENERGY_PHRASE = r"your [A-Za-z][\w &-]*? energy"
+
+
+def tidy_energy_phrases(text):
+    """After a planet name was swapped for "your X energy", repair the two shapes that read badly:
+    "The classical your X energy glyph" -> "The classical glyph for your X energy", and
+    "your X energy's tender, warm grace" -> "the tender, warm grace of your X energy". Pure; never raises."""
+    import re as _re
+    if not isinstance(text, str) or " energy" not in text:
+        return text
+    try:
+        t = _re.sub(rf"\b(The|the|A|a|An|an)\s+(\w+)\s+({_ENERGY_PHRASE})\s+(glyph|sigil|symbol|emblem|yantra|stone|metal)\b",
+                    lambda m: f"{m.group(1)} {m.group(2)} {m.group(4)} for {m.group(3)}", text)
+        t = _re.sub(rf"({_ENERGY_PHRASE})'s\s+((?:[A-Za-z-]+,?\s+){{0,5}}?)(grace|quality|frequency|force|power|presence|rhythm|signal|nature|character|voice|warmth)\b",
+                    lambda m: f"the {m.group(2)}{m.group(3)} of {m.group(1)}", t)
+        return t
+    except Exception:
+        return text
 
 
 def apply_user_facing_strips(

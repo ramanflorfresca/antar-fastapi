@@ -101,7 +101,12 @@ def build_claim(chart_id: str, question: str, payload: dict, *, mode: str,
         start, _ = parse_window(p.get("timing"), today)
         if not (lean and end):
             return None
-        claim_type, verdict, start = "yesno", lean, (start or (today or date.today()))
+        start = start or (today or date.today())
+        if start > end:
+            # a timing chip that parses to a later date than verify_after (e.g. "Jan 20" read as next year for
+            # "this month") must never make the window run backwards: ask about now .. verify_after
+            start = min(today or date.today(), end)
+        claim_type, verdict = "yesno", lean
     else:
         if verdict not in _VERDICTS_TRACKED:
             return None
