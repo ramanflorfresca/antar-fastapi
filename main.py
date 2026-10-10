@@ -33241,6 +33241,14 @@ async def _ask_endpoint_impl(request: AskRequest):
             except Exception as _oce:
                 print(f"[outcomes] claim skipped (non-fatal): {_oce}")
             _ask_attach_disclaimer(payload, locals().get("_ask_concern"), language, question)
+            try:   # [ask-direct 2026-10-10] the named chart facts behind the answer (see ask_basis.py)
+                from antar_engine.ask_basis import build_basis as _bb
+                _basis = _bb(locals().get("_ask_concern"), chart_data, locals().get("_ask_dashas"),
+                             _ask_norm_lang(language)) if isinstance(payload, dict) else ""
+                if _basis:
+                    payload["basis"] = _basis
+            except Exception as _bse:
+                print(f"[ask] basis skipped (non-fatal): {_bse}")
             await _ask_persist(supabase, chart_id, question, payload, language,
                                "explore", locals().get("_ask_concern"))
             return payload
