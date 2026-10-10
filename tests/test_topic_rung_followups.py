@@ -360,3 +360,40 @@ def test_no_open_today_note_when_a_real_window_leads_or_today_is_not_open(monkey
     assert "Today itself" not in r["claim"]
     monkeypatch.setattr(T, "assess", lambda c, k, on, ev: dict(base, lit=False, mode="steady", score=0.0, n_signals=0))
     assert "Today itself" not in T.read_topic(ctx, "money", "month", TODAY, "en", with_best_fit=False)["claim"]
+
+
+# ── the year claim names a key month ─────────────────────────────────────────
+def _year_out(topic, tone="steady", lang="en", rows=None, caution=None):
+    det = {"key_months": rows, "caution": caution}
+    return {"topic": topic, "scale": "year", "language": lang, "tone": tone, "detail": det,
+            "claim": "Over your year, to your birthday, nothing sharp is pulling on your work, so keep your usual pace."}
+
+
+@pytest.mark.parametrize("lang,when", [("en", "November 2026"), ("es", "noviembre de 2026"),
+                                       ("pt", "novembro de 2026"), ("hinglish", "November 2026")])
+def test_year_claim_names_the_key_month(lang, when):
+    out = D.reconcile_year(_year_out("career", lang=lang, rows=[{"when": when, "text": "x"}]), lang, TODAY)
+    sent = C.pick(C.YEAR_KEY_MONTH, lang).format(when=when, area=C.pick(C.AREA, lang)["career"])
+    sent = sent[:1].upper() + sent[1:]
+    assert out["claim"].endswith(sent) and not _JARGON.search(sent)
+    assert D.reconcile_year(out, lang, TODAY)["claim"] == out["claim"]            # idempotent
+
+
+def test_year_key_month_picks_the_earliest_one_not_over():
+    rows = [{"when": "March 2027", "text": "x"}, {"when": "September 2026", "text": "x"}, {"when": "November 2026", "text": "x"}]
+    out = D.reconcile_year(_year_out("career", rows=rows), "en", TODAY)
+    assert out["claim"].endswith("November 2026 is the month to note for your work.")
+    over = D.reconcile_year(_year_out("career", rows=[{"when": "September 2026", "text": "x"}]), "en", TODAY)
+    assert "month to note" not in over["claim"]
+    cur = D.reconcile_year(_year_out("career", rows=[{"when": "October 2026", "text": "x"}]), "en", TODAY)   # this month still counts
+    assert "October 2026 is the month to note" in cur["claim"]
+
+
+def test_year_key_month_is_left_out_when_a_caution_stretch_or_nothing_exists():
+    cau = [{"when": "Nov 2026", "text": "Money comes under pressure."}]
+    out = D.reconcile_year(_year_out("money", rows=[{"when": "November 2026", "text": "x"}], caution=cau), "en", TODAY)
+    assert "month to note" not in out["claim"] and "Nov 2026" in out["claim"]
+    base = _year_out("career", rows=None)
+    assert D.reconcile_year(base, "en", TODAY) == base
+    other = dict(_year_out("career", rows=[{"when": "November 2026", "text": "x"}]), scale="month")
+    assert D.reconcile_year(other, "en", TODAY) == other

@@ -550,15 +550,39 @@ def reconcile(out: dict, daily: Optional[dict], lang: str) -> dict:
         return out
 
 
-def reconcile_year(out: dict, lang: str) -> dict:
+def _month_of(when) -> Optional[date]:
+    """First day of the month a 'November 2026' / 'Nov 2026' / 'noviembre de 2026' label names, else None."""
+    m = re.search(rf"\b({_MONTH_ALT})\.?\b\D{{0,6}}(\d{{4}})", str(when or ""), re.I)
+    mon = _MONTH_FORMS.get(m.group(1).lower().rstrip(".")) if m else None
+    return date(int(m.group(2)), mon, 1) if mon else None
+
+
+def _key_month(det: dict, today: Optional[date]) -> Optional[str]:
+    """The earliest key month of the year plan that is not already over, as the engine labelled it."""
+    rows = [(_month_of(k.get("when")), k["when"]) for k in det.get("key_months") or [] if k.get("when")]
+    if today:
+        rows = [(d, w) for d, w in rows if d is None or (d.year, d.month) >= (today.year, today.month)]
+    rows.sort(key=lambda r: (r[0] is None, r[0] or date.max))
+    return rows[0][1] if rows else None
+
+
+def reconcile_year(out: dict, lang: str, today: Optional[date] = None) -> dict:
     """The year claim vs the year's own caution stretch. A steady claim ('nothing sharp is pulling')
     cannot sit beside a demanding month in the detail: the claim names that month, and the engine's
     sentence for it rides in `detail.caution_note`. An open / care year keeps its claim and gains a
-    short 'Watch <month>.' Returns a new dict; never raises."""
+    short 'Watch <month>.' With no caution stretch, the claim names the year plan's key month for the
+    topic (when one is still running or ahead). Returns a new dict; never raises."""
     try:
         det = out.get("detail") or {}
         cau = next((c for c in det.get("caution") or [] if c.get("when") and c.get("text")), None)
-        if out.get("scale") != "year" or not cau:
+        if out.get("scale") == "year" and not cau:
+            km = _key_month(det, today)
+            if not km:
+                return out
+            tail = C.pick(C.YEAR_KEY_MONTH, lang).format(when=km, area=C.pick(C.AREA, lang)[out["topic"]])
+            tail = tail[:1].upper() + tail[1:]
+            return out if tail in out.get("claim", "") else dict(out, claim=f"{out['claim'].rstrip()} {tail}")
+        if out.get("scale") != "year":
             return out
         out = dict(out)
         out["detail"] = dict(det, caution_note=cau["text"])
