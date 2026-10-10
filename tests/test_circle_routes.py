@@ -61,7 +61,7 @@ def test_create_invite_needs_the_owner_and_returns_a_link(env):
     assert c.post("/api/v1/circle/invites", json=body, headers=AUTH["uB"]).status_code == 403
     r = c.post("/api/v1/circle/invites", json=body, headers=AUTH["uA"])
     j = r.json()
-    assert r.status_code == 200 and set(j) == {"invite_id", "link", "expires_at"}
+    assert r.status_code == 200 and set(j) == {"invite_id", "link", "expires_at", "share"}
     assert j["link"].startswith("https://antar.world/c/")
     assert c.post("/api/v1/circle/invites", json=dict(body, relation="zzz"), headers=AUTH["uA"]).json()["detail"]["error"] == "unknown_relation"
     assert c.post("/api/v1/circle/invites", json=dict(body, first_name=" "), headers=AUTH["uA"]).status_code == 422
@@ -82,7 +82,7 @@ def test_landing_is_public_and_minimal_and_404s_for_unknown(env):
     code = r.json()["link"].rsplit("/", 1)[1]
     g = c.get(f"/api/v1/circle/invite/{code}")
     assert g.status_code == 200
-    assert set(g.json()) == {"inviter_first_name", "relation", "status", "language"}
+    assert set(g.json()) == {"inviter_first_name", "relation", "status", "language", "invite_language", "landing"}
     assert g.json()["language"] == "es" and g.json()["relation"]["label"] == "Hijo o hija"
     assert c.get("/api/v1/circle/invite/" + "Z" * 24).status_code == 404
 
