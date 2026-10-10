@@ -301,7 +301,8 @@ def _next_opening(ctx: TopicContext, key: str, today: date) -> Optional[Tuple[da
 def fallback_topics(language: str = "en") -> List[dict]:
     lang = C.serve_language(language)
     return [{"key": k, "label": C.LABEL[lang][k], "status": "steady",
-             "tag": C.TAG[lang]["quiet"], "tag_kind": "quiet", "tone": "steady", "rank": i + 1}
+             "tag": C.TAG[lang]["quiet"], "tag_kind": "quiet", "tone": "steady", "rank": i + 1,
+             "window_start": None, "window_end": None}
             for i, k in enumerate(TOPIC_KEYS)]
 
 
@@ -340,13 +341,9 @@ def _tag_date(d: date, lang: str, today: date, far_key: str, near_key: str) -> T
     return near_key, C.day_label(d, lang)
 
 
-def _tile_tag(lang: str, tone: str, read: Optional[dict], today: date,
-              active: bool = False, opening: Optional[Tuple[date, str]] = None) -> Tuple[str, str]:
-    """(tag, tag_kind): exactly one of open_now | opens | care_now | care_from | quiet.
-
-    The windows come from the read the tile opens. A window running today wins;
-    otherwise the one that starts soonest (the tone's own on a tie). Never two phrases."""
-    t = C.TAG[lang]
+def _pick_tile_window(tone: str, read: Optional[dict], today: date,
+                      opening: Optional[Tuple[date, str]] = None) -> Optional[Tuple[str, date, date]]:
+    """The one (mode, start, end) window a tile talks about: running today wins, else soonest ahead."""
     wins = []                                   # (mode, start, end)
     for mode, field in (("open", "best_window"), ("care", "watch_window")):
         w = (read or {}).get(field)
@@ -356,7 +353,17 @@ def _tile_tag(lang: str, tone: str, read: Optional[dict], today: date,
         wins.append((opening[1], opening[0], opening[0]))
     live = [w for w in wins if w[1] <= today <= w[2]]
     ahead = [w for w in wins if w[1] > today]
-    pick = (sorted(live, key=lambda w: w[0] != tone) or sorted(ahead, key=lambda w: (w[1], w[0] != tone)) or [None])[0]
+    return (sorted(live, key=lambda w: w[0] != tone) or sorted(ahead, key=lambda w: (w[1], w[0] != tone)) or [None])[0]
+
+
+def _tile_tag(lang: str, tone: str, read: Optional[dict], today: date,
+              active: bool = False, opening: Optional[Tuple[date, str]] = None) -> Tuple[str, str]:
+    """(tag, tag_kind): exactly one of open_now | opens | care_now | care_from | quiet.
+
+    The windows come from the read the tile opens. A window running today wins;
+    otherwise the one that starts soonest (the tone's own on a tie). Never two phrases."""
+    t = C.TAG[lang]
+    pick = _pick_tile_window(tone, read, today, opening)
     if pick is None:
         if active:                              # lit today but the read carries no dated window
             kind = "care_now" if tone == "care" else "open_now"
@@ -454,8 +461,11 @@ def rank_topics(ctx: TopicContext, today: date, language: str = "en") -> List[di
                     status = "quiet"
                     tag, kind = _tile_tag(lang, tone, read, today)
                     order = (3, -a["score"], i)
+            pw = _pick_tile_window(tone, read, today) if kind != "quiet" else None
             rows.append((order, {"key": k, "label": C.LABEL[lang][k], "status": status, "tag": tag,
-                                 "tag_kind": kind, "tone": tone}))
+                                 "tag_kind": kind, "tone": tone,
+                                 "window_start": pw[1].isoformat() if pw else None,
+                                 "window_end": pw[2].isoformat() if pw else None}))
         rows.sort(key=lambda r: r[0])
         return [dict(r[1], rank=n + 1) for n, r in enumerate(rows)]
     except Exception:

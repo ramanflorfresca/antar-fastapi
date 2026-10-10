@@ -133,7 +133,7 @@ def test_rank_shape_order_and_contiguous_ranks(ctxs):
         out = T.rank_topics(ctx, TODAY, "en")
         assert [r["rank"] for r in out] == list(range(1, 8))
         assert {r["key"] for r in out} == set(T.TOPIC_KEYS)
-        assert set(out[0]) == {"key", "label", "status", "tag", "tag_kind", "tone", "rank"}
+        assert set(out[0]) == {"key", "label", "status", "tag", "tag_kind", "tone", "rank", "window_start", "window_end"}
         order = {"active": 0, "upcoming": 1, "steady": 2, "quiet": 3}
         st = [order[r["status"]] for r in out]
         assert st == sorted(st)
@@ -635,7 +635,7 @@ def test_topics_route_returns_list_and_caches(main_mod, monkeypatch):
     b = _run(main_mod.get_chart_topics("c1", None, None))
     assert a == b and a[0]["key"] == "career" and a[0]["label"] == "Carrera"   # chart's stored language wins over a missing param
     assert len(calls) == 2    # context is rebuilt, the ranking itself is cached
-    assert all(set(r) == {"key", "label", "status", "tag", "tag_kind", "tone", "rank"} for r in a)
+    assert all(set(r) == {"key", "label", "status", "tag", "tag_kind", "tone", "rank", "window_start", "window_end"} for r in a)
 
 
 def test_topics_route_falls_back_on_load_failure(main_mod, monkeypatch):
@@ -1394,3 +1394,15 @@ def test_opens_tile_names_the_start_of_the_reads_best_window():
     read = T.read_topic(ctx, "money", T.best_fit_scale(ctx, "money", TODAY), TODAY, "en")
     s0 = date.fromisoformat(read["best_window"]["start"])
     assert row["tag_kind"] == "opens" and row["tag"] == f"Opens {C.day_label(s0, 'en')}"
+
+
+def test_tile_rows_carry_the_window_their_tag_names():
+    """window_start/window_end feed the FE timeline bar; they match the tagged window, null when quiet."""
+    ctx = _fast_ctx(_january(), _burst("2026-10-07"))
+    rows = {r["key"]: r for r in T.rank_topics(ctx, TODAY, "en")}
+    money = rows["money"]
+    assert money["tag_kind"] == "open_now" and money["window_start"] == "2026-10-07"
+    assert money["window_end"] >= money["window_start"]
+    for r in rows.values():
+        if r["tag_kind"] == "quiet":
+            assert r["window_start"] is None and r["window_end"] is None
