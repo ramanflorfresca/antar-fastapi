@@ -406,6 +406,9 @@ MONTH_WATCH_TAIL: Dict[str, str] = {   # after MONTH_CAUTION_CORE when the month
 TODAY_CAUTION_CORE: Dict[str, str] = {   # a steady Right-now read on a day that advises going easy on risk
     "en": "keep it quiet on {area}", "es": "ve con calma en {area}",
     "pt": "vá com calma em {area}", "hinglish": "{area} mein shaant rahein"}
+YEAR_KEY_MONTH: Dict[str, str] = {   # appended to a year claim with no caution stretch when the year plan marks a month for this topic
+    "en": "{when} is the month to note for {area}.", "es": "{when} es el mes a tener presente en {area}.",
+    "pt": "{when} é o mês a ter em mente em {area}.", "hinglish": "{area} ke liye {when} dhyaan dene wala mahina hai."}
 YEAR_CAUTION_TAIL: Dict[str, str] = {   # appended to a year read that has a window but also a demanding stretch
     "en": "Watch {when}.", "es": "Vigila {when}.", "pt": "Observe {when}.", "hinglish": "{when} par nazar rakhein."}
 # ── one balanced headline: "<lead>, good for X, but careful with Y" (open window + a caution) ──

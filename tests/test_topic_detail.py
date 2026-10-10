@@ -441,7 +441,7 @@ def test_route_attaches_detail_and_reconciles(client, monkeypatch):
     assert calls == ["daily"]
     c.get("/api/v1/chart/c/topic-read?topic=money&scale=today&tz_offset=-240")
     assert calls == ["daily"]                                                     # second hit is served from the cache
-    assert any(k[:2] == ("topic-read", "v11-balanced") for k in te._CACHE)           # version-salted key
+    assert any(k[:2] == ("topic-read", "v12-balanced") for k in te._CACHE)           # version-salted key
 
 
 @pytest.mark.parametrize("scale,need", [("month", "month"), ("year", "year"), ("season", "arc"), ("chapter", "arc")])
