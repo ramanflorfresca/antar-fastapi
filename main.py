@@ -42074,11 +42074,38 @@ async def get_monthly_deepdive(chart_id: str, refresh: bool = False, language: s
 
 
 # ── Sprint E: Annual plan ─────────────────────────────────────────────────────
+def _attach_year_decision(fn):
+    """[year-decision 2026-10-10] adds the one-coherent-answer `decision` block to the annual plan (en only,
+    additive). Both /annual-plan/{id} and /predict/yearly call get_annual_plan, so they return the same block."""
+    import functools as _ft
+
+    @_ft.wraps(fn)
+    async def _wrapper(*args, **kwargs):
+        r = await fn(*args, **kwargs)
+        try:
+            if isinstance(r, dict) and "decision" not in r and (kwargs.get("language") or "en").split("-")[0].lower() == "en":
+                from antar_engine.year_decision import compose as _yd_compose
+                from antar_engine.ask_basis import running_period as _yd_rp
+                _line = ""
+                try:
+                    _line = _yd_rp(await asyncio.to_thread(get_dashas_for_chart, kwargs.get("chart_id") or (args[0] if args else None)))
+                except Exception:
+                    pass
+                _yd = _yd_compose(r, "en", period_line=_line.rstrip("."))
+                if _yd:
+                    r["decision"] = _yd
+        except Exception as _yde:
+            print(f"[annual] decision block skipped (non-fatal): {_yde}")
+        return r
+    return _wrapper
+
+
 @app.get("/api/v1/annual-plan/{chart_id}")
 @translate_response(
     fields_to_translate=["practice"],
     endpoint_name="annual-plan",
 )
+@_attach_year_decision
 async def get_annual_plan(chart_id: str, refresh: bool = False, language: str = "en", force_refresh: bool = False):
     """
     Returns the annual plan for the current year.
