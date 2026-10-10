@@ -75,6 +75,9 @@ def _period(dashas):
 def build_basis(concern, chart_data, dashas, language="en") -> str:
     """One line, or "" when nothing can be said truthfully."""
     try:
+        if language == "es":
+            from antar_engine import ask_basis_es as _es
+            return _es.build_basis(concern, chart_data, dashas)
         if language != "en":
             return ""
         from antar_engine.ask_consultation import CONCERN_HOUSES, CONCERN_KARAKAS
@@ -135,6 +138,9 @@ def chart_move(concern, chart_data, dashas, language="en") -> str:
     """[ask-direct 2026-10-10] A fallback move that follows from THIS chart and THIS topic (replaces the generic
     'Block one hour…' / 'Have one honest conversation…'). "" when the chart can't support one."""
     try:
+        if language == "es":
+            from antar_engine import ask_basis_es as _es
+            return _es.chart_move(concern, chart_data, dashas)
         if language != "en" or concern not in _ACT:
             return ""
         from antar_engine.ask_consultation import CONCERN_HOUSES
@@ -223,6 +229,9 @@ def conditions(concern, chart_data, dashas, language="en") -> str:
     ruler (where it sits, whether it is weakened) and its significator. English only; "" when there is no
     template for the topic or the chart can't support one."""
     try:
+        if language == "es":
+            from antar_engine import ask_basis_es as _es
+            return _es.conditions(concern, chart_data, dashas)
         if language != "en" or concern not in _BREAKS:
             return ""
         from antar_engine.ask_consultation import CONCERN_HOUSES, CONCERN_KARAKAS
@@ -312,6 +321,9 @@ def period_guidance(planet):
     return _PERIOD_GUIDE.get(planet)
 
 
-def running_period(dashas) -> str:
+def running_period(dashas, language: str = "en") -> str:
     """"You're running Rahu–Rahu (sub-period ends Apr 25, 2029)" or "" — shared by Ask basis and the horizon cards."""
+    if language == "es":
+        from antar_engine import ask_basis_es as _es
+        return _es.running_period(dashas)
     return _period(dashas)

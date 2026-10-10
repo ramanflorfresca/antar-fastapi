@@ -95,7 +95,7 @@ def test_basis_names_real_chart_facts():
     assert "Rahu–Saturn" in b and f"Apr 25, {y+2}" in b
     assert "10th house (career) is ruled by Venus" in b and "11th house in Scorpio" in b and "combust" in b
     assert "Saturn, the main significator" in b or "Sun, the main significator" in b
-    assert build_basis("career", chart, dashas, "es") == ""          # no wrong-language text
+    assert build_basis("career", chart, dashas, "pt") == ""          # no wrong-language text
     assert build_basis("career", {}, dashas) == ""                    # nothing true to say → nothing
 
 
@@ -127,7 +127,7 @@ def test_chart_move_follows_the_topic_and_the_chart():
     assert "your network and gains" in career and "Apr 25, 2100" in career
     love = chart_move("love", chart, dashas)
     assert "your own initiative and communication" in love and "first move" in love and "7th" not in love
-    assert chart_move("career", chart, dashas, "es") == ""          # English only
+    assert chart_move("career", chart, dashas, "pt") == ""          # English only
     assert chart_move("legal", chart, dashas) == ""                  # no template → canned fallback stays
 
 
@@ -165,7 +165,7 @@ def test_conditions_say_what_makes_it_true_and_what_breaks_it():
     h = conditions("health", chart, dashas)
     assert "recognition" not in h and "Risk stays small" in h
     assert "recognition" not in conditions("property", chart, dashas)
-    assert conditions("career", chart, dashas, "es") == "" and conditions("legal", chart, dashas) == ""
+    assert conditions("career", chart, dashas, "pt") == "" and conditions("legal", chart, dashas) == ""
 
 
 def test_polish_builds_prediction_holds_breaks_and_drops_invented_or_unasked_text():
@@ -254,3 +254,44 @@ def test_reconciliation_gets_a_topic_specific_fallback_move_and_generic_ones_are
                       "en", "Will my ex come back?", concern="reconciliation", chart_data=chart, dashas=dashas)
     assert "good partnership looks like" not in p["next"] and "first contact" in p["next"]
     assert "Both of you are open" not in p["read"]
+
+
+_ES_LEAK = (" the ", " your ", " you ", " it holds ", " it breaks ", " ruler ", " sub-period", " house ", " weakened", " and ")
+
+
+def test_spanish_basis_conditions_and_moves_are_native_spanish():
+    from antar_engine.ask_basis import build_basis, conditions, chart_move, running_period
+    chart, dashas = _chart()
+    assert running_period(dashas, "es") == ("Estás en el periodo Rahu–Rahu "
+                                            "(el subperiodo termina el 25 de abril de 2100)")
+    b = build_basis("career", chart, dashas, "es")
+    assert b.startswith("Estás en el periodo Rahu–Rahu (el subperiodo termina el 25 de abril de 2100).")
+    assert ("Tu casa 10 (carrera) está regida por Venus, que está en tu casa 11 en Escorpio, "
+            "combusto (debilitado por el Sol).") in b
+    assert "el principal significador aquí" in b
+    c = conditions("career", chart, dashas, "es")
+    assert c.startswith("Se sostiene si lo construyes a través de tu red de contactos y tus ganancias y dejas que los resultados se acumulen")
+    assert "el regente de tu casa 10 está debilitado" in c and c.endswith("o esperas un título en lugar de entregar un resultado visible.")
+    h = conditions("health", chart, dashas, "es")
+    assert h.startswith("El riesgo se mantiene bajo si actúas pronto") and h.endswith("sin dejar tiempo de recuperación.")
+    assert "primer contacto breve y directo" in chart_move("reconciliation", chart, dashas, "es")
+    assert chart_move("health", chart, dashas, "es").startswith("Ordena primero los horarios de sueño y comida")
+    assert "Fija lo máximo que puedes permitirte perder" in chart_move("speculation", chart, dashas, "es")
+    for txt in (b, c, h, chart_move("career", chart, dashas, "es"), chart_move("love", chart, dashas, "es")):
+        assert not any(w in f" {txt.lower()} " for w in _ES_LEAK), txt
+    assert build_basis("career", chart, dashas, "pt") == "" and conditions("career", chart, dashas, "pt") == ""
+
+
+def test_spanish_polish_appends_spanish_conditions_after_a_spanish_read():
+    from antar_engine.answer_polish import polish_answer
+    chart, dashas = _chart()
+    p = polish_answer({"read": "Sí — la ventana de reconexión está abierta hasta enero de 2027.", "next": None},
+                      "es", "¿Volverá mi ex?", concern="reconciliation", chart_data=chart, dashas=dashas)
+    assert p["read"].startswith("Sí — la ventana de reconexión") and "Se sostiene si" in p["read"] and "Se rompe si" in p["read"]
+    assert "primer contacto breve y directo" in p["next"]
+
+
+def test_chara_detection_understands_spanish_sign_names():
+    main = _main()
+    assert main._wants_chara("H\u00e1blame de mi dasha de Tauro") and main._wants_chara("mi dasha de Escorpio")
+    assert not main._wants_chara("\u00bfCu\u00e1l es el resultado de mi dasha actual?")

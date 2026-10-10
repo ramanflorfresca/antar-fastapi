@@ -64,6 +64,9 @@ GLOBAL_SKIP_FIELDS = {
     # (dominant_mode vs mode_counts). Never translate, on any surface.
     "mode", "match_level", "dominant_mode", "dominant_field",
     "verdict", "tier", "band", "scope", "practice_scope",
+    # [decision-i18n 2026-10-10] the Today / Month / Year `decision` block is composed natively per language
+    # (antar_engine/decision_i18n.py); the middleware must never re-translate (and so rewrite) it.
+    "decision",
 }
 
 _anthropic_client = None
