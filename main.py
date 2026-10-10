@@ -5295,6 +5295,11 @@ def _wa_inline_on() -> bool:
 WA_LIST_BODY_MAX = 1000        # WhatsApp interactive list body limit is 1024
 
 
+def _wa_bubbles_on() -> bool:
+    """[wa-bubbles 2026-10-10] answers go out as several short messages (WA_BUBBLES=0 → one block)."""
+    return (os.getenv("WA_BUBBLES") or "1").strip().lower() not in ("0", "off", "false")
+
+
 def _wa_full_depth() -> bool:
     """[wa-full-depth 2026-10-06] owner: WhatsApp gives the SAME answer as Ask (verdict, why, window, step,
     practice), not a one-screen trim. WHATSAPP_ANSWER_DEPTH=compact restores the old trim."""
@@ -5343,7 +5348,9 @@ class _WaSink:
         Returns (failed_texts, any_ok)."""
         from antar_engine import messaging as _msg
         failed, any_ok = [], False
-        for kind, text, lst in self.outbox:
+        for _i, (kind, text, lst) in enumerate(self.outbox):
+            if _i and len(self.outbox) > 2:
+                _time.sleep(0.9)        # [wa-bubbles] keep a run of short messages in order, read at a human pace
             ok = False
             if kind == "list":
                 ok = _msg.whatsapp_send_list(self.number, lst[0], lst[1], lst[2], self.inbound_ts)
@@ -6534,6 +6541,17 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
         if not text:
             send(_wa_text("failed", lang))
         else:
+            _bub, _fu_block = ([], "")
+            if (_wa_bubbles_on() and (payload.get("mode") or "explore") == "explore"
+                    and not payload.get("needs_clarification")
+                    and not locals().get("_kp_lock_note") and not locals().get("_spec_note")):
+                _bub, _fu_block = _msg.split_ask_bubbles(prefix + text)
+            if len(_bub) > 1:
+                # [wa-bubbles 2026-10-10] verdict first, then short bubbles — the last one carries the list
+                for _b in _bub[:-1]:
+                    send(_b)
+                text = _bub[-1] + (("\n\n" + _fu_block) if _fu_block else "")
+                prefix = ""
             send_choices(prefix + text, "btn_next", _q_items(
                 _fus_all, {f.get("q"): f.get("title") for f in (payload.get("suggested_followups") or [])
                       if isinstance(f, dict)}))
@@ -26664,6 +26682,147 @@ def _ask_life_chapter_block(chart_data, dashas, question="", first_name=""):
         return ""
 
 
+_ASK_PERIOD_MARKERS = (
+    "dasha", "mahadasha", "antardasha", "antar dasha", "maha dasha", "my period",
+    "this period", "current period", "present period", "planetary period",
+    "which period am i", "what period am i", "chara dasha", "vimshottari", "vimsottari",
+)
+
+
+def _is_dasha_q(q):
+    """[ask-direct 2026-10-10] the reader asks about their dasha / current planetary period."""
+    ql = (q or "").lower()
+    return any(m in ql for m in _ASK_PERIOD_MARKERS)
+
+
+_ASK_SIGNS = ("aries", "taurus", "gemini", "cancer", "leo", "virgo", "libra", "scorpio",
+              "sagittarius", "capricorn", "aquarius", "pisces")
+
+
+def _wants_chara(q):
+    ql = (q or "").lower()
+    return "chara" in ql or "jaimini" in ql or any(sg in ql for sg in _ASK_SIGNS)
+
+
+def _ask_chara_payload(chart_data, dashas):
+    """[ask-direct 2026-10-10] Jaimini chara dasha: the sign period running now, its dates, which house of
+    the reader's chart that sign is, who is in it, and the sign that follows. dasha_periods stores the
+    12 sign periods (level 1)."""
+    try:
+        from datetime import date as _date
+        rows = [r for r in (dashas.get("jaimini") or []) if r.get("start_date") and r.get("end_date")]
+        today = _date.today()
+        rows.sort(key=lambda r: str(r["start_date"]))
+        cur = next((r for r in rows if _date.fromisoformat(str(r["start_date"])[:10]) <= today
+                    < _date.fromisoformat(str(r["end_date"])[:10])), None)
+        if not cur:
+            return None
+        sign = str(cur.get("planet_or_sign") or "").strip().title()
+        s0, e0 = _date.fromisoformat(str(cur["start_date"])[:10]), _date.fromisoformat(str(cur["end_date"])[:10])
+        yrs = round((e0 - s0).days / 365.25)
+        out = [f"You're in {sign} chara dasha, {s0.strftime('%B %Y')} to {e0.strftime('%B %Y')}."]
+        lagna = ((chart_data or {}).get("lagna") or {}).get("sign")
+        if lagna and sign.lower() in _ASK_SIGNS and str(lagna).lower() in _ASK_SIGNS:
+            h = (_ASK_SIGNS.index(sign.lower()) - _ASK_SIGNS.index(str(lagna).lower())) % 12 + 1
+            occ = [pn for pn, pv in ((chart_data or {}).get("planets") or {}).items()
+                   if isinstance(pv, dict) and pv.get("house") == h
+                   and pn in ("Sun", "Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn", "Rahu", "Ketu")]
+            out.append(f"That's {yrs} years, and {sign} is your {h}th house"
+                       + (f" and {', '.join(occ)} {'sits' if len(occ) == 1 else 'sit'} there" if occ else "")
+                       + f" — it sets the tone: {_ASK_HOUSE_AREA.get(h, '')}.")
+        nxt = next((r for r in rows if str(r["start_date"]) >= str(cur["end_date"])), None)
+        if nxt:
+            out.append(f"Next: {str(nxt.get('planet_or_sign') or '').title()} from {_date.fromisoformat(str(nxt['start_date'])[:10]).strftime('%B %Y')}.")
+        return {"mode": "explore", "read": " ".join(out), "next": "", "locked": False}
+    except Exception:
+        return None
+
+
+def _ask_period_payload(chart_data, dashas, first_name=""):
+    """[ask-direct 2026-10-10] Deterministic, SPECIFIC answer to a dasha question — the thing the reader
+    named: which mahadasha, its dates, where its lord sits, the antardasha running now and the exact
+    date it ends (weeks from today), what comes next. A competitor answers these with exactly this;
+    ours said 'this chapter runs — nearly two more decades' and never named the period. Vimśottarī only
+    (dasha_periods holds 4 systems). None when the chart has no usable rows (caller falls through)."""
+    try:
+        from antar_engine.d10_career import PLANET_CHAPTER
+        from datetime import date as _date
+        rows = dashas.get("vimsottari") or dashas.get("vimshottari") or []
+        today = _date.today()
+
+        def _d(v):
+            try:
+                return _date.fromisoformat(str(v)[:10])
+            except Exception:
+                return None
+
+        def _lvl(r):
+            return str(r.get("level", "")).lower()
+
+        mds = sorted([r for r in rows if _lvl(r) in ("mahadasha", "maha", "md", "1")],
+                     key=lambda r: str(r.get("start_date") or ""))
+        ads = sorted([r for r in rows if _lvl(r) in ("antardasha", "antar", "ad", "2")],
+                     key=lambda r: str(r.get("start_date") or ""))
+        md = next((r for r in mds if _d(r.get("start_date")) and _d(r.get("end_date"))
+                   and _d(r["start_date"]) <= today < _d(r["end_date"])), None)
+        if not md:
+            return None
+        lord = md.get("planet_or_sign") or md.get("lord_or_sign") or ""
+        md_end = _d(md["end_date"])
+        ad_idx = next((i for i, r in enumerate(ads) if _d(r.get("start_date")) and _d(r.get("end_date"))
+                       and _d(r["start_date"]) <= today < _d(r["end_date"])), None)
+
+        def _mon(dt):
+            return dt.strftime("%B %Y")
+
+        def _until(dt):
+            n = (dt - today).days
+            if n < 14:
+                return f"{n} days from today"
+            if n < 120:
+                return f"about {round(n / 7)} weeks from today"
+            return f"about {round(n / 30.4)} months from today"
+
+        pl = ((chart_data or {}).get("planets") or {}).get(lord) or {}
+        place = ""
+        if pl.get("sign") and isinstance(pl.get("house"), int):
+            place = (f"{lord} sits in {pl['sign']}, your {pl['house']}th house"
+                     + (f", in {pl['nakshatra']}" if pl.get("nakshatra") else "") + ".")
+        areas = []
+        lagna = ((chart_data or {}).get("lagna") or {}).get("sign")
+        try:
+            from antar_engine.d10_career import _sign_n_from, SIGN_LORD
+            hs = [pl["house"]] if isinstance(pl.get("house"), int) else []
+            if lagna:
+                hs += [h for h in range(1, 13) if SIGN_LORD.get(_sign_n_from(lagna, h)) == lord]
+            seen = set()
+            for h in hs:
+                if h not in seen and h in _ASK_HOUSE_AREA:
+                    seen.add(h)
+                    areas.append(_ASK_HOUSE_AREA[h])
+        except Exception:
+            pass
+        out = [f"You're in {lord} mahadasha, {_mon(_d(md['start_date']))} to {_mon(md_end)}."]
+        if place:
+            out.append(place)
+        if areas:
+            out.append("This period works through " + "; ".join(areas[:3]) + ".")
+        if ad_idx is not None:
+            ad = ads[ad_idx]
+            al = ad.get("planet_or_sign") or ad.get("lord_or_sign") or ""
+            ad_end = _d(ad["end_date"])
+            out.append(f"Right now it's {lord}-{al} antardasha. It ends {ad_end.strftime('%B %-d, %Y')}, {_until(ad_end)}.")
+            nxt = ads[ad_idx + 1] if ad_idx + 1 < len(ads) else None
+            if nxt:
+                nl = nxt.get("planet_or_sign") or nxt.get("lord_or_sign") or ""
+                nat = PLANET_CHAPTER.get(nl, "")
+                out.append(f"Then {lord}-{nl} takes over until {_mon(_d(nxt['end_date']))}"
+                           + (f" — {nat[0].lower() + nat[1:].rstrip('.')}." if nat else "."))
+        return {"mode": "explore", "read": " ".join(out), "next": "", "locked": False}
+    except Exception:
+        return None
+
+
 def _is_biz_vs_job_q(q):
     """[aptitude 2026-09-16] 'should I do business or a job / am I suited to run
     my own thing' — a business-vs-employment APTITUDE question (read from the
@@ -30548,6 +30707,39 @@ async def _ask_endpoint_impl(request: AskRequest):
                     print(f"[ask][chakra] persist non-fatal: {_cpe}")
                 print("[ask][chakra] short-circuit chakra read")
                 return _chk_payload
+
+            # [ask-direct 2026-10-10] a question about "my dasha / this period" gets the period
+            # itself — named, dated, with the antardasha end date — not a generic chapter essay.
+            if (_is_dasha_q(question) and not _ask_crisis and isinstance(chart_data, dict)
+                    and chart_data
+                    and not any(w in question.lower() for w in (
+                        "next ", "upcoming", "coming ", "new dasha", "after this", "after my"))):
+                _per_payload = ((_ask_chara_payload(chart_data, _ask_dashas) if _wants_chara(question) else None)
+                                 or _ask_period_payload(chart_data, _ask_dashas, _ask_first_name))
+                _plang = _ask_norm_lang(language)
+                if _per_payload and _plang == "hi":
+                    _per_payload = None          # Devanagari keeps the existing path (hi contract)
+                if _per_payload:
+                    # the reader asked in dasha terms — the planet / period names are the answer, so the
+                    # jargon strip is skipped; es / pt are translated, Hinglish gets its Roman rewrite
+                    try:
+                        if _plang in ("es", "pt"):
+                            from antar_engine.translation_middleware import translate_dict as _per_td
+                            _per_payload = await _per_td(_per_payload, language=_plang,
+                                                         fields_to_translate=["read"],
+                                                         fields_to_skip=["verdict", "mode"],
+                                                         endpoint_name="ask", chart_id=chart_id)
+                        elif _plang == "hinglish":
+                            _per_payload["read"] = (await _ask_to_hinglish(_per_payload["read"])) or _per_payload["read"]
+                    except Exception as _ple:
+                        print(f"[ask][period] localize non-fatal: {_ple}")
+                    try:
+                        await _ask_persist(supabase, chart_id, question, _per_payload,
+                                           language, "explore", "dasha")
+                    except Exception as _ppe:
+                        print(f"[ask][period] persist non-fatal: {_ppe}")
+                    print("[ask][period] deterministic period read")
+                    return _per_payload
 
             # [life-chapter 2026-09-13] "what happens in my new chapter / next
             # phase / dasha" — read the UPCOMING mahadasha deterministically so the
