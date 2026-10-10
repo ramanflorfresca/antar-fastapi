@@ -50501,7 +50501,7 @@ def _topic_read_compute(chart_id: str, topic: str, scale: str, language, tz_offs
         return None
     lang = _topic_lang(language, row)
     today = _prac_local_date(tz_offset)
-    ck = ("topic-read", "v6-copy", chart_id, topic, scale, lang, today.isoformat())
+    ck = ("topic-read", "v7-lead", chart_id, topic, scale, lang, today.isoformat())
     hit = _te.cache_get(ck)
     if hit is not None:
         return hit
@@ -50521,7 +50521,7 @@ async def _topic_source(name: str, chart_id: str, lang: str, today):
     cache is the normal case); a slow or failed one is None and its sections hide. No new LLM calls."""
     import antar_engine.topic_engine as _te
     src_lang = lang if lang in _TOPIC_SRC_LANGS[name] else "en"
-    ck = ("topic-src", "v1", name, chart_id, src_lang, today.isoformat())
+    ck = ("topic-src", "v2", name, chart_id, src_lang, today.isoformat())
     hit = _te.cache_get(ck)
     if hit is not None:
         return hit or None
@@ -50563,7 +50563,12 @@ async def _topic_read_full(chart_id: str, topic: str, scale: str, language, tz_o
     need = {"today": ("daily",), "month": ("month",), "year": ("year",), "season": ("arc",), "chapter": ("arc",)}[scale]
     try:
         got = await asyncio.gather(*[_topic_source(n, chart_id, lang, today) for n in need])
-        src = dict(zip(need, got))
+        src = dict(zip(need, got), lang=lang)
+        if scale in ("season", "chapter"):   # the topic's own dated windows (the Windows feed) fill "next months"
+            try:
+                src["feed"] = await run_in_threadpool(_windows_compute, chart_id, lang, tz_offset, 14)
+            except Exception as e:
+                print(f"[topic-detail] windows skipped: {e!r}")
         full = dict(out, detail=_td.build_detail(topic, scale, src, today))
         full = _td.reconcile(full, src.get("daily"), lang)
         full = _td.reconcile_year(full, lang)

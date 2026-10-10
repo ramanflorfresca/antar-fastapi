@@ -501,6 +501,66 @@ def _best_run(runs: List[dict]) -> Optional[dict]:
     return max(runs, key=lambda r: (r["score"], -r["start"].toordinal())) if runs else None
 
 
+MIN_LEAD_DAYS = 7   # a window already running that has fewer days left than this is not the headline of a long read
+
+
+def _merge_runs(runs: List[dict]) -> List[dict]:
+    """Union of overlapping / back-to-back runs (same rule as windows_feed._merge), keeping scores."""
+    out: List[dict] = []
+    for r in sorted(runs, key=lambda x: (x["start"], x["end"])):
+        if out and (r["start"] - out[-1]["end"]).days <= 1:
+            cur = out[-1]
+            cur["end"] = max(cur["end"], r["end"])
+            cur["score"] += r["score"]
+            cur["assessments"] = cur["assessments"] + r["assessments"]
+        else:
+            out.append(dict(r, assessments=list(r["assessments"])))
+    return out
+
+
+def _agree_with_feed(ctx: TopicContext, key: str, today: date, per: dict, scale: str,
+                     opens: list, cares: list) -> Tuple[list, list]:
+    """A long read lists the SAME windows the Windows feed does: the feed unions the month, season and
+    year scans, so the long read folds in the scales it did not scan itself (clipped to its own period)."""
+    for sc in ("month", "season", "year"):
+        if sc == scale:
+            continue
+        try:
+            p2 = _period(ctx, sc, today, "en")
+            res = _scan(ctx, key, sc, p2, today)
+            o2, c2 = _runs(res, "open"), _runs(res, "care")
+            if sc == "month":
+                _fold_in_today(ctx, key, today, o2, c2)
+            opens, cares = opens + o2, cares + c2
+        except Exception:
+            logger.exception("[topic-read] %s scan for %s skipped", sc, key)
+    out = []
+    for lst in (opens, cares):
+        clipped = []
+        for r in lst:
+            if r["start"] > per["end"]:
+                continue
+            clipped.append(dict(r, end=min(r["end"], per["end"])))
+        out.append(_merge_runs(clipped))
+    return out[0], out[1]
+
+
+def _lead_run(runs: List[dict], today: date) -> Optional[dict]:
+    """The window a long read leads with: the one running now (if it has days left), else the soonest
+    to start. A later, stronger window is mentioned separately."""
+    live = [r for r in runs if r["start"] <= today <= r["end"] and (r["end"] - today).days >= MIN_LEAD_DAYS - 1]
+    if live:
+        return min(live, key=lambda r: r["start"])
+    upcoming = [r for r in runs if r["start"] > today]
+    if upcoming:
+        return min(upcoming, key=lambda r: r["start"])
+    return _best_run(runs)
+
+
+def _peak(r: dict) -> float:
+    return max((a["score"] for a in r["assessments"]), default=0.0)
+
+
 def _fold_in_today(ctx: TopicContext, key: str, today: date, opens: list, cares: list) -> None:
     """The 30-day read starts today: a window that is lit today is part of it. The weekly buckets can
     miss it (a lit day inside a quiet week), which let the month say 'nothing sharp' next to a
@@ -577,10 +637,11 @@ def _period(ctx: TopicContext, scale: str, today: date, lang: str) -> dict:
     if scale == "season":
         span = C.span_info(today, e)
         far = e > C.add_months(today, LABEL_YEAR_MONTHS)
-        label = C.season_text(C.SPAN_TEXT, lang, span)
+        span_label = C.season_text(C.SPAN_TEXT, lang, span)
         if far:   # long stretch: the end date is secondary info
-            label = C.pick(C.SPAN_END, lang).format(span=label, end=C.month_year_short(e, lang))
-        return {"start": s, "end": e, "approximate": approx, "label": label, "span": span,
+            span_label = C.pick(C.SPAN_END, lang).format(span=span_label, end=C.month_year_short(e, lang))
+        return {"start": s, "end": e, "approximate": approx, "span": span, "span_label": span_label,
+                "label": C.pick(C.CHAPTER_LABEL, lang).format(end=C.month_year_short(e, lang)),
                 "chip": C.pick(C.CHIP, lang)["season"], "rung": "stretch"}
     if scale == "year":
         bday = e + timedelta(days=1)   # the year runs birthday to the day before the next one
@@ -592,7 +653,10 @@ def _period(ctx: TopicContext, scale: str, today: date, lang: str) -> dict:
 
 
 def _period_extra(per: dict) -> dict:
-    return {"chip": per.get("chip"), "rung": per.get("rung")}
+    out = {"chip": per.get("chip"), "rung": per.get("rung")}
+    if per.get("span_label"):
+        out["span_label"] = per["span_label"]
+    return out
 
 
 def _rung_order(ctx: TopicContext, today: date, lang: str) -> list:
@@ -735,6 +799,7 @@ def chara_dependent(a: dict) -> bool:
         return False
 
 
+STRONGER_RATIO = 1.15   # a later window leads the second sentence only if its peak beats the lead by this much
 SOON_DAYS = 14   # a window starting within this many days is "soon"
 
 
@@ -805,7 +870,7 @@ def _read_topic(ctx: TopicContext, key: str, scale: str, today: date, language: 
     per = _period(ctx, scale, today, lang)
     view_scale, scale = scale, ("season" if scale == "chapter" else scale)   # the chapter scans like the long stretch
     area = C.pick(C.AREA, lang)[key]
-    best = watch = None
+    best = watch = strongest = None
     mode = "steady"
     a_main = assess(ctx, key, today, [])
     try:
@@ -813,6 +878,9 @@ def _read_topic(ctx: TopicContext, key: str, scale: str, today: date, language: 
         opens, cares = _runs(results, "open"), _runs(results, "care")
         if scale == "month":
             _fold_in_today(ctx, key, today, opens, cares)
+        long_scale = scale in ("season", "year")
+        if long_scale:
+            opens, cares = _agree_with_feed(ctx, key, today, per, scale, opens, cares)
         # a window may only start today or later, and only if it has not ended
         for lst in (opens, cares):
             for r in list(lst):
@@ -821,7 +889,8 @@ def _read_topic(ctx: TopicContext, key: str, scale: str, today: date, language: 
                     lst.remove(r)
                 else:
                     r["start"], r["end"] = c
-        br, wr = _best_run(opens), _best_run(cares)
+        pick_run = (lambda rs: _lead_run(rs, today)) if long_scale else _best_run
+        br, wr = pick_run(opens), pick_run(cares)
         whole = lambda r: (r["start"], r["end"]) == (max(per["start"], today), per["end"]) and scale != "today"
         if br:
             best = _window_obj(ctx, key, br, scale, lang, "best", whole_label=whole(br), today=today, span=per.get("span"))
@@ -833,9 +902,15 @@ def _read_topic(ctx: TopicContext, key: str, scale: str, today: date, language: 
         if br:
             a_main = max(br["assessments"], key=lambda x: x["score"])
         mode = "open" if best else "care" if watch else "steady"
+        if long_scale:   # a later, clearly stronger window rides along as a second sentence
+            lead_r, lead_kind = (br, "open") if best else (wr, "care") if watch else (None, None)
+            pool = opens if lead_kind == "open" else cares
+            top = _best_run(pool) if lead_r else None
+            if top and top is not lead_r and top["start"] > lead_r["end"] and _peak(top) >= _peak(lead_r) * STRONGER_RATIO:
+                strongest = _window_obj(ctx, key, top, scale, lang, lead_kind, today=today, span=per.get("span"))
     except Exception:
         logger.exception("[topic-read] scan failed → steady read")
-        best = watch = None
+        best = watch = strongest = None
         mode = "steady"
 
     lead = _lead(lang, view_scale, per)
@@ -851,6 +926,10 @@ def _read_topic(ctx: TopicContext, key: str, scale: str, today: date, language: 
         core = C.pick(C.CORE_AHEAD, lang)[key][mode].format(date=dlab)
         your_move = C.pick(C.MOVE_AHEAD, lang)[key][mode].format(date=dlab)
     claim = C.pick(C.LEAD_JOIN, lang).format(lead=lead, core=core)
+    if strongest and mode in ("open", "care"):
+        claim = f"{claim.rstrip()} " + C.pick(C.STRONGEST_TAIL, lang)[mode].format(
+            start=C.day_label_y(date.fromisoformat(strongest["start"]), lang),
+            end=C.day_label_y(date.fromisoformat(strongest["end"]), lang))
     # the top-level reasoning is the PRIMARY window's own (the one `tone` names);
     # the other window keeps its own distinct reasoning
     if primary:
@@ -869,6 +948,7 @@ def _read_topic(ctx: TopicContext, key: str, scale: str, today: date, language: 
         "claim": claim,
         "best_window": best,
         "watch_window": watch,
+        "strongest_window": strongest,
         "why": why,
         "window_phase": phase,
         "your_move": your_move,
@@ -878,7 +958,7 @@ def _read_topic(ctx: TopicContext, key: str, scale: str, today: date, language: 
     }
     if view_scale == "chapter":   # the stretch label stays as the secondary line inside the chapter rung
         try:
-            out["period"]["stretch_label"] = _period(ctx, "season", today, lang)["label"]
+            out["period"]["stretch_label"] = _period(ctx, "season", today, lang)["span_label"]
         except Exception:
             pass
     if with_best_fit:
@@ -904,6 +984,9 @@ def windows_for(ctx: TopicContext, key: str, scale: str, today: date) -> dict:
         by_mode = {"open": _runs(results, "open"), "care": _runs(results, "care")}
         if scale == "month":
             _fold_in_today(ctx, key, today, by_mode["open"], by_mode["care"])
+        elif scale in ("season", "year"):
+            by_mode["open"], by_mode["care"] = _agree_with_feed(ctx, key, today, per, scale,
+                                                                 by_mode["open"], by_mode["care"])
         for mode, name in (("open", "open"), ("care", "care")):
             for r in by_mode[mode]:
                 c = clamp_window(r["start"], r["end"], today)
