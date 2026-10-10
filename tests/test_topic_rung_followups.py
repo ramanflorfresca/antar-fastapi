@@ -234,3 +234,9 @@ def test_right_now_do_is_one_deduped_list_with_topic_items_first():
     d = D.build_detail("money", "today", {"daily": daily}, TODAY)
     assert d["do"] == ["handle a money task", "take a short walk"]
     assert not (d.get("day") or {}).get("do")
+
+
+@pytest.mark.parametrize("lang", LANGS)
+def test_the_two_long_rungs_have_different_chips_and_labels(lang):
+    st, ch = T._period(_ctx(), "season", TODAY, lang), T._period(_ctx(), "chapter", TODAY, lang)
+    assert st["chip"] != ch["chip"] and st["label"] != ch["label"] and (st["rung"], ch["rung"]) == ("stretch", "chapter")
