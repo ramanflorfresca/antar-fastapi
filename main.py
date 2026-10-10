@@ -26891,9 +26891,17 @@ def _ask_chara_payload(chart_data, dashas):
                        + (f" and {', '.join(occ)} {'sits' if len(occ) == 1 else 'sit'} there" if occ else "")
                        + f" — it sets the tone: {_ASK_HOUSE_AREA.get(h, '')}.")
         nxt = next((r for r in rows if str(r["start_date"]) >= str(cur["end_date"])), None)
+        move = ""
+        if lagna and sign.lower() in _ASK_SIGNS and str(lagna).lower() in _ASK_SIGNS:
+            move = (f"Decide what you want to have built by "
+                    f"{e0.strftime('%B %Y')} in {_ASK_HOUSE_AREA.get(h, 'this area')} and give it your weekly effort now — these years are for that, and they end.")
         if nxt:
-            out.append(f"Next: {str(nxt.get('planet_or_sign') or '').title()} from {_date.fromisoformat(str(nxt['start_date'])[:10]).strftime('%B %Y')}.")
-        return {"mode": "explore", "read": " ".join(out), "next": "", "locked": False}
+            nsign = str(nxt.get('planet_or_sign') or '').title()
+            nh = ((_ASK_SIGNS.index(nsign.lower()) - _ASK_SIGNS.index(str(lagna).lower())) % 12 + 1
+                  if lagna and nsign.lower() in _ASK_SIGNS and str(lagna).lower() in _ASK_SIGNS else None)
+            out.append(f"Next: {nsign} from {_date.fromisoformat(str(nxt['start_date'])[:10]).strftime('%B %Y')}"
+                       + (f", your {nh}th house — the focus turns to {_ASK_HOUSE_AREA.get(nh, '')}." if nh else "."))
+        return {"mode": "explore", "read": " ".join(out), "next": move, "locked": False}
     except Exception:
         return None
 
@@ -26978,7 +26986,17 @@ def _ask_period_payload(chart_data, dashas, first_name=""):
                 nat = PLANET_CHAPTER.get(nl, "")
                 out.append(f"Then {lord}-{nl} takes over until {_mon(_d(nxt['end_date']))}"
                            + (f" — {nat[0].lower() + nat[1:].rstrip('.')}." if nat else "."))
-        return {"mode": "explore", "read": " ".join(out), "next": "", "locked": False}
+        nxt_move = ""
+        try:
+            from antar_engine.ask_basis import period_guidance as _pg
+            g = _pg(lord)
+            if g:
+                out.append(f"Use this period for {g[0]}. It's wasted by {g[1]}.")
+                nxt_move = g[2] + (f" Review it when the {lord}-{al} sub-period ends on {ad_end.strftime('%B %-d, %Y')}."
+                                   if ad_idx is not None else "")
+        except Exception:
+            pass
+        return {"mode": "explore", "read": " ".join(out), "next": nxt_move, "locked": False}
     except Exception:
         return None
 

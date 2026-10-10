@@ -200,3 +200,33 @@ def test_health_and_speculation_wording_is_topic_specific():
     sp = conditions("speculation", chart, dashas)
     assert "afford to lose" in sp and "It breaks if position size" in sp
     assert "afford to lose" in chart_move("speculation", chart, dashas)
+
+
+def test_dasha_answers_carry_a_decision_not_just_facts():
+    main = _main()
+    y = date.today().year
+    rows = lambda l, p, s, e: {"level": l, "planet_or_sign": p, "lord_or_sign": p, "start_date": s, "end_date": e}
+    dashas = {"vimsottari": [
+        rows("mahadasha", "Rahu", f"{y-1}-08-01", f"{y+17}-08-01"),
+        rows("antardasha", "Rahu", f"{y-1}-08-01", f"{y+2}-04-25"),
+        rows("antardasha", "Jupiter", f"{y+2}-04-25", f"{y+5}-09-10")]}
+    chart = {"lagna": {"sign": "Capricorn"}, "planets": {"Rahu": {"sign": "Scorpio", "house": 11}}}
+    p = main._ask_period_payload(chart, dashas)
+    assert "Use this period for reach, networks" in p["read"] and "wasted by chasing every opportunity" in p["read"]
+    assert p["next"].startswith("Pick the one scalable bet") and f"April 25, {y+2}" in p["next"]
+    d2 = {"jaimini": [
+        {"planet_or_sign": "Taurus", "start_date": f"{y-1}-11-26", "end_date": f"{y+5}-11-26"},
+        {"planet_or_sign": "Aries", "start_date": f"{y+5}-11-26", "end_date": f"{y+15}-11-26"}]}
+    c = main._ask_chara_payload({"lagna": {"sign": "Capricorn"}, "planets": {}}, d2)
+    assert "the focus turns to" in c["read"] and "Decide what you want to have built by" in c["next"] and "these years are for that" in c["next"]
+
+
+def test_filler_openers_and_count_claims_are_removed_but_substance_stays():
+    from antar_engine.answer_polish import polish_answer
+    chart, dashas = _chart()
+    p = polish_answer({"read": "Raman, this concern is real — and worth acting on, not worrying over. "
+                               "Five separate patterns flag it as a health-sensitive window, tending toward skin and sleep. "
+                               "Watch your routine.", "next": "Fix sleep times."},
+                      "en", "any health issues this year", concern="health", chart_data=chart, dashas=dashas)
+    assert "concern is real" not in p["read"] and "Five separate" not in p["read"]
+    assert "several signals flag it" in p["read"] and "skin and sleep" in p["read"]

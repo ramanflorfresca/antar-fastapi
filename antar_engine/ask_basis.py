@@ -272,3 +272,40 @@ def conditions(concern, chart_data, dashas, language="en") -> str:
         return out + f"It breaks if {_BREAKS[concern]}."
     except Exception:
         return ""
+
+
+# [ask-direct 2026-10-10] what to DO with a Vimśottarī period: (use it for, what wastes it, the move)
+_PERIOD_GUIDE = {
+    "Rahu":    ("reach, networks and anything that scales — take the big unconventional bet only with the downside capped",
+                "chasing every opportunity at once, or mistaking buzz for traction",
+                "Pick the one scalable bet and cap what it can cost you before you commit."),
+    "Jupiter": ("teaching, advising and long-range planning — growth comes through credibility",
+                "overextending, or promising more than you can deliver",
+                "Choose the one commitment that builds your credibility and say no to the rest."),
+    "Saturn":  ("long-haul, disciplined work and building systems that last",
+                "avoiding responsibility, or rushing what needs time",
+                "Pick the one slow-build project and put a weekly fixed block on it."),
+    "Mercury": ("communication, trade, learning and product work",
+                "scattered attention and overthinking",
+                "Ship one concrete thing that people can use or buy, before adding another."),
+    "Venus":   ("relationships, brand, design and partnerships",
+                "comfort spending and avoiding hard conversations",
+                "Have the partnership or pricing conversation you've been postponing."),
+    "Mars":    ("execution, courage and competing head-on",
+                "conflict for its own sake and impulsive moves",
+                "Take the one decisive action you've been delaying, and set the limit before you start."),
+    "Sun":     ("leadership, visibility and taking authority",
+                "ego clashes and trying to do everything yourself",
+                "Take ownership of one visible outcome and delegate the rest."),
+    "Moon":    ("public-facing work, care and steady routines",
+                "mood-driven decisions",
+                "Fix a routine you keep every day, and make big decisions only after it holds."),
+    "Ketu":    ("deep specialisation, research and letting go of what no longer fits",
+                "drifting, or quitting too early",
+                "Choose the one thing to go deep on, and drop one commitment that no longer fits."),
+}
+
+
+def period_guidance(planet):
+    """(use, waste, move) for a Vimśottarī lord, or None."""
+    return _PERIOD_GUIDE.get(planet)

@@ -126,6 +126,11 @@ _FUND = re.compile(r"(?i)\b((?<!emergency )(?<!rainy-day )(?<!rainy day )(?<!sav
 _FUND_OK_CONCERNS = {"funding", "business", "startup"}
 _VAGUE_FILLER = re.compile(r"(?i)\bthe timing (genuinely )?shows\b|\bthe setup (for [\w ]{1,30})?is real\b|"
                            r"\bhasn'?t (fully )?(arrived|formed)\b|\bright moment\b|\bgenuine (pressure|promise)\b")
+_FILLER_OPENER = re.compile(r"(?i)\b(this|that|your)\s+(concern|feeling|worry|stuck feeling|frustration|tiredness|exhaustion|"
+                            r"anxiety|pattern|question)\b[^.]{0,40}\b(is|are) real\b|\bworth acting on,? not worrying\b|"
+                            r"\bit won'?t last\b|\byou deserve a straight answer\b")
+_COUNT_CLAIM = re.compile(r"(?i)\b(two|three|four|five|six|seven|\d+) (?:(?:separate|independent|different) )?"
+                          r"(patterns|checks|layers|signals|reads|systems|timing systems)\b")
 _THIRD_PARTY_CLAIM = re.compile(r"(?i)\b(your |the )?(ex|partner|he|she|they|his|her|their)(?:'s)?\s+(side|chart|timing|stars?|planets?)\b|"
                                 r"\b(his|her|their) (chart|timing)\b")
 _FINALITY = re.compile(r"(?i)\bchapter has closed\b|\bit'?s not coming back\b|\bmarriage ended\b|\bis over for good\b")
@@ -368,11 +373,12 @@ def polish_answer(payload: dict, language: str = "en", typed_question: str = "",
         # ── [ask-direct 2026-10-10] prediction → what makes it true → what breaks it ──
         read0 = payload.get("read")
         if isinstance(read0, str) and read0.strip():
-            for _rx, _why in ((_VAGUE_FILLER, "vague filler"), (_THIRD_PARTY_CLAIM, "claim about another person's chart"),
+            for _rx, _why in ((_FILLER_OPENER, "filler opener"), (_VAGUE_FILLER, "vague filler"), (_THIRD_PARTY_CLAIM, "claim about another person's chart"),
                               (_FINALITY, "harsh finality")):
                 payload["read"], _d = _drop_sentences(payload.get("read"), _rx, keep_min=2)
                 if _d:
                     print(f"[ask][polish] {_why} sentence dropped")
+            payload["read"] = _COUNT_CLAIM.sub("several signals", payload.get("read") or "")
             if not re.search(r"(?i)marriage|married|divorc|separat|spouse|wife|husband", own):
                 payload["read"], _d = _drop_sentences(payload.get("read"), _PAST_MARRIAGE, keep_min=2)
                 if _d:
