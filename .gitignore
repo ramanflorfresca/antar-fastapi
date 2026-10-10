@@ -58,3 +58,6 @@ billionaire.py
 .env.find_chartid
 .env.find_chartid
 main.py.bak # if not already there
+
+# retrodiction ground truth: real people, private
+data/retrodiction/*.csv
