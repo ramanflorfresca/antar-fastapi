@@ -21,6 +21,9 @@ def _policy_already_accepted(monkeypatch):
     whenever a local .env is present and every unknown test number is asked to accept first."""
     from antar_engine import messaging as _m
     monkeypatch.setattr(_m, "policy_state", lambda *a, **k: "ok")
+    # [wa-bubbles] these tests pin the one-block layout; the bubble split has its own tests
+    # (tests/test_wa_bubbles.py)
+    monkeypatch.setenv("WA_BUBBLES", "0")
 
 
 

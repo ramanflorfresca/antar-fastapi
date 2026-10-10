@@ -1131,6 +1131,15 @@ def format_ask_whatsapp_v2(payload: dict, language: str = "en",
     win = (f"🗓 _{_wl('window', language)}: {timing}_"
            if timing and timing.lower() not in read.lower() else "")
     nxt = (p.get("next") or "").strip()
+    try:   # [ask-direct 2026-10-10] a canned fallback move ("Block one hour this week…") is generic filler
+        from antar_engine.answer_polish import _FALLBACK_NEXT, _MONEY_CUT
+        _canned = {re.sub(r"\W+", " ", v.lower()).strip()
+                   for g in _FALLBACK_NEXT.values() for v in g.values()} | \
+                  {re.sub(r"\W+", " ", v.lower()).strip() for v in _MONEY_CUT.values()}
+        if re.sub(r"\W+", " ", nxt.lower()).strip() in _canned:
+            nxt = ""
+    except Exception:
+        pass
     move = ("→ " + nxt) if nxt else ""
     pc = p.get("practice_cta") or {}
     practice = ""
@@ -1180,6 +1189,39 @@ def format_ask_whatsapp_v2(payload: dict, language: str = "en",
                 rest = ""
             text = build(opener, rest, practice, move, fus)
     return text, fus
+
+
+_NUMBERED_BLOCK = re.compile(r"\n*\n(?=1  )")
+
+
+def split_ask_bubbles(text: str, max_sentences: int = 2, max_chars: int = 170) -> tuple:
+    """[wa-bubbles 2026-10-10] (bubbles, followup_block). The competitor's answers arrive as a run
+    of short one-to-two-sentence messages, verdict first; one dense block reads as a generic essay.
+    `text` is the finished format_ask_whatsapp_v2 output: the numbered follow-up block is cut off
+    and returned separately (it rides the tappable list), the *bold* verdict becomes its own plain
+    bubble, and every other paragraph is repacked into <= max_sentences / max_chars bubbles.
+    Lines that carry their own marker (🗓 → 🧘 _italic_ disclaimers) stay whole."""
+    body, fu = (text or "").strip(), ""
+    m = _NUMBERED_BLOCK.search(body)
+    if m:
+        body, fu = body[:m.start()].strip(), body[m.start():].strip()
+    out: list = []
+    for para in [x.strip() for x in re.split(r"\n\s*\n", body) if x.strip()]:
+        if para[0] in "🗓→🧘_" or para.startswith("*Antar") or "\n" in para:
+            out.append(para)
+            continue
+        if para.startswith("*") and para.endswith("*") and para.count("*") == 2:
+            out.append(para.strip("*").strip())
+            continue
+        buf: list = []
+        for sent in _split_sentences(para):
+            if buf and (len(buf) >= max_sentences or len(" ".join(buf + [sent])) > max_chars):
+                out.append(" ".join(buf))
+                buf = []
+            buf.append(sent)
+        if buf:
+            out.append(" ".join(buf))
+    return out, fu
 
 
 # ── typing indicator (Twilio Messaging v3, public beta) ──
