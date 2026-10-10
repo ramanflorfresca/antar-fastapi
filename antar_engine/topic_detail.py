@@ -438,9 +438,8 @@ def _window_months(topic: str, feed: Optional[dict], today: date, lang: str) -> 
                 continue
             if w["end"] < today.isoformat() or w["start"] > horizon or w.get("kind") not in ("open", "care"):
                 continue
-            fmt = (lambda d: C.day_label(d, lang)) if s_.year == e_.year == today.year else (lambda d: C.day_label_y(d, lang))
             out.append({"title": C.pick(C.WINDOW_ITEM, lang)[w["kind"]].format(area=area),
-                        "when": fmt(s_) if s_ == e_ else f"{fmt(s_)} – {fmt(e_)}",
+                        "when": C.span_near_or_month(s_, e_, lang, today),
                         "likelihood": None, "start": max(w["start"], today.isoformat())})
     return out
 

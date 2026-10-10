@@ -173,6 +173,26 @@ def day_label_y(d: date, lang: str) -> str:
     return f"{day_label(d, lang)}, {d.year}" if lang in ("en", "hinglish") else f"{day_label(d, lang)} {d.year}"
 
 
+DAY_PRECISION_DAYS = 45   # a date further out than this is named by month: the scan is bucketed from today,
+                          # so a day-exact date there would slide a day every day
+
+
+def label_near_or_month(d: date, lang: str, today) -> str:
+    """'Oct 12' within DAY_PRECISION_DAYS of today (year added if it is another year), else 'Aug 2027'.
+    today=None keeps the old day-level label."""
+    if today is None:
+        return day_label(d, lang)
+    if d <= today + timedelta(days=DAY_PRECISION_DAYS):
+        return day_label(d, lang) if d.year == today.year else day_label_y(d, lang)
+    return month_year_short(d, lang)
+
+
+def span_near_or_month(s: date, e: date, lang: str, today) -> str:
+    """A date range, each end named by label_near_or_month; one label when both ends read the same."""
+    a, b = label_near_or_month(s, lang, today), label_near_or_month(e, lang, today)
+    return a if (s == e or a == b) else f"{a} – {b}"
+
+
 def range_label(start: date, end: date, lang: str) -> str:
     if start == end:
         return day_label(start, lang)
