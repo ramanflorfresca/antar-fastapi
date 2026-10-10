@@ -291,24 +291,46 @@ _SUMMARY_COPY = {
     "en": {
         "acts_from": "You act from {x}.",
         "shows_up": "{x} shapes how you show up.",
-        "edge": "Under pressure, your {x} can pull a decision off course — check it before you commit.",
+        "edge": "Under pressure, watch for {x} — pause before you commit.",
         "phase": "You are in a long chapter about {m}.",
         "phase_next": "You are in a long chapter about {m}; around {d} it hands over to {n}.",
     },
     "es": {
         "acts_from": "Actúas desde {x}.",
         "shows_up": "{x} moldea cómo apareces.",
-        "edge": "Bajo presión, tu {x} puede desviar una decisión — revísala antes de comprometerte.",
+        "edge": "Bajo presión, cuidado con {x} — haz una pausa antes de comprometerte.",
         "phase": "Estás en un largo capítulo sobre {m}.",
         "phase_next": "Estás en un largo capítulo sobre {m}; hacia {d} da paso a {n}.",
     },
     "pt": {
         "acts_from": "Você age a partir de {x}.",
         "shows_up": "{x} molda como você aparece.",
-        "edge": "Sob pressão, sua {x} pode desviar uma decisão — revise antes de se comprometer.",
+        "edge": "Sob pressão, cuidado com {x} — faça uma pausa antes de se comprometer.",
         "phase": "Você está num longo capítulo sobre {m}.",
         "phase_next": "Você está num longo capítulo sobre {m}; por volta de {d} ele passa para {n}.",
     },
+}
+
+
+# The decision habit each planet's weakness shows up as. Written per planet (not
+# a noun swap) so the line says something a person recognizes. Copy is owner-
+# approved wording only once signed off; see the PR description.
+_EDGE_HABIT = {
+    "en": {"Sun": "the need for credit or control", "Moon": "mood and gut reaction",
+           "Mars": "impatience and the urge to win", "Mercury": "overthinking and talking yourself round",
+           "Jupiter": "overconfidence or taking on too much", "Venus": "comfort and keeping the peace",
+           "Saturn": "over-caution and delay", "Rahu": "chasing whatever is new and shiny",
+           "Ketu": "pulling back or losing interest"},
+    "es": {"Sun": "la necesidad de reconocimiento o control", "Moon": "el estado de ánimo y la reacción visceral",
+           "Mars": "la impaciencia y las ganas de ganar", "Mercury": "darle demasiadas vueltas a todo",
+           "Jupiter": "el exceso de confianza o cargar con demasiado", "Venus": "la comodidad y mantener la paz",
+           "Saturn": "el exceso de cautela y la demora", "Rahu": "perseguir lo nuevo y brillante",
+           "Ketu": "retirarte o perder el interés"},
+    "pt": {"Sun": "a necessidade de crédito ou controle", "Moon": "o humor e a reação instintiva",
+           "Mars": "a impaciência e a vontade de vencer", "Mercury": "pensar demais e se convencer do contrário",
+           "Jupiter": "o excesso de confiança ou assumir demais", "Venus": "o conforto e manter a paz",
+           "Saturn": "o excesso de cautela e o atraso", "Rahu": "perseguir o que é novo e brilhante",
+           "Ketu": "se afastar ou perder o interesse"},
 }
 
 
@@ -367,8 +389,13 @@ def build_chart_summary(planets: Any, asc_lord: Optional[str], atma: Optional[st
         return None
 
     maha = chapter.get("maha") or ""
-    edge_planet = _growth_planet(planets, maha)
-    growth_edge = c["edge"].format(x=PL(edge_planet)) if edge_planet and PL(edge_planet) else None
+    # The chart's own "area to mind" (already plain + localized) beats a planet
+    # template: it is specific to this person. Fall back to the planet habit.
+    growth_edge = next((y.get("name") for y in yogas if y.get("kind") == "mind" and y.get("name")), None)
+    if not growth_edge:
+        edge_planet = _growth_planet(planets, maha)
+        habit = _EDGE_HABIT.get(lang, _EDGE_HABIT["en"]).get(edge_planet or "")
+        growth_edge = c["edge"].format(x=habit) if habit else None
 
     # The nearer handover (sub-chapter vs chapter) — never lead with a date 15y out.
     ends = nxt = None

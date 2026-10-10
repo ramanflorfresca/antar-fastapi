@@ -69,7 +69,7 @@ def test_no_planet_or_chart_jargon(lang):
 def test_growth_edge_prefers_debilitated_then_running_planet():
     # Saturn is debilitated in Aries; Mars only sits in a hard house.
     s = _summary()
-    assert "discipline and time" in s["growth_edge"]  # debilitated Saturn beats Mars in a hard house
+    assert "over-caution" in s["growth_edge"]  # debilitated Saturn beats Mars in a hard house
 
 
 def test_growth_edge_none_when_no_weak_planet():
@@ -104,4 +104,13 @@ def test_growth_edge_tie_goes_to_running_chapter_planet():
     vim = [{"level": "mahadasha", "lord_or_sign": "Saturn",
             "start_date": "2020-01-01", "end_date": "2039-01-01"}]
     s = CI.build_chart_identity(cd, vim, today=TODAY)["chart_summary"]
-    assert "discipline and time" in s["growth_edge"]
+    assert "over-caution" in s["growth_edge"]
+
+
+def test_growth_edge_prefers_the_charts_own_caution_over_a_planet_template():
+    cd = _chart(yogas=[{"name": "Grahan Yoga", "strength": "moderate", "effect": "e"},
+                       {"name": "Dhana Yoga", "strength": "strong", "effect": "e"}])
+    s = CI.build_chart_identity(cd, VIM, today=TODAY)["chart_summary"]
+    assert s["growth_edge"] == "Watch pressured, ego-driven calls"
+    es = CI.build_chart_identity(cd, VIM, today=TODAY, language="es")["chart_summary"]
+    assert es["growth_edge"].startswith("Cuidado con decisiones")
