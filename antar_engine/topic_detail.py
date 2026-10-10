@@ -112,6 +112,76 @@ def _nonempty(d: dict) -> Optional[dict]:
     return d if any(v not in (None, [], {}, "") for v in d.values()) else None
 
 
+# ── dates inside engine text (so advice that has already passed never reaches a reader) ──────────
+_ISO_RX = re.compile(r"(\d{4})-(\d{2})-(\d{2})")
+_FROM_RX = re.compile(r"\b(after|from|since|starting|desde|despu[eé]s|depois|a partir)\b", re.I)
+_WEEK_RX = re.compile(r"\bweek of\b|\bsemana del?\b|\bsemana de\b|\bsaptaah\b|\bhafte\b", re.I)
+_MONTH_FORMS: Dict[str, int] = {}
+for _l in ("en", "es", "pt", "hinglish"):
+    for _i, _n in enumerate(C.FULL_MONTHS.get(_l, ())):
+        _MONTH_FORMS[_n.lower()] = _i + 1
+    for _i, _n in enumerate(C.MONTHS.get(_l, ())):
+        _MONTH_FORMS.setdefault(_n.lower().rstrip("."), _i + 1)
+_MONTH_ALT = "|".join(sorted((re.escape(m) for m in _MONTH_FORMS), key=len, reverse=True))
+_DAY_RX = re.compile(rf"\b(?:({_MONTH_ALT})\.?\s+(\d{{1,2}})(?!\d)|(\d{{1,2}})(?:\s+de)?\s+({_MONTH_ALT})\b)", re.I)
+
+
+def text_dates(text, today: date) -> List[date]:
+    """Calendar days named in a sentence ('before October 8', '8 de octubre', '2026-10-08')."""
+    t, out = str(text or ""), []
+    for y, m, d in _ISO_RX.findall(t):
+        try:
+            out.append(date(int(y), int(m), int(d)))
+        except ValueError:
+            pass
+    for m1, d1, d2, m2 in _DAY_RX.findall(t):
+        mon, day = _MONTH_FORMS.get((m1 or m2).lower().rstrip(".")), int(d1 or d2)
+        if not mon:
+            continue
+        try:
+            c = date(today.year, mon, day)
+        except ValueError:
+            continue
+        out.append(c.replace(year=c.year + 1) if (today - c).days > 180 else c)
+    return out
+
+
+def is_past(text, today: date) -> bool:
+    """True when every date the sentence names is already behind `today` (a 'Week of ...' lasts 6 more days).
+    Text with no date, or one that points forward ('from October 8'), is never past."""
+    ds = text_dates(text, today)
+    if not ds or _FROM_RX.search(str(text or "")):
+        return False
+    last = max(ds) + (timedelta(days=6) if _WEEK_RX.search(str(text or "")) else timedelta(0))
+    return last < today
+
+
+def _window_span(w):
+    if isinstance(w, dict):
+        a, b = str(w.get("start") or "")[:10], str(w.get("end") or "")[:10]
+        ds = [a, b]
+    else:
+        ds = _ISO_RX.findall(str(w or ""))
+        ds = ["-".join(x) for x in ds]
+    try:
+        days = [date.fromisoformat(x) for x in ds if x]
+    except ValueError:
+        return None
+    return (min(days), max(days)) if days else None
+
+
+def _clean_window(w, today: date):
+    """The focus window with nothing before today: None when it has ended, start clamped to today."""
+    span = _window_span(w)
+    if not span:
+        return w or None
+    s, e = span
+    if e < today:
+        return None
+    s = max(s, today)
+    return f"{s.isoformat()} – {e.isoformat()}" if s != e else s.isoformat()
+
+
 def _split_items(items, topic: str):
     """-> (for this topic, generic). Items that clearly belong to another topic are dropped."""
     mine, generic = [], []
@@ -175,9 +245,10 @@ def daily_detail(topic: str, daily: Optional[dict]) -> Optional[dict]:
             times[w["kind"]].append({"start": w["start"], "end": w["end"], "text": _s(w.get("text"), 300)})
     wow = _s(daily.get("wow"), 700)
     conf = daily.get("confidence") if isinstance(daily.get("confidence"), dict) else {}
+    do_all = list(dict.fromkeys(do_m + do_g))   # topic-relevant first, then the day's general ones, once each
     out = {
-        "do": do_m, "avoid": av_m,
-        "day": _nonempty({"do": do_g, "avoid": av_g}),
+        "do": do_all, "avoid": av_m,
+        "day": _nonempty({"avoid": av_g}),
         "best_times": times["best"], "steer_clear": times["avoid"],
         "watch_for": wow if wow and relevance(wow, topic) == "yes" else None,
         "confidence": ({"level": conf.get("level"), "line": _s(conf.get("line"))}
@@ -189,35 +260,38 @@ def daily_detail(topic: str, daily: Optional[dict]) -> Optional[dict]:
 
 
 # ── Next 30 days (the monthly deep-dive) ─────────────────────────────────────
-def month_detail(topic: str, m: Optional[dict]) -> Optional[dict]:
+def month_detail(topic: str, m: Optional[dict], today: Optional[date] = None) -> Optional[dict]:
     if not isinstance(m, dict):
         return None
+    today = today or date.today()
 
     def keep_action(a) -> bool:
-        if not isinstance(a, dict) or not _s(a.get("action")):
+        if not isinstance(a, dict) or not _s(a.get("action")) or is_past(a.get("action"), today):
             return False
         tp = topics_for(a.get("domain"))
         return (topic in tp) if tp else relevance(a["action"], topic) == "yes"
 
     def keep_text(t) -> Optional[str]:
         t = _s(t, 500)
-        return t if t and relevance(t, topic) != "other" else None
+        return t if t and relevance(t, topic) != "other" and not is_past(t, today) else None
 
     focus = None
     for d in m.get("active_domains") or []:
         if isinstance(d, dict) and (topic in topics_for(d.get("key")) or topic in topics_for(d.get("label"))):
-            focus = {"window": d.get("window") or None, "careful": bool(d.get("caution"))}
+            focus = {"window": _clean_window(d.get("window"), today), "careful": bool(d.get("caution"))}
+            if not focus["window"] and not focus["careful"]:
+                focus = None
             break
     hl = []
     for h in m.get("highlights") or []:
-        if not (isinstance(h, dict) and _s(h.get("text"))):
+        if not (isinstance(h, dict) and _s(h.get("text"))) or is_past(h.get("text"), today):
             continue
         tp = topics_for(h.get("domain"))
         if (topic in tp) if tp else relevance(h["text"], topic) == "yes":
             hl.append({"domain": h.get("domain"), "text": _s(h["text"])})
     out = {
         "theme": _s(m.get("month_theme")),
-        "overview": " ".join(x for x in _sentences(m.get("overview")) if _s(x) and relevance(x, topic) == "yes") or None,
+        "overview": " ".join(x for x in _sentences(m.get("overview")) if _s(x) and relevance(x, topic) == "yes" and not is_past(x, today)) or None,
         "best_week": keep_text(m.get("best_week")),
         "caution_week": keep_text(m.get("caution_week")),
         "priority_actions": [{"action": _s(a["action"]), "domain": a.get("domain")}
@@ -232,6 +306,24 @@ def month_detail(topic: str, m: Optional[dict]) -> Optional[dict]:
 
 
 # ── Your year (the annual plan) ──────────────────────────────────────────────
+def _merge_when(rows: List[dict]) -> List[dict]:
+    """One row per `when`: the texts of rows sharing a date are joined, a text already contained in
+    another is dropped."""
+    out: Dict[str, dict] = {}
+    for r in rows:
+        k = str(r.get("when") or "").strip().lower()
+        if k not in out:
+            out[k] = dict(r, _texts=[r["text"]])
+            continue
+        have = out[k]["_texts"]
+        t = r["text"]
+        n = lambda x: x.lower().rstrip(" .!?")
+        if any(n(t) in n(h) for h in have):
+            continue
+        have[:] = [h for h in have if n(h) not in n(t)] + [t]
+    return [dict({kk: vv for kk, vv in r.items() if kk != "_texts"}, text=" ".join(r["_texts"])) for r in out.values()]
+
+
 def year_detail(topic: str, y: Optional[dict]) -> Optional[dict]:
     if not isinstance(y, dict):
         return None
@@ -246,8 +338,9 @@ def year_detail(topic: str, y: Optional[dict]) -> Optional[dict]:
     arc = next((a for a in (y.get("arcs") or []) if isinstance(a, dict) and topic in topics_for(a.get("key"))), None)
     peak = next((v for k, v in (y.get("peak_windows") or {}).items()
                  if isinstance(v, dict) and topic in topics_for(k) and _s(v.get("signal"))), None)
-    keyed = [{"when": c.get("date"), "text": _s(c.get("event"))} for c in (y.get("critical_dates") or [])
-             if isinstance(c, dict) and _s(c.get("event")) and relevance(c["event"], topic) == "yes"]
+    keyed = _merge_when([{"when": c.get("date"), "text": _s(c.get("event"))} for c in (y.get("critical_dates") or [])
+                         if isinstance(c, dict) and _s(c.get("event")) and relevance(c["event"], topic) == "yes"])
+    strong, caution = _merge_when(strong), _merge_when(caution)
 
     def pick(lst):
         return [t for t in (_s(x, 300) for x in lst or []) if t and relevance(t, topic) == "yes"]
@@ -255,14 +348,14 @@ def year_detail(topic: str, y: Optional[dict]) -> Optional[dict]:
     out = {
         "theme": _s(y.get("year_theme")),
         "summary": " ".join(x for x in _sentences(y.get("year_summary")) if _s(x) and relevance(x, topic) == "yes") or None,
-        "strong": strong,
-        "caution": caution,
+        "strong": strong or None,
+        "caution": caution or None,
         "peak": {"months": peak.get("months"), "text": _s(peak.get("signal"))} if peak else None,
         "trend": {"trend": arc.get("trend"), "when": arc.get("when")} if arc and arc.get("when") else None,
-        "key_months": keyed,
-        "prioritise": pick(y.get("build_this_year")),
-        "protect": pick(y.get("protect_this_year")),
-        "release": pick(y.get("release_this_year")),
+        "key_months": keyed or None,
+        "prioritise": pick(y.get("build_this_year")) or None,
+        "protect": pick(y.get("protect_this_year")) or None,
+        "release": pick(y.get("release_this_year")) or None,
         "mantra": _s(y.get("year_mantra")),
     }
     return _nonempty(out)
@@ -273,19 +366,61 @@ def _event_topics(ev: dict) -> tuple:
     return CATEGORY_TOPICS.get(str(ev.get("category") or "").upper(), ()) or topics_for(ev.get("domain"))
 
 
-def _node(topic: str, n: dict) -> Optional[dict]:
+def _window_months(topic: str, feed: Optional[dict], today: date, lang: str) -> List[dict]:
+    """The topic's own dated windows for the next 12 months (the Windows feed's list) as plain rows."""
+    if not isinstance(feed, dict):
+        return []
+    horizon = (today + timedelta(days=365)).isoformat()
+    area = C.pick(C.AREA, lang).get(topic)
+    out = []
+    for tr in feed.get("tracks") or []:
+        if not (isinstance(tr, dict) and tr.get("topic") == topic and area):
+            continue
+        for w in tr.get("windows") or []:
+            try:
+                s_, e_ = date.fromisoformat(w["start"]), date.fromisoformat(w["end"])
+            except (KeyError, ValueError, TypeError):
+                continue
+            if w["end"] < today.isoformat() or w["start"] > horizon or w.get("kind") not in ("open", "care"):
+                continue
+            fmt = (lambda d: C.day_label(d, lang)) if s_.year == e_.year == today.year else (lambda d: C.day_label_y(d, lang))
+            out.append({"title": C.pick(C.WINDOW_ITEM, lang)[w["kind"]].format(area=area),
+                        "when": fmt(s_) if s_ == e_ else f"{fmt(s_)} – {fmt(e_)}",
+                        "likelihood": None, "start": max(w["start"], today.isoformat())})
+    return out
+
+
+def _node(topic: str, n: dict, generic: bool = False) -> Optional[dict]:
     evs = [{"title": _s(e.get("title")), "when": e.get("window_label"), "likelihood": e.get("conviction_label")}
            for e in (n.get("events") or []) if isinstance(e, dict) and topic in _event_topics(e) and _s(e.get("title"))]
     text = f"{n.get('title') or ''} {n.get('body') or ''}"
-    if not evs and relevance(text, topic) != "yes":
+    rel = relevance(text, topic)
+    if not evs and rel != "yes" and not (generic and rel == "none"):
         return None
     if not (_s(n.get("title")) or _s(n.get("body"), 900)):
         return None
-    return {"start": n.get("start"), "end": n.get("end"), "title": _s(n.get("title")), "body": _s(n.get("body"), 900),
+    body = _s(n.get("body"), 900)
+    if body and body.endswith(":"):   # the engine's sentence trails off into a list we do not carry
+        body = " ".join(_sentences(body)[:-1]) or None
+    return {"start": n.get("start"), "end": n.get("end"), "title": _s(n.get("title")), "body": body,
             "when": n.get("when_label"), "events": evs}
 
 
-def cycle_detail(topic: str, scale: str, arc: Optional[dict], today: date) -> Optional[dict]:
+def _ahead(topic: str, nodes: List[dict], today: date, kinds: tuple) -> List[dict]:
+    """What is coming: the later stretches of the arc (generic ones included, other topics' left out), plus
+    the running one only when it carries an event for this topic."""
+    out = []
+    for n in nodes:
+        if n.get("kind") not in kinds or str(n.get("end") or "")[:10] < today.isoformat():
+            continue
+        a = _node(topic, n, generic=True)
+        if a and (str(n.get("start") or "")[:10] > today.isoformat() or a["events"]):
+            out.append(a)
+    return out
+
+
+def cycle_detail(topic: str, scale: str, arc: Optional[dict], today: date,
+                 feed: Optional[dict] = None, lang: str = "en") -> Optional[dict]:
     """scale 'season' = the current stretch, 'chapter' = the whole current life chapter."""
     if not isinstance(arc, dict):
         return None
@@ -298,13 +433,15 @@ def cycle_detail(topic: str, scale: str, arc: Optional[dict], today: date) -> Op
             continue
         ws = str(e.get("window_start") or (e.get("window") or {}).get("start") or "")[:10]
         if ws and today.isoformat() <= ws <= horizon:
-            months.append({"title": _s(e["title"]), "when": e.get("window_label"), "likelihood": e.get("conviction_label")})
+            months.append({"title": _s(e["title"]), "when": e.get("window_label"), "likelihood": e.get("conviction_label"),
+                           "start": ws})
+    months = sorted(months + _window_months(topic, feed, today, lang), key=lambda m: m.get("start") or "")[:8]
     if scale == "season":
         out = {
             "story": _s(arc.get("gist"), 700),
             "tightest_stretch": _node(topic, now_node) if now_node else None,
-            "ahead": [a for a in (_node(topic, n) for n in nodes if n.get("kind") == "sub_chapter") if a],
-            "next_months": months,
+            "ahead": _ahead(topic, nodes, today, ("sub_chapter", "turn")),
+            "next_months": months or None,
         }
     else:
         span = arc.get("arc") if isinstance(arc.get("arc"), dict) else {}
@@ -322,11 +459,11 @@ def build_detail(topic: str, scale: str, src: dict, today: date) -> Optional[dic
         if scale == "today":
             return daily_detail(topic, src.get("daily"))
         if scale == "month":
-            return month_detail(topic, src.get("month"))
+            return month_detail(topic, src.get("month"), today)
         if scale == "year":
             return year_detail(topic, src.get("year"))
         if scale in ("season", "chapter"):
-            return cycle_detail(topic, scale, src.get("arc"), today)
+            return cycle_detail(topic, scale, src.get("arc"), today, src.get("feed"), src.get("lang") or "en")
     except Exception:
         return None
     return None

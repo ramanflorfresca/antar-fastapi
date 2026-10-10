@@ -346,7 +346,8 @@ def test_season_is_the_current_sub_period_with_its_end_date():
     r = T.read_topic(ctx, "career", "season", TODAY, "en", with_best_fit=False)
     assert r["period"]["end"] == "2027-03-10" and not r["period"]["approximate"]
     # 5 months out -> a plain length, no end date, never the word "season"
-    assert r["period"]["label"] == "The next 5 months"
+    assert r["period"]["span_label"] == "The next 5 months"
+    assert r["period"]["label"] == "Your current life chapter · to Mar 2027"
     assert r["period"]["span"] == {"months": 5, "bucket": "months"}
     assert r["claim"].startswith("Over the next 5 months, ")
 
@@ -924,12 +925,12 @@ _SEASON_FAR = {"en": "The next 2½ years · to Apr 2029", "es": "Los próximos 2
 @pytest.mark.parametrize("lang", LANGS)
 def test_observed_season_label_carries_the_year_when_it_runs_to_2029(lang):
     r = T.read_topic(_season_ctx("2029-04-25"), "career", "season", TODAY, lang, with_best_fit=False)
-    assert r["period"]["end"] == "2029-04-25" and r["period"]["label"] == _SEASON_FAR[lang]
+    assert r["period"]["end"] == "2029-04-25" and r["period"]["span_label"] == _SEASON_FAR[lang]
 
 
 def test_hindi_season_label_falls_back_to_english_with_the_year():
     r = T.read_topic(_season_ctx("2029-04-25"), "career", "season", TODAY, "hi", with_best_fit=False)
-    assert r["period"]["label"] == "The next 2½ years · to Apr 2029"
+    assert r["period"]["span_label"] == "The next 2½ years · to Apr 2029"
 
 
 @pytest.mark.parametrize("end,label", [
@@ -942,7 +943,7 @@ def test_season_label_boundary_at_11_12_13_months(end, label):
     jan = date(2026, 1, 5)
     ctx = _season_ctx(end)
     ctx.dashas["vimsottari"][1]["start_date"] = ctx.dashas["vimsottari"][1]["start"] = "2025-12-01"
-    assert T._period(ctx, "season", jan, "en")["label"] == label
+    assert T._period(ctx, "season", jan, "en")["span_label"] == label
 
 
 def test_other_scale_labels_are_unchanged():
@@ -1080,11 +1081,11 @@ def test_soon_window_month_scale():
     assert r["your_move"].startswith("Use the time before Oct 14")
 
 
-def test_window_running_today_keeps_the_old_strings():
-    r = T.read_topic(_soon_ctx(), "career", "season", TODAY, "en")   # care window starts today
-    assert r["tone"] == "care" and r["window_phase"] == "now"
-    assert r["claim"] == "Over the next 5 months, work asks for patience, so avoid forcing a decision and keep your record clean."
-    assert r["your_move"] == "Finish what is open before you start anything new."
+def test_care_running_today_with_an_open_window_ahead_leads_with_the_open_one():
+    r = T.read_topic(_soon_ctx(), "career", "season", TODAY, "en")   # care Oct 7 - Nov 5, open Oct 14 - 20
+    assert r["tone"] == "open" and r["window_phase"] == "soon"
+    assert r["best_window"]["start"] == "2026-10-14" and r["watch_window"]["window_phase"] == "now"
+    assert r["claim"] == "Over the next 5 months, your best stretch for work starts Oct 14."
 
 
 def test_steady_read_has_null_phase():
@@ -1193,7 +1194,7 @@ def test_season_label_follows_the_real_length(case):
     months, bucket, *labels = case
     for lang, want in zip(LANGS, labels):
         r = T.read_topic(_span_ctx(months), "money", "season", TODAY, lang, with_best_fit=False)
-        got = r["period"]["label"]
+        got = r["period"]["span_label"]
         end = C.add_months(TODAY, months)
         want = want.replace("oct 20", C.month_year_short(end, lang)[:-4] + "20").replace("Oct 20", C.month_year_short(end, lang)[:-4] + "20")
         assert got == want, (lang, got)
@@ -1213,7 +1214,7 @@ def test_season_lead_sentence_grammar():
 
 def test_season_approximate_fallback_says_six_months():
     r = T.read_topic(_synth(), "career", "season", TODAY, "en", with_best_fit=False)
-    assert r["period"]["approximate"] is True and r["period"]["label"] == "The next 6 months"
+    assert r["period"]["approximate"] is True and r["period"]["span_label"] == "The next 6 months"
     assert r["period"]["span"] == {"months": 6, "bucket": "months"}
     assert r["period"]["end"] == (TODAY + timedelta(days=180)).isoformat()
 
@@ -1250,8 +1251,8 @@ def _chip_ctx(birth="1990-10-15"):
     return ctx
 
 
-_CHIPS = {"en": ("Right now", "Next 30 days", "This chapter"), "es": ("Ahora", "Próximos 30 días", "Este capítulo"),
-          "pt": ("Agora", "Próximos 30 dias", "Este capítulo"), "hinglish": ("Abhi", "Agle 30 din", "Yeh chapter")}
+_CHIPS = {"en": ("Right now", "Next 30 days", "Life chapter"), "es": ("Ahora", "Próximos 30 días", "Capítulo de vida"),
+          "pt": ("Agora", "Próximos 30 dias", "Capítulo de vida"), "hinglish": ("Abhi", "Agle 30 din", "Life chapter")}
 
 
 @pytest.mark.parametrize("lang", LANGS)
@@ -1291,7 +1292,8 @@ def test_chips_never_say_season_this_year_or_365(lang):
 
 def test_period_numeric_fields_and_season_label_unchanged_by_chip():
     p = T._period(_chip_ctx(), "season", TODAY, "en")
-    assert p["label"].startswith("The next ") and p["span"]["bucket"]
+    assert p["span_label"].startswith("The next ") and p["span"]["bucket"]
+    assert p["label"] == "Your current life chapter · to Mar 2027"
     assert p["start"] == date(2026, 6, 1) and p["end"] == date(2027, 3, 10) and p["approximate"] is False
     assert T._period(_chip_ctx(), "month", TODAY, "en")["label"] == "Next 30 days"
 

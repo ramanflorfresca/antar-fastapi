@@ -184,10 +184,10 @@ def range_label(start: date, end: date, lang: str) -> str:
 # the numeric birthday-to-birthday range; never "this year" / "365" / "season".
 RUNG_BY_SCALE = {"today": "now", "month": "30d", "year": "year", "season": "stretch", "chapter": "chapter"}
 CHIP: Dict[str, Dict[str, str]] = {
-    "en": {"today": "Right now", "month": "Next 30 days", "season": "This chapter", "chapter": "Life chapter"},
-    "es": {"today": "Ahora", "month": "Próximos 30 días", "season": "Este capítulo", "chapter": "Capítulo de vida"},
-    "pt": {"today": "Agora", "month": "Próximos 30 dias", "season": "Este capítulo", "chapter": "Capítulo de vida"},
-    "hinglish": {"today": "Abhi", "month": "Agle 30 din", "season": "Yeh chapter", "chapter": "Life chapter"},
+    "en": {"today": "Right now", "month": "Next 30 days", "season": "Life chapter", "chapter": "Life chapter"},
+    "es": {"today": "Ahora", "month": "Próximos 30 días", "season": "Capítulo de vida", "chapter": "Capítulo de vida"},
+    "pt": {"today": "Agora", "month": "Próximos 30 dias", "season": "Capítulo de vida", "chapter": "Capítulo de vida"},
+    "hinglish": {"today": "Abhi", "month": "Agle 30 din", "season": "Life chapter", "chapter": "Life chapter"},
 }
 
 
@@ -849,4 +849,20 @@ REVEAL_BIG_FROM_BIRTH: Dict[str, str] = {
     "es": "Estás en una etapa de {planet}. Dura hasta {end}.",
     "pt": "Você está em uma fase de {planet}. Ela vai até {end}.",
     "hinglish": "Aap {planet} ke daur mein hain. Ye {end} tak chalega.",
+}
+
+# ── long scales lead with the NEXT window; a later, stronger one is a second sentence ───────────
+# {start} / {end} are full dates ("Jul 1, 2028").
+STRONGEST_TAIL: Dict[str, Dict[str, str]] = {
+    "en": {"open": "The strongest stretch is {start} to {end}.", "care": "The most demanding stretch is {start} to {end}."},
+    "es": {"open": "El tramo más fuerte va del {start} al {end}.", "care": "El tramo más exigente va del {start} al {end}."},
+    "pt": {"open": "O trecho mais forte vai de {start} a {end}.", "care": "O trecho mais exigente vai de {start} a {end}."},
+    "hinglish": {"open": "Sabse mazboot daur {start} se {end} tak hai.", "care": "Sabse bhaari daur {start} se {end} tak hai."},
+}
+# detail.next_months rows built from the topic's own dated windows
+WINDOW_ITEM: Dict[str, Dict[str, str]] = {
+    "en": {"open": "A good stretch for {area}", "care": "A stretch that asks for care with {area}"},
+    "es": {"open": "Un buen tramo para {area}", "care": "Un tramo que pide cuidado con {area}"},
+    "pt": {"open": "Um bom trecho para {area}", "care": "Um trecho que pede cuidado com {area}"},
+    "hinglish": {"open": "{area} ke liye achha daur", "care": "{area} mein dhyaan maangne wala daur"},
 }

@@ -139,8 +139,10 @@ def test_today_is_cut_to_the_topic():
     assert not any("money" in x.lower() for x in health["do"])
     assert health["domain"]["line"] == DAILY["domains"][1]["line"]
     # an item that matches no topic is kept under `day`, not dropped
-    assert "take the short trip or make the far-off call" in money["day"]["do"]
-    assert "take the short trip or make the far-off call" not in money["do"]
+    # ... and now rides at the END of the one `do` list (topic-relevant first), once
+    generic = "take the short trip or make the far-off call"
+    assert money["do"].index(generic) > money["do"].index("handle a money task you've been putting off")
+    assert money["do"].count(generic) == 1 and not (money["day"] or {}).get("do")
     assert money["watch_for"] is None                                           # the signal is about a deal -> business
     assert "someone on the other side of a deal moves first" in D.build_detail("business", "today", SRC, TODAY)["watch_for"]
     assert money["best_times"] == [{"start": "12:18 PM", "end": "1:07 PM", "text": DAILY["windows"][0]["text"]}]
@@ -164,7 +166,7 @@ def test_year_is_cut_to_the_topic():
     y = D.build_detail("money", "year", SRC, TODAY)
     assert y["theme"] == YEAR["year_theme"]
     assert y["caution"] == [{"when": "Nov 2026", "text": "Money comes under pressure — protect savings."}]
-    assert y["strong"] == [] and y["peak"]["months"] == "All year"
+    assert y["strong"] is None and y["peak"]["months"] == "All year"
     assert y["trend"] == {"trend": "pressure", "when": "peaks Nov 2026"}
     assert y["prioritise"] == ["Your savings and the money you keep"]
     assert len(y["key_months"]) == 1 and y["release"]
