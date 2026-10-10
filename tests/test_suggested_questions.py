@@ -48,7 +48,7 @@ def test_order_open_now_then_opening_soon_then_care():
     q = out["questions"]
     assert q[0]["text"] == "Is this a good week to make my ask at work?"
     assert q[1]["text"] == "Is October a good time to take the next step in a close relationship?"
-    assert q[2]["text"] == "What should I hold off on to protect my peace until Oct 14?"
+    assert q[2]["text"] == "Why does my chart ask for care with my peace of mind until Oct 14?"
     assert all(x["reason"] and set(x) == {"id", "topic", "text", "reason", "kind"} for x in q)
 
 
@@ -310,3 +310,16 @@ def test_engine_timing_followups_are_clean_in_every_language():
                 assert not SQ.OUTCOME_WORDS.search(g["text"]) and not _JARGON.search(g["text"]), g
                 assert C.topic_for_question(g["text"]) in (t, None), (lang, t, g["text"])
     assert kept >= 10
+
+
+def test_no_advisor_questions_remain_in_the_landing_prompts_or_care_questions():
+    from antar_engine import ask_suggestions as asg
+    from antar_engine import suggested_questions as sq
+    banned = ("should i", "how do i", "hold off", "prioritize", "make the most", "debería", "como aproveito", "cómo aprovecho",
+              "devo ", "posponer", "adiar", "rok dena", "rok dene")
+    texts = [t for lang in asg._BASE.values() for (_, _, t) in lang]
+    texts += [t for lang in asg._LIVE.values() for (_, t) in lang.values()]
+    texts += [t for lang in asg._DASHA.values() for t in lang.values()]
+    texts += [t for lang in sq.CARE.values() for t in lang.values()]
+    for t in texts:
+        assert not any(w in t.lower() for w in banned), t
