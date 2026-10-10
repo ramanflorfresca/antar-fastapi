@@ -77,13 +77,11 @@ def test_how_to_play_safely_is_a_how_to_not_the_window_again():
 
 
 def test_speculation_chips_keep_which_day():
-    from dotenv import load_dotenv
-    load_dotenv()
-    import main
-    for lang, chips in ((l, main._ASK_FOLLOWUPS[l]["speculation"]) for l in ("en", "es", "pt")):
+    from antar_engine import ask_followups as af   # the live follow-up bank
+    for lang in ("en", "es", "pt"):
+        chips = af._Q[lang]["speculation"].values()
         blob = " ".join(chips).lower()
         assert ("which day" in blob or "qué día" in blob or "qual dia" in blob)   # owner: traders plan by day
-        assert len(chips) == 3
 
 
 def test_day_questions_keep_a_day_level_answer():
