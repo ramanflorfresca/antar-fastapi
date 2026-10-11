@@ -44,6 +44,8 @@ _TX = {
         "brk_dont": ", or {dont}", "brk_end": ".",
         "w_after": "After {at}", "w_before": "Before {at}", "w_today": "Today",
         "between": "between {a} and {b}", "move": "{when}, {item}.",
+        "wk_work": "visibility and reputation", "wk_prep": "{when}, draft the ask or pitch you will send on Monday \u2014 prepare today, don't send it.",
+        "wk_holds": "It holds if you do the thinking and drafting {between}, and send nothing until Monday.",
     },
     "es": {
         "pos": "Hoy favorece {lead}.",
@@ -65,8 +67,26 @@ _TX = {
         "brk_dont": ". Y recuerda: {dont}", "brk_end": ".",
         "w_after": "A partir de las {at}", "w_before": "Antes de las {at}", "w_today": "Hoy",
         "between": "entre {a} y {b}", "move": "{when}, {item}.",
+        "wk_work": "la visibilidad y la reputaci\u00f3n", "wk_prep": "{when}, redacta la petici\u00f3n o propuesta que enviar\u00e1s el lunes: prep\u00e1rala hoy, no la env\u00edes.",
+        "wk_holds": "Se sostiene si piensas y redactas {between}, y no env\u00edas nada hasta el lunes.",
     },
 }
+
+import re as _re
+from datetime import date as _date
+
+# a move line that already names a time ("before noon", "after 2 PM") must not get a window stuck in front of it
+_HAS_TIME = _re.compile(r"(?i)\b\d{1,2}(:\d{2})?\s?(am|pm|h)\b|\b(noon|midday|midnight|mediod[i\u00ed]a|medianoche)\b")
+# a move that is about contacting someone at work/senior — not something to do on a weekend
+_CONTACT = _re.compile(r"(?i)decision-?maker|client|senior|boss|manager|reach out|pitch|ask\b|negotiat|"
+                       r"tomador de decisiones|cliente|jefe|contacta|propuesta|negoci")
+
+
+def _is_weekend(p: dict) -> bool:
+    try:
+        return _date.fromisoformat(str(p.get("date"))[:10]).weekday() >= 5
+    except Exception:
+        return str(p.get("day") or "").strip().lower() in ("saturday", "sunday", "s\u00e1bado", "sabado", "domingo")
 
 _EN_WORDS = frozenset("the your you and with that this is are of to has have been one for it in on will can not "
                       "audit check lead reach send call hold avoid keep take make any bet brings risk savings money work "
@@ -119,7 +139,10 @@ def compose(p: dict, language: str = "en"):
         chosen = [k for k in (ev.get("chosen") or []) if k in _LABEL]
         if not chosen:
             return None
-        lead_name = (lambda k: _LABEL[k]) if L == "en" else (lambda k: I18.LEAD[L].get(k))
+        weekend = _is_weekend(p)
+        _base = (lambda k: _LABEL[k]) if L == "en" else (lambda k: I18.LEAD[L].get(k))
+        # Saturday / Sunday: the Moon can light the 10th house, but nobody is at the desk \u2014 say visibility, not workload
+        lead_name = (lambda k: tx["wk_work"] if (weekend and k == "work") else _base(k))
         if L != "en" and any(lead_name(k) is None for k in chosen[:2]):
             return None
         negative = (ev.get("lead_dir") or p.get("direction") or "positive") == "negative"
@@ -142,7 +165,7 @@ def compose(p: dict, language: str = "en"):
         if other:
             joined = tx["and"].join(other)
             pred += " " + (tx["care1"] if len(other) == 1 else tx["careN"]).format(x=joined.capitalize() if L == "en" else joined)
-        if overreach and any(k in ("work", "network") for k in chosen):
+        if overreach and any(k in ("work", "network") for k in chosen) and not weekend:
             pred += " " + tx["overreach"]
         if light:
             pred += " " + tx["light"]
@@ -189,6 +212,10 @@ def compose(p: dict, language: str = "en"):
         elif worsens and at:
             holds = tx["holds_dn"].format(at=at)
             when = tx["w_before"].format(at=at)
+        elif best and weekend and any(k in ("work", "network") for k in chosen):
+            holds = tx["wk_holds"].format(between=_between(best, tx))
+            b = _between(best, tx)
+            when = b[:1].upper() + b[1:]
         elif best:
             holds = tx["holds_best"].format(between=_between(best, tx))
             b = _between(best, tx)
@@ -211,7 +238,12 @@ def compose(p: dict, language: str = "en"):
                       or (p.get("do_today") or [""])[0])
         if L != "en" and _looks_english(item):
             item = ""
-        move = tx["move"].format(when=when, item=_lower_first(item)) if item else ""
+        if item and weekend and _CONTACT.search(item) and any(k in ("work", "network") for k in chosen):
+            move = tx["wk_prep"].format(when=when)
+        elif item and _HAS_TIME.search(item):
+            move = item[:1].upper() + item[1:] + "."          # it already says when
+        else:
+            move = tx["move"].format(when=when, item=_lower_first(item)) if item else ""
         if p.get("pending"):
             # fast-phase payload: its do/aligned item is a deterministic placeholder that the full (LLM) pass
             # replaces within seconds, so the card showed one "Your move" then swapped it (2026-10-11 UI audit).

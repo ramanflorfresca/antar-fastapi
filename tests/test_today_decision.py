@@ -91,7 +91,7 @@ def test_daily_signal_route_attaches_the_decision_block():
     import main
 
     async def base(chart_id=None, request=None, language="en", date=None):
-        return dict(P, date="2026-10-10")
+        return dict(P, date="2026-10-09")
 
     wrapped = main._attach_today_decision(base)
     out = asyncio.run(wrapped(chart_id="x", request={}, language="en"))
@@ -113,3 +113,47 @@ def test_pending_fast_phase_publishes_no_move():
     """The fast payload's do-item is a placeholder the full pass replaces; showing it made Home swap its move."""
     assert compose(dict(P, pending=True))["move"] == ""
     assert compose(dict(P, pending=False))["move"].startswith("After 1:10 PM")
+
+
+# ---- [weekend + move-time 2026-10-11]
+def _wk_payload(date_iso, day, item="Make the career move you've been sitting on — reach out to the decision-maker directly before noon."):
+    return {"date": date_iso, "day": day, "evidence": {"chosen": ["work", "network"], "lead_dir": "positive"},
+            "moon_sign": "Libra", "moon_house_from_lagna": 10, "lit_domain": "career & visibility",
+            "hora": {"best_window": "12:17 PM – 1:05 PM"}, "rahu_kalam": "8:28 AM – 9:52 AM",
+            "haz_hoy": [item], "dont_today": ["don't stake what you can't afford to lose"],
+            "domains": [{"key": "work", "state": "caution", "name": {"en": "Work"}}],
+            "day_energy": {"key": "light"}}
+
+
+def test_move_that_already_names_a_time_gets_no_window_in_front_of_it():
+    from antar_engine.today_decision import compose
+    d = compose(_wk_payload("2026-10-12", "Monday"), "en")      # Monday
+    assert d["move"].startswith("Make the career move") and "Between" not in d["move"] and d["move"].count("noon") == 1
+
+
+def test_move_without_a_time_still_gets_the_window():
+    from antar_engine.today_decision import compose
+    d = compose(_wk_payload("2026-10-12", "Monday", "Make the career move you've been sitting on"), "en")
+    assert d["move"].startswith("Between 12:17 PM and 1:05 PM, make the career move")
+
+
+def test_sunday_says_visibility_not_workload_and_does_not_send_you_to_a_decision_maker():
+    from antar_engine.today_decision import compose
+    d = compose(_wk_payload("2026-10-11", "Sunday"), "en")
+    assert "visibility and reputation" in d["prediction"] and "taking on too much at work" not in d["prediction"]
+    assert "Monday" in d["move"] and "decision-maker" not in d["move"] and "before noon" not in d["move"]
+    assert "send nothing until Monday" in d["holds"]
+
+
+def test_weekday_keeps_the_work_wording_and_overreach_warning():
+    from antar_engine.today_decision import compose
+    d = compose(_wk_payload("2026-10-12", "Monday"), "en")
+    assert "work and reputation" in d["prediction"] and "taking on too much at work" in d["prediction"]
+
+
+def test_saturday_spanish_is_native_and_has_no_english():
+    from antar_engine.today_decision import compose, _looks_english
+    p = _wk_payload("2026-10-10", "sábado", "Contacta al tomador de decisiones antes del mediodía.")
+    d = compose(p, "es")
+    assert "visibilidad" in d["prediction"] and "lunes" in d["move"] and "lunes" in d["holds"]
+    assert not _looks_english(d["move"]) and not _looks_english(d["holds"])
