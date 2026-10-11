@@ -24068,6 +24068,38 @@ async def compatibility_continue(request: CompatibilityContinueRequest):
     raise HTTPException(400, "layer must be 2 or 3")
 
 
+_CARD_INFLIGHT: set = set()
+_CARD_FAILED: dict = {}          # (session, lang, facts_hash) -> monotonic time of a rejected generation (don't pay for it again for an hour)
+
+
+async def _connection_card_generate(session_id: str, language: str, facts: dict, fhash: str):
+    """[connection-card 2026-10-11] Background: have the LLM phrase the card from the engines' facts, validate it, store it. A rejected
+    generation is never stored (the page keeps showing the deterministic card) and is not retried for an hour."""
+    import time as _t
+    key, fkey = (session_id, language), (session_id, language, fhash)
+    if key in _CARD_INFLIGHT or (_t.monotonic() - _CARD_FAILED.get(fkey, -1e9)) < 3600:
+        return
+    _CARD_INFLIGHT.add(key)
+    try:
+        from antar_engine import connection_card as _CC
+
+        async def _llm(prompt, system):
+            txt, _ = await call_llm_claude(prompt, system_override=system, max_tokens_override=1500, temperature_override=0.3)
+            return txt
+        card, why = await _CC.generate(facts, _llm)
+        if card:
+            await asyncio.to_thread(_CC.store, supabase, session_id, language, fhash, card, _active_claude_model())
+            print(f"[connection-card] stored session={session_id[:8]} lang={language}")
+        else:
+            _CARD_FAILED[fkey] = _t.monotonic()
+            print(f"[connection-card] rejected session={session_id[:8]} lang={language}: {why}")
+    except Exception as e:
+        _CARD_FAILED[fkey] = _t.monotonic()
+        print(f"[connection-card] generation failed non-fatal: {type(e).__name__}: {e}")
+    finally:
+        _CARD_INFLIGHT.discard(key)
+
+
 @app.get("/api/v1/compatibility/session/{session_id}")
 async def get_compatibility_session(session_id: str, language: str = "en"):
     res = supabase.table("compatibility_sessions").select("*").eq("id", session_id).execute()
@@ -24217,6 +24249,24 @@ async def get_compatibility_session(session_id: str, language: str = "en"):
                     out["moves"] = _CM.moves_for(_v2.get("layers"), _reason, language)
                 except Exception as _mve:
                     print(f"[compat][moves] non-fatal: {_mve}")
+                # [connection-card 2026-10-11] strong points / friction / who leads what / do + don't, in plain words. The engines' facts are
+                # phrased by the LLM in the background, validated, and stored; until a stored card exists the deterministic card is returned
+                # with card_status "generating" (the page refetches once). A stored card is reused until the facts change.
+                try:
+                    if language in ("en", "es"):
+                        from antar_engine import connection_card as _CC
+                        _cfacts = _CC.build_facts(out, language)
+                        _cfh = _CC.facts_hash(_cfacts)
+                        _chit = await asyncio.to_thread(_CC.cached, supabase, session_id, language, _cfh)
+                        if _chit:
+                            out["card"], out["card_status"] = _chit, "ready"
+                        else:
+                            _cfb = _CC.fallback_card(_cfacts)
+                            _cfb["source"] = "fallback"
+                            out["card"], out["card_status"] = _cfb, "generating"
+                            _spawn_bg(_connection_card_generate(session_id, language, _cfacts, _cfh), "connection-card")
+                except Exception as _cce:
+                    print(f"[compat][card] non-fatal: {_cce}")
                 if _s_pos:
                     out["summary"] = _apply_position(out.get("summary"), s.get("name_b") or "Partner",
                                                      _reason, _s_pos)
