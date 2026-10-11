@@ -18714,6 +18714,35 @@ def _rederive_after_birth_edit(chart_id: str, chart_data: dict, birth_date: str)
     return status
 
 
+def _complete_person_chart_sync(chart_id: str) -> dict:
+    """[person-chart 2026-10-11] Bring ONE saved person's chart up to the full-chart standard (dashas in all three systems, jaimini_data,
+    Lal Kitab, yogas). Also the BACKFILL for people added before the add flow completed them. Idempotent: it purges and rebuilds the
+    derived rows only. BLOCKING — call via run_in_threadpool. -> {step: 'ok' | error}."""
+    r = supabase.table("charts").select("id,chart_data,birth_date").eq("id", chart_id).limit(1).execute().data
+    if not r:
+        return {"error": "chart not found"}
+    cd, bd = _safe_jsonb(r[0].get("chart_data")), str(r[0].get("birth_date") or "")[:10]
+    if not cd.get("planets") or not bd:
+        return {"error": "chart has no planets / birth_date"}
+    return _rederive_after_birth_edit(chart_id, cd, bd)
+
+
+def _person_chart_gaps(chart_id: str) -> list:
+    """What a saved person's chart is missing, e.g. ['vimsottari', 'jaimini_data'] — [] when complete."""
+    gaps = []
+    try:
+        c = supabase.table("charts").select("jaimini_data,lal_kitab_data").eq("id", chart_id).limit(1).execute().data or [{}]
+        if not c[0].get("jaimini_data"):
+            gaps.append("jaimini_data")
+        if not c[0].get("lal_kitab_data"):
+            gaps.append("lal_kitab_data")
+        have = {x.get("system") for x in (supabase.table("dasha_periods").select("system").eq("chart_id", chart_id).limit(2000).execute().data or [])}
+        gaps += [s for s in ("vimsottari", "jaimini", "ashtottari") if s not in have]
+    except Exception as e:
+        print(f"[person-chart] gap check failed {str(chart_id)[:8]}: {e}")
+    return gaps
+
+
 @app.patch("/api/v1/me/charts/{chart_id}")
 async def settings_charts_update(chart_id: str, request: Request, authorization: Optional[str] = Header(None)):
     from fastapi.responses import JSONResponse
@@ -23424,21 +23453,9 @@ async def compatibility_start(request: CompatibilityStartRequest,
             from antar_engine import vimsottari as _vim_mod, ashtottari as _ash_mod
             _vim_b, _jai_b, _ash_b = [], [], []
             def _normalise_dashas_b(raw):
-                flat = []
-                for p in raw:
-                    if isinstance(p, dict) and "sub" in p:
-                        sd = str(p.get("start_date","") or p.get("start",""))[:10]
-                        ed = str(p.get("end_date","") or p.get("end",""))[:10]
-                        flat.append({"lord_or_sign": p.get("lord",""), "planet_or_sign": p.get("lord",""), "start": sd, "end": ed, "start_date": sd, "end_date": ed, "duration_years": p.get("duration_years",0), "level": "mahadasha", "parent_lord": ""})
-                        for s in p.get("sub",[]):
-                            ssd = str(s.get("start_date","") or s.get("start",""))[:10]
-                            sed = str(s.get("end_date","") or s.get("end",""))[:10]
-                            flat.append({"lord_or_sign": s.get("lord",""), "planet_or_sign": s.get("lord",""), "start": ssd, "end": sed, "start_date": ssd, "end_date": sed, "duration_years": s.get("duration_years",0), "level": "antardasha", "parent_lord": s.get("parent_lord","")})
-                    elif isinstance(p, dict):
-                        sd = str(p.get("start_date","") or p.get("start",""))[:10]
-                        ed = str(p.get("end_date","") or p.get("end",""))[:10]
-                        flat.append({"lord_or_sign": p.get("lord","") or p.get("lord_or_sign","") or p.get("planet_or_sign",""), "planet_or_sign": p.get("lord","") or p.get("lord_or_sign","") or p.get("planet_or_sign",""), "start": sd, "end": ed, "start_date": sd, "end_date": ed, "duration_years": p.get("duration_years",0), "level": p.get("level","mahadasha"), "parent_lord": p.get("parent_lord","")})
-                return flat
+                # [person-chart 2026-10-11] the dasha modules return {mahadashas:[...], antardashas:[...]}; the old local copy iterated that
+                # dict (its two KEY strings) and produced [] — every person added since the format changed got NO dasha rows. One normaliser.
+                return _normalise_dashas(raw)
             try:
                 _vim_b = _normalise_dashas_b(_vim_mod.calculate_vimsottari_from_chart(chart_b, chart_b.get("birth_jd")))
             except Exception as _ve:
@@ -23496,37 +23513,14 @@ async def compatibility_start(request: CompatibilityStartRequest,
                 "chart_type": "compatibility",
             }).execute()
 
-            # Store dasha periods for Chart B
-            _dasha_rows_b = []
-            for _sys, _periods in [("vimsottari", _vim_b), ("ashtottari", _ash_b)]:
-                for _i, _p in enumerate(_periods):
-                    _lord = _p.get("lord") or _p.get("lord_or_sign") or _p.get("planet_or_sign", "")
-                    _sd = str(_p.get("start_date") or _p.get("start", ""))[:10]
-                    _ed = str(_p.get("end_date") or _p.get("end", ""))[:10]
-                    _level_name = _p.get("level", "mahadasha")
-                    _level_int = 1 if _level_name == "mahadasha" else (2 if _level_name == "antardasha" else 3)
-                    _dasha_rows_b.append({
-                        "chart_id": chart_id_b,
-                        "system": _sys,
-                        "type": _level_name,
-                        "level": _level_int,
-                        "planet_or_sign": _lord,
-                        "start_date": _sd,
-                        "end_date": _ed,
-                        "duration_years": _p.get("duration_years", 0),
-                        "sequence": _i,
-                        "parent_id": None,
-                        "metadata": {"parent_lord": _p.get("parent_lord", ""), "type": _level_name},
-                    })
-            if _dasha_rows_b:
-                try:
-                    for _i in range(0, len(_dasha_rows_b), 100):
-                        _batch = _dasha_rows_b[_i:_i+100]
-                        supabase.table("dasha_periods").insert(_batch).execute()
-                    invalidate_dasha_cache(chart_id_b)  # [loop-unblock 2026-09-28]
-                    print(f"[compat] Chart B dashas stored: {len(_dasha_rows_b)} rows")
-                except Exception as _dbe:
-                    print(f"[compat] Chart B dasha store non-fatal: {_dbe}")
+            # [person-chart 2026-10-11] A person added to the network gets the SAME complete chart a primary chart has — Vimshottari (MD + AD),
+            # Ashtottari, the Jaimini Chara dasha, jaimini_data (karakas, karakamsa, arudhas), Lal Kitab and yogas — so a two-chart reading
+            # is "an astrologer read each chart in full, then combined them". Fail-open: the reading still works from chart_data alone.
+            try:
+                _pc_status = await run_in_threadpool(_rederive_after_birth_edit, chart_id_b, chart_b, str(request.birth_date_b)[:10])
+                print(f"[compat] Chart B completed: {_pc_status}")
+            except Exception as _pce:
+                print(f"[compat] Chart B completion non-fatal: {_pce}")
 
             dashas_b = {"vimsottari": _vim_b, "ashtottari": _ash_b}
             print(f"[compat] Created sub-chart {chart_id_b} for {request.name_b} (parent={request.chart_id_a})")
