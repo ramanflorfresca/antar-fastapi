@@ -30942,6 +30942,34 @@ async def _ask_endpoint_impl(request: AskRequest):
                 print("[ask][chakra] short-circuit chakra read")
                 return _chk_payload
 
+            # [medical-safety 2026-10-10] "should I have the surgery now or later?" — the chart can't time a medical procedure, and the
+            # model wrote deadlines for it ("if you wait past January you'll have to start again"). Fixed, honest answer (en/es/pt);
+            # no verdict, no timing window. Crisis still wins; hi / other languages keep the normal path.
+            try:
+                from antar_engine.medical_safety import is_medical_procedure_q as _is_medproc, safe_answer as _med_safe
+                _med_lang = _ask_norm_lang(language)
+                if (_is_medproc(question) and not _ask_crisis and isinstance(chart_data, dict) and chart_data
+                        and _med_lang in ("en", "es", "pt")):
+                    _med = _med_safe(chart_data, _ask_dashas, _med_lang)
+                    if _med:
+                        _med_payload = {"mode": "explore", "read": _med["read"], "next": _med["next"], "locked": False}
+                        try:
+                            from antar_engine.ask_basis import build_basis as _med_bb
+                            _med_b = _med_bb("health", chart_data, _ask_dashas, _med_lang)
+                            if _med_b:
+                                _med_payload["basis"] = _med_b
+                        except Exception:
+                            pass
+                        _ask_attach_disclaimer(_med_payload, "health", language, question)
+                        try:
+                            await _ask_persist(supabase, chart_id, question, _med_payload, language, "explore", "health")
+                        except Exception as _mpe:
+                            print(f"[ask][medical] persist non-fatal: {_mpe}")
+                        print("[ask][medical] procedure question — fixed safe answer")
+                        return _med_payload
+            except Exception as _mse:
+                print(f"[ask][medical] lane skipped (non-fatal): {_mse}")
+
             # [ask-direct 2026-10-10] a question about "my dasha / this period" gets the period
             # itself — named, dated, with the antardasha end date — not a generic chapter essay.
             if (_is_dasha_q(question) and not _ask_crisis and isinstance(chart_data, dict)

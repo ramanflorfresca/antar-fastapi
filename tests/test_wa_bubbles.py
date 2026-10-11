@@ -128,7 +128,7 @@ def test_chart_move_follows_the_topic_and_the_chart():
     love = chart_move("love", chart, dashas)
     assert "your own initiative and communication" in love and "first move" in love and "7th" not in love
     assert chart_move("career", chart, dashas, "pt") == ""          # English only
-    assert chart_move("legal", chart, dashas) == ""                  # no template → canned fallback stays
+    assert chart_move("spiritual", chart, dashas) == ""                  # no template → canned fallback stays
 
 
 def test_polish_uses_chart_move_before_canned_line_and_drops_invented_health_move():
@@ -165,7 +165,7 @@ def test_conditions_say_what_makes_it_true_and_what_breaks_it():
     h = conditions("health", chart, dashas)
     assert "recognition" not in h and "Risk stays small" in h
     assert "recognition" not in conditions("property", chart, dashas)
-    assert conditions("career", chart, dashas, "pt") == "" and conditions("legal", chart, dashas) == ""
+    assert conditions("career", chart, dashas, "pt") == "" and conditions("spiritual", chart, dashas) == ""
 
 
 def test_polish_builds_prediction_holds_breaks_and_drops_invented_or_unasked_text():
@@ -491,3 +491,73 @@ def test_existing_marriage_gets_one_stable_move_only_in_the_existing_union_lane(
     other = polish_answer({"read": "ok", "next": "Keep my move."}, "en", "Will I get the job?", concern="career",
                           chart_data=chart, dashas=dashas, existing_union=True)
     assert other["next"] == "Keep my move."                                          # only marriage / love / divorce
+
+
+def test_medical_procedure_questions_are_detected_in_en_es_pt_without_false_positives():
+    from antar_engine.medical_safety import is_medical_procedure_q as f
+    for q in ("Should I have the surgery now or later?", "Is it a good time for my knee replacement?", "Will my biopsy results be fine?",
+              "Should I get the operation this year?", "When should I schedule the surgery?", "My surgeon wants to operate on me soon",
+              "¿Debería operarme ahora o más adelante?", "¿Es buen momento para la cirugía?", "¿Me harán la cesárea pronto?",
+              "Devo fazer a cirurgia agora ou depois?", "Preciso fazer a operação cirúrgica este ano?", "Vou ter que fazer quimioterapia?"):
+        assert f(q), q
+    for q in ("Will my business operations grow?", "How is my health this year?", "Why am I always tired?", "Is it a good time to ask for a raise?",
+              "Should I follow the procedure my boss suggested?", "¿Mejorará mi salud?", "Minha saúde vai melhorar?", "Will I have a health scare this year?"):
+        assert not f(q), q
+
+
+def test_medical_safe_answer_has_no_verdict_no_deadline_and_the_same_move_in_every_language():
+    from antar_engine.medical_safety import safe_answer
+    chart, dashas = _chart()          # 6th-house ruler (Mercury) is combust in the fixture -> "weakened"
+    en, es, pt = (safe_answer(chart, dashas, l) for l in ("en", "es", "pt"))
+    assert en["read"].startswith("The chart can't say whether surgery is right for you or when to have it — that is a medical decision for you and your doctor.")
+    assert "the ruler of your 6th house is weakened, so recovery tends to run slower" in en["read"]
+    assert en["read"].endswith("not around a date from the chart.")
+    assert en["next"].startswith("Ask your surgeon for the specific risk of acting now versus waiting, get a second opinion")
+    assert es["read"].startswith("La carta no puede decir si la cirugía es lo correcto para ti ni cuándo hacerla") and "segunda opinión" in es["next"]
+    assert pt["read"].startswith("O mapa não pode dizer se a cirurgia é o certo para você") and "segunda opinião" in pt["next"]
+    import re
+    for a in (en, es, pt):
+        assert not re.search(r"(?i)window|ventana|janela|january|enero|janeiro|if you wait|si esperas|se esperar|deadline", a["read"] + a["next"])
+    fine = {"lagna": {"sign": "Capricorn"}, "planets": {"Mercury": {"sign": "Gemini", "house": 6, "longitude": 70.0},
+                                                         "Sun": {"sign": "Scorpio", "house": 11, "longitude": 220.0}}}
+    assert "your health house is well supported" in safe_answer(fine, dashas, "en")["read"]
+    assert "recover" not in safe_answer({}, dashas, "en")["read"].split("—")[1].split(".")[0]      # no chart -> no recovery claim
+    assert safe_answer(chart, dashas, "hi") is None and safe_answer(chart, dashas, "hinglish") is None
+
+
+def test_every_topic_with_a_house_map_has_a_chart_linked_fallback_move_in_en_and_es():
+    from antar_engine.ask_basis import chart_move
+    chart, dashas = _chart()
+    chart = dict(chart, planets=dict(chart["planets"], Jupiter={"sign": "Taurus", "house": 5, "longitude": 40.0}))
+    for c in ("domestic_move", "foreign", "foreign_move", "education", "family", "legal", "divorce", "loss"):
+        en, es = chart_move(c, chart, dashas, "en"), chart_move(c, chart, dashas, "es")
+        assert en and es, c
+        assert "Block one hour" not in en and "{ch}" not in en + es, c
+    en = chart_move("foreign", chart, dashas, "en")
+    assert "what must be in place before moving abroad is realistic" in en
+    assert "money, work setup, legal status" in en
+    assert "una lista de lo que debe estar listo para que mudarte al exterior sea realista" in chart_move("foreign", chart, dashas, "es")
+
+
+def test_urgency_and_invented_days_are_removed_but_real_engine_dates_stay():
+    from antar_engine.answer_polish import strip_pressure, polish_answer
+    t, ch = strip_pressure("Book the consultation this week. If you wait past January, you'll have to start the process again.")
+    assert ch and t == "Book the consultation this week."
+    t, ch = strip_pressure("The window is open now. The window closes after January, so lock it in. Prepare the paperwork.")
+    assert "closes" not in t and "Prepare the paperwork." in t and "The window is open now." in t
+    t, _ = strip_pressure("Have it ready to send on November 1st.")
+    assert t == "Have it ready to send in November."
+    t, _ = strip_pressure("Be ready by Nov 3 and finish before March 15.")
+    assert t == "Be ready by Nov and finish before March."
+    keep = "Reassess when the current sub-period ends on Apr 25, 2029."
+    assert strip_pressure(keep) == (keep, False)
+    assert strip_pressure("Your window runs through January 2027.")[1] is False
+    assert strip_pressure("Si esperas más allá de enero, perderás la oportunidad. Prepara tus documentos.")[0] == "Prepara tus documentos."
+    assert strip_pressure("A janela fecha em janeiro. Organize seus documentos.")[0] == "Organize seus documentos."
+    assert strip_pressure("Last chance.") == ("Last chance.", False)       # never reduces an answer to nothing
+    chart, dashas = _chart()
+    p = polish_answer({"read": "The window is open. Waiting past it means the support thins out? If you wait, you lose it.",
+                       "next": "Call this week — the window closes after January."}, "en", "Should I take the new role?",
+                      concern="career", chart_data=chart, dashas=dashas)
+    assert "If you wait" not in p["read"] and "window closes" not in (p["next"] or "")
+    assert (p["next"] or "").strip() != ""                                  # an emptied move falls back to a chart-linked one

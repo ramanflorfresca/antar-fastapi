@@ -131,6 +131,16 @@ _ACT = {
     "funding": "prepare the records first — the ask runs through {ch}",
     "health": "protect the routine that {ch} depends on — sleep and meal times first",
     "children": "get your finances and support in order before the window opens — {ch} is where this area shows up",
+    # [move-drift 2026-10-10] topics that had no chart-linked fallback and so could fall back to the canned
+    # "Block one hour this week for the task that moves your work forward most" (live: "Will I move abroad?")
+    "domestic_move": "settle your must-haves and your budget before you commit to a place — this decision runs through {ch}",
+    "foreign": "list what must be in place before moving abroad is realistic — money, work setup, legal status — and start on the one you control; this area opens through {ch}",
+    "foreign_move": "list what must be in place before moving abroad is realistic — money, work setup, legal status — and start on the one you control; this area opens through {ch}",
+    "education": "choose one programme and one deadline to work to, and put the effort into {ch}",
+    "family": "decide one concrete thing to do for the people closest to you this month and tell them — this area delivers through {ch}",
+    "legal": "put your documents in one place and get advice on the one question that matters most — this area moves through {ch}",
+    "divorce": "decide what you need settled first and get it in writing — this runs through {ch}",
+    "loss": "list what is at risk and protect the most important item first — leaks here come through {ch}",
 }
 
 
