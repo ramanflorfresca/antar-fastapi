@@ -68,7 +68,17 @@ def build_facts(out: dict, language: str = "en") -> dict:
             "confidence_line": (out.get("confidence") or {}).get("line") if isinstance(out.get("confidence"), dict) else None,
             "career_fit_note": out.get("career_fit_note"),
         }
-        if roles:
+        if roles and roles.get("kind") == "hierarchy":
+            # a reporting line / advisory connection: authority and fit, no lane split — `leads` stays absent
+            o = roles.get("other") or {}
+            facts["authority"] = {"type": roles.get("type"), "role": roles.get("role"), "fit_for_role": roles.get("fit"),
+                                  "takes_direction": roles.get("direction"),
+                                  "their_strongest": [LANE_NAME[lang][l] for l in o.get("strengths", [])],
+                                  "their_thin": [LANE_NAME[lang][l] for l in o.get("thin", [])],
+                                  "their_authority_style": o.get("style"),
+                                  "you_add": [LANE_NAME[lang][l] for l in (roles.get("you") or {}).get("add", [])],
+                                  "systems_agree_on_their_top_lane": not roles.get("contested_top")}
+        elif roles:
             facts["roles"] = {
                 "you_lead": roles["you"].get("leads", []), "other_lead": roles["other"].get("leads", []),
                 "shared": roles.get("shared", []), "open_contested": roles.get("contested", []), "open_gaps": roles.get("gaps", []),
@@ -159,8 +169,12 @@ def build_prompt(facts: dict) -> Tuple[str, str]:
     lane_note = ""
     if facts.get("roles"):
         lane_note = "\nLANE NAMES you may use in sentences: " + json.dumps(LANE_NAME[lang], ensure_ascii=False)
+    auth_note = ""
+    if facts.get("authority"):
+        auth_note = ("\nThis is a REPORTING / ADVISORY line (facts.authority), not a partnership: describe how to manage, work with or use them in "
+                     "`style.other`, `strengths`, `frictions`, `dos` and `donts`; say who is strong where in plain words; OMIT `leads`.")
     user = ("FACTS (the only source you may use):\n" + json.dumps(facts, ensure_ascii=False, indent=1, default=str)
-            + lane_note + "\n\nReturn this JSON shape (omit `leads` and `style` when facts.roles is absent):\n"
+            + lane_note + auth_note + "\n\nReturn this JSON shape (omit `leads` and `style` when facts.roles is absent):\n"
             + json.dumps(_SCHEMA_HINT, ensure_ascii=False, indent=1))
     return _SYSTEM[lang], user
 

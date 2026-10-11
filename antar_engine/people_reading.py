@@ -30,7 +30,7 @@ def _first_sentence(text: str, cap: int = 200) -> str:
     return s if len(s) <= cap else s[: cap - 1].rstrip() + "…"
 
 
-_ROLE_TYPES = ("cofounder", "business")
+_ROLE_TYPES = ("cofounder", "business", "employee", "boss", "boss-or-manager", "manager", "advisor", "mentor")
 
 
 def stage(layer1, layer2, layer3, name_b: str = "", lang: str = "en", compat_type: str = "") -> dict:
