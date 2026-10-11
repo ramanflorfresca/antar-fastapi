@@ -105,7 +105,7 @@ def natal_read(chart_data: dict, dashas: dict, birth_date: str) -> Optional[dict
         return None
 
 
-def state(natal: Optional[dict], client: str = "", ee_verdict: str = "") -> str:
+def state(natal: Optional[dict], client: str = "", ee_verdict: str = "", horizon: Optional[int] = None) -> str:
     """losses | no | open | later (see module doc)."""
     n = natal or {}
     score = float(n.get("score") or 0)
@@ -116,7 +116,9 @@ def state(natal: Optional[dict], client: str = "", ee_verdict: str = "") -> str:
     if (natal is not None and score < SUPPORT_SCORE) or denied:
         return "no"
     if (client or "").upper() in OPEN_CLIENTS:
-        return "open"
+        # [horizon-rule 2026-10-11] a window that starts in a LATER month is "supported — opens X" (later), however soon within the year it is:
+        # the 12-month rule makes the client verdict LIKELY for those, which must not read as "open now"
+        return "later" if (horizon is not None and horizon > 0) else "open"
     return "later"
 
 
@@ -150,8 +152,25 @@ GAMBLING_Q = _re.compile(
 SPECULATION_Q = _re.compile(
     r"(?i)\b(speculat\w*|stocks?|stock market|share market|shares|equit(y|ies) market|trading|trade[sr]?|"
     r"day.?trad\w*|intraday|f&o|futures|options trading|forex|crypto\w*|bitcoin|commodit(y|ies) trading|"
-    r"windfall|unearned|especulaci\w*|acciones|bolsa|criptomoneda\w*|especula\w*|a[cç][oõ]es|"
+    r"windfall|unearned|(?:buy|buying|invest(?:ing)? in|sell|selling|trade|trading|hold|holding|purchase|put money (?:in|into))\s+(?:my |some |more |the |any )?(?:gold|silver|bullion|platinum)|"
+    r"(?:gold|silver) (?:price|prices|rate|rates|etf|coins?|bars?)|"
+    r"especulaci\w*|acciones|bolsa|criptomoneda\w*|especula\w*|a[cç][oõ]es|"
     r"criptomoeda\w*|satta|sattebaazi)\b")
+
+
+GOLD_Q = _re.compile(r"(?i)\b(gold|silver|bullion|platinum|oro|ouro)\b")
+
+
+_ASSET_NOTE = {
+    "en": "This reads your own timing for speculative gains \u2014 it does not forecast the price of gold.",
+    "es": "Esto lee tu propio momento para ganancias especulativas; no pronostica el precio del oro.",
+    "pt": "Isto l\u00ea o seu pr\u00f3prio momento para ganhos especulativos; n\u00e3o prev\u00ea o pre\u00e7o do ouro.",
+}
+
+
+def asset_note(question: str, language: str = "en") -> str:
+    """One sentence for a gold / silver question: the answer is the reader's speculation timing (5th / 8th / 11th), not a price call."""
+    return _ASSET_NOTE.get(language, _ASSET_NOTE["en"]) if GOLD_Q.search(question or "") else ""
 
 
 def is_gambling(question: str) -> bool:
@@ -206,7 +225,7 @@ def kp_natal(chart_record: dict) -> Optional[dict]:
         return None
 
 
-def combine(natal_state: str, kp: Optional[dict], client: str = "") -> str:
+def combine(natal_state: str, kp: Optional[dict], client: str = "", horizon: Optional[int] = None) -> str:
     """Two systems, astrologer-style: KP showing only the loss houses (8/12) is a
     'no — losses' whatever else says; a KP yes lifts a lukewarm natal 'no' into
     support (timing then decides open vs later); otherwise the natal state stands."""
@@ -215,7 +234,7 @@ def combine(natal_state: str, kp: Optional[dict], client: str = "") -> str:
     if kp.get("against") and not kp.get("favour"):
         return "losses"
     if natal_state == "no" and kp.get("verdict") == "yes":
-        return "open" if (client or "").upper() in OPEN_CLIENTS else "later"
+        return "open" if ((client or "").upper() in OPEN_CLIENTS and not (horizon is not None and horizon > 0)) else "later"
     return natal_state
 
 

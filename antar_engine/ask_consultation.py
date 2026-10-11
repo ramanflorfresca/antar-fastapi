@@ -106,6 +106,8 @@ _DECISION_TRIGGERS = [
     "do i get", "am i going to",
     # English — good-time framings
     "is it a good time", "right time", "good time to",
+    # [horizon-rule 2026-10-11] "is this a good year to buy a house?" must run the same engine as "is it a good time to invest in real estate?"
+    "good year to", "good month to", "good season to", "right year to", "a good year for", "good year for",
     # English — chance / odds / possibility (covers Failure 2)
     "is there a chance", "any chance", "chance of",
     "what are the chances", "what's the chance", "whats the chance",

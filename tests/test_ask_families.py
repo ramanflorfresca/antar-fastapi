@@ -70,3 +70,48 @@ def test_day_scope_questions_keep_their_clock_times():
 def test_a_read_is_never_emptied_by_the_clock_filter():
     only = "Act before 22:24 tonight."
     assert AP.strip_clock_deadlines(only, "Should I expand?") == (only, False)
+
+
+# ---- operational decisions + question-specific fallback moves (owner 2026-10-11)
+def test_operational_choices_are_recommendations_not_window_verdicts():
+    from antar_engine import understand as U
+    for q in ("Should I fire someone on my team?", "Should I raise my prices?", "How do I get more clients?", "Should I consolidate my debts?",
+              "Should I pay off debt or invest first?"):
+        assert F.is_operational(q) and U.suppress_verdict({"intent": "when"}, q), q
+    for q in ("When will I be debt free?", "Should I hire my first employee now?", "Should I take a loan for my business?", "Will my startup get funded?",
+              "Should I quit my job and start my business?", "Will I get out of financial trouble soon?", "Is it a good time to ask for a raise?", ""):
+        assert not F.is_operational(q), q
+
+
+def test_each_family_has_its_own_fallback_move_and_the_chart_clause_survives():
+    from antar_engine.ask_basis import chart_move
+    chart, dashas = _chart()
+    moves = {}
+    for q in ("Should I quit my job and start my business?", "Should I switch careers?", "Should I start a second business?",
+              "Should I pivot my business?", "Should I sell my business?", "Should I expand my business now?", "Should I hire my first employee now?"):
+        m = chart_move("business", chart, dashas, "en", q)
+        assert m and m not in moves.values(), (q, m)
+        moves[q] = m
+    assert "runway in months" in moves["Should I quit my job and start my business?"]
+    assert "paying customers" in moves["Should I pivot my business?"] and "run a month without you" in moves["Should I start a second business?"]
+    assert all("your network and gains" in m for m in moves.values())              # the chart channel is in every one
+    assert chart_move("business", chart, dashas, "en", "Anything about my business?") == chart_move("business", chart, dashas, "en")   # no family -> the old move
+    assert chart_move("business", chart, dashas, "es", "Should I pivot?") == "" or isinstance(chart_move("business", chart, dashas, "es", "x"), str)
+
+
+def test_the_old_canned_business_move_is_no_longer_the_answer_to_a_specific_decision():
+    from antar_engine.ask_basis import chart_move
+    chart, dashas = _chart()
+    canned = chart_move("business", chart, dashas, "en")
+    for q in ("Should I quit my job and start my business?", "Should I switch careers?", "Should I start a second business?"):
+        assert chart_move("business", chart, dashas, "en", q) != canned
+
+
+def test_polish_drops_the_verdict_and_timing_chips_for_an_operational_question():
+    payload = {"read": "Hold the decision. It works if the expectations were written down.", "next": "Write down three things.", "verdict": "NOT_YET",
+               "timing": "Nov 2026 \u2013 Jan 2027"}
+    AP.polish_answer(payload, language="en", typed_question="Should I fire someone on my team?", concern="career")
+    assert payload["verdict"] is None and payload["timing"] is None
+    keep = {"read": "Likely within the year.", "next": "Do it.", "verdict": "LIKELY", "timing": "Jun 2027 \u2013 Oct 2027"}
+    AP.polish_answer(keep, language="en", typed_question="When will I earn more?", concern="wealth")
+    assert keep["verdict"] == "LIKELY" and keep["timing"] == "Jun 2027 \u2013 Oct 2027"

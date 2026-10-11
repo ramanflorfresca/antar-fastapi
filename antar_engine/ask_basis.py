@@ -157,7 +157,7 @@ _ACT = {
 }
 
 
-def chart_move(concern, chart_data, dashas, language="en") -> str:
+def chart_move(concern, chart_data, dashas, language="en", question="") -> str:
     """[ask-direct 2026-10-10] A fallback move that follows from THIS chart and THIS topic (replaces the generic
     'Block one hour…' / 'Have one honest conversation…'). "" when the chart can't support one."""
     try:
@@ -193,7 +193,10 @@ def chart_move(concern, chart_data, dashas, language="en") -> str:
             # [spec-plain 2026-10-11] no ruler / sub-period vocabulary, no far-off year in a move
             return ("Set the most you can afford to lose, write it down before you place anything, and stop at that number"
                     + (" — your gains tend to come in bursts and give some of it back." if weak else "."))
-        act = _ACT[concern].format(ch=ch)
+        # [ask-families 2026-10-11] the move that is true of THIS decision (fire / price / hire / funding / quit …), not the topic-wide canned one
+        from antar_engine.ask_families import FAMILY_MOVE as _FM, family as _fam
+        _ff = _fam(question) if concern in ("career", "business", "wealth", "finance", "funding", "property") else None
+        act = (_FM[_ff[0]] if _ff and _ff[0] in _FM and not (_ff[0] == "property") else _ACT[concern]).format(ch=ch)
         lead = (f"Because the ruler of your {_o(h)} house is weakened, results lag effort — " if weak
                 else "")
         tail = f" Reassess when the current sub-period ends on {end}." if (weak and end) else ""

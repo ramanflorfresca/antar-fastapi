@@ -538,10 +538,26 @@ def run_event_engine(chart_data, jaimini_data, dashas, birth_date, concern,
     verdict = compute_event_verdict(board, dt_mode=dt_mode)
     prompt = build_reading_sequence_prompt(board, verdict)
     win = verdict.get("window") or {}
+    client = CLIENT_VERDICT.get(verdict["verdict"], "NOT_YET")
+    # [horizon-rule 2026-10-11] Owner rule: if the event / situation is true within the NEXT 12 MONTHS, say so; only when it is further out
+    # ("it will be 3 years before things change") is it "Not yet — things stay slow until X". A promised event whose window starts within a
+    # year used to be "Not yet" (promised_building), so "will my income increase this year?" and "when will I earn more?" disagreed.
+    today = current_date or date.today()
+    horizon = None
+    try:
+        st = date.fromisoformat(str(win.get("start"))[:10])
+        horizon = (st.year - today.year) * 12 + (st.month - today.month)
+    except Exception:
+        pass
+    raw_client = client
+    if client == "NOT_YET" and horizon is not None and horizon <= 12:
+        client = "LIKELY"
     return {
         "board": board,
         "verdict": verdict,
         "narrator_prompt": prompt,
-        "client_verdict": CLIENT_VERDICT.get(verdict["verdict"], "NOT_YET"),
+        "client_verdict": client,
+        "client_verdict_raw": raw_client,
+        "horizon_months": horizon,
         "timing_label": win.get("label"),
     }

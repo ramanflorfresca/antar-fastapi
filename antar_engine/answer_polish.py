@@ -568,6 +568,15 @@ def polish_answer(payload: dict, language: str = "en", typed_question: str = "",
             payload["next"] = None
             if (concern or "") == "speculation" or _SPEC_WORDS.search(payload.get("read") or ""):
                 payload["next"] = _spec_move(prev_moves, lang) or None
+        # [operational 2026-10-11] an operational choice (fire / raise prices / consolidate debt / get clients) is a recommendation: no verdict
+        # chip and no timing chip, which would read as "wait for a window" for something that has no window
+        try:
+            from antar_engine.ask_families import is_operational as _is_op
+            if _is_op(typed_question or ""):
+                payload["verdict"] = None
+                payload["timing"] = None
+        except Exception:
+            pass
         # ── [ask-direct 2026-10-10] prediction → what makes it true → what breaks it ──
         read0 = payload.get("read")
         if isinstance(read0, str) and read0.strip():
@@ -684,7 +693,7 @@ def polish_answer(payload: dict, language: str = "en", typed_question: str = "",
             _cm = ""
             try:   # [ask-direct 2026-10-10] a move that follows from this chart + topic before any canned line
                 from antar_engine.ask_basis import chart_move as _cmove
-                _cm = _cmove((concern or "general").lower(), chart_data, dashas, lang)
+                _cm = _cmove((concern or "general").lower(), chart_data, dashas, lang, typed_question or "")
                 if _cm and _norm_move(_cm) in {_norm_move(p) for p in (prev_moves or []) if p}:
                     _cm = ""
             except Exception:

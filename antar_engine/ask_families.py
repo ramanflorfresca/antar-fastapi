@@ -61,3 +61,44 @@ def family(question: str) -> Optional[Tuple[str, str, str]]:
         if rx.search(q):
             return name, holds, breaks
     return None
+
+
+# ── the fallback MOVE for each family (used only when the model's own move is missing / vague) ──────────
+# The audit saw the SAME fallback ("put the effort into your network and gains, and launch the smallest version that can earn") on "quit my job",
+# "switch careers" and "second business". Each decision gets its own; ask_basis.chart_move adds the chart channel ({ch}) and, when the
+# ruler is weakened, the lead / reassess clause.
+FAMILY_MOVE = {
+    "fire": "write down three specific things this person must change, with a date, and decide the exit from that record \u2014 {ch} is where the fallout lands",
+    "price": "quote the new price to one new client this week and keep the old price for existing ones \u2014 trust here is built through {ch}",
+    "clients": "ask each past client for one specific introduction \u2014 new work reaches you through {ch}",
+    "debt": "list every debt by interest rate and put your spare cash on the highest one, keeping one written number your leanest month can cover \u2014 {ch} drives this",
+    "loan": "write your worst-month income and check the repayment fits inside it before you sign \u2014 {ch} is what has to carry it",
+    "hire": "write down the one problem the hire would fix and what it costs for six months, before you look at candidates \u2014 {ch} decides who stays",
+    "funding": "write the one number an investor can verify and who you would show it to first \u2014 the ask runs through {ch}",
+    "job_offer": "get the pay, reporting line and scope in writing before you answer \u2014 this move runs through {ch}",
+    "promotion": "write your three biggest measurable results and bring them to the person who decides \u2014 recognition comes through {ch}",
+    "quit": "launch the smallest paying version while you are still employed and write your runway in months before you resign \u2014 {ch} carries it",
+    "switch_career": "name the one skill you carry across and test it on a small project before you leave \u2014 the new path opens through {ch}",
+    "expand": "pay for the next step from current income and add capacity only after demand has repeated \u2014 {ch} is where demand comes from",
+    "second_business": "let the first business run a month without you before starting another \u2014 {ch} shows whether it can",
+    "sell": "write what the business must deliver in the next 12 months to be worth keeping, then hold any offer up against it \u2014 {ch} sets the price",
+    "pivot": "test the new direction with three paying customers before moving everything \u2014 {ch} is where they come from",
+    "income": "split every gain the day it arrives: part kept, part spent, part reinvested \u2014 income reaches you through {ch}",
+}
+
+# Operational choices ("should I fire / raise prices / consolidate…", "how do I get clients?") are decisions about HOW, not events with a window:
+# they get a recommendation, never a "Not yet — the career window is …" verdict.
+_OP_START = re.compile(r"(?i)^\s*(should (i|we)|how (do|can|should|would) (i|we)|what should (i|we)|is it better to|would it be better to)\b")
+_OP_FAMILIES = ("fire", "price", "clients")
+_OP_DEBT = re.compile(r"(?i)\b(consolidat\w*|pay(?:ing)? off|pay down|invest first|before (?:i )?invest\w*|refinanc\w*)\b")
+
+
+def is_operational(question: str) -> bool:
+    """True for an operational choice that should be answered as a recommendation (not a window verdict)."""
+    q = (question or "").strip()
+    if not q or not _OP_START.match(q):
+        return False
+    f = family(q)
+    if not f:
+        return False
+    return f[0] in _OP_FAMILIES or (f[0] == "debt" and bool(_OP_DEBT.search(q)))
