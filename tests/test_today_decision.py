@@ -157,3 +157,10 @@ def test_saturday_spanish_is_native_and_has_no_english():
     d = compose(p, "es")
     assert "visibilidad" in d["prediction"] and "lunes" in d["move"] and "lunes" in d["holds"]
     assert not _looks_english(d["move"]) and not _looks_english(d["holds"])
+
+
+def test_sunday_spanish_call_the_key_contact_becomes_a_monday_draft():
+    from antar_engine.today_decision import compose
+    p = _wk_payload("2026-10-11", "domingo", "Llama o escribe al contacto clave antes del mediodía — hoy tu voz llega con más peso que de costumbre.")
+    d = compose(p, "es")
+    assert "lunes" in d["move"] and "mediodía" not in d["move"] and "Llama" not in d["move"]
