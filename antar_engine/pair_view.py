@@ -18,6 +18,7 @@ from typing import Dict, List, Optional
 from antar_engine import partner_roles as P
 
 PERIODS = ("next_6_months", "6_to_12_months", "year_2")
+PERIOD_LABELS = {"en": ["Next 6 months", "6 to 12 months", "Year 2"], "es": ["Próximos 6 meses", "De 6 a 12 meses", "Año 2"]}
 _OFFSETS = (90, 270, 540)           # the day inside each period whose running sub-period names the season
 
 # lord -> (key, group, label en, label es)
@@ -134,10 +135,10 @@ def build(session_out: dict, dashas_a: dict, dashas_b: dict, language: str = "en
             else:
                 first = next(i for i, ok in enumerate(sync) if not ok)
                 summary = tx["out_a" if a[first]["group"] == "out" else "out_b"].format(b=name_b or ("la otra persona" if lang == "es" else "the other person"))
-            seasons = {"periods": list(PERIODS), "you": a, "other": b, "in_sync": sync, "summary": summary}
+            seasons = {"periods": list(PERIODS), "period_labels": PERIOD_LABELS[lang], "you": a, "other": b, "in_sync": sync, "summary": summary}
         else:
             who = tx["you"] if not a else (name_b or "the other person")
-            seasons = {"periods": list(PERIODS), "you": a, "other": b, "in_sync": None, "summary": tx["no_data"].format(who=who)}
+            seasons = {"periods": list(PERIODS), "period_labels": PERIOD_LABELS[lang], "you": a, "other": b, "in_sync": None, "summary": tx["no_data"].format(who=who)}
         return {"version": "pair-view-1", "language": lang, "tiles": {"flows": flows, "care": care, "open": open_t}, "lanes": lanes, "seasons": seasons}
     except Exception as e:
         print(f"[pair-view] failed: {type(e).__name__}: {e}")

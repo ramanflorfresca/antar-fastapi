@@ -24295,6 +24295,12 @@ async def get_compatibility_session(session_id: str, language: str = "en"):
                     out["moves"] = _CM.moves_for(_v2.get("layers"), _reason, language)
                 except Exception as _mve:
                     print(f"[compat][moves] non-fatal: {_mve}")
+                # [working-agreement 2026-10-11] tell the app up front whether this connection has an agreement template (to show / hide the button)
+                try:
+                    from antar_engine import working_agreement as _WAV
+                    out["agreement"] = _WAV.availability(s.get("compat_type") or _reason, out.get("roles"), language)
+                except Exception as _wae:
+                    print(f"[compat][agreement-flag] non-fatal: {_wae}")
                 # [pair-view 2026-10-11] the redesigned screen's data: fit strip, who owns what, the next two years side by side
                 try:
                     from antar_engine import pair_view as _PVW

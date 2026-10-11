@@ -378,6 +378,14 @@ def build_engagement(kind: str, roles: dict, language: str = "en", names: Option
         return None
 
 
+def availability(kind: str, roles: Optional[dict], language: str = "en") -> dict:
+    """{available, type, title}: whether this connection has an agreement template — sent with the reading so the app can show or hide the button up front."""
+    doc = build(kind, roles, language)
+    if not doc:
+        return {"available": False}
+    return {"available": True, "type": doc["type"], "title": doc["title"]}
+
+
 def apply_values(doc: dict, values: Optional[dict]) -> dict:
     """Merge the people's own edits (field values, choices, and edited clause text keyed `clause_text:<id>`) over the template. Returns a new doc."""
     if not isinstance(doc, dict) or not isinstance(values, dict) or not values:

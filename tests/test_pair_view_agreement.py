@@ -257,3 +257,14 @@ def test_endpoint_serves_the_advisory_template_and_still_404s_a_friend(monkeypat
         raise AssertionError("expected 404")
     except HTTPException as e:
         assert e.status_code == 404
+
+
+def test_the_server_sends_period_labels_and_an_agreement_flag():
+    r = PV.build(SESSION, _dashas("Rahu", "Rahu", "Rahu"), _dashas("Saturn", "Saturn", "Rahu"), "en", TODAY)
+    assert r["seasons"]["period_labels"] == ["Next 6 months", "6 to 12 months", "Year 2"] and len(r["seasons"]["periods"]) == 3
+    assert PV.build(SESSION, _dashas("Rahu", "Rahu", "Rahu"), _dashas("Saturn", "Saturn", "Rahu"), "es", TODAY)["seasons"]["period_labels"][0] == "Pr\u00f3ximos 6 meses"
+    assert PV.build(SESSION, _dashas("Rahu", "Rahu", "Rahu"), {}, "en", TODAY)["seasons"]["period_labels"]            # also when one side has no timing
+    assert WA.availability("cofounder", ROLES) == {"available": True, "type": "cofounder", "title": "Working agreement (template)"}
+    assert WA.availability("advisor", _hier("advisor"))["title"] == "Advisory agreement (template)"
+    assert WA.availability("employee", _hier("employee", "operations"))["type"] == "employee"
+    assert WA.availability("friend", None) == {"available": False} and WA.availability("sibling", ROLES) == {"available": False}
