@@ -231,6 +231,24 @@ _CLOCK_DEADLINE = re.compile(r"(?i)\b(?:before|until|by|after|at|till)\s+\d{1,2}
 _DAY_SCOPE_Q = re.compile(r"(?i)\b(today|tonight|right now|this (?:morning|afternoon|evening|hour)|tomorrow morning)\b")
 
 
+# [operational 2026-10-11] an operational decision (fire / raise prices / consolidate debt / get clients) has NO window: any sentence that names a month, a window
+# or "hold off until …" is the model borrowing the career window from the chart context. The weak-ruler clause ("the current sub-period runs to Apr 25, 2029") is
+# an engine fact, not a window, and stays.
+_MONTH_RX = r"(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)"
+_WINDOW_TALK = re.compile(r"(?i)\bwindow\b|\b(?:hold off|wait|until|before|by|through|from|opens?|arrives?|closes?)\s+(?:until\s+)?(?:early |mid-?|late |next )?" + _MONTH_RX + r"\b|\b" + _MONTH_RX + r"\s+20\d\d\b")
+
+
+def strip_window_talk(text, allow_empty: bool = False):
+    """(new_text, changed): sentences that talk about a window or a month are dropped (sub-period facts stay). Never empties a READ."""
+    if not isinstance(text, str) or not text.strip():
+        return text, False
+    sents = [x for x in _SENT.split(text.strip()) if x.strip()]
+    keep = [x for x in sents if not (_WINDOW_TALK.search(x) and "sub-period" not in x.lower())]
+    if keep == sents or (not keep and not allow_empty):
+        return text, False
+    return " ".join(keep), True
+
+
 def strip_clock_deadlines(text, question: str = "", allow_empty: bool = False):
     """(new_text, changed): sentences carrying a clock-time deadline are dropped unless the question is itself about today / tonight / now."""
     if not isinstance(text, str) or not text.strip() or _DAY_SCOPE_Q.search(question or ""):
@@ -575,6 +593,13 @@ def polish_answer(payload: dict, language: str = "en", typed_question: str = "",
             if _is_op(typed_question or ""):
                 payload["verdict"] = None
                 payload["timing"] = None
+                payload["read"], _wt = strip_window_talk(payload.get("read"))
+                if isinstance(payload.get("next"), str):
+                    _nxw, _nw = strip_window_talk(payload["next"], allow_empty=True)
+                    if _nw:
+                        payload["next"] = _nxw if _nxw.strip() else None      # empty -> the decision's own fallback move takes over
+                if _wt:
+                    print("[ask][polish] window talk removed from an operational answer")
         except Exception:
             pass
         # ── [ask-direct 2026-10-10] prediction → what makes it true → what breaks it ──

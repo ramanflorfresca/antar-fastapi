@@ -9,8 +9,8 @@ two people have a real document to sit down with. What the product knows is fill
            confidentiality terms, exit terms, review date, signatures — we do not suggest numbers or legal wording
 
 It says plainly, at the top and again at the end, that it is a template to talk from and not legal advice. Deterministic (no LLM): the document is the
-same every time from the same reading; the people's edits are stored separately as `values` and merged over it. en + es. Partners (cofounder / business)
-today; employee, boss and advisor get their own sheets later (build() returns None for them)."""
+same every time from the same reading; the people's edits are stored separately as `values` and merged over it. en + es. Partners (cofounder / business) get the partnership template; an advisor gets an advisory agreement; employee and boss connections get a working-engagement (consulting / role) template that says it is NOT an employment contract.
+Other relationship types have no template (build() returns None)."""
 from __future__ import annotations
 
 from typing import Dict, List, Optional
@@ -137,7 +137,15 @@ def _list(items):
 def build(kind: str, roles: Optional[dict], language: str = "en", names: Optional[dict] = None) -> Optional[dict]:
     """The template for a pair, or None for a type that has no template yet / no roles read. `names` ({a, b}) are only HINTS for the reader."""
     try:
-        if (kind or "").lower() not in KINDS or not isinstance(roles, dict) or roles.get("kind") == "hierarchy" or not roles.get("you"):
+        k = (kind or "").lower()
+        if isinstance(roles, dict) and roles.get("kind") == "hierarchy":
+            lang0 = language if language in _TX else "en"
+            if k in ("advisor", "mentor"):
+                return build_advisory(roles, lang0, names)
+            if k in ("employee", "boss", "boss-or-manager", "manager"):
+                return build_engagement(k, roles, lang0, names)
+            return None
+        if k not in KINDS or not isinstance(roles, dict) or not roles.get("you"):
             return None
         lang = language if language in _TX else "en"
         tx, resp, nm = _TX[lang], _RESP[lang], P._NAME[lang]
@@ -206,6 +214,176 @@ def build(kind: str, roles: Optional[dict], language: str = "en", names: Optiona
     except Exception as e:
         print(f"[working-agreement] failed: {type(e).__name__}: {e}")
         return None
+
+
+# ── ADVISORY agreement and WORKING-ENGAGEMENT (consulting / role) templates ──────────────────────────────────────────────
+# Owner 2026-10-11: agreements for PARTNERSHIP, ADVISORY and EMPLOYMENT/CONSULTING relationships — but NOT employment contracts. The engagement template says so
+# in its first line and points to a local employment contract for real hires. Same rules: names / ID / address / pay / equity / IP / confidentiality / exit are BLANK;
+# roles, scope, working style and the decision split are filled from the reading; not a legal agreement.
+_TX2 = {
+    "en": {
+        "adv_title": "Advisory agreement (template)", "eng_title": "Working engagement (template)",
+        "eng_note": "This sets out expectations for a consulting or working engagement. It does not replace an employment contract: if you are employing someone, use an "
+                    "employment contract that fits your local law.",
+        "pa_adv": "Party A (receives the advice)", "pb_adv": "Party B (the advisor)", "pa": "Party A", "pb": "Party B",
+        "s_scope": "What the advisor advises on", "s_nature": "Nature of the relationship", "s_format": "Time and format", "s_comp": "Fees, equity and expenses",
+        "s_conflicts": "Conflicts of interest", "s_term": "Term and ending", "s_type": "Type of engagement", "s_role": "Role and responsibilities",
+        "s_report": "Reporting line and decisions", "s_deliver": "Deliverables and timing", "s_pay": "Pay and expenses", "s_ip": "Ownership of work product",
+        "adv_scope": "The advisor advises on: {lanes}.", "adv_out": "Outside the advisor's scope, and not relied on for: {lanes}.", "adv_topics": "Specific topics and questions",
+        "adv_dep": "The advisor gives advice and is not expected to carry execution.", "adv_decide": "Party A makes and owns every decision; the advisor's advice is input.",
+        "adv_bind": "The advisor has no authority to bind Party A or to act on its behalf.", "adv_indep": "The advisor is independent: not an employee, partner or agent unless agreed in writing.",
+        "cadence": "Meeting rhythm", "cadence_o": ["Monthly", "Fortnightly", "On request"], "hours": "Hours per month", "resp": "Response time for questions",
+        "fee": "Fee", "adv_eq": "Advisory equity or shares (if any)", "exp": "Expenses", "disclose": "Other roles or interests the advisor must disclose",
+        "start": "Start date", "review": "Review this agreement on", "review_hint": "About six months from the start date.", "notice": "Notice to end the arrangement",
+        "exit": "What happens to confidential material and open work when it ends", "blank_note": "Left blank on purpose: only the two of you can decide these.",
+        "who_engages": "Who engages whom", "who_o": ["Party A engages Party B", "Party B engages Party A"], "etype": "Type", "etype_o": ["Consulting or contractor", "Part-time role", "Full-time role", "Fixed project"],
+        "edesc": "What the engagement is for", "does": "The person doing the work is responsible for", "fit_strong": "For the {role} role, the reading shows a strong fit.",
+        "fit_ok": "For the {role} role, the reading shows a workable fit.", "fit_weak": "For the {role} role, the reading shows a stretch: agree extra support or a narrower scope.",
+        "style_h": "Working-style notes (from the reading)", "dir_easy": "Set the goal and review the result; they take direction well.",
+        "dir_scope": "Say exactly what is theirs and what needs sign-off; they do best with a clear scope.", "dir_own": "Give them a defined area they fully own, in writing, rather than loose tasks.",
+        "boss_style": "The person engaging is {style}: {how}.", "reports": "Reports to", "dec_own": "Decisions inside the doer's own area are theirs; everything else needs sign-off from the engaging party.",
+        "deliv": "Deliverables", "deadlines": "Deadlines and milestones", "avail": "Hours and availability", "where": "Where the work happens",
+        "rate": "Rate or salary", "sched": "Payment schedule", "ip_f": "Who owns the work product", "ip_hint": "Agree this with a lawyer; write the intent here.",
+        "conf": "How confidential information is handled", "conf_hint": "Agree what is private and for how long.", "wip": "What happens to work in progress when it ends",
+        "sig_n": "Name", "sig_d": "Date", "sig_s": "Signature", "name": "Full name", "idn": "ID or passport number", "addr": "Address", "eff": "Effective date",
+        "STYLE": {"structured": "structured and process-driven", "decisive": "decisive and hands-on", "guiding": "guiding and big-picture", "fast": "fast-moving and changeable"},
+        "HOW": {"structured": "bring written plans and dates", "decisive": "come with a recommendation, not a menu of options", "guiding": "ask for their view on direction and keep the details to yourself", "fast": "confirm decisions in writing"},
+    },
+    "es": {
+        "adv_title": "Acuerdo de asesoría (plantilla)", "eng_title": "Compromiso de trabajo (plantilla)",
+        "eng_note": "Esto fija las expectativas de un trabajo de consultoría o de colaboración. No reemplaza un contrato laboral: si van a emplear a alguien, usen un "
+                    "contrato laboral que se ajuste a la ley local.",
+        "pa_adv": "Parte A (recibe el consejo)", "pb_adv": "Parte B (la persona asesora)", "pa": "Parte A", "pb": "Parte B",
+        "s_scope": "Sobre qué asesora", "s_nature": "Naturaleza de la relación", "s_format": "Tiempo y formato", "s_comp": "Honorarios, participación y gastos",
+        "s_conflicts": "Conflictos de interés", "s_term": "Plazo y fin", "s_type": "Tipo de compromiso", "s_role": "Rol y responsabilidades",
+        "s_report": "Línea de reporte y decisiones", "s_deliver": "Entregables y plazos", "s_pay": "Pago y gastos", "s_ip": "Propiedad del trabajo producido",
+        "adv_scope": "La persona asesora aconseja sobre: {lanes}.", "adv_out": "Fuera del alcance de la asesoría, y sin apoyarse en ella para: {lanes}.", "adv_topics": "Temas y preguntas concretas",
+        "adv_dep": "La persona asesora da consejo y no se espera que cargue con la ejecución.", "adv_decide": "La Parte A toma y es dueña de cada decisión; el consejo es un insumo.",
+        "adv_bind": "La persona asesora no tiene autoridad para obligar a la Parte A ni para actuar en su nombre.", "adv_indep": "La persona asesora es independiente: no es empleada, socia ni agente salvo que se acuerde por escrito.",
+        "cadence": "Ritmo de reuniones", "cadence_o": ["Mensual", "Quincenal", "A demanda"], "hours": "Horas por mes", "resp": "Tiempo de respuesta a preguntas",
+        "fee": "Honorarios", "adv_eq": "Participación o acciones de asesoría (si las hay)", "exp": "Gastos", "disclose": "Otros roles o intereses que la persona asesora debe declarar",
+        "start": "Fecha de inicio", "review": "Revisar este acuerdo el", "review_hint": "Unos seis meses después del inicio.", "notice": "Aviso para terminar el acuerdo",
+        "exit": "Qué pasa con el material confidencial y el trabajo abierto al terminar", "blank_note": "Se deja en blanco a propósito: solo ustedes dos pueden decidirlo.",
+        "who_engages": "Quién contrata a quién", "who_o": ["La Parte A contrata a la Parte B", "La Parte B contrata a la Parte A"], "etype": "Tipo", "etype_o": ["Consultoría o contratista", "Rol de medio tiempo", "Rol de tiempo completo", "Proyecto con plazo fijo"],
+        "edesc": "Para qué es el compromiso", "does": "La persona que hace el trabajo es responsable de", "fit_strong": "Para el puesto de {role}, la lectura muestra un encaje fuerte.",
+        "fit_ok": "Para el puesto de {role}, la lectura muestra un encaje aceptable.", "fit_weak": "Para el puesto de {role}, la lectura muestra un reto: acuerden más apoyo o un alcance más acotado.",
+        "style_h": "Notas de estilo de trabajo (de la lectura)", "dir_easy": "Fijen la meta y revisen el resultado; recibe bien la dirección.",
+        "dir_scope": "Digan exactamente qué es suyo y qué necesita aprobación; rinde mejor con un alcance claro.", "dir_own": "Denle un área definida que lleve por completo, por escrito, en lugar de tareas sueltas.",
+        "boss_style": "Quien contrata es {style}: {how}.", "reports": "Reporta a", "dec_own": "Las decisiones dentro del área de quien hace el trabajo son suyas; todo lo demás requiere la aprobación de quien contrata.",
+        "deliv": "Entregables", "deadlines": "Plazos e hitos", "avail": "Horas y disponibilidad", "where": "Dónde se hace el trabajo",
+        "rate": "Tarifa o salario", "sched": "Calendario de pagos", "ip_f": "Quién es dueño del trabajo producido", "ip_hint": "Acuérdenlo con un abogado; escriban aquí la intención.",
+        "conf": "Cómo se maneja la información confidencial", "conf_hint": "Acuerden qué es privado y por cuánto tiempo.", "wip": "Qué pasa con el trabajo en curso al terminar",
+        "sig_n": "Nombre", "sig_d": "Fecha", "sig_s": "Firma", "name": "Nombre completo", "idn": "Número de documento o pasaporte", "addr": "Domicilio", "eff": "Fecha de inicio",
+        "STYLE": {"structured": "estructurado y orientado al proceso", "decisive": "decidido y de mano firme", "guiding": "orientador y de visión amplia", "fast": "ágil y cambiante"},
+        "HOW": {"structured": "lleven planes y fechas por escrito", "decisive": "lleguen con una recomendación, no con un menú de opciones", "guiding": "pidan su visión de la dirección y resuelvan los detalles", "fast": "confirmen las decisiones por escrito"},
+    },
+}
+
+
+def _parties(tx, a_label, b_label, extra_first=None):
+    items = []
+    if extra_first:
+        items.append(extra_first)
+    items += [_text(a_label), _field("party_a_name", tx["name"]), _field("party_a_id", tx["idn"]), _field("party_a_address", tx["addr"]),
+              _text(b_label), _field("party_b_name", tx["name"]), _field("party_b_id", tx["idn"]), _field("party_b_address", tx["addr"]), _field("effective_date", tx["eff"])]
+    return items
+
+
+def _signatures(tx, a_label, b_label):
+    return [_text(a_label), _field("sig_a_name", tx["sig_n"]), _field("sig_a_date", tx["sig_d"]), _field("sig_a_sign", tx["sig_s"]),
+            _text(b_label), _field("sig_b_name", tx["sig_n"]), _field("sig_b_date", tx["sig_d"]), _field("sig_b_sign", tx["sig_s"])]
+
+
+def _finish(kind, lang, title, tx, sections, names, disclaimer_extra=""):
+    t1 = _TX[lang]
+    doc = {"version": VERSION, "type": kind, "language": lang, "title": title, "disclaimer": (disclaimer_extra + " " if disclaimer_extra else "") + t1["disclaimer"],
+           "footer": t1["foot"], "sections": sections, "name_hints": {"party_a": (names or {}).get("a") or "", "party_b": (names or {}).get("b") or ""}}
+    doc["markdown"] = to_markdown(doc)
+    return doc
+
+
+def build_advisory(roles: dict, language: str = "en", names: Optional[dict] = None) -> Optional[dict]:
+    """Advisory agreement template for an advisor / mentor connection. Scope is filled from the reading (what to use them for / not lean on them for)."""
+    try:
+        lang = language if language in _TX2 else "en"
+        tx, nm = _TX2[lang], P._NAME[lang]
+        o = roles.get("other") or {}
+        top, thin = o.get("strengths", []), o.get("thin", [])
+        join = lambda xs: (", ".join(nm[x] for x in xs[:-1]) + (" y " if lang == "es" else " and ") + nm[xs[-1]]) if len(xs) > 1 else "".join(nm[x] for x in xs)
+        sec = [{"id": "parties", "title": _TX[lang]["s_parties"], "items": _parties(tx, tx["pa_adv"], tx["pb_adv"])}]
+        scope = []
+        if top:
+            scope.append(_clause("adv_scope", tx["adv_scope"].format(lanes=join(top)), "reading"))
+        scope.append(_blank("adv_topics", tx["adv_topics"]))
+        if thin:
+            scope.append(_clause("adv_out", tx["adv_out"].format(lanes=join(thin)), "reading"))
+        sec.append({"id": "scope", "title": tx["s_scope"], "items": scope})
+        sec.append({"id": "nature", "title": tx["s_nature"], "items": [_clause("adv_dep", tx["adv_dep"], "reading"), _clause("adv_decide", tx["adv_decide"]),
+                                                                    _clause("adv_bind", tx["adv_bind"]), _clause("adv_indep", tx["adv_indep"])]})
+        sec.append({"id": "format", "title": tx["s_format"], "items": [_choice("cadence", tx["cadence"], tx["cadence_o"], tx["cadence_o"][0]), _field("hours", tx["hours"]),
+                                                                    _field("response", tx["resp"])]})
+        sec.append({"id": "compensation", "title": tx["s_comp"], "items": [_text(tx["blank_note"]), _blank("fee", tx["fee"]), _blank("advisory_equity", tx["adv_eq"]), _blank("expenses", tx["exp"])]})
+        sec.append({"id": "confidentiality", "title": _TX[lang]["s_conf"], "items": [_blank("confidentiality", tx["conf"], tx["conf_hint"])]})
+        sec.append({"id": "ip", "title": tx["s_ip"], "items": [_blank("ip_owner", tx["ip_f"], tx["ip_hint"])]})
+        sec.append({"id": "conflicts", "title": tx["s_conflicts"], "items": [_blank("conflicts", tx["disclose"])]})
+        sec.append({"id": "term", "title": tx["s_term"], "items": [_field("start_date", tx["start"]), _field("review_date", tx["review"], tx["review_hint"]),
+                                                                    _field("notice", tx["notice"]), _blank("exit_terms", tx["exit"])]})
+        sec.append({"id": "signatures", "title": _TX[lang]["s_sign"], "items": _signatures(tx, tx["pa_adv"], tx["pb_adv"])})
+        return _finish("advisor", lang, tx["adv_title"], tx, sec, names)
+    except Exception as e:
+        print(f"[working-agreement] advisory failed: {type(e).__name__}: {e}")
+        return None
+
+
+def build_engagement(kind: str, roles: dict, language: str = "en", names: Optional[dict] = None) -> Optional[dict]:
+    """Working-engagement (consulting / role) template for an employee or boss connection — NOT an employment contract."""
+    try:
+        lang = language if language in _TX2 else "en"
+        tx, resp, nm = _TX2[lang], _RESP[lang], P._NAME[lang]
+        boss = kind in ("boss", "boss-or-manager", "manager")
+        provider = roles.get("you") if boss else roles.get("other")           # who does the work: the reader for a boss connection, the other person for an employee
+        engager = roles.get("other") if boss else roles.get("you")
+        lanes = (provider or {}).get("strengths", [])
+        sec = [{"id": "parties", "title": _TX[lang]["s_parties"], "items": _parties(
+            tx, tx["pa"], tx["pb"], _choice("who_engages", tx["who_engages"], tx["who_o"], tx["who_o"][1] if boss else tx["who_o"][0]))}]
+        sec.append({"id": "type", "title": tx["s_type"], "items": [_choice("engagement_type", tx["etype"], tx["etype_o"], ""), _blank("engagement_desc", tx["edesc"])]})
+        r_items: List[dict] = [_text(tx["does"])]
+        for lane in lanes:
+            r_items.append(_clause(f"role_{lane}", "\n".join(resp[lane]), "reading", title=nm[lane]))
+        fit = roles.get("fit")
+        if fit and roles.get("role"):
+            r_items.append(_clause("fit", tx["fit_" + fit].format(role=roles["role"]), "reading"))
+        style_items = []
+        o = roles.get("other") or {}
+        if not boss and roles.get("direction"):
+            style_items.append(_clause("direction", tx["dir_" + roles["direction"]], "reading"))
+        if boss and o.get("style") in tx["STYLE"]:
+            style_items.append(_clause("boss_style", tx["boss_style"].format(style=tx["STYLE"][o["style"]], how=tx["HOW"][o["style"]]), "reading"))
+        if style_items:
+            r_items.append(_text(tx["style_h"]))
+            r_items += style_items
+        sec.append({"id": "role", "title": tx["s_role"], "items": r_items})
+        sec.append({"id": "reporting", "title": tx["s_report"], "items": [_field("reports_to", tx["reports"]), _clause("dec_own", tx["dec_own"], "reading")]})
+        sec.append({"id": "deliverables", "title": tx["s_deliver"], "items": [_blank("deliverables", tx["deliv"]), _blank("deadlines", tx["deadlines"]),
+                                                                           _field("availability", tx["avail"]), _field("location", tx["where"])]})
+        sec.append({"id": "pay", "title": tx["s_pay"], "items": [_text(tx["blank_note"]), _blank("rate", tx["rate"]), _blank("schedule", tx["sched"]), _blank("expenses", tx["exp"])]})
+        sec.append({"id": "confidentiality", "title": _TX[lang]["s_conf"], "items": [_blank("confidentiality", tx["conf"], tx["conf_hint"])]})
+        sec.append({"id": "ip", "title": tx["s_ip"], "items": [_blank("ip_owner", tx["ip_f"], tx["ip_hint"])]})
+        sec.append({"id": "term", "title": tx["s_term"], "items": [_field("start_date", tx["start"]), _field("review_date", tx["review"], tx["review_hint"]),
+                                                                    _field("notice", tx["notice"]), _blank("wip", tx["wip"])]})
+        sec.append({"id": "signatures", "title": _TX[lang]["s_sign"], "items": _signatures(tx, tx["pa"], tx["pb"])})
+        return _finish("boss" if boss else "employee", lang, tx["eng_title"], tx, sec, names, disclaimer_extra=tx["eng_note"])
+    except Exception as e:
+        print(f"[working-agreement] engagement failed: {type(e).__name__}: {e}")
+        return None
+
+
+def availability(kind: str, roles: Optional[dict], language: str = "en") -> dict:
+    """{available, type, title}: whether this connection has an agreement template — sent with the reading so the app can show or hide the button up front."""
+    doc = build(kind, roles, language)
+    if not doc:
+        return {"available": False}
+    return {"available": True, "type": doc["type"], "title": doc["title"]}
 
 
 def apply_values(doc: dict, values: Optional[dict]) -> dict:
