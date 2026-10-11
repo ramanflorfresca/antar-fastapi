@@ -146,6 +146,63 @@ _FINALITY = re.compile(
     r"\bno (va a )?volver\u00e1\b|\bse acab\u00f3 para siempre\b|\bno tiene arreglo\b|"
     r"\bo casamento (j\u00e1 )?(acabou|terminou)\b|\bcap\u00edtulo (encerrado|fechado)\b|\bn\u00e3o (h\u00e1|existe) (caminho|jeito|forma) de (volta|voltar|restaurar|reconciliar|consertar)\b|"
     r"\bn\u00e3o (vai )?volta(r|)\b|\bacabou para sempre\b|\bsem volta\b")
+# [no-urgency 2026-10-10] Moves and reads that PRESSURE ("if you wait past January you'll have to start again", "the window
+# closes after January — lock it in now", "last chance") invent a deadline the chart doesn't carry; the window discipline already
+# bans scarcity pressure but the model still wrote it (worst case: a surgery question). Whole sentences are dropped (en/es/pt).
+_URGENCY = re.compile(
+    r"(?i)\b(if you wait|waiting (past|beyond|until after)|before the window (closes|shuts|ends)|(the |your )?(health |career |money )?window "
+    r"(closes|shuts|is closing|is about to close)|last chance|you'?ll (lose|miss) (the|this|that) (window|chance|opportunity)|"
+    r"(start|begin) (the process )?(over|again)|running out of time|run out of time|now or never|before it'?s too late|"
+    r"si esperas|esperar m\u00e1s all\u00e1 de|antes de que se cierre la ventana|la ventana (se )?(cierra|cerrar\u00e1)|\u00faltima oportunidad|"
+    r"perder\u00e1s (la|esta) (ventana|oportunidad)|antes de que sea tarde|"
+    r"se esperar|esperar al\u00e9m de|antes que a janela (feche|se feche)|a janela (fecha|se fecha|vai fechar)|\u00faltima chance|"
+    r"vai perder (a|esta) (janela|oportunidade)|antes que seja tarde)\b")
+_MONTHS_RX = (r"(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|"
+              r"oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)")
+# "by November 1st" / "on Nov 1" / "before March 15" with NO year after it — an LLM-invented day. A date with a year
+# ("Apr 25, 2029") is a real engine date (a dasha end) and is left alone.
+_DAY_CLAIM = re.compile(r"(?i)\b(on|by|before|until|for)\s+(" + _MONTHS_RX + r")\.?\s+\d{1,2}(?:st|nd|rd|th)?\b(?!\s*,?\s*\d{4})")
+
+
+def _month_level(m):
+    prep = m.group(1).lower()
+    return ("in " if prep in ("on", "for") else prep + " ") + m.group(2)
+
+
+def _cut_pressure(sentence):
+    """A sentence carrying scarcity pressure: keep the part BEFORE an em-dash / semicolon / ', so' tail when that part is clean
+    ("Call this week \u2014 the window closes after January." -> "Call this week."); otherwise None (drop it)."""
+    for sep in (" \u2014 ", " - ", "; ", ", so ", ", because "):
+        if sep in sentence:
+            head = sentence.split(sep, 1)[0].strip().rstrip(",;:")
+            if head and not _URGENCY.search(head):
+                return head if head[-1] in ".!?" else head + "."
+    return None
+
+
+def strip_pressure(text, drop_urgency=True, allow_empty=False):
+    """(new_text, changed): urgency/scarcity removed (the clean head of the sentence is kept when there is one), invented days
+    collapsed to the month. Never reduces a READ to nothing; allow_empty=True (moves) may return "" so a chart-linked
+    fallback move can take over."""
+    if not isinstance(text, str) or not text.strip():
+        return text, False
+    changed = False
+    if drop_urgency:
+        sents = [x for x in _SENT.split(text.strip()) if x.strip()]
+        out = []
+        for x in sents:
+            if _URGENCY.search(x):
+                cut = _cut_pressure(x)
+                if cut:
+                    out.append(cut)
+                continue
+            out.append(x)
+        if (out or allow_empty) and out != sents:
+            text, changed = " ".join(out), True
+    new = _DAY_CLAIM.sub(_month_level, text)
+    return new, (changed or new != text)
+
+
 _RELATIONSHIP_CONCERNS = {"reconciliation", "marriage", "love", "divorce", "family", "children"}
 _FINALITY_REPLACEMENT = {
     "en": "Whether this can be rebuilt rests with both people, so the chart can't promise it \u2014 what it does show is where your own timing stands and when it opens.",
@@ -432,6 +489,14 @@ def polish_answer(payload: dict, language: str = "en", typed_question: str = "",
                 payload["read"], _d = _drop_sentences(payload.get("read"), _rx, keep_min=2)
                 if _d:
                     print(f"[ask][polish] {_why} sentence dropped")
+            # scarcity pressure + invented days are removed from the read and the move (see _URGENCY / _DAY_CLAIM)
+            payload["read"], _pr = strip_pressure(payload.get("read"))
+            if isinstance(payload.get("next"), str):
+                _nx_p, _pn = strip_pressure(payload["next"], allow_empty=True)
+                if _pn:
+                    payload["next"] = _nx_p if _nx_p.strip() else None
+            if _pr:
+                print("[ask][polish] pressure/invented-day text removed")
             # a sentence declaring a relationship over / unrepairable is REPLACED (not just dropped): see _FINALITY.
             # Relationship topics only — "it won't come back to normal overnight" about a career is not this.
             if (concern or "") in _RELATIONSHIP_CONCERNS:
