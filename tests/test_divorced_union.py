@@ -75,3 +75,19 @@ def test_retrospective_questions_stay_out_of_the_lane():
     assert main._DU_PAST_RX.search("Why did my marriage fail?") and main._DU_PAST_RX.search("What went wrong in my marriage?")
     assert not main._DU_PAST_RX.search("Is there any problem in my married life?") and not main._DU_PAST_RX.search("Will my marriage improve?")
     assert main._EXISTING_UNION_RX.search("Is there any problem in my married life?")
+
+
+def test_composed_read_never_uses_the_words_chart_carta_mapa():
+    """The explore voice gate rewrites 'chart / horoscope' wording, which mangled the read for 'problem in my married life' (a dropped start month)."""
+    import re
+    for lang in ("en", "es", "pt"):
+        for rb in (REBUILD_OPEN, _ee("NO", None, None)):
+            t = DU.compose(rb, NEW_LATER, "divorced", lang, TODAY)["read"]
+            assert not re.search(r"(?i)\b(chart|horoscope|carta|mapa)\b", t), (lang, t)
+
+
+def test_the_composed_answer_is_applied_after_the_later_filters():
+    src = open(main.__file__, encoding="utf-8").read()
+    assert src.index("[divorced-final 2026-10-11]") > src.index("[divorced-marriage 2026-10-11]")
+    assert src.index("[divorced-final 2026-10-11]") < src.index("_ask_attach_disclaimer(payload, locals().get(\"_ask_concern\"), language, question)", src.index("[divorced-final 2026-10-11]"))
+    assert "_du_final_read = _du[\"read\"]" in src

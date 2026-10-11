@@ -1685,6 +1685,12 @@ def suppress_verdict(u: Optional[dict], question: str = "") -> bool:
     """True when a Yes / Not-yet lead line doesn't answer this kind of question."""
     if (u or {}).get("intent") == "what_to_do" and is_should_i_yes_no(question):
         return False
+    try:   # [operational 2026-10-11] fire / raise prices / consolidate debt / get clients: a recommendation, not a "Not yet — window" verdict
+        from antar_engine.ask_families import is_operational
+        if is_operational(question):
+            return True
+    except Exception:
+        pass
     return (u or {}).get("intent") in NO_VERDICT_INTENTS
 
 

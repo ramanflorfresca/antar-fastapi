@@ -686,7 +686,10 @@ def test_subject_resolver_pt_es_parents_and_moves():
 def test_money_pattern_questions_are_recognised_in_portuguese_like_en_es():
     main = _main()
     f = main._ask_money_intent
-    assert f("Minha renda vai aumentar este ano?") == "income-flow" and f("Will my income grow this year?") == "income-flow"
+    # [horizon-rule 2026-10-11] "will my income increase this year?" asks whether an EVENT happens within a horizon -> the window path (None here),
+    # so it agrees with "when will I earn more?"; the DESCRIPTIVE pattern questions stay income-flow
+    assert f("Minha renda vai aumentar este ano?") is None and f("Will my income grow this year?") is None
+    assert f("Como est\u00e1 minha renda?") == "income-flow" and f("How is my income flow?") == "income-flow"
     assert f("Para onde vai meu dinheiro?") == "expenditure-loss" and f("Estou ganhando ou perdendo?") == "gains-losses"
     assert f("Vou receber uma herança?") == "earned-unearned"
     assert f("Quando minha renda vai aumentar?") is None and f("Quando vou sair das dívidas?") is None      # a 'when' question stays timing

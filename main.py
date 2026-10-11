@@ -27208,6 +27208,13 @@ def _ask_event_intent(q):
     return None
 
 
+_MONEY_FUTURE_RX = re.compile(
+    r"(?i)\b(will|going to|am i going to|do you see)\b[^?]*\b(increase|grow|rise|go up|improve|get better|double|be higher|recover|rebound)\b|"
+    r"\b(make|earn)\s+more\s+(money\s+)?(this|next)\s+year\b|"
+    r"\b(aumentar\u00e1|crecer\u00e1|mejorar\u00e1|subir\u00e1|aumentar\u00e1n|crecer\u00e1n)\b|\bva a (aumentar|crecer|mejorar|subir)\b|\bganar\u00e9 m\u00e1s\b|"
+    r"\b(aumentar\u00e1|crescer\u00e1|melhorar\u00e1|subir\u00e1)\b|\bvai (aumentar|crescer|melhorar|subir)\b|\bganharei mais\b")
+
+
 def _ask_money_intent(q):
     """[money-flow 2026-09-16] Detect a money-PATTERN question (descriptive) and
     which facet: income-flow / expenditure-loss / earned-unearned / gains-losses.
@@ -27216,6 +27223,10 @@ def _ask_money_intent(q):
     ql = (q or "").lower()
     # a 'when' timing question is not a pattern question — let timing handle it
     if ql.strip().startswith(("when", "cuándo", "cuando", "quando")) or "next month" in ql or "next week" in ql:
+        return None
+    # [horizon-rule 2026-10-11] "will my income increase this year?" asks whether an EVENT happens within a horizon — it takes the window path
+    # (so it agrees with "when will I earn more?"), it is not a description of the money pattern
+    if _MONEY_FUTURE_RX.search(ql):
         return None
     if any(w in ql for w in ("earned or unearned", "unearned", "windfall",
                              "inheritance", "passive income", "money from work",
@@ -31811,8 +31822,14 @@ async def _ask_endpoint_impl(request: AskRequest):
                                     _phrase = (f"Yes — {_noun} is open now, through {_label}."
                                                if _label else f"Yes — {_noun}.")
                                 elif _client == "LIKELY":
-                                    _phrase = (f"Likely — {_noun} {_label}."
-                                               if _label else f"Likely — {_noun}.")
+                                    _hm = _ee.get("horizon_months")
+                                    if _label and _ee.get("client_verdict_raw") == "NOT_YET" and isinstance(_hm, int) and _hm >= 2:
+                                        # [horizon-rule 2026-10-11] a promised event whose window starts within 12 months: say it comes within the
+                                        # year, and that until then it is groundwork
+                                        _phrase = (f"Likely within the year — the {_noun} is {_label}; until then it is groundwork.")
+                                    else:
+                                        _phrase = (f"Likely — {_noun} {_label}."
+                                                   if _label else f"Likely — {_noun}.")
                                 elif _client == "NOT_YET":
                                     _phrase = (f"Not yet — next {_noun} {_label}."
                                                if _label else
@@ -31982,6 +31999,11 @@ async def _ask_endpoint_impl(request: AskRequest):
                                         "The period is broadly supportive, so a serious loss "
                                         "is less likely — stay disciplined and it holds.")
                                     _ask_conv["suppress_verdict"] = True
+                                # [horizon-rule 2026-10-11] further out than 12 months: "Not yet — things stay slow until X"
+                                _hm2 = _ee.get("horizon_months")
+                                if (_phrase and _client == "NOT_YET" and isinstance(_hm2, int) and _hm2 > 12
+                                        and _phrase.startswith("Not yet") and "stay slow" not in _phrase):
+                                    _phrase = _phrase.rstrip(".") + "; things stay slow until then."
                                 if _phrase:
                                     _ask_conv["verdict"] = _client
                                     _ask_conv["verdict_phrase"] = _phrase
@@ -33225,15 +33247,19 @@ async def _ask_endpoint_impl(request: AskRequest):
                             print(f"[ask][speculation-policy] timing engine fallback failed: {_spe2}")
                     if not _sp_win and not _sp_client:
                         _sp_client, _sp_win = _spp.natal_window(_sp_natal)
-                    _sp_state = _spp.state(_sp_natal, _sp_client, str(_sp_ev.get("verdict") or ""))
+                    _sp_hz = (_sp_e2.get("horizon_months") if isinstance(locals().get("_sp_e2"), dict) else None)
+                    _sp_state = _spp.state(_sp_natal, _sp_client, str(_sp_ev.get("verdict") or ""), _sp_hz)
                     # KP on the birth chart — a second, independent check on promise
                     _sp_kp = _spp.kp_natal(chart_row.data)
-                    _sp_state = _spp.combine(_sp_state, _sp_kp, _sp_client)
+                    _sp_state = _spp.combine(_sp_state, _sp_kp, _sp_client, _sp_hz)
                     _sp_how = _spp.is_risk_howto(question) or (
                         (locals().get("_ask_u") or {}).get("intent") == "what_to_do")
                     _sp = (_spp.risk_lead(_sp_state, _sp_win, gambling=_sp_gamb, language=language)
                            if _sp_how else
                            _spp.lead(_sp_state, _sp_win, gambling=_sp_gamb, language=language))
+                    _sp_note = _spp.asset_note(question, language)
+                    if _sp_note and isinstance(_sp, dict) and _sp.get("read") and _sp_note not in _sp["read"]:
+                        _sp["read"] = _sp["read"].rstrip() + " " + _sp_note
                     # [spec-days 2026-10-03] owner: day / crypto traders plan by DAY. A day-level
                     # question on plain speculation (not gambling) keeps the day-level answer,
                     # with the unearned-gains window as one line of context. A "no" stays a no.
@@ -33494,6 +33520,7 @@ async def _ask_endpoint_impl(request: AskRequest):
                     _du = _DU.compose(_du_r, _du_n, _du_ms, language)
                     if _du:
                         payload["read"] = _du["read"]
+                        _du_final_read = _du["read"]          # re-applied at the very end, after the later filters (see "divorced-final")
                         if _du.get("timing"):
                             payload["timing"] = _du["timing"]
                         print(f"[ask][divorced-union] two-window answer ({_du_ms}) rebuild={_du['rebuild_state']} new={_du['new_state']}")
@@ -33696,6 +33723,18 @@ async def _ask_endpoint_impl(request: AskRequest):
                                 _oc_claim.get("checkin_due_at"), language)
             except Exception as _oce:
                 print(f"[outcomes] claim skipped (non-fatal): {_oce}")
+            # [divorced-final 2026-10-11] The deterministic two-window answer is applied LAST. The polish step (vague-filler / other-person filters) and the
+            # NLU guards for area=separation (drop_other_people_claims / drop_off_topic_pressure / drop_far_years) are heuristics written for model prose
+            # and clipped it — "Is there any problem in my married life?" lost its closing line and its new-partnership start month. The chart-linked
+            # holds / breaks clause is appended exactly as polish would have.
+            try:
+                _du_last = locals().get("_du_final_read")
+                if _du_last and isinstance(payload, dict):
+                    from antar_engine.ask_basis import conditions as _du_cond
+                    _du_c = _du_cond("marriage", chart_data, locals().get("_ask_dashas"), _ask_norm_lang(language))
+                    payload["read"] = (_du_last + (" " + _du_c if _du_c else "")).strip()
+            except Exception as _dle:
+                print(f"[ask][divorced-final] skipped (non-fatal): {_dle}")
             _ask_attach_disclaimer(payload, locals().get("_ask_concern"), language, question)
             try:   # [ask-direct 2026-10-10] the named chart facts behind the answer (see ask_basis.py)
                 from antar_engine.ask_basis import build_basis as _bb
