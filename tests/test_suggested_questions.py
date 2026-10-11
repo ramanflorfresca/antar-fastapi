@@ -352,3 +352,15 @@ def test_studying_chart_and_care_evergreen_variants():
     texts = [q["text"] for q in out["questions"]]
     assert any("studies" in t for t in texts), texts
     assert not any("at work" in t for t in texts), texts
+
+
+def test_upcoming_care_window_says_when_it_starts():
+    """[ui-audit 2026-10-11] 'care with money until Dec 9' implied care was running now; it starts weeks out."""
+    f = {"now": [], "next": [], "care": [_w("money", "care", 30, 60)]}
+    q = [x for x in build(f, limit=5)["questions"] if x["kind"] == "care"][0]["text"]
+    assert " from " in q and " until " in q, q
+    es = [x for x in build(f, lang="es", limit=5)["questions"] if x["kind"] == "care"][0]["text"]
+    assert " del " in es and " al " in es, es
+    running = {"now": [_w("money", "care", -2, 10)], "next": [], "care": []}
+    r = [x for x in build(running, limit=5)["questions"] if x["kind"] == "care"][0]["text"]
+    assert " from " not in r, r

@@ -126,9 +126,17 @@ def _evergreen(lang: str, topic: str, life=None) -> str:
     return EVERGREEN_NOJOB.get(lang, {}).get(st or "", {}).get(topic) or EVERGREEN[lang][topic]
 
 
-def _care_text(lang: str, topic: str, life=None) -> str:
+def _care_text(lang: str, topic: str, life=None, upcoming: bool = False) -> str:
     st = _stage(life)
-    return CARE_NOJOB.get(lang, {}).get(st or "", {}).get(topic) or CARE[lang][topic]
+    t = CARE_NOJOB.get(lang, {}).get(st or "", {}).get(topic) or CARE[lang][topic]
+    if upcoming:
+        # [ui-audit 2026-10-11] "…care with money until Dec 9" read as if care were running now, beside a card saying
+        # money was open, when that care window starts weeks out. Say when it starts. en/es only; others unchanged.
+        if lang == "en":
+            t = t.replace(" until {date}", " from {start} until {date}")
+        elif lang == "es":
+            t = t.replace(" hasta el {date}", " del {start} al {date}")
+    return t
 
 
 # the frames: {do} and {month} (full month name) filled in
@@ -305,7 +313,9 @@ def window_candidates(feed: Optional[dict], chart_id: str, today: date, lang: st
 
 
 def _care(chart_id, today, lang, topic, s, e, sort, life=None) -> dict:
-    q = _mk(chart_id, today, topic, "care", _care_text(lang, topic, life).format(date=_fmt(e, lang, today)),
+    q = _mk(chart_id, today, topic, "care",
+            _care_text(lang, topic, life, upcoming=s > today).format(date=_fmt(e, lang, today),
+                                                                    start=_fmt(s, lang, today)),
             REASON[lang]["care"].format(area=_area(lang, topic), start=_fmt(s, lang, today),
                                         end=_fmt(e, lang, today)))
     q["_sort"] = sort
