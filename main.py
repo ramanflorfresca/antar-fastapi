@@ -24068,6 +24068,44 @@ async def compatibility_continue(request: CompatibilityContinueRequest):
     raise HTTPException(400, "layer must be 2 or 3")
 
 
+@app.get("/api/v1/compatibility/session/{session_id}/agreement")
+async def get_connection_agreement(session_id: str, language: str = "en", format: str = "json"):
+    """[working-agreement 2026-10-11] The TEMPLATE working agreement for a cofounder / business connection: roles and responsibilities filled from the
+    reading, everything personal or legal blank (names, ID, address, equity, pay, IP …). Not a legal agreement. The people's saved edits are merged over
+    it. `format=markdown` returns the document as text for download / print."""
+    from antar_engine import working_agreement as _WA
+    lang = (language or "en").split("-")[0].lower()
+    lang = lang if lang in ("en", "es") else "en"
+    out = await get_compatibility_session(session_id, lang)
+    doc = _WA.build(out.get("compat_type") or "", out.get("roles"), lang, {"a": out.get("name_a"), "b": out.get("name_b")})
+    if not doc:
+        raise HTTPException(404, {"error": "no_template", "message": "There is no working-agreement template for this connection type yet."})
+    doc = _WA.apply_values(doc, await asyncio.to_thread(_WA.load_values, supabase, session_id, lang))
+    if (format or "json").lower() in ("markdown", "md", "text"):
+        from fastapi.responses import PlainTextResponse
+        return PlainTextResponse(doc["markdown"], media_type="text/markdown; charset=utf-8",
+                                 headers={"Content-Disposition": 'attachment; filename="working-agreement.md"'})
+    return doc
+
+
+class _AgreementSave(BaseModel):
+    values: dict = {}
+    language: str = "en"
+
+
+@app.put("/api/v1/compatibility/session/{session_id}/agreement")
+async def save_connection_agreement(session_id: str, body: _AgreementSave):
+    """Save the people's edits to the template (field values, choices, edited clause text). Returns the merged document."""
+    from antar_engine import working_agreement as _WA
+    lang = (body.language or "en").split("-")[0].lower()
+    lang = lang if lang in ("en", "es") else "en"
+    values = _WA.clean_values(body.values)
+    stored = await asyncio.to_thread(_WA.save_values, supabase, session_id, lang, values)
+    doc = await get_connection_agreement(session_id, lang)
+    doc["saved"] = stored
+    return doc
+
+
 _CARD_INFLIGHT: set = set()
 _CARD_FAILED: dict = {}          # (session, lang, facts_hash) -> monotonic time of a rejected generation (don't pay for it again for an hour)
 
@@ -24257,6 +24295,14 @@ async def get_compatibility_session(session_id: str, language: str = "en"):
                     out["moves"] = _CM.moves_for(_v2.get("layers"), _reason, language)
                 except Exception as _mve:
                     print(f"[compat][moves] non-fatal: {_mve}")
+                # [pair-view 2026-10-11] the redesigned screen's data: fit strip, who owns what, the next two years side by side
+                try:
+                    from antar_engine import pair_view as _PVW
+                    _pvw = _PVW.build(out, _da, _db, language)
+                    if _pvw:
+                        out["pair_view"] = _pvw
+                except Exception as _pve:
+                    print(f"[compat][pair-view] non-fatal: {_pve}")
                 # [connection-card 2026-10-11] strong points / friction / who leads what / do + don't, in plain words. The engines' facts are
                 # phrased by the LLM in the background, validated, and stored; until a stored card exists the deterministic card is returned
                 # with card_status "generating" (the page refetches once). A stored card is reused until the facts change.
