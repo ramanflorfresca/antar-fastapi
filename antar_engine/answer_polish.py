@@ -175,9 +175,21 @@ def soften_finality(text, lang="en"):
     return (" ".join(out), True) if changed else (text, False)
 _THIRD_FEELING = re.compile(r"(?i)\b(they|he|she)(?:'re| is| are)\s+(open|ready|waiting|thinking|missing|still in love|willing|receptive)\b|"
                             r"\b(they|he|she) (will|would) (say yes|reply|respond|come back)\b|"
-                            r"\bboth of you (are|is|seem|feel)\s+(open|ready|willing|receptive)\b")
+                            r"\bboth of you (are|is|seem|feel)\s+(open|ready|willing|receptive)\b|"
+                            # [third-feelings 2026-10-10] "Your ex is interested, but the signal is muted." — the chart has no
+                            # reading of another person's heart. Subject + is/are/seems/still + a feeling word (en / es / pt)
+                            r"\b(your (ex|former partner|ex-?(wife|husband|partner)|partner|spouse|husband|wife)|the other person|he|she|they)\s+"
+                            r"(?:is|are|seems?|feels?|remains?|still)\s+(?:still\s+)?(interested|into you|in love|attached|hurting|longing|"
+                            r"thinking (about|of) you|missing you|waiting for you|keen|wanting you back)\b|"
+                            r"\b(their|his|her) (response|reply|feelings?|interest|pull|attachment|heart)\s+(?:is|are|will|would|may|might|could|seems?|remains?)\b|"
+                            r"\byour (ex|former partner|partner|spouse|husband|wife)(?:'s|\u2019s)\s+(pull|interest|feelings?|heart|attachment|love|desire)\b|"
+                            r"\b(?:tu|su) (ex|expareja|pareja)\s+(?:siente|quiere|a\u00fan te)\b|"
+                            r"\b(tu (ex|expareja|exesposa|exmarido|pareja)|la otra persona|[e\u00e9]l|ella)\s+(?:est\u00e1|sigue|parece|siente)\s+(?:todav\u00eda\s+)?"
+                            r"(interesad[oa]|enamorad[oa]|apegad[oa]|pensando en ti|esperando|extra\u00f1\u00e1ndote|dispuest[oa])\b|"
+                            r"\b(o seu ex|a sua ex|seu ex|sua ex|a outra pessoa|ele|ela)\s+(?:est\u00e1|continua|parece|sente)\s+(?:ainda\s+)?"
+                            r"(interessad[oa]|apaixonad[oa]|apegad[oa]|pensando em voc\u00ea|esperando|com saudade|disposto|disposta)\b")
 _GENERIC_PARTNER_MOVE = re.compile(r"(?i)what a good partnership looks like|new connection rather than reopening|"
-                                   r"honest,? unhurried conversation about what you need|reopening a closed door")
+                                   r"honest,? unhurried conversation(?: this week)? about what you need|reopening a closed door")
 _PAST_MARRIAGE = re.compile(r"(?i)\byour (past|previous|former|earlier) (marriage|relationship)s?\b|\bpast marriage\b")
 _HERB = re.compile(r"(?i)\b(brahmi|gotu kola|abhyanga|sesame|ashwagandha|neem|triphala|guduchi|shatavari|turmeric|amla)\b|"
                    r"traditionally, ayurveda")
@@ -316,7 +328,7 @@ _SUPPORT_BOLD = re.compile(r"(?i)\b(strongly )?(supports?|backs|favou?rs|green-?
 
 def polish_answer(payload: dict, language: str = "en", typed_question: str = "",
                   concern: str = "general", chart_lean: str = "", thread_text: str = "",
-                  prev_moves=(), chart_data=None, dashas=None) -> dict:
+                  prev_moves=(), chart_data=None, dashas=None, existing_union: bool = False) -> dict:
     try:
         if not isinstance(payload, dict) or payload.get("needs_clarification"):
             return payload
@@ -461,6 +473,20 @@ def polish_answer(payload: dict, language: str = "en", typed_question: str = "",
                         print("[ask][polish] conditions appended")
             except Exception as _ce:
                 print(f"[ask][polish] conditions skipped: {_ce}")
+        # [existing-union 2026-10-10] A divorced / single / separated reader asking about their EXISTING marriage
+        # ("will my marriage improve?") gets no new-union window verdict, so the model wrote a different move every run —
+        # including the canned "have one honest, unhurried conversation" and partner-search advice. One stable, honest,
+        # decision-shaped move instead, identical in en / es / pt. `existing_union` is set by the caller from the SAME
+        # test that suppressed the verdict (marital status + existing-union wording), never guessed from text here.
+        if existing_union and (concern or "") in ("marriage", "love", "divorce") and lang in ("en", "es", "pt"):
+            try:
+                from antar_engine.ask_basis import existing_union_move as _eum
+                _em = _eum(chart_data, dashas, lang)
+                if _em:
+                    payload["next"] = _em
+                    print("[ask][polish] stable existing-union move")
+            except Exception as _eme:
+                print(f"[ask][polish] existing-union move skipped: {_eme}")
         # [ex-move 2026-10-10] a reconnection question's move follows from the ENGINE verdict, identically in en / es / pt
         # (the model's own move varied run to run: "send one message" / "don't send another" / "decide first")
         if (concern or "") in ("reconciliation", "marriage") and lang in ("en", "es", "pt"):

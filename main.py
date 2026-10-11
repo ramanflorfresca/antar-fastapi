@@ -32359,6 +32359,8 @@ async def _ask_endpoint_impl(request: AskRequest):
                     _ask_conv["suppress_verdict"] = True
                     _ask_conv["verdict_phrase"] = ""
                     print(f"[ask][family] window verdict suppressed for {chart_id[:8]}")
+                    # [existing-union 2026-10-10] the reader is asking about an EXISTING union (not family / health_other)
+                    _existing_union_lane = _area_v in ("marriage", "existing_relationship")
             except Exception:
                 pass
             try:
@@ -33345,7 +33347,8 @@ async def _ask_endpoint_impl(request: AskRequest):
                         thread_text=" ".join(str(t.get("q") or "") for t in (locals().get("_ask_thread") or [])),
                         prev_moves=[t.get("m") for t in (locals().get("_ask_thread") or [])],
                         chart_data=chart_data if isinstance(chart_data, dict) else None,
-                        dashas=locals().get("_ask_dashas"))
+                        dashas=locals().get("_ask_dashas"),
+                        existing_union=bool(locals().get("_existing_union_lane")))
             except Exception as _pole:
                 print(f"[ask][polish] non-fatal: {_pole}")
             # [es-leak 2026-10-04] English business words left in a Spanish/Portuguese answer
