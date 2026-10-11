@@ -150,6 +150,17 @@ def test_cancel_and_resend_over_http(env):
     assert c.get(f"/api/v1/circle/invite/{new['link'].rsplit('/', 1)[1]}").json()["status"] == "expired"
 
 
+def _leak_blob(*payloads) -> str:
+    """Everything a viewer is shown, as one string for the privacy scan — minus `pair_id`, a random UUID whose hex can
+    contain any 4-digit string ('1980' …) by chance (it failed CI once in ~3,000 runs). Every other field is scanned."""
+    return "".join(str({k: v for k, v in p.items() if k != "pair_id"}) for p in payloads)
+
+
+def test_leak_scan_ignores_a_random_pair_id_but_not_real_leaks():
+    assert "1980" not in _leak_blob({"pair_id": "97381980-3d9f-4852-a215-55f641b5924f", "headline": "x"})
+    assert "1980" in _leak_blob({"pair_id": "p", "headline": "born 1980"})
+
+
 def test_both_sides_get_the_same_windows_and_only_the_pair_layer(env):
     c, db, _ = env
     make_pair(c, db)
@@ -162,7 +173,7 @@ def test_both_sides_get_the_same_windows_and_only_the_pair_layer(env):
     assert [(w["start"], w["end"]) for w in t["care"]] == [(d(15).isoformat(), d(18).isoformat())]
     assert ja["other_first_name"] == "Aarav" and jb["other_first_name"] == "Raman"
     assert ja["relation"]["key"] == "friend" and len(ja["ask_chips"]) == 4 and "Aarav" in ja["ask_chips"][0]["text"]
-    blob = str(ja) + str(jb)
+    blob = _leak_blob(ja, jb)
     for forbidden in ("1980", "1985", "birth", "Singh", "Kumar", "uA", "uB", "my note", "session_id"):
         assert forbidden not in blob, forbidden
     assert set(ja) >= {"pair_id", "relation", "topics", "headline", "their_day", "ask_chips", "between_us", "my_sharing"}
