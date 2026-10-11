@@ -33,6 +33,14 @@ _ACT = {
     "property": "define tu tope y lo imprescindible antes de ver nada — {ch} impulsa esto",
     "funding": "prepara primero los registros — la solicitud pasa por {ch}",
     "children": "pon en orden tus finanzas y tu apoyo antes de que se abra la ventana — {ch} es donde se refleja esta área",
+    "domestic_move": "fija tus imprescindibles y tu presupuesto antes de comprometerte con un lugar — esta decisión pasa por {ch}",
+    "foreign": "haz una lista de lo que debe estar listo para que mudarte al exterior sea realista — dinero, trabajo, situación legal — y empieza por lo que controlas; esta área se abre a través de {ch}",
+    "foreign_move": "haz una lista de lo que debe estar listo para que mudarte al exterior sea realista — dinero, trabajo, situación legal — y empieza por lo que controlas; esta área se abre a través de {ch}",
+    "education": "elige un programa y una fecha límite de trabajo, y pon el esfuerzo en {ch}",
+    "family": "decide una cosa concreta que harás por las personas más cercanas este mes y díselo — esta área rinde a través de {ch}",
+    "legal": "reúne tus documentos en un solo lugar y pide asesoría sobre la pregunta que más importa — esta área se mueve a través de {ch}",
+    "divorce": "decide qué necesitas dejar resuelto primero y consíguelo por escrito — esto pasa por {ch}",
+    "loss": "haz una lista de lo que está en riesgo y protege primero lo más importante — las fugas aquí vienen a través de {ch}",
 }
 _BREAKS = {
     "career": "el esfuerzo se dispersa en varios frentes, o esperas un título en lugar de entregar un resultado visible",
@@ -214,7 +222,7 @@ def chart_move(concern, chart_data, dashas) -> str:
         lead = (f"Como el regente de tu {_ord(f['h'])} está debilitado, los resultados van por detrás del esfuerzo — "
                 if f["weak"] else "")
         tail = f" Reevalúa cuando termine el subperiodo actual el {end}." if (f["weak"] and end) else ""
-        out = lead + act.format(ch=f["ch"]) + "." + tail
+        out = (lead + act.format(ch=f["ch"]) + "." + tail).replace(" de el ", " del ")
         return out[0].upper() + out[1:]
     except Exception:
         return ""
