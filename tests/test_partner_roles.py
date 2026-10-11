@@ -178,3 +178,20 @@ def test_stored_karakas_beat_the_degree_computation():
     k = P._stored_karakas(chart, jai)
     assert (k["AK"], k["AmK"], k["DK"]) == ("Venus", "Saturn", "Mars")
     assert P._stored_karakas(chart, None)["AmK"]            # falls back to the degrees
+
+
+def test_a_running_chara_period_is_named_in_the_right_now_line_in_en_and_es():
+    """Regression: the 'chara' template key was missing for English, so ANY person with a Chara period running made compare() return None."""
+    d = {**_dashas(), "jaimini": [{"level": "mahadasha", "lord_or_sign": "Taurus", "start_date": "2023-11-26", "end_date": "2029-11-25"}]}
+    en = P.compare(_built(["Mercury", "Rahu"]), d, _built(["Saturn", "Mars"]), d, "Gerardo", "en", TODAY)
+    assert en is not None and "(and the Taurus Chara period)" in en["text"] and en["you"]["chara_ad"] == "Taurus"
+    es = P.compare(_built(["Mercury", "Rahu"]), d, _built(["Saturn", "Mars"]), d, "Gerardo", "es", TODAY)
+    assert es is not None and "(y el periodo Chara de Tauro)" in es["text"]
+
+
+def test_every_template_key_the_code_reads_exists_in_every_language():
+    import re
+    src = open(P.__file__, encoding="utf-8").read()
+    used = set(re.findall(r'tx\["([a-z_0-9]+)"\]', src))
+    for lang, tx in P._TX.items():
+        assert used <= set(tx), (lang, sorted(used - set(tx)))

@@ -72,7 +72,7 @@ _TX = {
         "lead_join": "; ", "lead_h": "Who should lead what: ",
         "share": "Share {lanes}: you are close enough that neither should own it alone.",
         "gap": "Neither of you is built for {lanes}. Hire, partner or outsource it rather than assume one of you will absorb it.",
-        "now": "Right now {who} {is_} in {md}–{ad}, which switches on {lanes}.",
+        "now": "Right now {who} {is_} in {md}–{ad}{chara}, which switches on {lanes}.", "chara": " (and the {sign} Chara period)",
         "is_you": "are", "is_other": "is", "cap_is_you": "are", "cap_is_other": "is", "partial": "Timing for {who} is not on file, so the read for {who} rests on the chart alone.",
         "fact": "{planet} in {sign}, house {h}", "fact_d10": "{planet} in D10 house {h}",
         "ak": "{planet} as the soul planet", "amk": "{planet} as the career planet",
@@ -530,5 +530,6 @@ def compare(chart_a: dict, dashas_a: dict, chart_b: dict, dashas_b: dict, name_b
             "shared": shared, "gaps": gaps, "contested": contested, "partial": [k for k, sc in (("you", a), ("other", b)) if not all(sc["have"].values())],
             "text": "\n".join(lines),
         }
-    except Exception:
+    except Exception as e:                       # never break the page — but never fail silently either
+        print(f"[partner-roles] compare failed: {type(e).__name__}: {e}")
         return None
