@@ -187,17 +187,17 @@ def chart_move(concern, chart_data, dashas, language="en") -> str:
         per = _period(dashas)
         end = per[per.find("ends ") + 5:per.rfind(")")] if "ends " in per else ""
         if concern == "health":
-            when = f" Plan on slower recovery through the current sub-period (to {end}) — don't wait for it to fix itself." if (weak and end) else ""
+            when = f" Plan on slower recovery until about {end} — don't wait for it to fix itself." if (weak and end) else ""
             return "Fix sleep and meal times first, and get anything unusual checked early." + when
         if concern == "speculation":
             # [spec-plain 2026-10-11] no ruler / sub-period vocabulary, no far-off year in a move
             return ("Set the most you can afford to lose, write it down before you place anything, and stop at that number"
                     + (" — your gains tend to come in bursts and give some of it back." if weak else "."))
         act = _ACT[concern].format(ch=ch)
-        lead = (f"Because the ruler of your {_o(h)} house is weakened, results lag effort — " if weak
-                else "")
-        tail = f" Reassess when the current sub-period ends on {end}." if (weak and end) else ""
-        out = lead + act + "." + tail
+        # [plain-words 2026-10-11] no "ruler of your Nth house" / "sub-period" in a shipped answer
+        lead = ("Results lag effort right now, so " if weak else "")
+        tail = f" Reassess around {end}." if (weak and end) else ""
+        out = lead + (act[0].lower() + act[1:] if lead else act) + "." + tail
         return out[0].upper() + out[1:]
     except Exception:
         return ""
@@ -223,10 +223,10 @@ _BREAKS = {
 
 # per-topic wording: (holds when the ruler is fine, holds when it is weakened, what the weakness means)
 _HOLDS = {
-    "career":   ("It holds if you route the effort through {ch}, where this area of your chart actually delivers",
+    "career":   ("It holds if you route the effort through {ch}, where this area of your life actually delivers",
                  "It holds if you build it through {ch} and let results compound",
                  "recognition lags effort; steady visible work beats waiting{until}"),
-    "money":    ("It holds if you grow income through {ch}, where your chart actually pays",
+    "money":    ("It holds if you grow income through {ch}, where your income actually grows",
                  "It holds if you grow income through {ch} and let it compound",
                  "returns lag effort; compounding beats chasing{until}"),
     "speculation": ("It holds if you cap what you commit at what you can afford to lose",
@@ -280,24 +280,22 @@ def conditions(concern, chart_data, dashas, language="en") -> str:
         grp = _GROUP[concern]
         if grp == "health":
             holds = ("Risk stays small if you act early and protect sleep and recovery time. "
-                     + (f"The ruler of your {_o(h)} house is weakened, so recovery runs slower than the effort you put in"
-                        f"{f' (the current sub-period runs to {end})' if end else ''}"
-                        if weak else "Your health house is well supported, so small habits go a long way"))
+                     + (f"Recovery runs slower than the effort you put in right now{f', until about {end}' if end else ''}"
+                        if weak else "Your health looks well supported, so small habits go a long way"))
             return holds + ". It breaks if strain is pushed through without recovery time."
         if grp == "speculation":
             # [spec-plain 2026-10-11] plain words only: no "ruler of your 5th house", no sub-period date
             if weak:
-                body = ("Keep it capped: only an amount you can afford to lose. Your chart's gains tend to come in "
+                body = ("Keep it capped: only an amount you can afford to lose. Your gains tend to come in "
                         "bursts and give some of it back, so take what you set out to take and stop. ")
             else:
-                body = ("Keep it capped: only an amount you can afford to lose. Your chart supports measured, "
+                body = ("Keep it capped: only an amount you can afford to lose. You do better with measured, "
                         "planned positions over impulsive ones. ")
             return body + "The risk is position size growing past what you can afford to lose."
         fine, weak_t, meaning = _HOLDS[grp]
-        until = f" (the current sub-period runs to {end})" if end else ""
+        until = f" (until about {end})" if end else ""
         if weak:
-            holds = (weak_t.format(ch=ch) + f" — the ruler of your {_o(h)} house is weakened: "
-                     + meaning.format(until=until))
+            holds = (weak_t.format(ch=ch) + " — " + meaning.format(until=until))
         else:
             holds = fine.format(ch=ch)
         out = holds + ". "
@@ -305,7 +303,7 @@ def conditions(concern, chart_data, dashas, language="en") -> str:
             kp = planets.get(k) or {}
             if k != lord and kp.get("sign") and any(
                     n == "debilitated" or n.startswith("combust") for n in _dignity(k, kp["sign"], planets)):
-                out += f"{k}, the main significator here, is weakened too, so this needs deliberate effort rather than arriving on its own. "
+                out += "A second supporting factor is weak too, so this needs deliberate effort rather than arriving on its own. "
         return out + f"It breaks if {_BREAKS[concern]}."
     except Exception:
         return ""
@@ -388,7 +386,7 @@ _RECON_TX = {
 # a not-yet -> don't force a timeline, widen where you meet people until the window opens.
 _MARRIAGE_TX = {
     "en": {"go": "Your window is open{w}: put yourself where serious partnership starts — closeness reaches you through {ch} — and say yes to introductions. Decide before you meet anyone what you won't compromise on.",
-           "wait": "Don't force a timeline. Use the time until your window{w} to widen where you meet people — this area of your chart opens through {ch} — and write down what you won't compromise on; then act when it opens.",
+           "wait": "Don't force a timeline. Use the time until your window{w} to widen where you meet people — this area opens through {ch} — and write down what you won't compromise on; then act when it opens.",
            "w": " ({t})"},
     "es": {"go": "Tu ventana está abierta{w}: ponte donde empiezan las relaciones serias — la cercanía te llega a través de {ch} — y acepta las presentaciones. Decide antes de conocer a alguien qué no vas a negociar.",
            "wait": "No fuerces los tiempos. Usa el tiempo hasta tu ventana{w} para ampliar dónde conoces gente — esta área de tu carta se abre a través de {ch} — y escribe qué no vas a negociar; luego actúa cuando se abra.",

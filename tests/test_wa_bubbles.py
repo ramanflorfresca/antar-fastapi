@@ -123,8 +123,9 @@ def test_chart_move_follows_the_topic_and_the_chart():
     from antar_engine.ask_basis import chart_move
     chart, dashas = _chart()
     career = chart_move("career", chart, dashas)
-    assert "10th house is weakened" in career or "ruler of your 10th house is weakened" in career
-    assert "your network and gains" in career and "Apr 25, 2100" in career
+    # [plain-words 2026-10-11] no "ruler of your 10th house" / "sub-period" in a shipped move
+    assert career.startswith("Results lag effort right now, so put the effort into your network and gains")
+    assert "Apr 25, 2100" in career and "ruler" not in career and "sub-period" not in career
     love = chart_move("love", chart, dashas)
     assert "your own initiative and communication" in love and "first move" in love and "7th" not in love
     assert chart_move("career", chart, dashas, "hi") == ""          # en + es + pt only
@@ -161,7 +162,8 @@ def test_conditions_say_what_makes_it_true_and_what_breaks_it():
     chart, dashas = _chart()
     c = conditions("career", chart, dashas)
     assert c.startswith("It holds if you build it through your network and gains")
-    assert "weakened" in c and "It breaks if" in c and "recognition lags effort" in c
+    assert "recognition lags effort" in c and "It breaks if" in c
+    assert not any(w in c.lower() for w in ("ruler", "sub-period", "significator", "house", "chart"))
     h = conditions("health", chart, dashas)
     assert "recognition" not in h and "Risk stays small" in h
     assert "recognition" not in conditions("property", chart, dashas)
@@ -194,7 +196,8 @@ def test_health_and_speculation_wording_is_topic_specific():
     chart["planets"]["Jupiter"] = {"sign": "Taurus", "house": 5, "longitude": 40.0}
     h = conditions("health", chart, dashas)
     assert h.startswith("Risk stays small if you act early and protect sleep and recovery time.")
-    assert "recovery runs slower" in h and "public work" not in h and "It breaks if strain" in h
+    assert "recovery runs slower" in h.lower() and "public work" not in h and "It breaks if strain" in h
+    assert not any(w in h.lower() for w in ("ruler", "sub-period", "house", "chart"))
     assert "results lag effort" not in chart_move("health", chart, dashas)
     assert "sleep and meal times" in chart_move("health", chart, dashas)
     sp = conditions("speculation", chart, dashas)
@@ -272,7 +275,7 @@ def test_spanish_basis_conditions_and_moves_are_native_spanish():
     assert "el principal significador aquí" in b
     c = conditions("career", chart, dashas, "es")
     assert c.startswith("Se sostiene si lo construyes a través de tu red de contactos y tus ganancias y dejas que los resultados se acumulen")
-    assert "el regente de tu casa 10 está debilitado" in c and c.endswith("o esperas un título en lugar de entregar un resultado visible.")
+    assert "regente" not in c and "subperiodo" not in c and c.endswith("o esperas un título en lugar de entregar un resultado visible.")
     h = conditions("health", chart, dashas, "es")
     assert h.startswith("El riesgo se mantiene bajo si actúas pronto") and h.endswith("sin dejar tiempo de recuperación.")
     assert "primer contacto breve y directo" in chart_move("reconciliation", chart, dashas, "es")
@@ -381,7 +384,7 @@ def test_marriage_move_is_stable_across_languages_and_never_invents_a_recipient(
     wait_es = mv("NOT_YET", chart, dashas, "es", "nov 2026 – ene 2027", "marriage")
     wait_pt = mv("NOT_YET", chart, dashas, "pt", "nov 2026 – jan 2027", "marriage")
     assert wait_en.startswith("Don't force a timeline. Use the time until your window (Nov 2026 – Jan 2027) to widen where you meet people")
-    assert "this area of your chart opens through your own initiative and communication" in wait_en
+    assert "this area opens through your own initiative and communication" in wait_en
     assert wait_es.startswith("No fuerces los tiempos.") and "a través de tu iniciativa y tu comunicación" in wait_es
     assert wait_pt.startswith("Não force os prazos.") and "por este canal: a sua iniciativa e a sua comunicação" in wait_pt
     go_en = mv("YES", chart, dashas, "en", "Nov 2026 – Jan 2027", "marriage")
@@ -705,8 +708,8 @@ def test_portuguese_fallback_moves_exist_for_every_topic_and_read_naturally():
         assert pt, c
         assert "{ch}" not in pt and "por a " not in pt and "Block one hour" not in pt, (c, pt)
     career = chart_move("career", chart, dashas, "pt")
-    assert career.startswith("Como o regente da sua casa 10 está enfraquecido, os resultados ficam atrás do esforço — ponha o esforço neste canal: a sua rede de contatos e os seus ganhos")
-    assert career.endswith("Reavalie quando o subperíodo atual terminar em 25 de abril de 2100.")
+    assert career.startswith("Agora os resultados ficam atrás do esforço, então ponha o esforço neste canal: a sua rede de contatos e os seus ganhos")
+    assert career.endswith("Reavalie por volta de 25 de abril de 2100.") and "regente" not in career and "subperíodo" not in career
     assert chart_move("health", chart, dashas, "pt").startswith("Organize primeiro os horários de sono e de refeição")
     assert "Defina o máximo que você pode perder" in chart_move("speculation", chart, dashas, "pt")
     assert chart_move("career", chart, dashas, "hi") == ""            # hi / hinglish unchanged

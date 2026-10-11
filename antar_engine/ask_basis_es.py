@@ -61,10 +61,10 @@ _BREAKS = {
 }
 # group -> (holds when the ruler is fine, holds when weakened, what the weakness means)
 _HOLDS = {
-    "career": ("Se sostiene si canalizas el esfuerzo a través de {ch}, donde esta área de tu carta realmente rinde",
+    "career": ("Se sostiene si canalizas el esfuerzo a través de {ch}, donde esta área de tu vida realmente rinde",
                "Se sostiene si lo construyes a través de {ch} y dejas que los resultados se acumulen",
                "el reconocimiento va por detrás del esfuerzo; el trabajo constante y visible vale más que esperar{until}"),
-    "money": ("Se sostiene si haces crecer los ingresos a través de {ch}, donde tu carta realmente rinde",
+    "money": ("Se sostiene si haces crecer los ingresos a través de {ch}, donde tus ingresos realmente crecen",
               "Se sostiene si haces crecer los ingresos a través de {ch} y dejas que se acumulen",
               "los rendimientos van por detrás del esfuerzo; acumular vale más que perseguir{until}"),
     "property": ("Funciona si fijas primero tu tope y lo imprescindible y avanzas a través de {ch}",
@@ -174,27 +174,27 @@ def conditions(concern, chart_data, dashas) -> str:
             return ""
         grp = B._GROUP[concern]
         h, weak, ch = f["h"], f["weak"], f["ch"]
-        until_p = f" (el subperiodo actual llega hasta el {I18.date_long(f['end'], L)})" if f["end"] else ""
+        until_p = f" (hasta aproximadamente el {I18.date_long(f['end'], L)})" if f["end"] else ""
         if grp == "health":
-            tail = (f"El regente de tu {_ord(h)} está debilitado, así que la recuperación va más lenta que el esfuerzo que haces{until_p}"
-                    if weak else "Tu casa de la salud está bien apoyada, así que los hábitos pequeños rinden mucho")
+            tail = (f"La recuperación va más lenta que el esfuerzo que haces ahora{until_p}"
+                    if weak else "Tu salud está bien apoyada, así que los hábitos pequeños rinden mucho")
             return ("El riesgo se mantiene bajo si actúas pronto y proteges el sueño y el tiempo de recuperación. "
                     + tail + f". Se rompe si {_BREAKS[concern]}.")
         if grp == "speculation":
-            tail = (f"El regente de tu {_ord(h)} está debilitado, así que las ganancias tienden a llegar a golpes y a escaparse{until_p}"
-                    if weak else "Tu carta favorece las posiciones medidas y planeadas sobre las impulsivas")
+            tail = ("Tus ganancias tienden a llegar a golpes y a escaparse en parte"
+                    if weak else "Te va mejor con posiciones medidas y planeadas que con las impulsivas")
             return ("Se sostiene si limitas lo que arriesgas a una cantidad que puedes permitirte perder. "
                     + tail + f". Se rompe si {_BREAKS[concern]}.")
         fine, weak_t, meaning = _HOLDS[grp]
-        until = f" (el subperiodo actual llega hasta el {I18.date_long(f['end'], L)})" if f["end"] else ""
-        holds = (weak_t.format(ch=ch) + f" — el regente de tu {_ord(h)} está debilitado: " + meaning.format(until=until)
+        until = f" (hasta aproximadamente el {I18.date_long(f['end'], L)})" if f["end"] else ""
+        holds = (weak_t.format(ch=ch) + " — " + meaning.format(until=until)
                  if weak else fine.format(ch=ch))
         out = holds + ". "
         for k in (CONCERN_KARAKAS.get(concern) or [])[:1]:
             kp = f["planets"].get(k) or {}
             if k != f["lord"] and kp.get("sign") and any(
                     n == "debilitated" or n.startswith("combust") for n in B._dignity(k, kp["sign"], f["planets"])):
-                out += (f"{I18.planet(k, L)}, el principal significador aquí, también está debilitado, así que esto "
+                out += ("Un segundo factor de apoyo también está débil, así que esto "
                         "requiere un esfuerzo deliberado en lugar de llegar por sí solo. ")
         return out + f"Se rompe si {_BREAKS[concern]}."
     except Exception:
@@ -210,20 +210,19 @@ def chart_move(concern, chart_data, dashas) -> str:
             return ""
         end = I18.date_long(f["end"], L) if f["end"] else ""
         if concern == "health":
-            when = (f" Cuenta con una recuperación más lenta durante el subperiodo actual (hasta el {end}); "
+            when = (f" Cuenta con una recuperación más lenta hasta aproximadamente el {end}; "
                     "no esperes a que se arregle solo.") if (f["weak"] and end) else ""
             return "Ordena primero los horarios de sueño y comida, y revisa cuanto antes cualquier cosa inusual." + when
         if concern == "speculation":
-            tail = f" Reevalúa cuando termine el subperiodo actual el {end}." if (f["weak"] and end) else ""
             return ("Fija lo máximo que puedes permitirte perder, escríbelo antes de colocar nada y detente en esa cifra — "
-                    "las ganancias aquí llegan a golpes y se escapan." + tail)
+                    "tus ganancias tienden a llegar a golpes y a escaparse en parte.")
         act = _ACT.get(concern)
         if not act:
             return ""
-        lead = (f"Como el regente de tu {_ord(f['h'])} está debilitado, los resultados van por detrás del esfuerzo — "
-                if f["weak"] else "")
-        tail = f" Reevalúa cuando termine el subperiodo actual el {end}." if (f["weak"] and end) else ""
-        out = (lead + act.format(ch=f["ch"]) + "." + tail).replace(" de el ", " del ")
+        lead = ("Ahora los resultados van por detrás del esfuerzo, así que " if f["weak"] else "")
+        tail = f" Reevalúa hacia el {end}." if (f["weak"] and end) else ""
+        _a = act.format(ch=f["ch"])
+        out = (lead + (_a[0].lower() + _a[1:] if lead else _a) + "." + tail).replace(" de el ", " del ")
         return out[0].upper() + out[1:]
     except Exception:
         return ""

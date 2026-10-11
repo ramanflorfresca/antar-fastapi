@@ -45,19 +45,19 @@ def chart_move(concern, chart_data, dashas) -> str:
             return ""
         end = I18.date_long(f["end"], "pt") if f["end"] else ""
         if concern == "health":
-            when = (f" Conte com uma recuperação mais lenta durante o subperíodo atual (até {end}) — não espere que se resolva sozinha."
+            when = (f" Conte com uma recuperação mais lenta até cerca de {end} — não espere que se resolva sozinha."
                     if (f["weak"] and end) else "")
             return "Organize primeiro os horários de sono e de refeição e faça checar cedo qualquer coisa incomum." + when
         if concern == "speculation":
-            tail = f" Reavalie quando o subperíodo atual terminar em {end}." if (f["weak"] and end) else ""
             return ("Defina o máximo que você pode perder, escreva antes de colocar qualquer coisa e pare nesse número — "
-                    "os ganhos aqui chegam aos trancos e escapam." + tail)
+                    "seus ganhos tendem a chegar aos trancos e a escapar em parte.")
         act = _ACT.get(concern)
         if not act:
             return ""
-        lead = (f"Como o regente da sua casa {f['h']} está enfraquecido, os resultados ficam atrás do esforço — " if f["weak"] else "")
-        tail = f" Reavalie quando o subperíodo atual terminar em {end}." if (f["weak"] and end) else ""
-        out = lead + act.format(ch=ch) + "." + tail
+        lead = ("Agora os resultados ficam atrás do esforço, então " if f["weak"] else "")
+        tail = f" Reavalie por volta de {end}." if (f["weak"] and end) else ""
+        _a = act.format(ch=ch)
+        out = lead + (_a[0].lower() + _a[1:] if lead else _a) + "." + tail
         return out[0].upper() + out[1:]
     except Exception:
         return ""
