@@ -29136,6 +29136,13 @@ def _ask_resolve_language(client_language, question):
     language = orig
     learned = ""
     q = (question or "").strip()
+    try:   # [lang-switch 2026-10-11] "English please" is a request, not text to detect a language from
+        from antar_engine import conversation as _cv_sw
+        _sw = _cv_sw.language_switch(q)
+        if _sw:
+            return _ask_norm_lang(_sw), "", orig
+    except Exception:
+        pass
     q_lang = _ask_detect_text_lang(q) or _ask_detect_hinglish(q) or _detect_devanagari(q)
     if orig == "hi" and q_lang == "hinglish":
         q_lang = None
@@ -29246,7 +29253,14 @@ async def _ask_endpoint_impl(request: AskRequest):
             from antar_engine import conversation as _convl
             _cl_thread = await asyncio.to_thread(
                 _ask_recent_thread, chart_id, 2, _convl.FOLLOWUP_WINDOW_MIN)
-            if _convl.looks_like_followup(question, _cl_thread) and not _ask_is_day_overview(question):
+            # [lang-switch 2026-10-11] "English please": re-answer the PREVIOUS question in that language
+            if _convl.language_switch(question) and _cl_thread:
+                _cl_prev = _convl.previous_question(_cl_thread)
+                if _cl_prev:
+                    print(f"[ask][conversation] language switch {question!r} -> re-answer {_cl_prev!r}")
+                    _ASK_TYPED_Q.set(question)
+                    question = _cl_prev
+            elif _convl.looks_like_followup(question, _cl_thread) and not _ask_is_day_overview(question):
                 _cl_raw = await asyncio.wait_for(call_llm_claude(
                     prompt=_convl.rewrite_request(question, _cl_thread, language),
                     system_override=_convl.REWRITE_SYSTEM, model_override=HAIKU_MODEL), timeout=8)
@@ -33131,8 +33145,12 @@ async def _ask_endpoint_impl(request: AskRequest):
                                or (_ask_conv or {}).get("window_label")
                                or (_ask_conv or {}).get("next_window_label") or "")
                     _sp_client = (_sp_ee.get("client_verdict") if isinstance(_sp_ee, dict) else "") or ""
-                    if not _sp_win and not _sp_client:
-                        # the timing engine didn't run for this phrasing — run it for the
+                    if True:
+                        # [spec-window 2026-10-11] ALWAYS run the speculation-concern engine, so every
+                        # phrasing and every tapped chip quotes the SAME window (audit: the day question
+                        # said "Jun 2027 – Oct 2027", the "when" chip said "Jun 2027 – Sep 2028" — the
+                        # window came from whichever concern engine the question happened to trigger).
+                        # [original] the timing engine didn't run for this phrasing — run it for the
                         # speculation concern so every phrasing gets the SAME window
                         # (live: lottery in ES said "open now", casino in EN "Jun 2027").
                         try:

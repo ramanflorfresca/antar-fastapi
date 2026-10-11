@@ -47,6 +47,35 @@ para meu minha aur toh kya hai ka ki ke
 """.split())
 
 
+# [lang-switch 2026-10-11] A bare "English please" / "en español" / "yes I'm English" is a request to change the
+# LANGUAGE of the last answer, not a new question. It used to run as a standalone question (the rewrite guard
+# rejects it: it shares no content words with the thread), so a Hinglish reader typing "English please" got
+# Hinglish again and a different, off-topic answer. Mapped to the language codes /ask uses.
+_SWITCH_LANG = {"english": "en", "inglés": "en", "ingles": "en", "inglês": "en",
+                "spanish": "es", "español": "es", "espanol": "es", "espanhol": "es",
+                "portuguese": "pt", "português": "pt", "portugues": "pt", "portugués": "pt",
+                "hinglish": "hinglish", "hindi": "hi", "हिन्दी": "hi", "हिंदी": "hi"}
+_SWITCH_RX = re.compile(
+    r"(?i)^\W*(?:yes,?\s+|yeah,?\s+|no,?\s+)?(?:i(?:'m| am)\s+|(?:in|en|em|speak|talk)\s+)?"
+    r"(english|ingl[eéê]s|spanish|espa[nñ]ol|espanhol|portuguese|portugu[eé]s|hinglish|hindi|हिन्दी|हिंदी)"
+    r"(?:\s+(?:please|pls|plz|por favor|por favour|only|speaker))?\W*$")
+
+
+def language_switch(text: str) -> Optional[str]:
+    """'en' | 'es' | 'pt' | 'hinglish' | 'hi' when the whole message is a request to switch language, else None."""
+    m = _SWITCH_RX.match((text or "").strip())
+    return _SWITCH_LANG.get(m.group(1).lower()) if m else None
+
+
+def previous_question(thread: list) -> Optional[str]:
+    """The last REAL question in the thread (not itself a bare language switch or a one/two-word reply)."""
+    for t in reversed(thread or []):
+        q = (t.get("q") or "").strip()
+        if q and not language_switch(q) and len(re.findall(r"\w+", q)) > 2:
+            return q
+    return None
+
+
 def looks_like_followup(text: str, thread: list) -> bool:
     """Cheap gate before spending a model call: a short message, right after a
     recent turn, that opens like a follow-up or leans on a referent."""

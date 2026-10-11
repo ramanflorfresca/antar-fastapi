@@ -318,6 +318,47 @@ def _norm_move(x) -> str:
     return re.sub(r"\W+", " ", (x or "").lower()).strip()
 
 
+# [spec-plain 2026-10-11] speculation answers kept ending on generic money moves ("move 10% into savings",
+# "cut your three biggest outflows", "block an hour for work") because the repeated-move dedupe fell through to the
+# money fallback. Speculation rotates through speculation moves instead.
+_SPEC_MOVES = (
+    "Set the most you can afford to lose, write it down before you place anything, and stop at that number.",
+    "Size any position so a full loss changes nothing in your month, and don't add to it once it moves against you.",
+    "Decide your exit before you enter — the price you stop at and the gain you take — and write both down first.",
+    "Skip leverage and borrowed money for now, and keep the whole speculative amount in one separate pot.",
+)
+_SPEC_WORDS = re.compile(r"(?i)\bspeculat|\bloss limit\b|\bposition size\b|\bcapped\b|\bcan afford to lose\b")
+_SPEC_NO = re.compile(r"(?i)honest answer is no|doesn'?t (support|show) (gains from )?speculation|points to losses|"
+                      r"seedha jawab hai: nahi|respuesta honesta es no|resposta honesta [eé] n[aã]o")
+_SPEC_DAYQ = re.compile(r"(?i)\b(tomorrow|today|tonight|this week|which day|best day|week ahead|next day)\b")
+_TRADER_ASSUMED = re.compile(r"(?i)\b(a|as a|your reputation as a)\s+(disciplined|careful|seasoned|experienced|successful|good|smart)?\s*traders?\b"
+                             r"|\byour (trading|trader) (reputation|record|history)\b")
+
+
+_SPEC_MOVES_L = {
+    "es": ("Define lo máximo que puedes permitirte perder, anótalo antes de colocar nada y detente en ese número.",
+           "Ajusta cualquier posición para que perderla por completo no cambie tu mes, y no añadas si va en tu contra.",
+           "Decide tu salida antes de entrar — el precio donde paras y la ganancia que tomas — y anótalo primero."),
+    "pt": ("Defina o máximo que você pode perder, anote antes de colocar qualquer coisa e pare nesse número.",
+           "Dimensione qualquer posição para que perdê-la por inteiro não mude o seu mês, e não aumente se for contra você.",
+           "Decida sua saída antes de entrar — o preço em que para e o ganho que leva — e anote primeiro."),
+    "hinglish": ("Jitna khona afford kar sakein woh limit tay karke likh lijiye, kuch lagane se pehle, aur us number par ruk jaiye.",
+                 "Position itni rakhiye ki poora loss bhi aapka mahina na bigaade, aur ghate mein ho to aur mat badhaiye.",
+                 "Enter karne se pehle exit tay kijiye — kis price par rukna hai aur kitna faayda lena hai — aur likh lijiye."),
+}
+
+
+def _spec_move(prev_moves, lang: str = "en") -> str:
+    opts = _SPEC_MOVES if lang == "en" else _SPEC_MOVES_L.get("hinglish" if lang == "hi" else lang)   # polish "hi" = Roman-script table
+    if not opts:
+        return ""
+    prev = {_norm_move(p) for p in (prev_moves or []) if p}
+    for m in opts:
+        if _norm_move(m) not in prev:
+            return m
+    return opts[0]
+
+
 def _pick_fallback(grp: str, lang: str, read: str, prev_moves) -> str:
     opts = [_FALLBACK_NEXT[grp][lang]]
     if grp == "money":
@@ -481,6 +522,11 @@ def polish_answer(payload: dict, language: str = "en", typed_question: str = "",
         if isinstance(nx, str) and re.match(r"(?i)\s*(then|and|but|so|also|that)\b", nx):
             print(f"[ask][polish] dangling move dropped: {nx[:60]!r}")
             payload["next"] = None
+        # a move with a word deleted by a filter ("Track what 's move returns") is no move
+        nx = payload.get("next")
+        if isinstance(nx, str) and re.search(r"(?:^|\s)'s\b", nx):
+            print(f"[ask][polish] broken-possessive move dropped: {nx[:60]!r}")
+            payload["next"] = None
         # a move that is only a fragment ("before it touches either venture.",
         # "untouched by either venture.") is no move — conversation audit
         nx = payload.get("next")
@@ -501,6 +547,8 @@ def polish_answer(payload: dict, language: str = "en", typed_question: str = "",
                 and _norm_move(nx_now) in {_norm_move(p) for p in prev_moves if p}):
             print("[ask][polish] repeated move → alternate")
             payload["next"] = None
+            if (concern or "") == "speculation" or _SPEC_WORDS.search(payload.get("read") or ""):
+                payload["next"] = _spec_move(prev_moves, lang) or None
         # ── [ask-direct 2026-10-10] prediction → what makes it true → what breaks it ──
         read0 = payload.get("read")
         if isinstance(read0, str) and read0.strip():
@@ -549,8 +597,21 @@ def polish_answer(payload: dict, language: str = "en", typed_question: str = "",
                     kept = [x for x in kept if not re.search(r"(?i)not medical advice|qualified doctor", x)] or []
                     payload["next"] = " ".join(kept) if kept else None   # only a disclaimer left = no move
                     print("[ask][polish] unasked herb advice dropped from the move")
+            if not re.search(r"(?i)\btrader\b|\btrading\b", own):   # nobody said they trade: don't call them a trader
+                payload["read"], _dt = _drop_sentences(payload.get("read"), _TRADER_ASSUMED, keep_min=1)
+                if _dt:
+                    print("[ask][polish] assumed 'trader' sentence dropped")
             try:
-                if not _HOLDS.search(payload.get("read") or ""):
+                # a speculation DAY / WEEK answer is already complete (day pick + window + cap); the chart-conditions
+                # paragraph is for period questions — appended here it repeated the same block in every turn
+                _spec_day = ((concern or "") == "speculation" or _SPEC_WORDS.search(payload.get("read") or "")) \
+                    and bool(_SPEC_DAYQ.search(own))
+                if _spec_day:
+                    print("[ask][polish] speculation day answer: conditions block skipped")
+                # a straight "no / points to losses" already says it all — "keep it capped…" after it reads as a mixed signal
+                if _SPEC_NO.search(payload.get("read") or ""):
+                    _spec_day = True
+                if not _spec_day and not _HOLDS.search(payload.get("read") or ""):
                     from antar_engine.ask_basis import conditions as _cond
                     _c = _cond((concern or "general").lower(), chart_data, dashas, lang)
                     if _c:
@@ -602,6 +663,8 @@ def polish_answer(payload: dict, language: str = "en", typed_question: str = "",
                     _cm = ""
             except Exception:
                 _cm = ""
+            if not _cm and ((concern or "") == "speculation" or _SPEC_WORDS.search(payload.get("read") or "")):
+                _cm = _spec_move(prev_moves, lang)
             payload["next"] = _cm or _pick_fallback(grp, lang, payload.get("read") or "", prev_moves)
             print(f"[ask][polish] fallback move ({'chart' if _cm else grp})")
     except Exception as e:

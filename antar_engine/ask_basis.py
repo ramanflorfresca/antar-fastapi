@@ -190,9 +190,9 @@ def chart_move(concern, chart_data, dashas, language="en") -> str:
             when = f" Plan on slower recovery through the current sub-period (to {end}) — don't wait for it to fix itself." if (weak and end) else ""
             return "Fix sleep and meal times first, and get anything unusual checked early." + when
         if concern == "speculation":
-            tail2 = f" Reassess when the current sub-period ends on {end}." if (weak and end) else ""
-            return ("Set the most you can afford to lose, write it down before you place anything, and stop at that number — "
-                    "gains here arrive in surges and leak back." + tail2)
+            # [spec-plain 2026-10-11] no ruler / sub-period vocabulary, no far-off year in a move
+            return ("Set the most you can afford to lose, write it down before you place anything, and stop at that number"
+                    + (" — your gains tend to come in bursts and give some of it back." if weak else "."))
         act = _ACT[concern].format(ch=ch)
         lead = (f"Because the ruler of your {_o(h)} house is weakened, results lag effort — " if weak
                 else "")
@@ -285,13 +285,14 @@ def conditions(concern, chart_data, dashas, language="en") -> str:
                         if weak else "Your health house is well supported, so small habits go a long way"))
             return holds + ". It breaks if strain is pushed through without recovery time."
         if grp == "speculation":
-            holds = "It holds if you cap what you commit at an amount you can afford to lose. "
+            # [spec-plain 2026-10-11] plain words only: no "ruler of your 5th house", no sub-period date
             if weak:
-                holds += (f"The ruler of your {_o(h)} house is weakened, so gains tend to arrive in surges and leak back"
-                          f"{f' (the current sub-period runs to {end})' if end else ''}")
+                body = ("Keep it capped: only an amount you can afford to lose. Your chart's gains tend to come in "
+                        "bursts and give some of it back, so take what you set out to take and stop. ")
             else:
-                holds += "Your chart supports measured, planned positions over impulsive ones"
-            return holds + ". It breaks if position size outruns what you can afford to lose."
+                body = ("Keep it capped: only an amount you can afford to lose. Your chart supports measured, "
+                        "planned positions over impulsive ones. ")
+            return body + "The risk is position size growing past what you can afford to lose."
         fine, weak_t, meaning = _HOLDS[grp]
         until = f" (the current sub-period runs to {end})" if end else ""
         if weak:

@@ -198,7 +198,8 @@ def test_health_and_speculation_wording_is_topic_specific():
     assert "results lag effort" not in chart_move("health", chart, dashas)
     assert "sleep and meal times" in chart_move("health", chart, dashas)
     sp = conditions("speculation", chart, dashas)
-    assert "afford to lose" in sp and "It breaks if position size" in sp
+    assert "afford to lose" in sp and "position size" in sp
+    assert "ruler" not in sp and "sub-period" not in sp   # [spec-plain] plain words, no astrology vocabulary
     assert "afford to lose" in chart_move("speculation", chart, dashas)
 
 
