@@ -127,7 +127,7 @@ def test_chart_move_follows_the_topic_and_the_chart():
     assert "your network and gains" in career and "Apr 25, 2100" in career
     love = chart_move("love", chart, dashas)
     assert "your own initiative and communication" in love and "first move" in love and "7th" not in love
-    assert chart_move("career", chart, dashas, "pt") == ""          # English only
+    assert chart_move("career", chart, dashas, "hi") == ""          # en + es + pt only
     assert chart_move("spiritual", chart, dashas) == ""                  # no template → canned fallback stays
 
 
@@ -667,3 +667,50 @@ def test_do_and_avoid_lines_each_get_a_reason_from_their_own_area():
                                     "1st houses and your Jaimini (chara) period also points here.")
     assert area_why({"say": "money", "drivers": []}, "do") == ""                 # nothing to cite -> no invented reason
     assert area_why({}, "dont") == ""
+
+
+def test_subject_resolver_pt_es_parents_and_moves():
+    from antar_engine import ask_subject as A
+    own = ("Should I move closer to my parents?", "¿Debería mudarme más cerca de mis padres?", "Devo me mudar para perto dos meus pais?",
+           "Devo morar mais longe dos meus pais?", "Devo me mudar para perto de meus pais?")
+    about = ("How are my parents doing?", "Como estão meus pais?", "¿Cómo están mis padres?", "Meu pai está bem?",
+             "O que você acha sobre meus pais?", "Meus pais vão se mudar?", "¿Cómo están mis hermanos?", "Como estão meus irmãos?")
+    for q in own:
+        assert A.resolve_subject(q, "x", [])["subject"] == "self", q          # the asker's own move: context, not the subject
+    for q in about:
+        r = A.resolve_subject(q, "x", [])
+        assert r["subject"] == "person" and r["relation"] in ("parent", "sibling"), (q, r)
+
+
+def test_money_pattern_questions_are_recognised_in_portuguese_like_en_es():
+    main = _main()
+    f = main._ask_money_intent
+    assert f("Minha renda vai aumentar este ano?") == "income-flow" and f("Will my income grow this year?") == "income-flow"
+    assert f("Para onde vai meu dinheiro?") == "expenditure-loss" and f("Estou ganhando ou perdendo?") == "gains-losses"
+    assert f("Vou receber uma herança?") == "earned-unearned"
+    assert f("Quando minha renda vai aumentar?") is None and f("Quando vou sair das dívidas?") is None      # a 'when' question stays timing
+    assert f("Devo comprar uma casa agora?") is None
+
+
+def test_portuguese_fallback_moves_exist_for_every_topic_and_read_naturally():
+    from antar_engine.ask_basis import chart_move
+    chart, dashas = _chart()
+    chart = dict(chart, planets=dict(chart["planets"], Jupiter={"sign": "Taurus", "house": 5, "longitude": 40.0},
+                                     Saturn={"sign": "Gemini", "house": 6, "longitude": 70.0}))
+    topics = ("career", "business", "love", "marriage", "reconciliation", "wealth", "finance", "property", "funding", "children",
+              "domestic_move", "foreign", "foreign_move", "education", "family", "legal", "divorce", "loss", "health", "speculation")
+    for c in topics:
+        pt = chart_move(c, chart, dashas, "pt")
+        assert pt, c
+        assert "{ch}" not in pt and "por a " not in pt and "Block one hour" not in pt, (c, pt)
+    career = chart_move("career", chart, dashas, "pt")
+    assert career.startswith("Como o regente da sua casa 10 está enfraquecido, os resultados ficam atrás do esforço — ponha o esforço neste canal: a sua rede de contatos e os seus ganhos")
+    assert career.endswith("Reavalie quando o subperíodo atual terminar em 25 de abril de 2100.")
+    assert chart_move("health", chart, dashas, "pt").startswith("Organize primeiro os horários de sono e de refeição")
+    assert "Defina o máximo que você pode perder" in chart_move("speculation", chart, dashas, "pt")
+    assert chart_move("career", chart, dashas, "hi") == ""            # hi / hinglish unchanged
+    # the polish pass uses it instead of the canned Portuguese line
+    from antar_engine.answer_polish import polish_answer
+    p = polish_answer({"read": "Ainda não.", "next": None}, "pt", "Quando vou sair das dívidas?", concern="wealth",
+                      chart_data=chart, dashas=dashas)
+    assert "mova uma parte fixa de cada pagamento" not in (p["next"] or "") and "canal" in (p["next"] or "")

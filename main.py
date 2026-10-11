@@ -27146,27 +27146,34 @@ def _ask_money_intent(q):
     concern/timing path (returns None here). en + es."""
     ql = (q or "").lower()
     # a 'when' timing question is not a pattern question — let timing handle it
-    if ql.strip().startswith(("when", "cuándo", "cuando")) or "next month" in ql or "next week" in ql:
+    if ql.strip().startswith(("when", "cuándo", "cuando", "quando")) or "next month" in ql or "next week" in ql:
         return None
     if any(w in ql for w in ("earned or unearned", "unearned", "windfall",
                              "inheritance", "passive income", "money from work",
                              "from my work or", "heredar", "herencia", "dinero pasivo",
-                             "ingreso pasivo", "no ganado")):
+                             "ingreso pasivo", "no ganado",
+                             # pt [money-pt 2026-10-11]
+                             "herança", "renda passiva", "dinheiro passivo", "ganho inesperado")):
         return "earned-unearned"
     if any(w in ql for w in ("gains or losses", "gain or loss", "profit or loss",
                              "am i gaining", "am i losing", "gaining or losing",
                              "gains vs", "ganancias o pérdidas",
-                             "ganancias o perdidas", "gano o pierdo")):
+                             "ganancias o perdidas", "gano o pierdo",
+                             "ganhos ou perdas", "ganho ou perda", "estou ganhando ou perdendo", "lucro ou prejuízo")):
         return "gains-losses"
     if any(w in ql for w in ("expenditure", "expenses", "spending", "money leak",
                              "leaking", "losing money", "money going", "outflow",
                              "outgo", "where does my money go", "drain", "gastos",
-                             "gasto", "fugas de dinero", "perdiendo dinero", "se va el dinero")):
+                             "gasto", "fugas de dinero", "perdiendo dinero", "se va el dinero",
+                             "despesas", "despesa", "vazamento de dinheiro", "perdendo dinheiro", "para onde vai meu dinheiro",
+                             "para onde vai o meu dinheiro")):
         return "expenditure-loss"
     if any(w in ql for w in ("income flow", "cash flow", "cashflow", "my income",
                              "money coming in", "inflow", "how is my money",
                              "flujo de caja", "flujo de dinero", "mis ingresos",
-                             "entra dinero", "como esta mi dinero")):
+                             "entra dinero", "como esta mi dinero",
+                             "minha renda", "minhas rendas", "meus rendimentos", "meu rendimento", "fluxo de caixa",
+                             "entrada de dinheiro", "como está meu dinheiro", "como esta meu dinheiro")):
         return "income-flow"
     return None
 

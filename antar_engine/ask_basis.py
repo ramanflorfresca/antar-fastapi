@@ -164,6 +164,9 @@ def chart_move(concern, chart_data, dashas, language="en") -> str:
         if language == "es":
             from antar_engine import ask_basis_es as _es
             return _es.chart_move(concern, chart_data, dashas)
+        if language == "pt":
+            from antar_engine import ask_basis_pt as _pt
+            return _pt.chart_move(concern, chart_data, dashas)
         if language != "en" or concern not in _ACT:
             return ""
         from antar_engine.ask_consultation import CONCERN_HOUSES
