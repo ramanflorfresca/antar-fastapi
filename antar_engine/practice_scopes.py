@@ -170,14 +170,14 @@ def _why(scope: str, planet: str, kind: str, lang: str, **kw) -> str:
             "en": f"{E} sits at a tender, unstable edge in your chart. Daily practice gives it ground.",
             "es": f"{E} est\u00e1 en un borde tierno e inestable de tu carta. La pr\u00e1ctica diaria le da suelo."},
         ("natal_weakness", "rin"): {
-            "en": f"Your chart carries an old debt tied to {e}. It settles through steady, humble daily acts.",
-            "es": f"Tu carta lleva una deuda antigua ligada a {e}. Se salda con actos diarios constantes y humildes."},
+            "en": f"Your chart marks {e} as a lifelong theme to tend. It eases through steady, humble daily acts.",
+            "es": f"Tu carta marca {e} como un tema de toda la vida que conviene atender. Se suaviza con actos diarios constantes y humildes."},
         ("dasha_period", "md"): {
-            "en": f"This chapter of your life runs on {e}, and that energy is strained in your chart. While the period lasts its rough edge is amplified — tend it until the chapter turns.",
-            "es": f"Este cap\u00edtulo de tu vida corre sobre {e}, y esa energ\u00eda viene tensionada en tu carta. Mientras dure el periodo su borde \u00e1spero se amplifica — ati\u00e9ndelo hasta que el cap\u00edtulo cambie."},
+            "en": f"This chapter of your life runs on {e}, and that energy is under strain for the whole chapter — a long-running theme that sits underneath this week's windows. Tend it until the chapter turns.",
+            "es": f"Este cap\u00edtulo de tu vida corre sobre {e}, y esa energ\u00eda est\u00e1 bajo tensi\u00f3n durante todo el cap\u00edtulo — un tema de largo plazo que queda por debajo de las ventanas de esta semana. Ati\u00e9ndelo hasta que el cap\u00edtulo cambie."},
         ("dasha_period", "ad"): {
-            "en": f"The current sub-period leans on {e}, which runs strained in your chart — a shorter, sharper pull worth tending while it lasts.",
-            "es": f"El subperiodo actual se apoya en {e}, que viene tensionada en tu carta — un tir\u00f3n m\u00e1s corto y agudo que vale la pena atender mientras dure."},
+            "en": f"The current sub-period leans on {e}, which is under strain for this stretch — a shorter, sharper pull worth tending while it lasts, separate from this week's windows.",
+            "es": f"El subperiodo actual se apoya en {e}, que est\u00e1 bajo tensi\u00f3n en este tramo — un tir\u00f3n m\u00e1s corto y agudo que vale la pena atender mientras dure, aparte de las ventanas de esta semana."},
         ("varshphal_year", "house"): {
             "en": f"This year puts {e} in a draining position. The theme it touches asks for attention across the whole year.",
             "es": f"Este a\u00f1o pone {e} en una posici\u00f3n que desgasta. El tema que toca pide atenci\u00f3n durante todo el a\u00f1o."},

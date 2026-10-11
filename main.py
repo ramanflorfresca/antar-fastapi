@@ -34544,7 +34544,16 @@ _FIN_HARDSHIP_MARKERS = (
     "laid off", "struggl", "hardship", "in debt", "debt trap", "broke",
     "low income", "very tight", "no money", "financially tight", "poor",
 )
-def _can_give_money_now(financial_status) -> bool:
+def _can_give_money_now(financial_status, row=None) -> bool:
+    # [ui-audit 2026-10-11] A reader who told us they are between jobs was still told to "drop a small donation":
+    # the financial_status column is usually unset, so the work answer is the signal that exists.
+    if isinstance(row, dict):
+        try:
+            from antar_engine.life_context import get_life_context as _glc_cg
+            if _glc_cg(chart_record=row).get("career_stage") == "in_transition":
+                return False
+        except Exception:
+            pass
     f = (str(financial_status or "")).strip().lower()
     if not f:
         return True
@@ -35171,7 +35180,7 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                     domains=_th["highlight_domains"],
                     current_country=current_country,
                     lk_daily=_th_lk,
-                    can_give_money=_can_give_money_now(row.get("financial_status")),
+                    can_give_money=_can_give_money_now(row.get("financial_status"), row),
                     date_str=(start_date.strftime("%Y-%m-%d") if hasattr(start_date, "strftime") else str(start_date)[:10]),
                 )
             except Exception as _ng_err:
@@ -35504,7 +35513,7 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                         if _n_coarse:
                             _n_new = _dtn(direction=_n_dir, domains=[_n_coarse],
                                           current_country=current_country, lk_daily=_th_lk,
-                                          can_give_money=_can_give_money_now(row.get("financial_status")),
+                                          can_give_money=_can_give_money_now(row.get("financial_status"), row),
                                           date_str=(start_date.strftime("%Y-%m-%d") if hasattr(start_date, "strftime") else str(start_date)[:10]),)
                             if _n_new:
                                 try:
@@ -35594,11 +35603,18 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                         _force_areas = {"speculation"}
                 except Exception:
                     _force_areas = None  # tables absent / query failed → no force
+                _dm_career_stage = None
+                try:   # canonical work status, so a jobless/studying reader gets matching Work lines
+                    from antar_engine.life_context import get_life_context as _glc_dm
+                    _dm_career_stage = _glc_dm(chart_record=row).get("career_stage")
+                except Exception:
+                    _dm_career_stage = None
                 result["day_map"] = _bdm(
                     result.get("active_domains"),
                     result.get("quiet_domains"),
                     {"children_status": row.get("children_status"),
-                     "marital_status": row.get("marital_status")},
+                     "marital_status": row.get("marital_status"),
+                     "career_stage": _dm_career_stage},
                     always_include=_force_areas,
                 )
             except Exception as _dm_e:
@@ -51008,7 +51024,7 @@ def _topics_compute(chart_id: str, language, tz_offset):
         return None
     lang = _topic_lang(language, row)
     today = _prac_local_date(tz_offset)
-    ck = ("topics", "tags3", chart_id, lang, today.isoformat())
+    ck = ("topics", "tags4", chart_id, lang, today.isoformat())
     hit = _te.cache_get(ck)
     if hit is not None:
         return hit
@@ -51043,7 +51059,7 @@ def _topic_read_compute(chart_id: str, topic: str, scale: str, language, tz_offs
         return None
     lang = _topic_lang(language, row)
     today = _prac_local_date(tz_offset)
-    ck = ("topic-read", "v12-lead", chart_id, topic, scale, lang, today.isoformat())
+    ck = ("topic-read", "v13-feed", chart_id, topic, scale, lang, today.isoformat())
     hit = _te.cache_get(ck)
     if hit is not None:
         return hit
@@ -51312,12 +51328,19 @@ def _suggested_questions_compute(chart_id: str, language, tz_offset, limit: int)
     else:
         if feed is None:
             return None
+    life = None
+    try:   # the reader's own work/relationship answers, so a jobless chart is not asked about "my ask at work"
+        from antar_engine.life_context import get_life_context as _glc
+        life = _glc(chart_id, supabase=supabase)
+    except Exception as e:
+        print(f"[suggested-questions] life context skipped: {e!r}")
     cands = None
     if feed is not None:
-        ck = ("suggested-q", _SUGGESTED_Q_VERSION, chart_id, lang, today.isoformat())
+        ck = ("suggested-q", _SUGGESTED_Q_VERSION, chart_id, lang, today.isoformat(),
+              (life or {}).get("career_stage"))
         cands = _te.cache_get(ck)
         if cands is None:
-            cands = _sq.window_candidates(feed, chart_id, today, lang)
+            cands = _sq.window_candidates(feed, chart_id, today, lang, life)
             _te.cache_put(ck, cands, _TOPIC_READ_TTL)
     rows = []
     try:
@@ -51326,7 +51349,7 @@ def _suggested_questions_compute(chart_id: str, language, tz_offset, limit: int)
                 .limit(_sq.HISTORY_ROWS).execute().data) or []
     except Exception as e:
         print(f"[suggested-questions] history skipped: {e!r}")
-    return _sq.build(feed, rows, chart_id, today, lang, limit, cands=cands)
+    return _sq.build(feed, rows, chart_id, today, lang, limit, cands=cands, life=life)
 
 
 @app.get("/api/v1/chart/{chart_id}/suggested-questions")

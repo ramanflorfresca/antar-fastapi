@@ -100,3 +100,16 @@ def test_daily_signal_route_attaches_the_decision_block():
     assert es["decision"]["prediction"].startswith("Hoy favorece el trabajo y la reputaci\u00f3n")
     assert "decision" not in asyncio.run(wrapped(chart_id="x", request={}, language="pt"))
     assert "decision" not in asyncio.run(wrapped(chart_id="x", request={}, language="hinglish"))
+
+
+def test_house_ordinals_are_grammatical():
+    """Regression: the template said "{h}th house", so house 1 read "1th house" (2026-10-11 UI audit)."""
+    for h, word in ((1, "1st"), (2, "2nd"), (3, "3rd"), (4, "4th"), (11, "11th"), (12, "12th")):
+        d = compose(dict(P, moon_house_from_lagna=h))
+        assert f"{word} house (fortune & travel)" in d["why"], (h, d["why"])
+
+
+def test_pending_fast_phase_publishes_no_move():
+    """The fast payload's do-item is a placeholder the full pass replaces; showing it made Home swap its move."""
+    assert compose(dict(P, pending=True))["move"] == ""
+    assert compose(dict(P, pending=False))["move"].startswith("After 1:10 PM")

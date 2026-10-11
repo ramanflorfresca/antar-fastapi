@@ -918,6 +918,12 @@ def _read_topic(ctx: TopicContext, key: str, scale: str, today: date, language: 
         long_scale = scale in ("season", "year")
         if long_scale:
             opens, cares = _agree_with_feed(ctx, key, today, per, scale, opens, cares)
+        elif scale == "month":
+            # [ui-audit 2026-10-11] The weekly month scan alone said Money "opens Nov 8" while the season/year
+            # scans and the Windows feed said it was open from today to Nov 9 - and the Home tile follows the
+            # month read, so the tile contradicted the feed (and the "care until Dec 9" question beside it).
+            # The month read now lists the same windows as the feed, clipped to its own 30 days.
+            opens, cares = _agree_with_feed(ctx, key, today, per, scale, opens, cares)
         # a window may only start today or later, and only if it has not ended
         for lst in (opens, cares):
             for r in list(lst):
@@ -1028,6 +1034,8 @@ def windows_for(ctx: TopicContext, key: str, scale: str, today: date) -> dict:
         by_mode = {"open": _runs(results, "open"), "care": _runs(results, "care")}
         if scale == "month":
             _fold_in_today(ctx, key, today, by_mode["open"], by_mode["care"])
+            by_mode["open"], by_mode["care"] = _agree_with_feed(ctx, key, today, per, scale,
+                                                                 by_mode["open"], by_mode["care"])
         elif scale in ("season", "year"):
             by_mode["open"], by_mode["care"] = _agree_with_feed(ctx, key, today, per, scale,
                                                                  by_mode["open"], by_mode["care"])

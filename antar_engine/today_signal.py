@@ -126,11 +126,19 @@ _FRICTION_CLAIM_RE = _re.compile(
     r"\bfriction\b|\bheavy day\b|\bday'?s? (?:pressure|resistance)\b", _re.I)
 
 
+# [ui-audit 2026-10-11] The v1 fallback template says "The energy today / The day creates internal friction —"
+# with no "<type> day" phrase, so the regex above never matched it and a "LIGHTER-TOUCH DAY" card carried a
+# friction opener. Only a band that is NOT friction rewrites it.
+_FRICTION_OPENER_RE = _re.compile(r"\bThe (?:energy today|day) creates internal friction\b", _re.I)
+
+
 def snap_day_type(text: str, band: Optional[str]) -> str:
     """Make a headline's day-TYPE phrase agree with the band (EN only)."""
     want = _BAND_PHRASE.get((band or "").lower())
     if not text or not want:
         return text
+    if want != "friction day" and _FRICTION_OPENER_RE.search(text):
+        text = _FRICTION_OPENER_RE.sub("This is a " + want, text, count=1)
     m = _DAYTYPE_RE.search(text)
     if not m or m.group(0).lower() == want:
         return text

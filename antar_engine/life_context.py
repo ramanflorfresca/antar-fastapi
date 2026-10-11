@@ -463,7 +463,7 @@ def resolve_life_facts(row: Optional[dict]) -> Optional[dict]:
     # returning all-None never over-gates them. Callers that look for known
     # facts check specific keys `is not None`, so an all-None dict is safe.
     return {"partnered": partnered, "has_children": has_children,
-            "employed": employed,
+            "employed": employed, "career_stage": _career,
             "marital": marital, "children": children}
 
 
@@ -513,6 +513,15 @@ def life_constraint_block(life) -> str:
         lines.append('- The reader is NOT known to be an employee — do NOT assume a '
                      'boss/employer. Use "your reputation" / "your work standing" / '
                      '"an authority figure" for career and authority themes.')
+    _stage = life.get("career_stage")
+    if _stage == "in_transition":
+        lines.append('- The reader is currently WITHOUT a job (between jobs / looking). NEVER state a current '
+                     'job, boss, colleagues, promotion, raise, or "the work you have put in is being noticed" '
+                     'as fact, and never tell them to finish work "on your list". Career themes mean the job '
+                     'search: outreach, interviews, portfolio, skills, first impressions, who to contact.')
+    elif _stage == "studying":
+        lines.append('- The reader is a STUDENT. NEVER state a current job, boss, or promotion as fact. '
+                     'Career themes mean studies, internships, applications and mentors.')
     if life.get("has_children") is False:
         lines.append('- The reader has NO children — NEVER reference "your child", '
                      '"your children", or any child-related event as a present fact.')

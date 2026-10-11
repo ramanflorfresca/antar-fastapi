@@ -111,6 +111,48 @@ _LINES: Dict[str, Dict[str, Dict[str, str]]] = {
 }
 
 
+# [life-aware 2026-10-11 UI audit] The work/standing lines above assume a job ("the effort you've put in is
+# landing and being noticed", "the people above you"). A reader who told us they are between jobs or studying
+# got those anyway. Same bands, same honest two-sided shape, framed for where they actually are.
+_LINES_NOJOB: Dict[str, Dict[str, Dict[str, Dict[str, str]]]] = {
+    "in_transition": {
+        "work": {
+            "rise":    {"line": "Opportunity energy is with you today — conversations about roles and projects land well; the only real risk is spreading yourself across too many leads.", "move": "pick the two leads that matter and follow up on them."},
+            "caution": {"line": "There's movement on the work front today, though it comes with a pull to chase everything at once.", "move": "follow up on one lead, and promise less than you're tempted to."},
+            "protect": {"line": "The work search drags a little today — replies are slow and forcing it tends to backfire.", "move": "tidy your pitch and prepare, and hold off on big asks."},
+            "quiet":   {"line": "The work front runs even today — steady and ordinary, nothing pulling hard either way.", "move": ""},
+        },
+        "authority": {
+            "rise":    {"line": "People who can open doors are receptive today — a good day to reach out, so don't sit on the opening.", "move": "send the message you've been putting off."},
+            "caution": {"line": "Doors are opening today, but official matters carry a little friction alongside it.", "move": "advance the conversations, not the paperwork."},
+            "protect": {"line": "Official matters and paperwork press in today — support is slow and the weight is real.", "move": "don't sign or file anything final; let it wait."},
+            "quiet":   {"line": "No pressure from gatekeepers or officials today — your reputation sits calm and steady.", "move": ""},
+        },
+    },
+    "studying": {
+        "work": {
+            "rise":    {"line": "Your studies and next steps are moving today — the effort you've put in is landing; the only real risk is taking on more than fits.", "move": "ride the momentum, but keep one thing you can drop."},
+            "caution": {"line": "There's real momentum with your studies today, though it comes with a pull to take on too much.", "move": "push one thing forward, and promise less than you're tempted to."},
+            "protect": {"line": "Study and applications carry some drag today — progress asks for patience; forcing it tends to backfire.", "move": "hold new commitments, and keep what you agree to reversible."},
+            "quiet":   {"line": "Your studies run even today — steady and ordinary, nothing pulling hard either way.", "move": ""},
+        },
+        "authority": {
+            "rise":    {"line": "Teachers and mentors are receptive today — doors are open, so don't sit on the opening.", "move": "make the ask while the door's open."},
+            "caution": {"line": "A mentor's attention is on you today, but official matters carry a little friction alongside it.", "move": "advance the relationships today, not the paperwork."},
+            "protect": {"line": "Official matters and paperwork press in today — support is slow and the weight is real.", "move": "don't sign or file anything final; let it wait."},
+            "quiet":   {"line": "No pressure from above today — things sit calm and steady.", "move": ""},
+        },
+    },
+}
+
+
+def _cell_for(key: str, band: str, stage: Optional[str]) -> dict:
+    alt = _LINES_NOJOB.get(stage or "", {}).get(key)
+    if alt:
+        return alt.get(band) or alt.get("quiet")
+    return _LINES[key].get(band) or _LINES[key].get("quiet")
+
+
 _DUSTHANAS = {6, 8, 12}   # the "difficult" houses — illness/loss/upheaval
 
 
@@ -152,9 +194,9 @@ def _compose(cell: dict, with_move: bool) -> str:
     return line
 
 
-def _row(dom: dict, key: str, with_move: bool) -> dict:
+def _row(dom: dict, key: str, with_move: bool, stage: Optional[str] = None) -> dict:
     band = _band(dom)
-    cell = _LINES[key].get(band) or _LINES[key].get("quiet")
+    cell = _cell_for(key, band, stage)
     # [house-aware 2026-10-07] tone must follow the BAND, so the card doesn't
     # colour a protect line ("sit this one out") green: a row downgraded to
     # protect reads as risk, not its raw opportunity polarity.
@@ -199,6 +241,7 @@ def build_day_map(active_domains: Optional[list],
     Forced areas are guaranteed a slot even past max_areas (appended last)."""
     active = list(active_domains or [])
     quiet = list(quiet_domains or [])
+    stage = (life_ctx or {}).get("career_stage")
     force = {(k or "").lower() for k in (always_include or set())}
 
     # quiet areas worth showing: some transit activity or a leaning tone
@@ -226,7 +269,7 @@ def build_day_map(active_domains: Optional[list],
         if not key or grp in seen or key not in _LINES:
             continue
         seen.add(grp)
-        out.append(_row(dom, key, with_move=len(out) < move_lead))
+        out.append(_row(dom, key, with_move=len(out) < move_lead, stage=stage))
         if len(out) >= max_areas:
             break
 
@@ -244,7 +287,7 @@ def build_day_map(active_domains: Optional[list],
                 continue
             dom = by_key.get(key) or {"key": key, "polarity": "neutral"}
             seen.add(grp)
-            out.append(_row(dom, key, with_move=len(out) < move_lead))
+            out.append(_row(dom, key, with_move=len(out) < move_lead, stage=stage))
 
     return out
 

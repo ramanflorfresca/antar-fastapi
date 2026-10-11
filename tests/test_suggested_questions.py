@@ -323,3 +323,44 @@ def test_no_advisor_questions_remain_in_the_landing_prompts_or_care_questions():
     texts += [t for lang in sq.CARE.values() for t in lang.values()]
     for t in texts:
         assert not any(w in t.lower() for w in banned), t
+
+
+# ── life facts (2026-10-11 UI audit): a jobless chart must not be asked about "my ask at work" ──
+@pytest.mark.parametrize("lang", ("en", "es"))
+def test_jobless_chart_gets_no_at_work_questions(lang):
+    life = {"career_stage": "in_transition", "marital_status": "single"}
+    out = SQ.build(feed(), [], CHART, TODAY, lang, 5, life=life)
+    texts = " ".join(q["text"] for q in out["questions"]).lower()
+    for bad in ("ask at work", "co-founder", "pedir lo que quiero en el trabajo", "mis precios", "my prices"):
+        assert bad not in texts, (bad, texts)
+    career = [q for q in out["questions"] if q["topic"] == "career"]
+    assert career, "career topic should still be offered, just reworded"
+    if lang == "en":
+        assert "job search" in career[0]["text"]
+
+
+def test_employed_or_unknown_chart_keeps_default_wording():
+    for life in (None, {}, {"career_stage": "job"}, {"career_stage": "running_business"}):
+        out = SQ.build(feed(), [], CHART, TODAY, "en", 3, life=life)
+        assert out["questions"][0]["text"] == "Is this a good week to make my ask at work?"
+
+
+def test_studying_chart_and_care_evergreen_variants():
+    life = {"career_stage": "studying"}
+    f = {"now": [], "next": [], "care": [_w("career", "care", 10, 20)]}
+    out = SQ.build(f, [], CHART, TODAY, "en", 5, life=life)
+    texts = [q["text"] for q in out["questions"]]
+    assert any("studies" in t for t in texts), texts
+    assert not any("at work" in t for t in texts), texts
+
+
+def test_upcoming_care_window_says_when_it_starts():
+    """[ui-audit 2026-10-11] 'care with money until Dec 9' implied care was running now; it starts weeks out."""
+    f = {"now": [], "next": [], "care": [_w("money", "care", 30, 60)]}
+    q = [x for x in build(f, limit=5)["questions"] if x["kind"] == "care"][0]["text"]
+    assert " from " in q and " until " in q, q
+    es = [x for x in build(f, lang="es", limit=5)["questions"] if x["kind"] == "care"][0]["text"]
+    assert " del " in es and " al " in es, es
+    running = {"now": [_w("money", "care", -2, 10)], "next": [], "care": []}
+    r = [x for x in build(running, limit=5)["questions"] if x["kind"] == "care"][0]["text"]
+    assert " from " not in r, r

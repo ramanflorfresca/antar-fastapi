@@ -33,7 +33,7 @@ _TX = {
         "light": "It's a lighter-touch day: steady progress, not big bets.",
         "moon_shift": "The Moon is in {sign}, in {nak} ({qb}) until {at}, then {to} ({qa}).",
         "moon": "The Moon is in {sign}, in {nak}.",
-        "house": "It lights your {h}th house ({lit}).",
+        "house": "It lights your {h} house ({lit}).",
         "dasha": "You're running {v}{d}.",
         "holds_up": "It holds if you prepare before {at} and commit after it, when the Moon's star turns in your favour{best}.",
         "holds_up_best": "; the sharpest single hour for an ask or a pitch is {best}",
@@ -79,6 +79,16 @@ def _looks_english(s: str) -> bool:
     """True when a payload string that should be Spanish is actually English (a missed translation)."""
     toks = [t.strip(".,;:!?\u2014-()'\"").lower() for t in (s or "").split()]
     return sum(1 for t in toks if t in _EN_WORDS) >= 2
+
+
+def _ordinal_en(n) -> str:
+    """1 -> 1st, 2 -> 2nd, 11 -> 11th (the template used a bare "{h}th", which gave "1th house")."""
+    try:
+        n = int(n)
+    except (TypeError, ValueError):
+        return str(n)
+    suffix = "th" if 10 <= n % 100 <= 20 else {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
+    return f"{n}{suffix}"
 
 
 def _lower_first(s: str) -> str:
@@ -159,7 +169,7 @@ def compose(p: dict, language: str = "en"):
         h = p.get("moon_house_from_lagna")
         lit = p.get("lit_domain") if L == "en" else I18.HOUSE_LIT[L].get(h)
         if h and lit:
-            bits.append(tx["house"].format(h=h, lit=lit))
+            bits.append(tx["house"].format(h=_ordinal_en(h) if L == "en" else h, lit=lit))
         for sg in (p.get("signals") or []):
             if sg.get("key") == "dasha" and sg.get("value"):
                 v = sg["value"].replace(" \u2192 ", "\u2013")
@@ -202,6 +212,11 @@ def compose(p: dict, language: str = "en"):
         if L != "en" and _looks_english(item):
             item = ""
         move = tx["move"].format(when=when, item=_lower_first(item)) if item else ""
+        if p.get("pending"):
+            # fast-phase payload: its do/aligned item is a deterministic placeholder that the full (LLM) pass
+            # replaces within seconds, so the card showed one "Your move" then swapped it (2026-10-11 UI audit).
+            # Publish no move until the full phase so the client never shows a sentence that is then replaced.
+            move = ""
         out = {"prediction": pred, "why": why, "holds": holds, "breaks": brk, "move": move,
                "window": {"best": best, "avoid": avoid, "shift_at": at if (improves or worsens) else None},
                "version": "today-decision-1"}
