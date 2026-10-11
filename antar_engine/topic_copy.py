@@ -426,6 +426,9 @@ MONTH_WATCH_TAIL: Dict[str, str] = {   # after MONTH_CAUTION_CORE when the month
 TODAY_CAUTION_CORE: Dict[str, str] = {   # a steady Right-now read on a day that advises going easy on risk
     "en": "keep it quiet on {area}", "es": "ve con calma en {area}",
     "pt": "vá com calma em {area}", "hinglish": "{area} mein shaant rahein"}
+TODAY_VOLATILE_CORE: Dict[str, str] = {   # a steady Right-now read on a day the topic's own domain reads volatile
+    "en": "expect ups and downs in {area}", "es": "espera altibajos en {area}",
+    "pt": "espere altos e baixos em {area}", "hinglish": "{area} mein utaar-chadhaav rahega"}
 YEAR_KEY_MONTH: Dict[str, str] = {   # appended to a year claim with no caution stretch when the year plan marks a month for this topic
     "en": "{when} is the month to note for {area}.", "es": "{when} es el mes a tener presente en {area}.",
     "pt": "{when} é o mês a ter em mente em {area}.", "hinglish": "{area} ke liye {when} dhyaan dene wala mahina hai."}

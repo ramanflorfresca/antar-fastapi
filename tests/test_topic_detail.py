@@ -684,3 +684,42 @@ def test_a_different_caution_note_is_kept_and_other_scales_untouched():
     m = _out("c", ["a"], "a", scale="month")
     assert D.consolidate_today(m) == m
     assert D.consolidate_today({"scale": "today", "detail": None}) == {"scale": "today", "detail": None}
+
+
+# ---- [love-volatile 2026-10-11] the claim agrees with the topic's own domain line
+_VOL = "People run hot and cold today — one conversation lands, another stings. Don't settle anything important on the strength of either."
+
+
+def _love(tone, lang="en"):
+    return {"scale": "today", "topic": "love", "tone": tone, "language": lang,
+            "claim": "Today, nothing sharp is pulling on close relationships, so keep your usual pace.",
+            "detail": {"do": [], "domain": {"state": "volatile", "line": _VOL}}}
+
+
+_VDAILY = {"domains": [{"key": "relationship", "state": "volatile", "line": _VOL}]}
+
+
+def test_steady_love_claim_no_longer_says_nothing_sharp_when_the_domain_is_volatile():
+    o = D.reconcile(_love("steady"), _VDAILY, "en")
+    assert o["claim"] == "Today, expect ups and downs in close relationships."
+    assert "nothing sharp" not in o["claim"] and o["detail"]["watch_for"] == _VOL
+
+
+def test_open_love_claim_gains_the_engines_own_sentence_once():
+    o = D.reconcile(dict(_love("open"), claim="Today, good for close relationships."), _VDAILY, "en")
+    assert o["claim"] == f"Today, good for close relationships. {_VOL}"
+    assert D.reconcile(o, _VDAILY, "en")["claim"].count(_VOL) == 1
+
+
+def test_volatile_reconcile_leaves_other_states_and_tones_alone():
+    calm = {"domains": [{"key": "relationship", "state": "steady", "line": "Calm."}]}
+    assert D.reconcile(_love("steady"), calm, "en")["claim"] == _love("steady")["claim"]
+    care = _love("care")
+    assert D.reconcile(care, _VDAILY, "en")["claim"] == care["claim"]
+
+
+def test_volatile_core_is_native_in_every_language_and_jargon_free():
+    for lang in ("en", "es", "pt", "hinglish"):
+        assert "{area}" in C.TODAY_VOLATILE_CORE[lang] and not _JARGON.search(C.TODAY_VOLATILE_CORE[lang])
+    o = D.reconcile(_love("steady", "es"), _VDAILY, "es")
+    assert o["claim"] == "Hoy, espera altibajos en las relaciones cercanas."
