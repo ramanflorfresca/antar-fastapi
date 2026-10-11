@@ -231,3 +231,9 @@ def test_replacement_texts_never_trigger_the_weekday_filters_again():
     for lang, tx in LR._WK.items():
         for key, txt in tx.items():
             assert not LR._WK_PROSE.search(txt) and not LR._WK_DEAL.search(txt.replace("negotiate", "x").replace("negocies", "x")), (lang, key)
+
+
+def test_sunday_spanish_close_the_deal_line_is_replaced():
+    p = _sun(haz_hoy=["Cierra el acuerdo o la conversaci\u00f3n que llevas semanas postergando en tu carrera.", "Revisa tus finanzas pendientes."])
+    LR.weekend_prose(p, "es")
+    assert p["haz_hoy"] == [LR._WK["es"]["do_num"], "Revisa tus finanzas pendientes."]
