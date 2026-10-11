@@ -602,3 +602,28 @@ def test_invented_days_collapse_to_the_month_in_spanish_and_portuguese_but_real_
     for keep in ("El subperiodo termina el 25 de abril de 2029.", "Reevalúa cuando termine el subperiodo actual el 25 de abril de 2029.",
                  "O subperíodo termina em 25 de abril de 2029.", "La ventana va de nov 2026 a ene 2027."):
         assert strip_pressure(keep) == (keep, False), keep
+
+
+def test_basis_names_strengths_as_well_as_weaknesses_in_en_and_es():
+    from antar_engine.ask_basis import build_basis, d9_planets
+    chart, dashas = _chart()
+    # no navamsa data -> exactly the old line (weakness only)
+    assert "combust (weakened by the Sun)." in build_basis("career", chart, dashas, "en")
+    assert "vargottama" not in build_basis("career", chart, dashas, "en")
+    c = dict(chart, divisional_charts={"d9": {"planets": {"Venus": {"sign": "Scorpio"}, "Sun": {"sign": "Libra"},
+                                                          "Moon": {"sign": "Pisces"}, "Jupiter": {"sign": "Aquarius"}}}})
+    assert d9_planets(c)["Venus"]["sign"] == "Scorpio" and d9_planets({}) == {}
+    en = build_basis("career", c, dashas, "en")
+    # the 10th lord Venus: same sign in D1 and D9 (strength) AND combust (weakness) -> both named, strength first
+    assert "sits in your 11th house in Scorpio, vargottama (strong in the navamsa) and combust (weakened by the Sun)." in en
+    # the significator Sun is in a different sign in the navamsa -> no vargottama claim for it
+    assert "Sun, the main significator here, is in your 11th house." in en
+    es = build_basis("career", c, dashas, "es")
+    assert "en Escorpio, vargottama (fuerte en el navamsa) y combusto (debilitado por el Sol)." in es
+    # a planet whose D9 sign differs is never called vargottama
+    c2 = dict(chart, divisional_charts={"d9": {"planets": {"Venus": {"sign": "Taurus"}}}})
+    assert "vargottama" not in build_basis("career", c2, dashas, "en")
+    # the weakness test used by holds/breaks/moves is unchanged by the strength note
+    from antar_engine.ask_basis import conditions, chart_move
+    assert conditions("career", c, dashas, "en") == conditions("career", chart, dashas, "en")
+    assert chart_move("career", c, dashas, "en") == chart_move("career", chart, dashas, "en")

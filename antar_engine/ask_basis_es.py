@@ -19,7 +19,8 @@ _CHANNEL = {1: "tu esfuerzo y tu presencia personal", 2: "el ahorro y el dinero 
             7: "las alianzas y los acuerdos uno a uno", 8: "el dinero compartido y las reestructuraciones profundas",
             9: "los mentores, la enseñanza y los planes a largo plazo", 10: "tu trabajo público y tu reputación",
             11: "tu red de contactos y tus ganancias", 12: "el trabajo entre bastidores, los vínculos con el exterior y el descanso"}
-_NOTE = {"exalted": "exaltado", "debilitated": "debilitado", "in its own sign": "en su propio signo"}
+_NOTE = {"exalted": "exaltado", "debilitated": "debilitado", "in its own sign": "en su propio signo",
+         "vargottama (strong in the navamsa)": "vargottama (fuerte en el navamsa)"}
 _COMBUST = "combusto (debilitado por el Sol)"
 
 _ACT = {
@@ -81,9 +82,9 @@ def _ord(h: int) -> str:
     return f"casa {h}"
 
 
-def _notes(planet, sign, planets):
+def _notes(planet, sign, planets, d9=None):
     out = []
-    for n in B._dignity(planet, sign, planets):
+    for n in B._dignity(planet, sign, planets, d9):
         out.append(_COMBUST if n.startswith("combust") else _NOTE.get(n, ""))
     return [x for x in out if x]
 
@@ -146,7 +147,7 @@ def build_basis(concern, chart_data, dashas) -> str:
         per = running_period(dashas)
         if per:
             bits.append(per + ".")
-        notes = _notes(f["lord"], f["pl"]["sign"], f["planets"])
+        notes = _notes(f["lord"], f["pl"]["sign"], f["planets"], B.d9_planets(chart_data))
         bits.append(f"Tu {_ord(f['h'])} ({_TOPIC.get(concern, concern)}) está regida por {I18.planet(f['lord'], L)}, "
                     f"que está en tu {_ord(f['pl']['house'])} en {I18.sign(f['pl']['sign'], L)}"
                     + (", " + " y ".join(notes) if notes else "") + ".")
@@ -155,7 +156,7 @@ def build_basis(concern, chart_data, dashas) -> str:
                 continue
             kp = f["planets"].get(k) or {}
             if kp.get("sign") and isinstance(kp.get("house"), int):
-                kn = _notes(k, kp["sign"], f["planets"])
+                kn = _notes(k, kp["sign"], f["planets"], B.d9_planets(chart_data))
                 bits.append(f"{I18.planet(k, L)}, el principal significador aquí, está en tu {_ord(kp['house'])}"
                             + (", " + " y ".join(kn) if kn else "") + ".")
         return " ".join(bits).strip()
