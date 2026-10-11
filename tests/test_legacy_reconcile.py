@@ -193,12 +193,20 @@ def _sun(**kw):
     return p
 
 
-def test_sunday_weekday_contact_prose_is_replaced():
+def test_sunday_weekday_contact_prose_is_replaced_with_a_different_sentence_per_field():
     p = _sun()
     LR.weekend_prose(p, "en")
-    line = LR._WK_LINE["en"]
-    assert all(p[k] == line for k in ("wow", "observa_hoy_text", "senal_de_hoy", "signal", "energy", "verdict_subline"))
-    assert p["haz_hoy"][0] == line and "Tidy your notes." in p["haz_hoy"] and p["aligned_for"] == [line]
+    tx = LR._WK["en"]
+    assert p["wow"] == tx["wow"] and p["observa_hoy_text"] == tx["observa"] and p["verdict_subline"] == tx["sub"]
+    assert p["senal_de_hoy"] == p["signal"] == p["energy"] == tx["senal"]
+    assert len({p["wow"], p["observa_hoy_text"], p["senal_de_hoy"], p["verdict_subline"]}) == 4
+    assert p["haz_hoy"][0] == tx["do_ask"] and "Tidy your notes." in p["haz_hoy"] and p["aligned_for"] == [tx["do_ask"]]
+
+
+def test_sunday_negotiation_line_becomes_a_write_it_down_line_not_a_negotiation():
+    p = _sun()
+    LR.weekend_prose(p, "en")
+    assert p["haz_hoy"][1] == LR._WK["en"]["do_num"] and "negotiate" in p["haz_hoy"][1] and "Put a number" not in " ".join(p["haz_hoy"])
 
 
 def test_weekday_prose_is_untouched():
@@ -215,5 +223,11 @@ def test_weekend_without_a_work_lead_is_untouched():
 def test_sunday_spanish_and_idempotent():
     p = _sun(wow="Alguien con autoridad está disponible hoy: contacta al cliente antes del mediodía.", haz_hoy=["Llama o escribe al contacto clave antes del mediodía."])
     LR.weekend_prose(p, "es")
-    assert p["wow"] == LR._WK_LINE["es"] and p["haz_hoy"] == [LR._WK_LINE["es"]]
-    assert LR.weekend_prose(p, "es") == [] or p["wow"] == LR._WK_LINE["es"]
+    assert p["wow"] == LR._WK["es"]["wow"] and p["haz_hoy"] == [LR._WK["es"]["do_ask"]]
+    assert LR.weekend_prose(p, "es") == []
+
+
+def test_replacement_texts_never_trigger_the_weekday_filters_again():
+    for lang, tx in LR._WK.items():
+        for key, txt in tx.items():
+            assert not LR._WK_PROSE.search(txt) and not LR._WK_DEAL.search(txt.replace("negotiate", "x").replace("negocies", "x")), (lang, key)
