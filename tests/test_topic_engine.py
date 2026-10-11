@@ -280,7 +280,9 @@ def test_neutral_topics_are_never_padded_into_activity():
 def test_active_topic_needs_real_activation():
     ctx = _synth("Saturn", [_ev("2026-10-12", "Jupiter", 10)])  # chapter + a supportive aspect on the 10th
     out = {r["key"]: r for r in T.rank_topics(ctx, TODAY, "en")}
-    assert out["career"]["status"] == "active" and out["career"]["tag"] == "Open now, until Oct 13"
+    # [ui-audit 2026-10-11] the tile follows the month read, which now lists the same windows as the Windows feed
+    # (the feed's coarse 30-day bucket holding the Oct 12 aspect runs to Nov 5), so tile and feed cannot disagree
+    assert out["career"]["status"] == "active" and out["career"]["tag"] == "Open now, until Nov 5"
     assert T.rank_topics(ctx, TODAY, "en")[0]["key"] == "career"
 
 
@@ -463,7 +465,7 @@ def test_today_windows_carry_no_invented_clock_times():
 
 def test_topic_labels_and_tags_localised():
     out = T.rank_topics(_synth("Saturn", [_ev("2026-10-12", "Jupiter", 10)]), TODAY, "pt")
-    assert out[0]["label"] == "Carreira" and out[0]["tag"] == "Aberto agora, até 13 out"
+    assert out[0]["label"] == "Carreira" and out[0]["tag"] == "Aberto agora, até 5 nov"
 
 
 # ── no jargon, no prices, honesty wording ───────────────────────────────────
@@ -1499,3 +1501,21 @@ def test_headline_and_verdict_are_localised():
         rows = {r["key"]: r for r in T.rank_topics(ctx, TODAY, lang)}
         assert not rows["money"]["headline"].startswith("Money matters") and rows["money"]["verdict"] != "Good time", lang
         assert rows["peace"]["headline"] and not rows["peace"]["headline"].startswith("Nothing sharp"), lang
+
+
+def test_tile_and_windows_feed_agree_on_the_open_window():
+    """[ui-audit 2026-10-11] The 30-day (month) read scans weekly and used to say "opens in 4 weeks" while the
+    Windows feed (month + season + year union) said "open now" for the same topic. The tile follows the month
+    read, so the month read must contain every window the feed lists for its own 30 days."""
+    from antar_engine import windows_feed as WF
+    ctx = _synth("Saturn", [_ev("2026-10-12", "Jupiter", 10)])
+    raw = WF.raw_windows(ctx, TODAY)["career"]
+    r = T.read_topic(ctx, "career", "month", TODAY, "en", with_best_fit=False)
+    w = r["best_window"]
+    assert w, "month read should carry the window the feed shows"
+    feed_open = [(s, e) for s, e in raw["open"] if s <= TODAY <= e]
+    assert feed_open, "feed lists the window running today"
+    s0, e0 = feed_open[0]
+    assert w["start"] == max(s0, TODAY).isoformat()
+    from datetime import date as _date
+    assert w["end"] == min(e0, _date.fromisoformat(r["period"]["end"])).isoformat()
