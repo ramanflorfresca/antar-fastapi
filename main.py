@@ -24242,6 +24242,14 @@ async def get_compatibility_session(session_id: str, language: str = "en"):
                                               jaimini_b=_safe_jsonb(_rb.data[0].get("jaimini_data")))
                         if _roles:
                             out["roles"] = _roles
+                    elif (s.get("compat_type") or _reason) in ("employee", "boss", "boss-or-manager", "manager", "advisor", "mentor"):
+                        # [authority-read 2026-10-11] a reporting line / advisory relationship is AUTHORITY AND FIT, not a lane split
+                        from antar_engine import authority_read as _AUR
+                        _roles = _AUR.compare(s.get("compat_type") or _reason, _ca, _da, _cb, _db, s.get("name_b") or "", language,
+                                              jaimini_a=_safe_jsonb(_ra.data[0].get("jaimini_data")),
+                                              jaimini_b=_safe_jsonb(_rb.data[0].get("jaimini_data")), role=_s_role)
+                        if _roles:
+                            out["roles"] = _roles
                 except Exception as _pre:
                     print(f"[compat][roles] non-fatal: {_pre}")
                 try:   # [moves] plain things to DO, from the weakest areas (replaces colour/day remedies on this page)
