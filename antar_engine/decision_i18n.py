@@ -16,7 +16,9 @@ PLANET = {"es": {"Sun": "Sol", "Moon": "Luna", "Mars": "Marte", "Mercury": "Merc
 SIGN = {"es": {"Aries": "Aries", "Taurus": "Tauro", "Gemini": "Géminis", "Cancer": "Cáncer", "Leo": "Leo",
                "Virgo": "Virgo", "Libra": "Libra", "Scorpio": "Escorpio", "Sagittarius": "Sagitario",
                "Capricorn": "Capricornio", "Aquarius": "Acuario", "Pisces": "Piscis"}}
-MONTH_LONG = {"es": ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre",
+MONTH_LONG = {"pt": ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro",
+                     "outubro", "novembro", "dezembro"],
+              "es": ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre",
                      "octubre", "noviembre", "diciembre"]}
 MONTH_SHORT = {"es": ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"]}
 # Spanish month names (long + short) -> number, for parsing dates out of Spanish prose
@@ -69,8 +71,8 @@ def sign(name: str, lang: str) -> str:
 
 def date_long(d: date, lang: str) -> str:
     """April 25, 2029 / 25 de abril de 2029"""
-    if lang == "es":
-        return f"{d.day} de {MONTH_LONG['es'][d.month - 1]} de {d.year}"
+    if lang in ("es", "pt"):
+        return f"{d.day} de {MONTH_LONG[lang][d.month - 1]} de {d.year}"
     return d.strftime("%B %-d, %Y")
 
 

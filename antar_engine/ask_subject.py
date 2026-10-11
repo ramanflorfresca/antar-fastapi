@@ -48,9 +48,12 @@ _reg("partner", "wife", "husband", "spouse", "partner", "girlfriend", "boyfriend
      "novia", "novio", "pareja", "namorada", "namorado", "parceiro", "parceira",
      "esposa", "patni", "pati", "biwi", "bivi", "shohar", "jeevansathi")
 _reg("parent", "mom", "mother", "mum", "dad", "father", "parents", "mama", "papa",
-     "madre", "padre", "mae", "mãe", "pai", "pais", "maa", "ma", "pitaji", "mummy", "daddy", "mataji")
+     "madre", "padre", "mae", "mãe", "pai", "pais", "maa", "ma", "pitaji", "mummy", "daddy", "mataji",
+     # [pt-subject 2026-10-11] plurals: "¿Cómo están mis padres?" resolved to the asker because only the singular was listed
+     "padres", "madres", "maes", "mães")
 _reg("sibling", "brother", "sister", "sibling", "siblings", "hermano", "hermana",
-     "irmao", "irmão", "irma", "irmã", "bhai", "behen", "behan", "bhaiya", "didi")
+     "irmao", "irmão", "irma", "irmã", "bhai", "behen", "behan", "bhaiya", "didi",
+     "hermanos", "hermanas", "irmaos", "irmãos", "irmas", "irmãs")
 _reg("friend", "friend", "friends", "amigo", "amiga", "amigos", "dost", "doste", "yaar")
 _reg("boss", "boss", "manager", "supervisor", "jefe", "jefa", "chefe", "gerente")
 _reg("employee", "employee", "colleague", "coworker", "co-worker", "empleado", "empleada",
@@ -59,7 +62,8 @@ _reg("cofounder", "cofounder", "co-founder", "cofundador", "cofundadora")
 _reg("advisor", "advisor", "adviser", "mentor", "coach", "consultant")
 _reg("family", "cousin", "uncle", "aunt", "grandmother", "grandfather", "grandma", "grandpa",
      "primo", "prima", "tio", "tío", "tia", "tía", "abuela", "abuelo", "avo", "avó", "avô",
-     "chacha", "mausi", "nani", "nana", "dada", "dadi", "in-laws", "inlaws")
+     "chacha", "mausi", "nani", "nana", "dada", "dadi", "in-laws", "inlaws",
+     "primos", "primas", "tios", "tíos", "tias", "tías", "abuelos", "abuelas", "avós", "avôs")
 
 # compat_type (People tab) -> relation groups it can satisfy
 _COMPAT_GROUPS: Dict[str, set] = {
@@ -89,13 +93,24 @@ _INTERROG = {"when", "will", "would", "is", "are", "does", "do", "did", "how", "
              "que", "qué", "como", "tem", "tera"}
 _AUX = {"is", "are", "will", "does", "did", "has", "was", "would", "be", "was", "va",
         "vai", "ira", "irá", "sera", "será", "esta", "está", "a", "o", "el", "la",
-        "kab", "kya"}
+        "kab", "kya",
+        # [pt-subject 2026-10-11] plural / 3rd-person forms: "Como estão meus pais?" / "¿Cómo están mis padres?" asked about
+        # the PARENTS but resolved to the asker (only the singular "está" was listed)
+        "estao", "estão", "estan", "están", "sao", "são", "son", "vao", "vão", "van", "tem", "têm", "tienen",
+        "estava", "estaba", "estavam", "estaban"}
 _DETERMINERS = {"my", "mi", "mis", "meu", "minha", "meus", "minhas", "mera", "meri", "mere",
                 "the", "el", "la", "o", "a", "los", "las", "os", "as", "our", "nuestro",
                 "nuestra", "nosso", "nossa", "hamara", "hamari"}
 _ABOUT_BEFORE = re.compile(
     r"\b(about|sobre|acerca de|a respeito de|regarding|de|del|do|da|dos|das|"
     r"what about|how about|and what about)\s*$")
+# [pt-subject 2026-10-11] "perto DOS meus pais" / "mais longe de meus pais" / "cerca de mis padres" / "closer to my parents" —
+# a proximity word + preposition marks the relative as CONTEXT for the asker's own move, not as the subject. Without this the
+# bare "dos / de / do / da" in _ABOUT_BEFORE read "Devo me mudar para perto dos meus pais?" as a question ABOUT the parents
+# (and asked for their chart); English "closer to my parents" and Spanish "cerca de mis padres" never matched.
+_PROXIMITY_BEFORE = re.compile(
+    r"\b(perto|longe|junto|próximo|proximo|ao lado|cerca|lejos|cercano|cercana|near|close|closer|far|farther|next)\s+"
+    r"(de|do|da|dos|das|del|to|from)\s*$")
 _RELATIONAL_BEFORE = re.compile(
     r"\b(with|between|and|con|e|aur|se|y|without|sin|sem)\s*$")
 _RELATIONSHIP_WORD_BEFORE = re.compile(
@@ -187,7 +202,7 @@ def _subject_focus(text: str, s: int, e: int) -> bool:
     while pre and pre[-1] in _DETERMINERS:
         pre.pop()
     pre_txt = " ".join(pre[-3:])
-    if _RELATIONAL_BEFORE.search(pre_txt):
+    if _RELATIONAL_BEFORE.search(pre_txt) or _PROXIMITY_BEFORE.search(pre_txt):
         return False
     # P1: possessive / ka-ki-ke
     if re.match(r"^('s|s'|\s+(ka|ki|ke)\b)", after) or re.match(r"^'", after):
