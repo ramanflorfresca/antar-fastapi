@@ -24124,8 +24124,8 @@ async def get_compatibility_session(session_id: str, language: str = "en"):
             from antar_engine import compatibility_reasons as _R
             _reason = _R.normalize_reason(s.get("compat_type"), None,
                                           default=s.get("compat_type") or "romantic")
-            _ra = supabase.table("charts").select("chart_data,birth_date,gender").eq("id", _ca_id).execute()
-            _rb = supabase.table("charts").select("chart_data,birth_date,gender").eq("id", _cb_id).execute()
+            _ra = supabase.table("charts").select("chart_data,birth_date,gender,jaimini_data").eq("id", _ca_id).execute()
+            _rb = supabase.table("charts").select("chart_data,birth_date,gender,jaimini_data").eq("id", _cb_id).execute()
             # employee / boss-or-manager need their role to read correctly. The
             # session row has no role column (and adding one needs DDL), but /start
             # also writes it into chart_connections.score_breakdown for this
@@ -24211,7 +24211,9 @@ async def get_compatibility_session(session_id: str, language: str = "en"):
                 try:
                     if _reason in ("cofounder", "business"):
                         from antar_engine import partner_roles as _PRL
-                        _roles = _PRL.compare(_ca, _da, _cb, _db, s.get("name_b") or "", language)
+                        _roles = _PRL.compare(_ca, _da, _cb, _db, s.get("name_b") or "", language,
+                                              jaimini_a=_safe_jsonb(_ra.data[0].get("jaimini_data")),
+                                              jaimini_b=_safe_jsonb(_rb.data[0].get("jaimini_data")))
                         if _roles:
                             out["roles"] = _roles
                 except Exception as _pre:

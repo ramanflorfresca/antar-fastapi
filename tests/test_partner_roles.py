@@ -95,13 +95,17 @@ def _seventh_strong():
                                               "Venus": {"sign": "Cancer", "house": 7}})
 
 
+_DK_STRONG = {"karakas": [{"karaka": "DK", "planet": "Jupiter"}]}      # Jupiter exalted in Cancer in the strong fixture
+_DK_WEAK = {"karakas": [{"karaka": "DK", "planet": "Moon"}]}           # Moon debilitated in the 12th in the weak fixture
+
+
 def test_a_weak_seventh_in_both_charts_is_solo_and_a_strong_one_is_capable():
-    weak, strong = P.partnership_capacity(_seventh_weak()), P.partnership_capacity(_seventh_strong())
+    weak, strong = P.partnership_capacity(_seventh_weak(), _DK_WEAK), P.partnership_capacity(_seventh_strong(), _DK_STRONG)
     assert weak["level"] == "solo" and strong["level"] == "capable" and weak["score"] < P.CAP_SOLO <= P.CAP_CAPABLE <= strong["score"]
 
 
 def test_solo_person_changes_the_read_before_any_role_split():
-    r = P.compare(_built(["Mercury", "Rahu"]), _dashas(), _seventh_weak(), _dashas(), "Saransh", "en", TODAY)
+    r = P.compare(_built(["Mercury", "Rahu"]), _dashas(), _seventh_weak(), _dashas(), "Saransh", "en", TODAY, None, _DK_WEAK)
     assert r["capacity"]["solo"] is True and r["capacity"]["other"]["level"] == "solo"
     t = r["text"]
     assert "Saransh is built to run things alone" in t and "advisor, investor or contractor" in t
@@ -109,12 +113,12 @@ def test_solo_person_changes_the_read_before_any_role_split():
 
 
 def test_two_capable_partners_get_the_positive_line_and_no_warning():
-    r = P.compare(_seventh_strong(), _dashas(), _seventh_strong(), _dashas(), "Asha", "en", TODAY)
+    r = P.compare(_seventh_strong(), _dashas(), _seventh_strong(), _dashas(), "Asha", "en", TODAY, _DK_STRONG, _DK_STRONG)
     assert "Both of you can partner" in r["text"] and r["capacity"]["solo"] is False and "run things alone" not in r["text"]
 
 
 def test_spanish_is_native_and_free_of_english_phrases():
-    r = P.compare(_built(["Mercury", "Rahu"]), _dashas(), _seventh_weak(), _dashas(), "Saransh", "es", TODAY)
+    r = P.compare(_built(["Mercury", "Rahu"]), _dashas(), _seventh_weak(), _dashas(), "Saransh", "es", TODAY, None, _DK_WEAK)
     t = r["text"]
     assert t.startswith("C\u00f3mo trabajar con Saransh") and "Saransh rinde mejor en solitario" in t and "Qui\u00e9n deber\u00eda liderar qu\u00e9" in t
     for en in ("should lead", "built to run", "You are", "Right now", "Neither of you"):
@@ -125,3 +129,52 @@ def test_capacity_nudges_with_darakaraka_without_flipping_a_clear_case():
     c = _seventh_strong()
     base = P.partnership_capacity(copy.deepcopy(c))["score"]
     assert 0.0 <= base <= 1.0
+
+
+# ---- convergence: both systems should give the same answer
+def test_a_strong_seventh_with_a_weak_darakaraka_is_conditional_and_says_the_systems_split():
+    dk_weak_here = {"karakas": [{"karaka": "DK", "planet": "Saturn"}]}      # Saturn in the 12th in a neutral sign
+    c = P.partnership_capacity(_seventh_strong(), dk_weak_here)
+    assert c["level"] == "conditional" and c["contested"] is True and c["jaimini_level"] == "solo"
+    r = P.compare(_seventh_strong(), _dashas(), _seventh_strong(), _dashas(), "Asha", "en", TODAY, _DK_STRONG, dk_weak_here)
+    assert "Asha can partner, but the two systems point different ways" in r["text"] and "run things alone" not in r["text"]
+
+
+def test_a_lane_where_the_systems_pick_different_leaders_is_contested_not_assigned(monkeypatch):
+    def fake(chart, dashas, today=None, jaimini=None):
+        who = chart["who"]
+        par = {l: 0.5 for l in P.LANES}
+        jai = {l: 0.5 for l in P.LANES}
+        par["ops"], jai["ops"] = (0.9, 0.2) if who == "a" else (0.3, 0.8)      # Parashari: A ahead; Jaimini: B ahead
+        par["tech"], jai["tech"] = (0.8, 0.8) if who == "a" else (0.3, 0.3)     # both systems: A ahead
+        sc = {l: round(0.7 * par[l] + 0.3 * jai[l], 4) for l in P.LANES}
+        return {"scores": sc, "parashari": par, "jaimini": jai, "parts": {l: {"dasha": 0.0} for l in P.LANES}, "amk": "Mercury",
+                "ak": "Moon", "dk": "Sun", "md": "", "ad": "", "chara_md": "", "chara_ad": "", "have": {"d1": True, "d10": True, "jaimini": True, "dasha": False}}
+    monkeypatch.setattr(P, "score_person", fake)
+    a = {"planets": {"Sun": {}}, "who": "a"}
+    b = {"planets": {"Sun": {}}, "who": "b"}
+    r = P.compare(a, {}, b, {}, "B", "en", TODAY)
+    assert "ops" in r["contested"] and "ops" not in r["you"]["leads"] + r["other"]["leads"]
+    assert "tech" in r["you"]["leads"] and "The two systems split on operations & execution" in r["text"]
+    assert "Both systems agree" not in r["text"]
+
+
+def test_when_both_systems_agree_the_read_says_so():
+    r = P.compare(_built(["Mercury", "Rahu"]), _dashas(), _built(["Saturn", "Mars"]), _dashas(), "G", "en", TODAY)
+    assert r["contested"] == [] or "Both systems agree" not in r["text"]
+
+
+def test_chara_running_uses_live_rows_then_a_stored_snapshot_only_while_its_dates_cover_today():
+    rows = {"jaimini": [{"level": "mahadasha", "lord_or_sign": "Taurus", "start_date": "2023-11-26", "end_date": "2029-11-25"}]}
+    snap = {"current_ad": {"sign_name": "Libra", "start": "2026-05-27T09:00:00", "end": "2026-11-26T00:00:00"}}
+    assert P.chara_running(rows, TODAY, snap) == ("Taurus", "Libra")
+    assert P.chara_running(rows, datetime(2027, 1, 5), snap) == ("Taurus", "")      # snapshot expired -> no stale AD
+    assert P.chara_running({}, TODAY, None) == ("", "")
+
+
+def test_stored_karakas_beat_the_degree_computation():
+    chart = _chart()
+    jai = {"karakas": [{"karaka": "AK", "planet": "Venus"}, {"karaka": "AmK", "planet": "Saturn"}, {"karaka": "DK", "planet": "Mars"}]}
+    k = P._stored_karakas(chart, jai)
+    assert (k["AK"], k["AmK"], k["DK"]) == ("Venus", "Saturn", "Mars")
+    assert P._stored_karakas(chart, None)["AmK"]            # falls back to the degrees
