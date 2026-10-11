@@ -56,6 +56,7 @@ CHAINS = {
         "days": ["How is tomorrow looking?", "Which day this week is best for me?", "How is my week ahead?"],
         "distress": ["I feel stuck and anxious about everything right now", "Why does it feel like nothing is moving?",
                      "What is one thing I can do today?"],
+        "speculation": ["How is gains from speculation tomorrow", "How is speculation this week?", "Yes", "English please"],
     },
     "es": {
         "money": ["¿Cómo está mi dinero ahora mismo?", "¿Cuándo se abre mi mejor ventana de dinero?",
@@ -76,6 +77,7 @@ CHAINS = {
                      "¿Qué una cosa puedo hacer hoy?"],
     },
     "hinglish": {
+        "speculation": ["Kal speculation se kaisa faayda hoga?", "Is hafte speculation kaisa hai?", "Haan", "English please"],
         "money": ["Abhi mera paisa kaisa dikh raha hai?", "Mera sabse strong money window kab khulega?",
                   "Kya ek jagah focus karun ya diversify karun?", "Kaun sa profession mere liye sabse sahi hai?"],
         "allin_one": ["Kya ek jagah focus karun ya diversify karun?", "Maine sab kuch {one} mein laga diya hai"],
