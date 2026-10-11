@@ -126,8 +126,9 @@ def test_every_scale_has_detail_for_the_topics_the_fixtures_speak_to():
     assert D.build_detail("money", "year", SRC, TODAY)["caution"]
     assert D.build_detail("money", "season", SRC, TODAY)["tightest_stretch"]
     assert D.build_detail("business", "chapter", SRC, TODAY)["story"]
-    for topic in KEYS:   # every topic gets something at the day level (confidence + times at least)
-        assert D.build_detail(topic, "today", SRC, TODAY)["best_times"]
+    for topic in KEYS:   # [topic-consolidate] day-wide windows / confidence live on the Today screen, not on every topic
+        d = D.build_detail(topic, "today", SRC, TODAY) or {}
+        assert not any(k in d for k in ("best_times", "steer_clear", "confidence"))
 
 
 def test_today_is_cut_to_the_topic():
@@ -145,9 +146,7 @@ def test_today_is_cut_to_the_topic():
     assert money["do"].count(generic) == 1 and not (money["day"] or {}).get("do")
     assert money["watch_for"] is None                                           # the signal is about a deal -> business
     assert "someone on the other side of a deal moves first" in D.build_detail("business", "today", SRC, TODAY)["watch_for"]
-    assert money["best_times"] == [{"start": "12:18 PM", "end": "1:07 PM", "text": DAILY["windows"][0]["text"]}]
-    assert money["steer_clear"][0]["start"] == "2:08 PM"
-    assert money["confidence"]["level"] == "low"
+    assert "best_times" not in money and "steer_clear" not in money and "confidence" not in money
 
 
 def test_month_is_cut_to_the_topic():
@@ -207,7 +206,7 @@ def test_one_section_can_hide_while_others_show():
     daily = copy.deepcopy(DAILY)
     daily["wow"], daily["windows"] = "", []
     d = D.build_detail("money", "today", {"daily": daily}, TODAY)
-    assert d["watch_for"] is None and d["best_times"] == [] and d["do"]
+    assert d["watch_for"] is None and "best_times" not in d and d["do"]
 
 
 def test_domain_table_skips_unmapped_domains():
@@ -441,7 +440,7 @@ def test_route_attaches_detail_and_reconciles(client, monkeypatch):
     assert calls == ["daily"]
     c.get("/api/v1/chart/c/topic-read?topic=money&scale=today&tz_offset=-240")
     assert calls == ["daily"]                                                     # second hit is served from the cache
-    assert any(k[:2] == ("topic-read", "v12-balanced") for k in te._CACHE)           # version-salted key
+    assert any(k[:2] == ("topic-read", "v14-consolidated") for k in te._CACHE)           # version-salted key
 
 
 @pytest.mark.parametrize("scale,need", [("month", "month"), ("year", "year"), ("season", "arc"), ("chapter", "arc")])
@@ -660,3 +659,28 @@ def test_hold_off_is_timing_advice_outside_money_and_the_hedge_is_not_a_bet():
     out = D.reconcile(_open_today(topic="career", your_move="Make your ask."),
                       {"headline": "A risky bet on a project can backfire.", "domains": [{"key": "work", "state": "caution", "line": "A risky bet on a project can backfire."}]}, "en")
     assert C.KEEP_SMALL["en"] not in out["your_move"] and "risky bets" in out["claim"]
+
+
+# ---- [topic-consolidate 2026-10-11] each thing said once on the topic page
+def _out(claim, avoid, note, scale="today"):
+    return {"scale": scale, "claim": claim, "detail": {"avoid": avoid, "caution_note": note, "do": ["x"]}}
+
+
+def test_caution_note_that_repeats_an_avoid_line_is_dropped():
+    o = D.consolidate_today(_out("Today, good for income.", ["Hold off on new spending \u2014 timing isn't with you."],
+                                 "Hold off on new spending \u2014 timing isn't with you."))
+    assert "caution_note" not in o["detail"] and o["detail"]["avoid"] == ["Hold off on new spending \u2014 timing isn't with you."]
+
+
+def test_avoid_line_the_claim_already_says_is_dropped_from_avoid():
+    line = "Don't overexert physically today \u2014 your reserves are lower than they feel."
+    o = D.consolidate_today(_out(f"Today, keep it quiet on your body's rhythm. {line}", [line], line))
+    assert "avoid" not in o["detail"] and "caution_note" not in o["detail"] and o["detail"]["do"] == ["x"]
+
+
+def test_a_different_caution_note_is_kept_and_other_scales_untouched():
+    o = D.consolidate_today(_out("c", ["a"], "a different caution"))
+    assert o["detail"]["caution_note"] == "a different caution"
+    m = _out("c", ["a"], "a", scale="month")
+    assert D.consolidate_today(m) == m
+    assert D.consolidate_today({"scale": "today", "detail": None}) == {"scale": "today", "detail": None}

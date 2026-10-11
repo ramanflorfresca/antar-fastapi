@@ -294,20 +294,15 @@ def daily_detail(topic: str, daily: Optional[dict]) -> Optional[dict]:
             do_m.insert(0, dom_out["line"])
         elif dom.get("state") == "caution":
             av_m.insert(0, dom_out["line"])
-    times: Dict[str, list] = {"best": [], "avoid": []}
-    for w in daily.get("windows") or []:
-        if isinstance(w, dict) and w.get("kind") in times and w.get("start") and w.get("end"):
-            times[w["kind"]].append({"start": w["start"], "end": w["end"], "text": _s(w.get("text"), 300)})
     wow = _s(daily.get("wow"), 700)
-    conf = daily.get("confidence") if isinstance(daily.get("confidence"), dict) else {}
+    # [topic-consolidate 2026-10-11] best / steer-clear windows and the day's confidence line are the SAME for every topic
+    # (they are the whole day's, from the hora / rahu kalam / day-confidence) — they live on the Today screen only, so a
+    # topic page carries just what is specific to that topic.
     do_all = list(dict.fromkeys(do_m + do_g))   # topic-relevant first, then the day's general ones, once each
     out = {
         "do": do_all, "avoid": av_m,
         "day": _nonempty({"avoid": av_g}),
-        "best_times": times["best"], "steer_clear": times["avoid"],
         "watch_for": wow if wow and relevance(wow, topic) == "yes" else None,
-        "confidence": ({"level": conf.get("level"), "line": _s(conf.get("line"))}
-                       if conf.get("level") and _s(conf.get("line")) else None),
         "domain": dom_out,
         "caution_note": risk_caution(topic, daily),
     }
@@ -545,6 +540,36 @@ def reconcile(out: dict, daily: Optional[dict], lang: str) -> dict:
             if note not in out["claim"]:
                 out["claim"] = f"{out['claim'].rstrip()} {note}"
         return out
+    except Exception:
+        return out
+
+
+def _norm(t) -> str:
+    return re.sub(r"[^\w]+", " ", str(t or "").lower()).strip()
+
+
+def consolidate_today(out: dict) -> dict:
+    """Right now, topic page: say each thing once. After every reconcile step, drop (a) `caution_note` when it repeats an
+    Avoid-today line, (b) an Avoid-today line the claim already says verbatim. Returns a new dict; never raises."""
+    try:
+        if out.get("scale") != "today" or not isinstance(out.get("detail"), dict):
+            return out
+        det = dict(out["detail"])
+        avoid = [a for a in (det.get("avoid") or []) if a]
+        claim = _norm(out.get("claim"))
+        def _same(x: str, y: str) -> bool:      # equal, or one is a whole sentence inside the other (never a stray word)
+            return bool(x and y) and (x == y or (min(len(x), len(y)) >= 20 and (x in y or y in x)))
+        kept = [a for a in avoid if not _same(_norm(a), claim)]
+        note = _norm(det.get("caution_note"))
+        if note and any(_same(note, _norm(a)) for a in avoid):
+            det.pop("caution_note", None)
+        elif note and note in claim:
+            det.pop("caution_note", None)
+        if kept:
+            det["avoid"] = kept
+        else:
+            det.pop("avoid", None)
+        return dict(out, detail=det)
     except Exception:
         return out
 
