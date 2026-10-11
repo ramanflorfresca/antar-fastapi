@@ -216,6 +216,17 @@ def compose(p: dict, language: str = "en", today: date | None = None, period_lin
                   (x[0].get("label") or "").lower() if L == "en" else None) for x in live
                  if x[0] not in lead_keys and (x[0].get("label") in restrain or x[0].get("caution"))]
         risky = [r for r in risky if r]
+        # the caution week's own sentence names the risk ("a speculative bet … can backfire"): lead with THAT one so the
+        # block never names a different risk for the same week
+        _cwtxt = p.get("caution_week") if isinstance(p.get("caution_week"), str) else ""
+        _named = next((k for rx, k in ((r"(?i)specul|\bbet\b|gambl|creative", "speculation"),
+                                       (r"(?i)\btrip|travel|foreign|journey", "travel"),
+                                       (r"(?i)spend|purchase|expens", "money"),
+                                       (r"(?i)overcommit|overwork|workload", "work")) if re.search(rx, _cwtxt)), None)
+        if _named:
+            _nr = (_RISK if L == "en" else I18.DOMAIN_RISK[L]).get(_named)
+            if _nr:
+                risky = [_nr] + [r for r in risky if r != _nr]
         brk = tx["brk"].format(risky=tx["or"].join(risky[:2]) or tx["brk_none"])
         brk += tx["during"].format(cw=cw["label"]) if cw.get("label") else ""
         if re.search(tx["spend_rx"], p.get("overview") or ""):
