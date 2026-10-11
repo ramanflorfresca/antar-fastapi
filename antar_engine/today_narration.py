@@ -204,6 +204,15 @@ def build_narration_system(
             '- The reader has NO children — NEVER write "child", "son", '
             '"daughter", or "baby". Use "a project", "a venture", or '
             '"something you\'re making".')
+    if _life.get("career_stage") == "in_transition":
+        _life_rules.append(
+            '- The reader is currently WITHOUT a job — NEVER describe a current job, colleagues, promotion, '
+            'or "work you have put in being noticed" as fact, and never advise finishing work "on your list". '
+            'Frame career themes as the job search: outreach, interviews, portfolio, skills.')
+    elif _life.get("career_stage") == "studying":
+        _life_rules.append(
+            '- The reader is a STUDENT — NEVER describe a current job or promotion as fact. Frame career '
+            'themes as studies, internships, applications and mentors.')
     if _life_rules:
         _sys = _sys + ("\n\nLIFE-CONTEXT CONSTRAINTS (HARD — override any noun or "
                        "theme in the data that conflicts):\n" + "\n".join(_life_rules))

@@ -69,6 +69,68 @@ DO: Dict[str, Dict[str, tuple]] = {
     },
 }
 
+# ── life-fact variants (2026-10-11 UI audit: a jobless chart was offered "make my ask at work") ──────
+# Only en/es are adapted; other languages keep the neutral default tables. Keyed by the canonical
+# career_stage from life_context ("in_transition" | "studying" | "job" | "running_business" | None).
+_NO_JOB = {"in_transition", "studying"}
+DO_NOJOB: Dict[str, Dict[str, Dict[str, tuple]]] = {
+    "en": {
+        "in_transition": {"career": ("get my job search moving", "reach out to people about roles"),
+                          "business": ("test a small idea before I commit to it", "start a small side project")},
+        "studying": {"career": ("take the next step on an internship or role", "apply for an internship or programme"),
+                     "business": ("test a small idea before I commit to it", "start a small side project")},
+    },
+    "es": {
+        "in_transition": {"career": ("poner en marcha mi búsqueda de trabajo", "contactar a personas sobre vacantes"),
+                          "business": ("probar una idea pequeña antes de comprometerme", "empezar un proyecto paralelo pequeño")},
+        "studying": {"career": ("dar el siguiente paso en unas prácticas o un puesto", "postularme a unas prácticas o a un programa"),
+                     "business": ("probar una idea pequeña antes de comprometerme", "empezar un proyecto paralelo pequeño")},
+    },
+}
+EVERGREEN_NOJOB: Dict[str, Dict[str, Dict[str, str]]] = {
+    "en": {"in_transition": {"career": "When is a good time to push my job search?",
+                             "business": "When is a good time to test a small idea?"},
+           "studying": {"career": "When is a good time to apply for an internship or role?",
+                        "business": "When is a good time to test a small idea?"}},
+    "es": {"in_transition": {"career": "¿Cuándo es un buen momento para impulsar mi búsqueda de trabajo?",
+                             "business": "¿Cuándo es un buen momento para probar una idea pequeña?"},
+           "studying": {"career": "¿Cuándo es un buen momento para postularme a unas prácticas o a un puesto?",
+                        "business": "¿Cuándo es un buen momento para probar una idea pequeña?"}},
+}
+CARE_NOJOB: Dict[str, Dict[str, Dict[str, str]]] = {
+    "en": {"in_transition": {"career": "Why does my chart ask for care in my job search until {date}?",
+                             "business": "Why does my chart ask for care with new ventures until {date}?"},
+           "studying": {"career": "Why does my chart ask for care with my studies until {date}?",
+                        "business": "Why does my chart ask for care with new ventures until {date}?"}},
+    "es": {"in_transition": {"career": "¿Por qué mi carta pide cuidado en mi búsqueda de trabajo hasta el {date}?",
+                             "business": "¿Por qué mi carta pide cuidado con nuevos proyectos hasta el {date}?"},
+           "studying": {"career": "¿Por qué mi carta pide cuidado con mis estudios hasta el {date}?",
+                        "business": "¿Por qué mi carta pide cuidado con nuevos proyectos hasta el {date}?"}},
+}
+
+
+def _stage(life) -> Optional[str]:
+    """career_stage when it is one we adapt for, else None (neutral default wording)."""
+    st = (life or {}).get("career_stage") if isinstance(life, dict) else None
+    return st if st in _NO_JOB else None
+
+
+def _do(lang: str, topic: str, idx: int, life=None) -> str:
+    st = _stage(life)
+    alt = DO_NOJOB.get(lang, {}).get(st or "", {}).get(topic)
+    return (alt or DO[lang][topic])[idx]
+
+
+def _evergreen(lang: str, topic: str, life=None) -> str:
+    st = _stage(life)
+    return EVERGREEN_NOJOB.get(lang, {}).get(st or "", {}).get(topic) or EVERGREEN[lang][topic]
+
+
+def _care_text(lang: str, topic: str, life=None) -> str:
+    st = _stage(life)
+    return CARE_NOJOB.get(lang, {}).get(st or "", {}).get(topic) or CARE[lang][topic]
+
+
 # the frames: {do} and {month} (full month name) filled in
 NOW_FRAME = {"en": "Is this a good week to {do}?",
              "es": "¿Es esta una buena semana para {do}?",
@@ -199,7 +261,8 @@ def _mk(chart_id, today, topic, kind, text, reason) -> dict:
 
 
 # ── candidates ───────────────────────────────────────────────────────────────
-def window_candidates(feed: Optional[dict], chart_id: str, today: date, lang: str) -> Dict[str, List[dict]]:
+def window_candidates(feed: Optional[dict], chart_id: str, today: date, lang: str,
+                      life: Optional[dict] = None) -> Dict[str, List[dict]]:
     """{"open_now": [...], "opening_soon": [...], "care": [...]} from a Windows feed, best first."""
     out = {"open_now": [], "opening_soon": [], "care": []}
     if not isinstance(feed, dict):
@@ -211,12 +274,12 @@ def window_candidates(feed: Optional[dict], chart_id: str, today: date, lang: st
                 continue
             e = date.fromisoformat(w["end"])
             if w.get("kind") == "open":
-                text = NOW_FRAME[lang].format(do=DO[lang][t][0])
+                text = NOW_FRAME[lang].format(do=_do(lang, t, 0, life))
                 why = REASON[lang]["open_now"].format(area=_area(lang, t), end=_fmt(e, lang, today))
                 out["open_now"].append(_mk(chart_id, today, t, "open_now", text, why))
             elif w.get("kind") == "care":
                 out["care"].append(_care(chart_id, today, lang, t, date.fromisoformat(w["start"]), e,
-                                         sort=(0, e.isoformat())))
+                                         sort=(0, e.isoformat()), life=life))
         for w in sorted(feed.get("next") or [], key=lambda x: x.get("start") or ""):
             t = w.get("topic")
             if t not in DO[lang] or w.get("kind") != "open":
@@ -224,7 +287,7 @@ def window_candidates(feed: Optional[dict], chart_id: str, today: date, lang: st
             s = date.fromisoformat(w["start"])
             if 0 < (s - today).days <= SOON_DAYS:
                 text = SOON_FRAME[lang].format(month=C.pick(C.FULL_MONTHS, lang)[s.month - 1],
-                                               do=DO[lang][t][1])
+                                               do=_do(lang, t, 1, life))
                 why = REASON[lang]["opening_soon"].format(area=_area(lang, t), start=_fmt(s, lang, today))
                 out["opening_soon"].append(_mk(chart_id, today, t, "opening_soon", text, why))
         for w in sorted(feed.get("care") or [], key=lambda x: x.get("start") or ""):
@@ -233,7 +296,7 @@ def window_candidates(feed: Optional[dict], chart_id: str, today: date, lang: st
                 continue
             s, e = date.fromisoformat(w["start"]), date.fromisoformat(w["end"])
             if 0 < (s - today).days <= CARE_DAYS:
-                out["care"].append(_care(chart_id, today, lang, t, s, e, sort=(1, s.isoformat())))
+                out["care"].append(_care(chart_id, today, lang, t, s, e, sort=(1, s.isoformat()), life=life))
         out["care"] = [c for _k, c in sorted(((c.pop("_sort"), c) for c in out["care"]), key=lambda x: x[0])]
     except Exception:
         logger.exception("[suggested-questions] window candidates skipped")
@@ -241,8 +304,8 @@ def window_candidates(feed: Optional[dict], chart_id: str, today: date, lang: st
     return out
 
 
-def _care(chart_id, today, lang, topic, s, e, sort) -> dict:
-    q = _mk(chart_id, today, topic, "care", CARE[lang][topic].format(date=_fmt(e, lang, today)),
+def _care(chart_id, today, lang, topic, s, e, sort, life=None) -> dict:
+    q = _mk(chart_id, today, topic, "care", _care_text(lang, topic, life).format(date=_fmt(e, lang, today)),
             REASON[lang]["care"].format(area=_area(lang, topic), start=_fmt(s, lang, today),
                                         end=_fmt(e, lang, today)))
     q["_sort"] = sort
@@ -281,8 +344,9 @@ def followup_candidates(rows: List[dict], chart_id: str, today: date, lang: str)
     return out
 
 
-def evergreen_candidates(chart_id: str, today: date, lang: str, order=TOPIC_ORDER) -> List[dict]:
-    return [_mk(chart_id, today, t, "followup", EVERGREEN[lang][t],
+def evergreen_candidates(chart_id: str, today: date, lang: str, order=TOPIC_ORDER,
+                         life: Optional[dict] = None) -> List[dict]:
+    return [_mk(chart_id, today, t, "followup", _evergreen(lang, t, life),
                 REASON[lang]["evergreen"].format(area=_area(lang, t))) for t in order]
 
 
@@ -313,14 +377,15 @@ def select(cands: Dict[str, List[dict]], follow: List[dict], evergreen: List[dic
 
 
 def build(feed: Optional[dict], history_rows: List[dict], chart_id: str, today: date,
-          language: str = "en", limit: int = 3, cands: Optional[Dict[str, List[dict]]] = None) -> dict:
+          language: str = "en", limit: int = 3, cands: Optional[Dict[str, List[dict]]] = None,
+          life: Optional[dict] = None) -> dict:
     """The response body. `feed` None (engine trouble) still gives evergreen questions; `cands`
     is the already-built window part (the caller caches it per chart, language and day)."""
     lang = C.serve_language(language)
     limit = max(1, min(MAX_LIMIT, int(limit or 3)))
     rows = list(history_rows or [])[:HISTORY_ROWS]
-    qs = select(cands if cands is not None else window_candidates(feed, chart_id, today, lang),
+    qs = select(cands if cands is not None else window_candidates(feed, chart_id, today, lang, life),
                 followup_candidates(rows, chart_id, today, lang),
-                evergreen_candidates(chart_id, today, lang),
+                evergreen_candidates(chart_id, today, lang, life=life),
                 [r.get("question") for r in rows], limit)
     return {"questions": qs, "count": len(qs)}

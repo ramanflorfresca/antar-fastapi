@@ -101,3 +101,11 @@ def test_your_move_varies_day_to_day_but_is_stable_within_a_day():
     lines = [derive_todays_nudge("caution", ["money"], "IN", date_str=d) for d in days]
     assert all(a != b for a, b in zip(lines, lines[1:]))
     assert derive_todays_nudge("caution", ["money"], "IN", date_str="2026-10-02") == lines[2]
+
+
+def test_snap_rewrites_the_template_friction_opener_for_a_non_friction_band():
+    """[ui-audit 2026-10-11] 'LIGHTER-TOUCH DAY' over 'The day creates internal friction' contradicted itself."""
+    t = "The day creates internal friction — best used for inner work, review, and preparation."
+    assert snap_day_type(t, "light").startswith("This is a lighter-touch day — best used for inner work")
+    assert snap_day_type(t, "steady").startswith("This is a steady day")
+    assert snap_day_type(t, "friction") == t
