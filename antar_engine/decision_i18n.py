@@ -20,7 +20,8 @@ MONTH_LONG = {"pt": ["janeiro", "fevereiro", "março", "abril", "maio", "junho",
                      "outubro", "novembro", "dezembro"],
               "es": ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre",
                      "octubre", "noviembre", "diciembre"]}
-MONTH_SHORT = {"es": ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"]}
+MONTH_SHORT = {"es": ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"],
+               "pt": ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"]}
 # Spanish month names (long + short) -> number, for parsing dates out of Spanish prose
 MONTH_NUM_ES = {**{m: i for i, m in enumerate(MONTH_LONG["es"], 1)}, **{m: i for i, m in enumerate(MONTH_SHORT["es"], 1)},
                 "sept": 9, "setiembre": 9}
@@ -85,8 +86,8 @@ def date_short(d: date, lang: str) -> str:
 
 def month_year(d: date, lang: str) -> str:
     """Nov 2026 / nov 2026"""
-    if lang == "es":
-        return f"{MONTH_SHORT['es'][d.month - 1]} {d.year}"
+    if lang in ("es", "pt"):
+        return f"{MONTH_SHORT[lang][d.month - 1]} {d.year}"
     return d.strftime("%b %Y")
 
 

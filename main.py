@@ -27089,10 +27089,15 @@ _NEW_UNION_RX = re.compile(
     r"(?i)\b(remarry|re-?marry|new (partner|relationship|marriage)|again|de novo|otra vez|de nuevo|dobara|phir se)\b")
 # a question about the reader's EXISTING marriage / partner ("will MY marriage improve?"), not about getting married
 _EXISTING_UNION_RX = re.compile(
-    r"(?i)\b(my|our)\s+(marriage|spouse|wife|husband|relationship|partner)\b|"
+    r"(?i)\b(my|our)\s+(marriage|married\s+life|spouse|wife|husband|relationship|partner)\b|"
+    r"\bmi\s+vida\s+(matrimonial|de\s+casad[oa])\b|\bminha\s+vida\s+(conjugal|de\s+casad[oa])\b|"
     r"\bmi\s+(matrimonio|esposa|esposo|marido|mujer|relaci\u00f3n|relacion|pareja)\b|"
     r"\bmeu\s+(casamento|marido|relacionamento)\b|\bminha\s+(esposa|rela\u00e7\u00e3o|relacao)\b|"
     r"\bmera\s+(shaadi|biwi|pati)\b")
+
+
+# a retrospective question ("why did my marriage fail?") is not about its future — it stays out of the two-window lane
+_DU_PAST_RX = re.compile(r"(?i)\b(why did|what went wrong|how did|did (?:my|our)|was (?:my|our)|por qu\u00e9 (?:fall\u00f3|termin\u00f3)|por que (?:falhou|terminou))\b")
 
 
 def _suppress_union_window(area, marital_status, question) -> bool:
@@ -33458,6 +33463,34 @@ async def _ask_endpoint_impl(request: AskRequest):
                     payload["next"] = _ask_md(payload["next"])
             except Exception:
                 pass
+            # [divorced-marriage 2026-10-11] A divorced / separated reader asking about their EXISTING marriage ("will my marriage improve?",
+            # "is there any problem in my married life?") is really asking two things the chart answers differently — can the bond be REBUILT, and is a
+            # NEW partnership coming. Both come from the same event engine the ex-question and the marriage-window use, so this answer can never
+            # contradict them. The NLU files "problem in my married life" under area=separation, so that area joins the lane (past-tense "why did it
+            # fail" does not). No new-union verdict chip (suppressed above).
+            try:
+                _du_ms = str((chart_row.data or {}).get("marital_status") or "").lower().strip()
+                _du_area = (locals().get("_ask_u") or {}).get("area")
+                if (not locals().get("_existing_union_lane") and _du_area == "separation" and _du_ms in ("divorced", "separated")
+                        and _EXISTING_UNION_RX.search(question or "") and not _DU_PAST_RX.search(question or "")):
+                    _existing_union_lane = True
+                if locals().get("_existing_union_lane") and language in ("en", "es", "pt") and isinstance(payload, dict) \
+                        and _du_ms in ("divorced", "separated"):
+                    from antar_engine.event_narrator import run_event_engine as _du_ree
+                    from antar_engine import divorced_union as _DU
+                    _du_args = (chart_data, locals().get("_ask_jd"), locals().get("_ask_dashas"), locals().get("_ask_bdate"))
+
+                    def _du_run():
+                        return _du_ree(*_du_args, "reconciliation"), _du_ree(*_du_args, "marriage")
+                    _du_r, _du_n = await run_in_threadpool(_du_run)
+                    _du = _DU.compose(_du_r, _du_n, _du_ms, language)
+                    if _du:
+                        payload["read"] = _du["read"]
+                        if _du.get("timing"):
+                            payload["timing"] = _du["timing"]
+                        print(f"[ask][divorced-union] two-window answer ({_du_ms}) rebuild={_du['rebuild_state']} new={_du['new_state']}")
+            except Exception as _due:
+                print(f"[ask][divorced-union] skipped (non-fatal): {_due}")
             # [audit 2026-10-04] one final deterministic pass, every Ask answer:
             # jargon → plain words, no "pick one venture" on a spread chart, no unasked
             # funding talk, and never ship without a move.
