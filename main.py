@@ -27057,6 +27057,26 @@ def _suppress_union_window(area, marital_status, question) -> bool:
     return area == "marriage" and bool(_EXISTING_UNION_RX.search(q))
 
 
+_CESSATION_TOKENS = (
+    # en
+    " end", " ends", " ending", " over", " stop", " clear", " finish", " pass", " lift", " subside",
+    # es [cessation-i18n 2026-10-10] — English "when will I clear my debts?" drops the Yes / Not-yet chip (the answer is a
+    # DATE); the Spanish "¿cuándo saldré de mis deudas?" kept it because only termina / acaba were listed
+    " termina", " termine", " terminar", " acaba", " acabe", " acabar", " pase", " pasar", " saldr", " salir de", " salgo de",
+    " librar", " libre de", " superar", " cese", " cesar", " desaparec", " quitar", " liquidar",
+    # pt
+    " passar", " passe", " sair d", " sairei d", " livrar", " superar", " cessar", " desaparec", " quitar", " quitarei", " acabar",
+)
+
+
+def _is_cessation_when_q(question) -> bool:
+    """[bug2 2026-08-11 + cessation-i18n 2026-10-10] a pure 'when does X END / clear / pass' question asks for a DATE, not a
+    YES/NO — the verdict chip is suppressed (the timing window stays). Same rule in en / es / pt."""
+    q = (question or "").strip().lower()
+    q = q.lstrip("¿¡ ")
+    return q.startswith(("when", "cuándo", "cuando", "quando")) and any(t in " " + q for t in _CESSATION_TOKENS)
+
+
 def _is_biz_vs_job_q(q):
     """[aptitude 2026-09-16] 'should I do business or a job / am I suited to run
     my own thing' — a business-vs-employment APTITUDE question (read from the
@@ -32358,7 +32378,7 @@ async def _ask_endpoint_impl(request: AskRequest):
                     from antar_engine import question_forms as _qfv
                     _fi = _qfv.intent(question)
                     _ask_u = {"intent": _fi} if _fi else None
-                if _undv.suppress_verdict(locals().get("_ask_u")) and _ask_conv and \
+                if _undv.suppress_verdict(locals().get("_ask_u"), question) and _ask_conv and \
                         _ask_conv.get("verdict_phrase"):
                     _ask_conv["suppress_verdict"] = True
                     _ask_conv["verdict_phrase"] = ""
@@ -32713,14 +32733,7 @@ async def _ask_endpoint_impl(request: AskRequest):
                 # the verdict chip for cessation-style when-questions; keep the
                 # timing window (the real answer). "When will <good thing> come"
                 # still keeps its NOT_YET/LIKELY chip — that one is meaningful.
-                _q_low = (question or "").strip().lower()
-                _is_cessation_when = (
-                    _q_low.startswith(("when", "cuándo", "cuando"))
-                    and any(t in _q_low for t in (
-                        " end", " ends", " ending", " over", " stop",
-                        " clear", " finish", " pass", " lift", " subside",
-                        " termina", " acaba", " acabar"))
-                )
+                _is_cessation_when = _is_cessation_when_q(question)
                 payload["verdict"]  = (None if (_is_cessation_when
                                         or _ask_conv.get("suppress_verdict"))
                                         else _det_verdict)
