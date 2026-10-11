@@ -31730,6 +31730,15 @@ async def _ask_endpoint_impl(request: AskRequest):
                 if _ask_decision and _is_material_q(question):
                     print("[ask] material/colour — suppressing decision/timing path")
                     _ask_decision = False
+                # [operational 2026-10-11] fire / raise prices / get clients / consolidate debt are decisions about HOW, not events with a window: the
+                # window facts must never reach the model (live: "should I fire someone?" still said "the window for a clean decision is Nov 2026 – Jan 2027")
+                try:
+                    from antar_engine.ask_families import is_operational as _is_op_q
+                    if _ask_decision and _is_op_q(question):
+                        print("[ask] operational decision — suppressing decision/timing path")
+                        _ask_decision = False
+                except Exception:
+                    pass
                 # [wealth-magnitude 2026-09-23] "how big / will it last / concentrate
                 # or diversify / which venture grows" is a CAPACITY + sizing question,
                 # not a yes/no — suppress the verdict so the wealth magnitude+stability

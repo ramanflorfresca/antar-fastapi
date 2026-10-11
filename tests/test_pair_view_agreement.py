@@ -179,3 +179,81 @@ def test_endpoints_return_the_template_merge_edits_and_404_other_types(monkeypat
         raise AssertionError("expected 404")
     except HTTPException as e:
         assert e.status_code == 404 and e.detail["error"] == "no_template"
+
+
+# ---- advisory agreement + working engagement (consulting / role) — not an employment contract
+from antar_engine import authority_read as AR  # noqa: E402
+from tests.test_partner_roles import _built, _chart  # noqa: E402
+
+
+def _hier(kind, role=None, lang="en"):
+    r = AR.compare(kind, _chart(), {}, _built(["Saturn", "Mars"]), {}, "Dev", lang, None, None, None, role=role)
+    return r
+
+
+def test_each_relationship_type_gets_its_own_template_and_friends_get_none():
+    assert WA.build("advisor", _hier("advisor"))["title"] == "Advisory agreement (template)"
+    assert WA.build("employee", _hier("employee", "operations"))["title"] == "Working engagement (template)"
+    assert WA.build("boss-or-manager", _hier("boss"))["title"] == "Working engagement (template)"
+    assert WA.build("cofounder", ROLES)["title"] == "Working agreement (template)"
+    for k in ("friend", "sibling", "romantic", "", None):
+        assert WA.build(k, _hier("advisor")) is None
+    assert WA.build("advisor", ROLES) is None                                       # partners roles never feed the advisory template
+
+
+def test_advisory_scope_comes_from_the_reading_and_money_and_equity_are_blank():
+    d = WA.build("advisor", _hier("advisor"), "en", {"a": "Raman", "b": "Andres"})
+    items = {i["key"]: i for s in d["sections"] for i in s["items"] if i.get("key")}
+    assert items["clause_text:adv_scope"]["source"] == "reading" and items["clause_text:adv_out"]["source"] == "reading"
+    for k in ("fee", "advisory_equity", "expenses", "party_a_name", "party_b_id", "ip_owner", "confidentiality", "conflicts", "exit_terms", "sig_b_sign", "hours"):
+        assert items[k]["value"] == "", k
+    assert items["cadence"]["value"] == "Monthly"
+    md = d["markdown"]
+    assert "no authority to bind Party A" in md and "not an employee, partner or agent unless agreed in writing" in md and "not a legal agreement" in md
+    assert "Raman" not in md and "Andres" not in md
+
+
+def test_engagement_says_it_is_not_an_employment_contract_and_fills_role_and_style():
+    d = WA.build("employee", _hier("employee", "operations"), "en")
+    assert "does not replace an employment contract" in d["disclaimer"] and "not a legal agreement" in d["disclaimer"]
+    items = {i.get("key"): i for s in d["sections"] for i in s["items"] if i.get("key")}
+    assert items["who_engages"]["value"] == "Party A engages Party B" and items["engagement_type"]["value"] == "" and "Consulting or contractor" in items["engagement_type"]["options"]
+    roles = next(s for s in d["sections"] if s["id"] == "role")["items"]
+    assert any(i.get("source") == "reading" and i.get("title") for i in roles) and any(i.get("id") == "fit" for i in roles) and any(i.get("id") == "direction" for i in roles)
+    for k in ("rate", "schedule", "expenses", "deliverables", "deadlines", "ip_owner", "confidentiality", "notice", "wip", "sig_a_sign", "reports_to"):
+        assert items[k]["value"] == "", k
+    b = WA.build("boss", _hier("boss"), "en")
+    bi = {i.get("key"): i for s in b["sections"] for i in s["items"] if i.get("key")}
+    assert bi["who_engages"]["value"] == "Party B engages Party A"                    # for a boss connection the manager engages the reader
+    assert any(i.get("id") == "boss_style" for s in b["sections"] for i in s["items"])
+
+
+def test_advisory_and_engagement_are_native_spanish_with_the_same_blanks():
+    a = WA.build("advisor", _hier("advisor", lang="es"), "es")
+    e = WA.build("employee", _hier("employee", "operations", "es"), "es")
+    assert a["title"] == "Acuerdo de asesoría (plantilla)" and e["title"] == "Compromiso de trabajo (plantilla)"
+    assert "no reemplaza un contrato laboral" in e["disclaimer"].lower()
+    for d in (a, e):
+        for en in ("Party A", "Full name", "Signature", "Confidentiality", "Fee", "Pay and"):
+            assert en not in d["markdown"], en
+    assert "Honorarios: ________" in a["markdown"] and "Tarifa o salario: ________" in e["markdown"]
+
+
+def test_endpoint_serves_the_advisory_template_and_still_404s_a_friend(monkeypatch):
+    from fastapi import HTTPException
+
+    async def fake(sid, lang="en"):
+        return {"name_a": "Raman", "name_b": "Andres", "compat_type": ("advisor" if sid == "adv" else "friend"), "roles": (_hier("advisor") if sid == "adv" else None)}
+    monkeypatch.setattr(main, "get_compatibility_session", fake)
+    WA._MEM.clear()
+
+    class Boom:
+        def table(self, n):
+            raise RuntimeError("no table")
+    monkeypatch.setattr(main, "supabase", Boom())
+    assert asyncio.run(main.get_connection_agreement("adv", "en"))["title"] == "Advisory agreement (template)"
+    try:
+        asyncio.run(main.get_connection_agreement("fr", "en"))
+        raise AssertionError("expected 404")
+    except HTTPException as e:
+        assert e.status_code == 404

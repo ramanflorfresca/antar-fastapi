@@ -115,3 +115,24 @@ def test_polish_drops_the_verdict_and_timing_chips_for_an_operational_question()
     keep = {"read": "Likely within the year.", "next": "Do it.", "verdict": "LIKELY", "timing": "Jun 2027 \u2013 Oct 2027"}
     AP.polish_answer(keep, language="en", typed_question="When will I earn more?", concern="wealth")
     assert keep["verdict"] == "LIKELY" and keep["timing"] == "Jun 2027 \u2013 Oct 2027"
+
+
+def test_operational_answers_never_talk_about_a_window_or_a_month():
+    read = ("Hold off until Nov 2026 \u2014 that's the cleaner window for this call. A firing today carries real risk of blowback. "
+            "It works if the expectations were written down. It holds if you build it \u2014 the ruler of your 10th house is weakened (the current sub-period runs to Apr 25, 2029). "
+            "It breaks if the exit is made in frustration.")
+    new, ch = AP.strip_window_talk(read)
+    assert ch and "Nov 2026" not in new and "window" not in new and "A firing today carries real risk of blowback." in new
+    assert "the current sub-period runs to Apr 25, 2029" in new                       # an engine fact, not a window
+    nx, ch2 = AP.strip_window_talk("Document three incidents \u2014 have that record ready before Nov.", allow_empty=True)
+    assert ch2 and nx == ""
+    assert AP.strip_window_talk("Write down three things this person must change.") == ("Write down three things this person must change.", False)
+    only = "The window for this is Nov 2026."
+    assert AP.strip_window_talk(only) == (only, False)                                  # never empties a read
+
+
+def test_polish_removes_window_talk_and_falls_back_to_the_decisions_own_move():
+    payload = {"read": "Hold off until Nov 2026. A hasty firing risks blowback. It breaks if the exit is made in frustration.",
+               "next": "Have that record ready before Nov.", "verdict": None, "timing": None}
+    AP.polish_answer(payload, language="en", typed_question="Should I fire someone on my team?", concern="business")
+    assert "Nov" not in payload["read"] and "Nov" not in (payload.get("next") or "") and payload["next"]
