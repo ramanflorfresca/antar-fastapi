@@ -31,7 +31,18 @@ def _o(n):
     return _ORD.get(n, f"{n}th")
 
 
-def _dignity(planet, sign, planets):
+def d9_planets(chart_data) -> dict:
+    """{planet: {"sign": …}} of the navamsa (D9), or {} — used for the vargottama strength."""
+    try:
+        return (((chart_data or {}).get("divisional_charts") or {}).get("d9") or {}).get("planets") or {}
+    except Exception:
+        return {}
+
+
+def _dignity(planet, sign, planets, d9=None):
+    """Notes about a planet's strength AND weakness, strengths first. `d9` (optional) adds vargottama — the same sign in the
+    navamsa, a classical mark of strength. [strengths 2026-10-11] The 📍 line used to name only weaknesses: Venus read
+    "combust, weakened by the Sun" although it is also vargottama (Jupiter and the Moon are too)."""
     notes = []
     if _EXALT.get(planet) == sign:
         notes.append("exalted")
@@ -39,6 +50,8 @@ def _dignity(planet, sign, planets):
         notes.append("debilitated")
     elif _LORD.get(sign) == planet:
         notes.append("in its own sign")
+    if d9 and planet in d9 and (d9.get(planet) or {}).get("sign") == sign and planet not in ("Rahu", "Ketu"):
+        notes.append("vargottama (strong in the navamsa)")
     sun = (planets.get("Sun") or {}).get("longitude")
     me = (planets.get(planet) or {}).get("longitude")
     orb = _COMBUST_ORB.get(planet)
@@ -95,7 +108,7 @@ def build_basis(concern, chart_data, dashas, language="en") -> str:
         lord = _LORD[sign]
         pl = planets.get(lord) or {}
         if pl.get("sign") and isinstance(pl.get("house"), int):
-            notes = _dignity(lord, pl["sign"], planets)
+            notes = _dignity(lord, pl["sign"], planets, d9_planets(chart_data))
             topic = _TOPIC.get(concern, concern)
             bits.append(f"Your {_o(h)} house ({topic}) is ruled by {lord}, which sits in your {_o(pl['house'])} house"
                         f" in {pl['sign']}" + (", " + " and ".join(notes) if notes else "") + ".")
@@ -104,7 +117,7 @@ def build_basis(concern, chart_data, dashas, language="en") -> str:
                 continue
             kp = planets.get(k) or {}
             if kp.get("sign") and isinstance(kp.get("house"), int):
-                notes = _dignity(k, kp["sign"], planets)
+                notes = _dignity(k, kp["sign"], planets, d9_planets(chart_data))
                 bits.append(f"{k}, the main significator here, is in your {_o(kp['house'])} house"
                             + (f", {' and '.join(notes)}" if notes else "") + ".")
         return " ".join(bits).strip()
