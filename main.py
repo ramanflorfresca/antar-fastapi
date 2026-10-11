@@ -33796,6 +33796,47 @@ async def _ask_endpoint_impl(request: AskRequest):
                     payload["read"] = (_du_last + (" " + _du_c if _du_c else "")).strip()
             except Exception as _dle:
                 print(f"[ask][divorced-final] skipped (non-fatal): {_dle}")
+            # [staff-final 2026-10-11] "Should I fire <someone>?" is a decision about HOW: an explainable lean (coach / reassign / exit / document) from your 6th house
+            # (how cleanly you handle staff conflict) and — when the person is a saved employee connection — their role fit and direction-taking. No window, no date.
+            _sd_basis = ""
+            try:
+                from antar_engine import ask_families as _AF2
+                _f2 = _AF2.family(question)
+                if _f2 and _f2[0] == "fire" and language in ("en", "es") and isinstance(payload, dict) and not locals().get("_du_final_read"):
+                    _er2, _nm2 = None, ""
+                    _ppl2 = await asyncio.to_thread(_ask_load_people_sync, chart_id)
+                    _ql2 = " " + re.sub(r"[^\w\s]", " ", (question or "").lower()) + " "
+                    for _p2 in (_ppl2 or []):
+                        _full2 = (_p2.get("name_b") or _p2.get("name") or "").strip()
+                        _first2 = _full2.split(" ")[0].lower() if _full2 else ""
+                        if _first2 and len(_first2) > 2 and f" {_first2} " in _ql2 and (_p2.get("compat_type") == "employee"):
+                            _pid2 = _p2.get("chart_id_b") or _p2.get("chart_id")
+                            _pcd2, _pdash2, _acd2 = await asyncio.to_thread(_ask_load_person_sync, _pid2, chart_id)
+                            if _pcd2 and _pcd2.get("planets"):
+                                from antar_engine import authority_read as _AUR2
+                                _role2 = None
+                                try:   # the role the user gave when they added this employee (stored beside the connection)
+                                    _cc2 = (supabase.table("chart_connections").select("score_breakdown").eq("chart_id_a", chart_id)
+                                            .eq("chart_id_b", _pid2).limit(1).execute().data or [{}])[0].get("score_breakdown") or {}
+                                    _cc2 = json.loads(_cc2) if isinstance(_cc2, str) else _cc2
+                                    _role2 = _cc2.get("role") if _cc2.get("role") in _AUR2.ROLE_LANES else None
+                                except Exception:
+                                    _role2 = None
+                                _er2 = _AUR2.compare("employee", chart_data, locals().get("_ask_dashas") or {}, _pcd2, _pdash2 or {}, _full2.split(" ")[0],
+                                                     language, None, locals().get("_ask_jd"), None, role=_role2)
+                                _nm2 = _full2.split(" ")[0]
+                            break
+                    from antar_engine import staff_decision as _SD
+                    _sd2 = _SD.compose(chart_data, _er2, _nm2, language)
+                    if _sd2:
+                        payload["read"] = _sd2["read"]
+                        if _sd2.get("next"):
+                            payload["next"] = _sd2["next"]
+                        payload["verdict"], payload["timing"] = None, None
+                        _sd_basis = _sd2.get("basis") or ""
+                        print(f"[ask][staff-decision] lean={_sd2['lean']} handling={_sd2.get('handling')} person={_nm2 or '-'}")
+            except Exception as _sde:
+                print(f"[ask][staff-decision] skipped (non-fatal): {_sde}")
             _ask_attach_disclaimer(payload, locals().get("_ask_concern"), language, question)
             try:   # [ask-direct 2026-10-10] the named chart facts behind the answer (see ask_basis.py)
                 from antar_engine.ask_basis import build_basis as _bb
@@ -33803,6 +33844,8 @@ async def _ask_endpoint_impl(request: AskRequest):
                              _ask_norm_lang(language)) if isinstance(payload, dict) else ""
                 if _basis:
                     payload["basis"] = _basis
+                if _sd_basis and isinstance(payload, dict):
+                    payload["basis"] = ((payload.get("basis") or "") + " " + _sd_basis).strip()
             except Exception as _bse:
                 print(f"[ask] basis skipped (non-fatal): {_bse}")
             await _ask_persist(supabase, chart_id, question, payload, language,
