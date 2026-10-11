@@ -250,7 +250,7 @@ _GROUP = {"career": "career", "business": "career", "wealth": "money", "finance"
           "health": "health", "children": "family", "family": "family", "education": "family"}
 
 
-def conditions(concern, chart_data, dashas, language="en") -> str:
+def conditions(concern, chart_data, dashas, language="en", question="") -> str:
     """[ask-direct 2026-10-10] 'What makes it come true / what breaks it' — two sentences derived from the topic's
     ruler (where it sits, whether it is weakened) and its significator. English only; "" when there is no
     template for the topic or the chart can't support one."""
@@ -293,6 +293,9 @@ def conditions(concern, chart_data, dashas, language="en") -> str:
                 body = ("Keep it capped: only an amount you can afford to lose. Your chart supports measured, "
                         "planned positions over impulsive ones. ")
             return body + "The risk is position size growing past what you can afford to lose."
+        # [ask-families 2026-10-11] the condition that is true of THIS decision first (debt / price / funding / hire …), then the chart clause
+        from antar_engine.ask_families import family as _fam
+        _f = _fam(question) if grp in ("money", "career", "property") else None
         fine, weak_t, meaning = _HOLDS[grp]
         until = f" (the current sub-period runs to {end})" if end else ""
         if weak:
@@ -300,13 +303,15 @@ def conditions(concern, chart_data, dashas, language="en") -> str:
                      + meaning.format(until=until))
         else:
             holds = fine.format(ch=ch)
-        out = holds + ". "
+        if _f and holds.startswith("It holds if "):
+            holds = "In your chart it also helps if " + holds[len("It holds if "):]        # two lead-ins ("It works if… It holds if…") read as a stutter
+        out = (f"It works if {_f[1]}. " if _f else "") + holds + ". "
         for k in (CONCERN_KARAKAS.get(concern) or [])[:1]:
             kp = planets.get(k) or {}
             if k != lord and kp.get("sign") and any(
                     n == "debilitated" or n.startswith("combust") for n in _dignity(k, kp["sign"], planets)):
                 out += f"{k}, the main significator here, is weakened too, so this needs deliberate effort rather than arriving on its own. "
-        return out + f"It breaks if {_BREAKS[concern]}."
+        return out + f"It breaks if {_f[2] if _f else _BREAKS[concern]}."
     except Exception:
         return ""
 
