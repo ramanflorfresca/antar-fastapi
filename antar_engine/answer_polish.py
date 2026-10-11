@@ -223,6 +223,25 @@ def strip_pressure(text, drop_urgency=True, allow_empty=False):
     return new, (changed or new != text)
 
 
+# [clock-deadline 2026-10-11] a long-range answer ("should I expand my business?") must never carry a clock-time deadline from TODAY's windows
+# ("act before 22:24 tonight", "wait until 22:24 tonight to make any commitments") — an invented deadline, and a leak of the day card into a
+# months-long question. Day-scope questions (today / tonight / now) keep their clock times.
+_CLOCK_DEADLINE = re.compile(r"(?i)\b(?:before|until|by|after|at|till)\s+\d{1,2}:\d{2}\b|\b\d{1,2}:\d{2}\s*(?:am|pm)?\s+tonight\b|\btonight\b")
+# (a bare "now" is NOT day scope: "should I expand my business now?" is a months-long question — it is exactly where the 22:24 deadline leaked)
+_DAY_SCOPE_Q = re.compile(r"(?i)\b(today|tonight|right now|this (?:morning|afternoon|evening|hour)|tomorrow morning)\b")
+
+
+def strip_clock_deadlines(text, question: str = "", allow_empty: bool = False):
+    """(new_text, changed): sentences carrying a clock-time deadline are dropped unless the question is itself about today / tonight / now."""
+    if not isinstance(text, str) or not text.strip() or _DAY_SCOPE_Q.search(question or ""):
+        return text, False
+    sents = [x for x in _SENT.split(text.strip()) if x.strip()]
+    keep = [x for x in sents if not _CLOCK_DEADLINE.search(x)]
+    if keep == sents or (not keep and not allow_empty):
+        return text, False
+    return " ".join(keep), True
+
+
 _RELATIONSHIP_CONCERNS = {"reconciliation", "marriage", "love", "divorce", "family", "children"}
 _FINALITY_REPLACEMENT = {
     "en": "Whether this can be rebuilt rests with both people, so the chart can't promise it \u2014 what it does show is where your own timing stands and when it opens.",
@@ -559,7 +578,14 @@ def polish_answer(payload: dict, language: str = "en", typed_question: str = "",
                     print(f"[ask][polish] {_why} sentence dropped")
             # scarcity pressure + invented days are removed from the read and the move (see _URGENCY / _DAY_CLAIM)
             payload["read"], _pr = strip_pressure(payload.get("read"))
+            payload["read"], _ck = strip_clock_deadlines(payload.get("read"), typed_question)
+            if _ck:
+                print("[ask][polish] clock-time deadline removed from a long-range read")
             if isinstance(payload.get("next"), str):
+                _nx_c, _nk = strip_clock_deadlines(payload["next"], typed_question, allow_empty=True)
+                if _nk:
+                    payload["next"] = _nx_c if _nx_c.strip() else None
+                    print("[ask][polish] clock-time deadline removed from a long-range move")
                 _nx_p, _pn = strip_pressure(payload["next"], allow_empty=True)
                 if _pn:
                     payload["next"] = _nx_p if _nx_p.strip() else None
@@ -613,7 +639,7 @@ def polish_answer(payload: dict, language: str = "en", typed_question: str = "",
                     _spec_day = True
                 if not _spec_day and not _HOLDS.search(payload.get("read") or ""):
                     from antar_engine.ask_basis import conditions as _cond
-                    _c = _cond((concern or "general").lower(), chart_data, dashas, lang)
+                    _c = _cond((concern or "general").lower(), chart_data, dashas, lang, typed_question or "")
                     if _c:
                         payload["read"] = (payload["read"].rstrip() + " " + _c).strip()
                         print("[ask][polish] conditions appended")
