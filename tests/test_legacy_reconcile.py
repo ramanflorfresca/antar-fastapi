@@ -136,3 +136,44 @@ def test_year_theme_and_summary_follow_the_decision_and_the_expand_line_goes():
 def test_year_move_does_not_tell_you_to_gamble_visibility_while_the_plan_says_protect_it():
     d = YD.compose(_year(), "en", today=date(2026, 10, 11))
     assert "high-stakes" not in d["move"] and d["move"].startswith("Before ")
+
+
+# ---- verdict fields follow day_energy
+def _v(key, **kw):
+    p = {"day_energy": {"key": key, "label": "x", "tone": "t", "score": 10}, "verdict_label": "High", "verdict_emoji": "✦",
+         "strength": "high", "score": 10, "direction": "positive", "is_friction_day": False}
+    p.update(kw)
+    return p
+
+
+def test_light_day_is_not_labelled_high():
+    p = _v("light")
+    LR.verdict(p, "en")
+    assert (p["verdict_label"], p["verdict_emoji"], p["strength"]) == ("Neutral", "●", "medium")
+    assert 4 <= p["score"] <= 6 and p["day_energy"]["score"] == p["score"] and p["is_friction_day"] is False
+
+
+def test_friction_day_is_caution_everywhere():
+    p = _v("friction")
+    LR.verdict(p, "es")
+    assert (p["verdict_label"], p["verdict_emoji"], p["strength"], p["direction"]) == ("Precaución", "⚠", "low", "negative")
+    assert p["is_friction_day"] is True and p["score"] <= 3
+
+
+def test_steady_day_keeps_an_in_band_score_and_is_good():
+    p = _v("steady", score=8, verdict_label="Mixed", direction="negative")
+    LR.verdict(p, "en")
+    assert (p["verdict_label"], p["score"], p["direction"]) == ("Good", 8, "positive")
+
+
+def test_verdict_is_idempotent_and_safe_without_day_energy():
+    p = _v("light")
+    LR.verdict(p, "en")
+    assert LR.verdict(p, "en") == []
+    assert LR.verdict({}, "en") == [] and LR.verdict(None, "en") == []
+
+
+def test_year_quality_fields_agree():
+    p = {"quality": "Expansion", "year_quality": "transformation", "arcs": [], "theme": "t", "year_theme": "t", "year_summary": "s"}
+    LR.year(p, {"prediction": "P.", "holds": "H.", "breaks": "B."}, "en")
+    assert p["quality"] == "Transformation"
