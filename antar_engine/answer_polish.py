@@ -133,7 +133,46 @@ _COUNT_CLAIM = re.compile(r"(?i)\b(two|three|four|five|six|seven|\d+) (?:(?:sepa
                           r"(patterns|checks|layers|signals|reads|systems|timing systems)\b")
 _THIRD_PARTY_CLAIM = re.compile(r"(?i)\b(your |the )?(ex|partner|he|she|they|his|her|their)(?:'s)?\s+(side|chart|timing|stars?|planets?)\b|"
                                 r"\b(his|her|their) (chart|timing)\b")
-_FINALITY = re.compile(r"(?i)\bchapter has closed\b|\bit'?s not coming back\b|\bmarriage ended\b|\bis over for good\b")
+# [no-finality 2026-10-10] The product never tells someone a relationship is OVER or cannot be rebuilt: that is a verdict on
+# another person's choices the chart can't read, it contradicts the decision-intelligence positioning, and it lands hardest on
+# the readers it is most likely to be wrong for. Live: "Your marriage ended — the timing doesn't show a path to restore it."
+# The old filter only dropped such a sentence when >=2 others remained and knew four phrasings; it now REPLACES the sentence
+# (never leaves a short answer shorter) with an honest, neutral one, and knows the common phrasings in en / es / pt.
+_FINALITY = re.compile(
+    r"(?i)\bchapter (has|is) (closed|over)\b|\bclosed chapter\b|\bnot coming back\b|\b(won'?t|will not|can'?t|cannot) (come back|return|be (restored|repaired|saved|fixed))\b|"
+    r"\bmarriage (has )?(ended|is over)\b|\b(is|are|it'?s) over for good\b|\bno (path|way|route) (back|to (restor|reconcil|repair|rebuild)\w*)\b|"
+    r"\b(doesn'?t|does not|don'?t|do not) show (a|any) (path|way|route) (back|to (restor|reconcil|repair|rebuild)\w*)\b|\bbeyond repair\b|"
+    r"\bel matrimonio (ha )?(termin\u00f3|acab\u00f3)\b|\bcap\u00edtulo (cerrado|terminado)\b|\bno (hay|existe) (camino|forma|manera) de (vuelta|volver|restaurar|reconciliar|reparar)\b|"
+    r"\bno (va a )?volver\u00e1\b|\bse acab\u00f3 para siempre\b|\bno tiene arreglo\b|"
+    r"\bo casamento (j\u00e1 )?(acabou|terminou)\b|\bcap\u00edtulo (encerrado|fechado)\b|\bn\u00e3o (h\u00e1|existe) (caminho|jeito|forma) de (volta|voltar|restaurar|reconciliar|consertar)\b|"
+    r"\bn\u00e3o (vai )?volta(r|)\b|\bacabou para sempre\b|\bsem volta\b")
+_RELATIONSHIP_CONCERNS = {"reconciliation", "marriage", "love", "divorce", "family", "children"}
+_FINALITY_REPLACEMENT = {
+    "en": "Whether this can be rebuilt rests with both people, so the chart can't promise it \u2014 what it does show is where your own timing stands and when it opens.",
+    "es": "Que esto pueda reconstruirse depende de ambas personas, as\u00ed que la carta no puede prometerlo \u2014 lo que s\u00ed muestra es d\u00f3nde est\u00e1 tu propio momento y cu\u00e1ndo se abre.",
+    "pt": "Se isto pode ser reconstru\u00eddo depende das duas pessoas, ent\u00e3o o mapa n\u00e3o pode prometer isso \u2014 o que ele mostra \u00e9 onde est\u00e1 o seu momento e quando ele se abre.",
+}
+
+
+def soften_finality(text, lang="en"):
+    """(new_text, changed). The FIRST sentence that declares a relationship over / unrepairable is replaced by a neutral,
+    honest one; any further such sentences are dropped. Text without such a sentence is returned untouched."""
+    if not isinstance(text, str) or not text.strip():
+        return text, False
+    rep = _FINALITY_REPLACEMENT.get(lang)
+    if not rep:
+        return text, False
+    sents = [x for x in _SENT.split(text.strip()) if x.strip()]
+    out, done, changed = [], False, False
+    for x in sents:
+        if _FINALITY.search(x):
+            changed = True
+            if not done:
+                out.append(rep)
+                done = True
+            continue
+        out.append(x)
+    return (" ".join(out), True) if changed else (text, False)
 _THIRD_FEELING = re.compile(r"(?i)\b(they|he|she)(?:'re| is| are)\s+(open|ready|waiting|thinking|missing|still in love|willing|receptive)\b|"
                             r"\b(they|he|she) (will|would) (say yes|reply|respond|come back)\b|"
                             r"\bboth of you (are|is|seem|feel)\s+(open|ready|willing|receptive)\b")
@@ -377,11 +416,20 @@ def polish_answer(payload: dict, language: str = "en", typed_question: str = "",
         read0 = payload.get("read")
         if isinstance(read0, str) and read0.strip():
             for _rx, _why in ((_FILLER_OPENER, "filler opener"), (_VAGUE_FILLER, "vague filler"), (_THIRD_PARTY_CLAIM, "claim about another person's chart"),
-                              (_THIRD_FEELING, "claim about another person's feelings"),
-                              (_FINALITY, "harsh finality")):
+                              (_THIRD_FEELING, "claim about another person's feelings")):
                 payload["read"], _d = _drop_sentences(payload.get("read"), _rx, keep_min=2)
                 if _d:
                     print(f"[ask][polish] {_why} sentence dropped")
+            # a sentence declaring a relationship over / unrepairable is REPLACED (not just dropped): see _FINALITY.
+            # Relationship topics only — "it won't come back to normal overnight" about a career is not this.
+            if (concern or "") in _RELATIONSHIP_CONCERNS:
+                payload["read"], _fc = soften_finality(payload.get("read"), lang)
+                if _fc:
+                    print("[ask][polish] finality sentence replaced")
+                nxf = payload.get("next")
+                if isinstance(nxf, str) and _FINALITY.search(nxf):
+                    payload["next"] = None
+                    print("[ask][polish] finality move dropped")
             payload["read"] = _COUNT_CLAIM.sub("several signals", payload.get("read") or "")
             if not re.search(r"(?i)marriage|married|divorc|separat|spouse|wife|husband", own):
                 payload["read"], _d = _drop_sentences(payload.get("read"), _PAST_MARRIAGE, keep_min=2)

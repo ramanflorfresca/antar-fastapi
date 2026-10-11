@@ -403,3 +403,47 @@ def test_marriage_move_is_stable_across_languages_and_never_invents_a_recipient(
     nv = polish_answer({"read": "ok", "next": "Keep this move."}, "en", "Will my marriage improve?", concern="marriage",
                        chart_data=chart, dashas=dashas)
     assert nv["next"] == "Keep this move."
+
+
+def test_finality_sentences_are_replaced_with_an_honest_neutral_one_in_every_language():
+    from antar_engine.answer_polish import soften_finality, polish_answer
+    en_rep = "Whether this can be rebuilt rests with both people, so the chart can't promise it — what it does show is where your own timing stands and when it opens."
+    cases = [
+        ("Your marriage ended — the timing doesn't show a path to restore it. The closeness area is quiet.", "en"),
+        ("The timing shows this chapter has closed — it's not coming back. Keep your focus on work.", "en"),
+        ("There is no way back here. Your area is quiet.", "en"),
+        ("The marriage is over, and it cannot be repaired. Focus on you.", "en"),
+        ("Tu matrimonio terminó — no hay camino de vuelta. El área está tranquila.", "es"),
+        ("O casamento acabou — não há caminho de volta. A área está calma.", "pt"),
+    ]
+    for text, lang in cases:
+        out, changed = soften_finality(text, lang)
+        assert changed, text
+        assert out.count("— ") >= 1 and len(out.split(". ")) >= 2, out
+        from antar_engine.answer_polish import _FINALITY_REPLACEMENT as R
+        assert R[lang] in out, out
+    out, _ = soften_finality("Your marriage ended. It's not coming back. The closeness area is quiet.", "en")
+    assert out.count(en_rep) == 1 and out.endswith("The closeness area is quiet.")        # one replacement, the rest dropped
+    for fine in ("The closeness area is quiet right now, and your window opens in November.",
+                 "Your marriage is a long story; the chart shows your timing, not their choices."):
+        assert soften_finality(fine, "en") == (fine, False), fine
+    assert soften_finality("Your marriage ended.", "hi") == ("Your marriage ended.", False)      # no hinglish/hindi rewrite
+    # end to end through the polish pass
+    chart, dashas = _chart()
+    p = polish_answer({"read": "Your marriage ended — the timing doesn't show a path to restore it. Your window opens in November.",
+                       "next": "Accept that it's not coming back and move on."}, "en", "Will my marriage improve?",
+                      concern="marriage", chart_data=chart, dashas=dashas)
+    assert "ended" not in p["read"] and "path to restore" not in p["read"] and en_rep in p["read"]
+    assert "not coming back" not in (p["next"] or "")
+
+
+def test_finality_rewrite_only_touches_relationship_topics():
+    from antar_engine.answer_polish import polish_answer
+    chart, dashas = _chart()
+    txt = "Income won't come back to normal overnight, but your window opens in November. Keep costs low."
+    p = polish_answer({"read": txt, "next": "Hold spending steady."}, "en", "Will my income recover?", concern="career",
+                      chart_data=chart, dashas=dashas)
+    assert "won't come back to normal overnight" in p["read"] and "rebuilt rests with both people" not in p["read"]
+    r = polish_answer({"read": "It won't come back. Your window opens in November.", "next": "Take one step."}, "en",
+                      "Will my ex come back?", concern="reconciliation", chart_data=chart, dashas=dashas)
+    assert "rebuilt rests with both people" in r["read"] and "won't come back" not in r["read"]
