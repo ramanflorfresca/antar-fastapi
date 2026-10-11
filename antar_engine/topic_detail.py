@@ -281,6 +281,14 @@ def risk_caution(topic: str, daily: Optional[dict]) -> Optional[str]:
     return None
 
 
+def volatile_line(topic: str, daily: Optional[dict]) -> Optional[str]:
+    """The day's own sentence when this topic's domain reads VOLATILE (people / money run hot and cold), else None."""
+    if not isinstance(daily, dict):
+        return None
+    dom = _domain_for(topic, daily)
+    return _s(dom.get("line")) if dom and dom.get("state") == "volatile" else None
+
+
 def daily_detail(topic: str, daily: Optional[dict]) -> Optional[dict]:
     if not isinstance(daily, dict) or daily.get("fallback"):
         return None
@@ -527,6 +535,23 @@ def reconcile(out: dict, daily: Optional[dict], lang: str) -> dict:
             return out
         note = risk_caution(out.get("topic"), daily)
         if not note:
+            # [love-volatile 2026-10-11] a steady / open claim cannot say "nothing sharp is pulling" beside the topic's own
+            # domain line "people run hot and cold today": the claim says ups and downs, the engine's line rides in the detail
+            vol = volatile_line(out.get("topic"), daily)
+            if vol and out.get("claim"):
+                lang = out.get("language") or "en"
+                out = dict(out)
+                if out.get("tone") == "steady":
+                    area = C.pick(C.AREA, lang)[out["topic"]]
+                    out["claim"] = C.pick(C.LEAD_JOIN, lang).format(
+                        lead=C.pick(C.SPAN_LEAD, lang)["today"],
+                        core=C.pick(C.TODAY_VOLATILE_CORE, lang).format(area=area))
+                    det = dict(out.get("detail") or {})
+                    if not det.get("watch_for"):
+                        det["watch_for"] = vol
+                    out["detail"] = det
+                elif out.get("tone") == "open" and vol not in out["claim"]:
+                    out["claim"] = f"{out['claim'].rstrip()} {vol}"
             return out
         out = dict(out)
         out["detail"] = dict(out.get("detail") or {}, caution_note=note)
