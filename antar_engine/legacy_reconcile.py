@@ -38,12 +38,61 @@ def _first_sentence(s: str) -> str:
     return m.group(1).strip() if m else s
 
 
+# day_energy.key is THE day-level source (daily_v2.day_energy; the app reads only it for the chips). The LLM-authored
+# verdict_label / verdict_emoji and the older strength / score / direction / is_friction_day are internals that can
+# disagree with it ("High" + score 10 on a lighter-touch day). Map every one of them from the key.
+_VERDICT = {
+    "steady":   {"emoji": "\u25c6", "strength": "high",   "band": (7, 10), "en": "Good",    "es": "Bueno"},
+    "light":    {"emoji": "\u25cf", "strength": "medium", "band": (4, 6),  "en": "Neutral", "es": "Neutro"},
+    "friction": {"emoji": "\u26a0", "strength": "low",    "band": (0, 3),  "en": "Caution", "es": "Precauci\u00f3n"},
+}
+
+
+def verdict(p: dict, language: str = "en") -> list:
+    """Make verdict_label / verdict_emoji / strength / score / direction / is_friction_day agree with day_energy."""
+    changed: list = []
+    try:
+        de = p.get("day_energy") if isinstance(p, dict) else None
+        v = _VERDICT.get((de or {}).get("key"))
+        if not v:
+            return changed
+        lang = language if language in ("en", "es") else "en"
+
+        def _set(k, val):
+            if p.get(k) != val:
+                p[k] = val
+                changed.append(k)
+        _set("verdict_label", v[lang])
+        _set("verdict_emoji", v["emoji"])
+        _set("strength", v["strength"])
+        _set("is_friction_day", de["key"] == "friction")
+        lo, hi = v["band"]
+        try:
+            sc = int(p.get("score"))
+        except (TypeError, ValueError):
+            sc = None
+        if sc is None or not (lo <= sc <= hi):
+            sc = max(lo, min(hi, sc if sc is not None else (lo + hi) // 2))
+            _set("score", sc)
+        if de.get("score") != sc:
+            de["score"] = sc
+            changed.append("day_energy.score")
+        if de["key"] == "friction" and p.get("direction") == "positive":
+            _set("direction", "negative")
+        elif de["key"] == "steady" and p.get("direction") == "negative":
+            _set("direction", "positive")
+    except Exception:
+        pass
+    return changed
+
+
 def today(p: dict, dec: dict, language: str = "en", do_by_domain: dict | None = None) -> list:
     """Align the Today payload `p` with its decision block `dec`. Returns the names of the fields changed."""
     changed: list = []
     try:
         if not isinstance(p, dict) or not isinstance(dec, dict):
             return changed
+        changed += verdict(p, language)
 
         def _set(k, v):
             if v and p.get(k) != v:
@@ -158,6 +207,12 @@ def year(p: dict, dec: dict, language: str = "en") -> list:
             if k in p and p.get(k) != pred:
                 p[k] = pred
                 changed.append(k)
+        # two producers named the year's character differently (yearly_v2 "Expansion" vs the plan's dasha-lord enum
+        # "transformation"): the plan's canonical enum wins
+        yq = p.get("year_quality")
+        if isinstance(yq, str) and yq.strip() and "quality" in p and str(p.get("quality")).lower() != yq.strip().lower():
+            p["quality"] = yq.strip().capitalize()
+            changed.append("quality")
         summary = f"{pred} {holds} {brk}"
         if "year_summary" in p and p.get("year_summary") != summary:
             p["year_summary"] = summary
