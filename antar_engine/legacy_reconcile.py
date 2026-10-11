@@ -94,7 +94,7 @@ _WK_PROSE = re.compile(r"(?i)decision-?maker|\bclient\b|senior contact|someone w
                        r"llama o escribe|contacta|haz la petici")
 # a weekday money action: negotiating / closing / signing is not a Sunday move
 _WK_DEAL = re.compile(r"(?i)negotiat|put a number on the table|close the deal|\bsign\b|"
-                      r"negoci|pon un n[u\u00fa]mero|cerrar el trato|firma")
+                      r"negoci|pon un n[u\u00fa]mero|cerrar el trato|cierra el (?:acuerdo|trato|contrato)|cerrar el (?:acuerdo|contrato)|firma")
 # one DIFFERENT sentence per field — the same line in five places reads as a bug when two of them sit on one screen
 _WK = {
     "en": {
