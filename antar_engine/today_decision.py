@@ -79,7 +79,7 @@ from datetime import date as _date
 _HAS_TIME = _re.compile(r"(?i)\b\d{1,2}(:\d{2})?\s?(am|pm|h)\b|\b(noon|midday|midnight|mediod[i\u00ed]a|medianoche)\b")
 # a move that is about contacting someone at work/senior — not something to do on a weekend
 _CONTACT = _re.compile(r"(?i)decision-?maker|client|senior|boss|manager|reach out|pitch|ask\b|negotiat|"
-                       r"tomador de decisiones|cliente|jefe|contacta|propuesta|negoci")
+                       r"tomador de decisiones|cliente|jefe|contacta|contacto|llama|escribe|escr[i\u00ed]ba|habla con|pide|solicita|propuesta|negoci")
 
 
 def _is_weekend(p: dict) -> bool:
