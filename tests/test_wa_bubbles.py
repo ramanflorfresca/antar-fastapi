@@ -561,3 +561,44 @@ def test_urgency_and_invented_days_are_removed_but_real_engine_dates_stay():
                       concern="career", chart_data=chart, dashas=dashas)
     assert "If you wait" not in p["read"] and "window closes" not in (p["next"] or "")
     assert (p["next"] or "").strip() != ""                                  # an emptied move falls back to a chart-linked one
+
+
+def test_should_i_yes_no_questions_in_es_pt_keep_their_verdict():
+    from antar_engine.understand import is_should_i_yes_no as f, suppress_verdict as sv
+    for q in ("¿Debería dejar mi trabajo e ir de lleno con mi startup?", "¿Debería aceptar el nuevo puesto que me ofrecieron?",
+              "¿Debería mudarme más cerca de mis padres?", "¿Debo pedir un aumento?", "¿Me conviene aceptar el préstamo?",
+              "Devo largar meu emprego e ir de vez para a startup?", "Devo aceitar a proposta?", "¿Podría cambiar de carrera ahora?"):
+        assert f(q), q
+    for q in ("¿Qué debería hacer con mi carrera?", "¿Debería comprar una casa ahora o esperar?", "¿Cómo debería enfrentar esto?",
+              "Devo comprar agora ou depois?", "¿Cuándo debería renunciar?", "¿Debería decidir qué hacer con mi carrera?",
+              "Should I quit my job?", "Will I get a promotion?", "¿Mejorará mi salud?"):
+        assert not f(q), q
+    wtd = {"intent": "what_to_do"}
+    assert sv(wtd, "¿Debería dejar mi trabajo?") is False                   # a should-I decision keeps its verdict
+    assert sv(wtd, "¿Qué debería hacer con mi trabajo?") is True            # a genuine "what should I do" does not
+    assert sv(wtd, "") is True and sv({"intent": "why"}, "¿Debería dejar mi trabajo?") is True
+    assert sv({"intent": "yes_no"}, "¿Debería dejar mi trabajo?") is False
+
+
+def test_cessation_when_questions_drop_the_verdict_chip_in_en_es_pt():
+    main = _main()
+    f = main._is_cessation_when_q
+    for q in ("When will I clear my debts?", "When does this rough patch end?", "When will it pass?",
+              "¿Cuándo saldré de mis deudas?", "¿Cuándo terminará esta mala racha?", "¿Cuándo me libraré de este problema?",
+              "Cuándo va a pasar esta etapa difícil?", "Quando vou sair das dívidas?", "Quando isso vai passar?",
+              "Quando vou me livrar dessa dívida?"):
+        assert f(q), q
+    for q in ("When will I get married?", "¿Cuándo me casaré?", "¿Cuándo conoceré a alguien serio?", "Quando vou conseguir o emprego?",
+              "¿Debería salir de mi trabajo?", "Will I clear my debts this year?", "¿Cuándo es el mejor momento para lanzar mi producto?"):
+        assert not f(q), q
+
+
+def test_invented_days_collapse_to_the_month_in_spanish_and_portuguese_but_real_dates_stay():
+    from antar_engine.answer_polish import strip_pressure
+    assert strip_pressure("Escribe tu mensaje como si lo enviaras el 1 de noviembre.")[0] == "Escribe tu mensaje como si lo enviaras en noviembre."
+    assert strip_pressure("Termina antes del 15 de marzo y revisa hasta el 3 de junio.")[0] == "Termina antes de marzo y revisa hasta junio."
+    assert strip_pressure("Escreva a mensagem para o lançamento até 15 de março.")[0] == "Escreva a mensagem para o lançamento até março."
+    assert strip_pressure("Tenha tudo pronto no dia 1 de novembro.")[0] == "Tenha tudo pronto em novembro."
+    for keep in ("El subperiodo termina el 25 de abril de 2029.", "Reevalúa cuando termine el subperiodo actual el 25 de abril de 2029.",
+                 "O subperíodo termina em 25 de abril de 2029.", "La ventana va de nov 2026 a ene 2027."):
+        assert strip_pressure(keep) == (keep, False), keep

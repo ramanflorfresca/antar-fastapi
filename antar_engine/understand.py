@@ -1658,8 +1658,33 @@ NO_VERDICT_INTENTS = frozenset({"what_to_do", "why", "which", "where_who", "stat
                                 "greeting", "thanks", "meta"})
 
 
-def suppress_verdict(u: Optional[dict]) -> bool:
+# [should-i 2026-10-10] "¿Debería dejar mi trabajo…?" / "Devo aceitar a proposta?" is the Spanish / Portuguese "Should I …?" — a
+# yes / no DECISION. The understanding model reads it as what_to_do ("what should I do"), which drops the engine verdict:
+# audit of the same 20 questions in en and es found three that got "Not yet — window Nov 2026 – Jan 2027" in English and NO
+# verdict in Spanish (quit my job for my startup / take the new role / move closer to my parents). A should-I question with
+# no open question word and no either/or choice keeps its verdict; "¿Qué debería hacer?" and "¿Debería A o B?" do not.
+_SHOULD_I = re.compile(
+    r"(?i)^\s*[¿¡]?\s*(?:y\s+|entonces\s+|pero\s+)?(?:deber[i\u00ed]a|debo|me conviene|conviene que|puedo|podr[i\u00ed]a|"
+    r"devo|deveria|posso|poderia|vale a pena|vale la pena|ser[a\u00e1] que (?:debo|deber[i\u00ed]a))\b")
+# an ACCENTED interrogative inside the question ("¿Debería decidir qué hacer?") makes it open; the unaccented "que" / "o que"
+# is usually a relative pronoun ("el puesto que me ofrecieron") so it is NOT treated as one
+_OPEN_WORD = re.compile(r"(?i)\b(qu\u00e9|cu\u00e1l(?:es)?|c\u00f3mo|d\u00f3nde|qui\u00e9n(?:es)?|cu\u00e1ndo|cu\u00e1nt[oa]s?|por qu\u00e9|qu\u00ea)\b")
+_CHOICE = re.compile(r"(?i)\s(o|ou|u)\s")
+
+
+def is_should_i_yes_no(question: str) -> bool:
+    """A Spanish / Portuguese 'Should I …?' yes/no decision (not 'what should I do?', not an either/or)."""
+    q = question or ""
+    if not _SHOULD_I.match(q):
+        return False
+    body = re.sub(r"^\s*[¿¡]?\s*", "", q)
+    return not (_OPEN_WORD.search(body) or _CHOICE.search(" " + body.rstrip("?\u00bf ") + " "))
+
+
+def suppress_verdict(u: Optional[dict], question: str = "") -> bool:
     """True when a Yes / Not-yet lead line doesn't answer this kind of question."""
+    if (u or {}).get("intent") == "what_to_do" and is_should_i_yes_no(question):
+        return False
     return (u or {}).get("intent") in NO_VERDICT_INTENTS
 
 

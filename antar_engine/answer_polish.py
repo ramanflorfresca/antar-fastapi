@@ -164,9 +164,27 @@ _MONTHS_RX = (r"(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)
 _DAY_CLAIM = re.compile(r"(?i)\b(on|by|before|until|for)\s+(" + _MONTHS_RX + r")\.?\s+\d{1,2}(?:st|nd|rd|th)?\b(?!\s*,?\s*\d{4})")
 
 
+_MES_ES = r"(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre)"
+_MES_PT = r"(janeiro|fevereiro|mar\u00e7o|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)"
+# es: "el 1 de noviembre" / "antes del 15 de marzo" / "hasta el 3 de junio"; pt: "no dia 1 de novembro" / "at\u00e9 15 de mar\u00e7o".
+# Same rule as English: only when NO year follows (a year marks a real engine date, e.g. a dasha end).
+_DAY_CLAIM_ES = re.compile(r"(?i)\b(el|para el|antes del|hasta el|desde el)\s+\d{1,2}\s+de\s+" + _MES_ES + r"\b(?!\s+de\s+\d{4})")
+_DAY_CLAIM_PT = re.compile(r"(?i)\b(no dia|em|at\u00e9|antes de|para|desde)\s+(?:o\s+dia\s+)?\d{1,2}[\u00ba\u00b0o]?\s+de\s+" + _MES_PT + r"\b(?!\s+de\s+\d{4})")
+
+
 def _month_level(m):
     prep = m.group(1).lower()
     return ("in " if prep in ("on", "for") else prep + " ") + m.group(2)
+
+
+def _month_level_es(m):
+    prep = m.group(1).lower()
+    return {"el": "en", "para el": "para", "antes del": "antes de", "hasta el": "hasta", "desde el": "desde"}.get(prep, "en") + " " + m.group(2)
+
+
+def _month_level_pt(m):
+    prep = m.group(1).lower()
+    return {"no dia": "em", "em": "em", "at\u00e9": "at\u00e9", "antes de": "antes de", "para": "para", "desde": "desde"}.get(prep, "em") + " " + m.group(2)
 
 
 def _cut_pressure(sentence):
@@ -200,6 +218,8 @@ def strip_pressure(text, drop_urgency=True, allow_empty=False):
         if (out or allow_empty) and out != sents:
             text, changed = " ".join(out), True
     new = _DAY_CLAIM.sub(_month_level, text)
+    new = _DAY_CLAIM_ES.sub(_month_level_es, new)
+    new = _DAY_CLAIM_PT.sub(_month_level_pt, new)
     return new, (changed or new != text)
 
 
