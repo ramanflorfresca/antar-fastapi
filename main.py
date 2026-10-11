@@ -24206,6 +24206,16 @@ async def get_compatibility_session(session_id: str, language: str = "en"):
                                         "v2_layers": {l["layer_key"]: l["score"] for l in _v2.get("layers", [])},
                                         "v2": True},
                 })
+                # [partner-roles 2026-10-11] cofounder / business partner: can each person partner at all (7th house, D1 + D10), and who
+                # should lead what — deterministic from the two charts, no LLM, so every such connection has it without extra input.
+                try:
+                    if _reason in ("cofounder", "business"):
+                        from antar_engine import partner_roles as _PRL
+                        _roles = _PRL.compare(_ca, _da, _cb, _db, s.get("name_b") or "", language)
+                        if _roles:
+                            out["roles"] = _roles
+                except Exception as _pre:
+                    print(f"[compat][roles] non-fatal: {_pre}")
                 try:   # [moves] plain things to DO, from the weakest areas (replaces colour/day remedies on this page)
                     from antar_engine import circle_moves as _CM
                     out["moves"] = _CM.moves_for(_v2.get("layers"), _reason, language)
@@ -39179,7 +39189,8 @@ def get_network(chart_id: str, language: str = "en"):
             "badge":       (_R.badge(int(_score)) if (_R and isinstance(_score, (int, float))) else None),
             # [people-reading 2026-10-11] how far this reading goes (fit / who-leads-what / timing) + what produces the next part
             "reading":     _PR.stage(s.get("layer1_analysis"), s.get("layer2_analysis"), s.get("layer3_analysis"),
-                                     s.get("name_b") or "", lang),
+                                     s.get("name_b") or "", lang,
+                                     s.get("compat_type") or ""),
         }
         if cid_b not in by_cid:
             by_cid[cid_b] = {

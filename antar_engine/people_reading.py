@@ -11,6 +11,7 @@ the step that produces it. This is a pure, cheap reduction of the three stored l
   has_timing layer 3 exists  ("current cycles" read)
   headline   first sentence of layer 1, English only (the stored text has no other language; a wrong-language line is worse than none)
   next_step  "add_context" (tell us what you are building -> layer 2) | "add_product" (add the product / pitch -> layer 3) | None
+  roles_auto cofounder / business: the deterministic who-leads-what read (partner_roles) is always present; add_context then SHARPENS it
 """
 from __future__ import annotations
 
@@ -29,10 +30,17 @@ def _first_sentence(text: str, cap: int = 200) -> str:
     return s if len(s) <= cap else s[: cap - 1].rstrip() + "…"
 
 
-def stage(layer1, layer2, layer3, name_b: str = "", lang: str = "en") -> dict:
+_ROLE_TYPES = ("cofounder", "business")
+
+
+def stage(layer1, layer2, layer3, name_b: str = "", lang: str = "en", compat_type: str = "") -> dict:
     """The reading-stage dict for one saved session. Never raises."""
     try:
-        has2, has3 = bool(str(layer2 or "").strip()), bool(str(layer3 or "").strip())
+        has3 = bool(str(layer3 or "").strip())
+        # a cofounder / business-partner reading always carries the deterministic who-leads-what read (partner_roles), whether or not the
+        # longer written layer 2 exists; the next step then only SHARPENS it with what they are building
+        has_l2 = bool(str(layer2 or "").strip())
+        has2 = has_l2 or (compat_type or "") in _ROLE_TYPES
         head = None
         if (lang or "en").split("-")[0].lower() == "en" and str(layer1 or "").strip():
             head = _first_sentence(layer1)
@@ -41,6 +49,7 @@ def stage(layer1, layer2, layer3, name_b: str = "", lang: str = "en") -> dict:
                 head = _PLACEHOLDER_B.sub(str(name_b).strip(), head)
             head = head or None
         return {"stage": 3 if has3 else 2 if has2 else 1, "has_roles": has2, "has_timing": has3, "headline": head,
-                "next_step": None if (has2 and has3) else ("add_product" if has2 else "add_context")}
+                "next_step": None if (has_l2 and has3) else ("add_product" if has_l2 else "add_context"),
+                "roles_auto": (compat_type or "") in _ROLE_TYPES}
     except Exception:
         return {"stage": 1, "has_roles": False, "has_timing": False, "headline": None, "next_step": "add_context"}

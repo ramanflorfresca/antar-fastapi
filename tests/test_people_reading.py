@@ -8,8 +8,14 @@ L3 = "The timing to watch\n\nRight now you're on different clocks."
 
 def test_layer_one_only_points_at_the_roles_step():
     r = PR.stage(L1, None, None, "saransh", "en")
-    assert r == {"stage": 1, "has_roles": False, "has_timing": False, "next_step": "add_context",
+    assert r == {"stage": 1, "has_roles": False, "has_timing": False, "next_step": "add_context", "roles_auto": False,
                  "headline": "You and saransh have a strong cofounder fit with specific gaps to close."}
+
+
+def test_cofounder_and_business_always_carry_the_auto_roles_read():
+    r = PR.stage(L1, None, None, "saransh", "en", "cofounder")
+    assert r["roles_auto"] and r["has_roles"] and r["stage"] == 2 and r["next_step"] == "add_context"   # sharpen, not unlock
+    assert PR.stage(L1, None, None, "G", "en", "business")["has_roles"] and not PR.stage(L1, None, None, "G", "en", "sibling")["has_roles"]
 
 
 def test_roles_present_points_at_the_timing_step_and_all_three_has_no_next_step():
@@ -45,6 +51,6 @@ def test_network_rows_carry_the_reading_stage(monkeypatch):
     en = main.get_network("chart-a", "en")["people"]
     g, s = en[0]["primary"]["reading"], en[1]["primary"]["reading"]
     assert g["stage"] == 3 and g["next_step"] is None
-    assert s["stage"] == 1 and s["next_step"] == "add_context" and s["headline"].startswith("You and saransh")
+    assert s["stage"] == 2 and s["roles_auto"] and s["next_step"] == "add_context" and s["headline"].startswith("You and saransh")
     assert en[1]["relationships"][0]["reading"] == s                       # every relationship row carries it too
     assert main.get_network("chart-a", "es")["people"][1]["primary"]["reading"]["headline"] is None
