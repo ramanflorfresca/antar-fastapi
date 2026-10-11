@@ -877,6 +877,87 @@ def _season(dashas: dict, chart_data: dict = None, today: Optional[date] = None)
     return dasha or "steady"
 
 
+def _season_cause(dashas: dict, chart_data: dict = None, today: Optional[date] = None) -> tuple:
+    """(season, cause) — the SAME decision as _season, plus WHY it was made, so the card can say so:
+    {"kind": "moon", "house": h}  today's transit Moon is in the h-th house from the natal Moon (a decisive day), or
+    {"kind": "dasha", "lord": L, "level": "antardasha"|"mahadasha"}  a neutral Moon day, so the running period shows through, or
+    {"kind": "default"} no usable data. [mantra-why 2026-10-11] The mantra card showed only the name — no reason for it."""
+    try:
+        d = today if isinstance(today, date) else date.today()
+        moon = _moon_gochar_tone(chart_data, d)
+        if moon in ("expansive", "consolidating"):
+            house = None
+            try:
+                from antar_engine.daily_transit_analyzer import (
+                    _compute_all_transit_sign_indices as _tsi, _get_natal_sign_index as _nsi, house_from_reference as _hfr)
+                house = _hfr(_tsi(d).get("Moon"), _nsi(chart_data, "Moon"))
+            except Exception:
+                house = None
+            return moon, {"kind": "moon", "house": house}
+        for level in ("antardasha", "mahadasha"):
+            lord = _current_lord(dashas, level)
+            tone = _lord_tone(lord)
+            if tone:
+                return tone, {"kind": "dasha", "lord": lord, "level": level}
+    except Exception as _e:
+        print(f"[daily-wisdom] season cause non-fatal: {_e}")
+    return "steady", {"kind": "default"}
+
+
+_PLANET_L = {
+    "es": {"Sun": "Sol", "Moon": "Luna", "Mars": "Marte", "Mercury": "Mercurio", "Jupiter": "J\u00fapiter", "Venus": "Venus",
+           "Saturn": "Saturno", "Rahu": "Rahu", "Ketu": "Ketu"},
+    "pt": {"Sun": "Sol", "Moon": "Lua", "Mars": "Marte", "Mercury": "Merc\u00fario", "Jupiter": "J\u00fapiter", "Venus": "V\u00eanus",
+           "Saturn": "Saturno", "Rahu": "Rahu", "Ketu": "Ketu"},
+}
+# what the season asks of you, and what the mantra does about it
+_TONE = {
+    "consolidating": {
+        "en": ("a placement that favours turning inward and building steadily over pushing", "settles worry and steadies effort"),
+        "es": ("una posici\u00f3n que favorece volcarte hacia adentro y construir con constancia en lugar de empujar", "calma la preocupaci\u00f3n y afirma el esfuerzo"),
+        "pt": ("uma posi\u00e7\u00e3o que favorece voltar-se para dentro e construir com const\u00e2ncia em vez de for\u00e7ar", "acalma a preocupa\u00e7\u00e3o e firma o esfor\u00e7o"),
+    },
+    "expansive": {
+        "en": ("a placement that favours moving forward", "clears the way and steadies your push"),
+        "es": ("una posici\u00f3n que favorece avanzar", "despeja el camino y afirma tu impulso"),
+        "pt": ("uma posi\u00e7\u00e3o que favorece avan\u00e7ar", "abre o caminho e firma o seu avan\u00e7o"),
+    },
+    "steady": {
+        "en": ("a steady, even placement", "clears and sharpens the mind"),
+        "es": ("una posici\u00f3n estable y pareja", "aclara y agudiza la mente"),
+        "pt": ("uma posi\u00e7\u00e3o est\u00e1vel e equilibrada", "clareia e aguça a mente"),
+    },
+}
+_LEAN = {"consolidating": {"en": "consolidating", "es": "de consolidaci\u00f3n", "pt": "de consolida\u00e7\u00e3o"},
+         "expansive": {"en": "expansive", "es": "de expansi\u00f3n", "pt": "de expans\u00e3o"},
+         "steady": {"en": "steady", "es": "estable", "pt": "est\u00e1vel"}}
+
+
+def _why_mantra(season: str, cause: dict, name: str, lang: str) -> str:
+    """One plain sentence: the real cause of the season, then why this mantra answers it."""
+    tone, does = _TONE.get(season, _TONE["steady"])[lang]
+    kind = (cause or {}).get("kind")
+    if kind == "moon" and isinstance((cause or {}).get("house"), int):
+        h = cause["house"]
+        cs = {"en": f"today's Moon is in the {h}{'st' if h == 1 else 'nd' if h == 2 else 'rd' if h == 3 else 'th'} house from your own Moon, {tone}",
+              "es": f"la Luna de hoy est\u00e1 en la casa {h} desde tu propia Luna, {tone}",
+              "pt": f"a Lua de hoje est\u00e1 na casa {h} a partir da sua pr\u00f3pria Lua, {tone}"}[lang]
+    elif kind == "dasha" and (cause or {}).get("lord"):
+        lord = cause["lord"]
+        ln = lord if lang == "en" else _PLANET_L[lang].get(lord, lord)
+        lean = _LEAN[season][lang]
+        lvl = {"antardasha": {"en": "sub-period", "es": "subperiodo", "pt": "subper\u00edodo"},
+               "mahadasha": {"en": "period", "es": "periodo", "pt": "per\u00edodo"}}[cause.get("level") or "antardasha"][lang]
+        cs = {"en": f"today's Moon is neutral, so your running {ln} {lvl} sets the tone and it is {lean}",
+              "es": f"la Luna de hoy es neutra, as\u00ed que tu {lvl} de {ln} marca el tono y es {lean}",
+              "pt": f"a Lua de hoje \u00e9 neutra, ent\u00e3o o seu {lvl} de {ln} d\u00e1 o tom e \u00e9 {lean}"}[lang]
+    else:
+        cs = {"en": "today reads as a steady day for you", "es": "hoy se lee como un d\u00eda estable para ti",
+              "pt": "hoje se l\u00ea como um dia est\u00e1vel para voc\u00ea"}[lang]
+    lead = {"en": "Why this one", "es": "Por qu\u00e9 \u00e9ste", "pt": "Por que este"}[lang]
+    return f"{lead}: {cs}. {name} {does}."
+
+
 def _pick(candidates: list, seed_str: str) -> dict:
     if not candidates:
         candidates = VERSES
@@ -931,6 +1012,16 @@ def _mantra_for(season: str, lang: str) -> dict:
     }
 
 
+def _mantra_with_why(season: str, cause: dict, lang: str) -> dict:
+    """The season's mantra plus `why` — the plain reason it is the one shown right now."""
+    m = dict(_mantra_for(season, lang))
+    try:
+        m["why"] = _why_mantra(season, cause, m.get("name") or "", lang)
+    except Exception as _e:
+        print(f"[daily-wisdom] mantra why non-fatal: {_e}")
+    return m
+
+
 def build_daily_wisdom(chart_data: dict, dashas: dict, chart_id: str = "",
                        language: str = "en", today: Optional[str] = None) -> dict:
     """The verse of the day, matched to the reader's season, + conversational
@@ -939,7 +1030,7 @@ def build_daily_wisdom(chart_data: dict, dashas: dict, chart_id: str = "",
     try:
         lang = _lang(language)
         today = today or date.today().isoformat()
-        season = _season(dashas, chart_data, date.today())
+        season, _cause = _season_cause(dashas, chart_data, date.today())
 
         prefs = SEASON_THEMES.get(season, [])
         candidates = [v for v in VERSES if set(v["themes"]) & set(prefs)] or VERSES
@@ -971,7 +1062,8 @@ def build_daily_wisdom(chart_data: dict, dashas: dict, chart_id: str = "",
                 "translation": tr,
             },
             "why_now": WHY_NOW.get(season, WHY_NOW["steady"])[lang],
-            "mantra": _mantra_for(season, lang),
+            "mantra": _mantra_with_why(season, _cause, lang),
+            "season_cause": _cause,
             "suggested_questions": suggested,
             "ask_context": ask_context,
             "language": lang,

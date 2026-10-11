@@ -34551,7 +34551,7 @@ def _can_give_money_now(financial_status) -> bool:
 # nothing, because the handler localizes first and the decorator never runs.
 # Edit THIS list — never inline either copy again.
 DAILY_SIGNAL_I18N_FIELDS = [
-    "vibe", "do_today", "dont_today", "text", "headline", "highlight",
+    "vibe", "do_today", "dont_today", "do_today_why", "dont_today_why", "text", "headline", "highlight",
     "todays_nudge", "move", "el_movimiento",
     # the "area by area" map — per-area line + friendly label
     "day_map", "line", "label",
@@ -35602,14 +35602,16 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
             try:
                 _dd_active = result.get("active_domains") or []
                 _dd_do, _dd_dont = [], []
+                _dd_do_w, _dd_dont_w = [], []     # [do-dont-why 2026-10-11] one reason per line, aligned with the lists
+                from antar_engine.daily_why import area_why as _area_why
                 for _a in _dd_active:
                     _m = _DAILY_DO_DONT_BY_DOMAIN.get((_a.get("key") or "").lower())
                     if not _m:
                         continue
                     if _a.get("polarity") == "opportunity" and _m["do"] not in _dd_do:
-                        _dd_do.append(_m["do"])
+                        _dd_do.append(_m["do"]); _dd_do_w.append(_area_why(_a, "do"))
                     elif _a.get("polarity") == "risk" and _m["dont"] not in _dd_dont:
-                        _dd_dont.append(_m["dont"])
+                        _dd_dont.append(_m["dont"]); _dd_dont_w.append(_area_why(_a, "dont"))
                 if not _dd_dont:
                     # No pure-risk domain: take a guardrail from a caution-flagged
                     # lead; failing that, from the top domain itself — so the don't
@@ -35624,16 +35626,18 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                             # ("keep creative projects on the shelf") contradicts it on
                             # the same card. Skip any domain already represented in DO.
                             if _m and _m["dont"] not in _dd_dont and _m["do"] not in _dd_do:
-                                _dd_dont.append(_m["dont"])
+                                _dd_dont.append(_m["dont"]); _dd_dont_w.append(_area_why(_a, "dont"))
                                 break
                     if not _dd_dont and _dd_active:
                         _m = _DAILY_DO_DONT_BY_DOMAIN.get((_dd_active[0].get("key") or "").lower())
                         if _m and _m["do"] not in _dd_do:
-                            _dd_dont.append(_m["dont"])
+                            _dd_dont.append(_m["dont"]); _dd_dont_w.append(_area_why(_dd_active[0], "dont"))
                 if _dd_do:
                     result["do_today"] = _dd_do[:3]
+                    result["do_today_why"] = _dd_do_w[:3]
                 if _dd_dont:
                     result["dont_today"] = _dd_dont[:2]
+                    result["dont_today_why"] = _dd_dont_w[:2]
             except Exception as _dd_e:
                 print(f"[daily-signal] do/dont personalize skipped (non-fatal): {_dd_e}")
 

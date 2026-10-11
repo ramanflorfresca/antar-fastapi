@@ -627,3 +627,43 @@ def test_basis_names_strengths_as_well_as_weaknesses_in_en_and_es():
     from antar_engine.ask_basis import conditions, chart_move
     assert conditions("career", c, dashas, "en") == conditions("career", chart, dashas, "en")
     assert chart_move("career", c, dashas, "en") == chart_move("career", chart, dashas, "en")
+
+
+def test_mantra_card_carries_a_plain_why_naming_the_real_cause_in_en_es_pt():
+    from antar_engine.daily_wisdom import _why_mantra, _mantra_with_why, build_daily_wisdom
+    moon = {"kind": "moon", "house": 8}
+    en = _why_mantra("consolidating", moon, "Om Namah Shivaya", "en")
+    assert en == ("Why this one: today's Moon is in the 8th house from your own Moon, a placement that favours turning inward and "
+                  "building steadily over pushing. Om Namah Shivaya settles worry and steadies effort.")
+    assert _why_mantra("expansive", {"kind": "moon", "house": 1}, "Om Gam Ganapataye Namaha", "en").startswith(
+        "Why this one: today's Moon is in the 1st house from your own Moon, a placement that favours moving forward.")
+    es = _why_mantra("consolidating", moon, "Om Namah Shivaya", "es")
+    assert es.startswith("Por qué éste: la Luna de hoy está en la casa 8 desde tu propia Luna") and es.endswith("calma la preocupación y afirma el esfuerzo.")
+    pt = _why_mantra("consolidating", moon, "Om Namah Shivaya", "pt")
+    assert pt.startswith("Por que este: a Lua de hoje está na casa 8 a partir da sua própria Lua")
+    d = _why_mantra("consolidating", {"kind": "dasha", "lord": "Saturn", "level": "antardasha"}, "Om Namah Shivaya", "es")
+    assert "la Luna de hoy es neutra, así que tu subperiodo de Saturno marca el tono y es de consolidación" in d
+    assert _why_mantra("steady", {"kind": "default"}, "Gayatri Mantra", "en") == (
+        "Why this one: today reads as a steady day for you. Gayatri Mantra clears and sharpens the mind.")
+    m = _mantra_with_why("steady", {"kind": "default"}, "en")
+    assert m["name"] == "Gayatri Mantra" and m["use"] and m["why"].startswith("Why this one:")     # existing fields untouched
+    w = build_daily_wisdom({}, {}, chart_id="x", language="en")                                      # fail-open with no chart
+    assert w["available"] and w["mantra"]["why"] and w["season_cause"]["kind"] in ("default", "dasha", "moon")
+
+
+def test_do_and_avoid_lines_each_get_a_reason_from_their_own_area():
+    from antar_engine.daily_why import area_why
+    travel = {"key": "travel", "say": "a journey or something far from home", "polarity": "opportunity",
+              "drivers": ["Vimśottārī Rahu activates it", "6 transit event(s) hitting houses [9, 12]"]}
+    assert area_why(travel, "do") == ("A journey or something far from home is switched on today — your running Rahu period activates it "
+                                      "and today's transits are touching your 9th and 12th houses.")
+    spec = {"key": "speculation", "say": "a venture or creative project", "polarity": "risk",
+            "drivers": ["Vimśottārī Rahu activates it", "Jaimini chara period activates it moderately (via the Ātma/Amātya kāraka)"]}
+    assert area_why(spec, "dont") == ("A venture or creative project is under pressure today — your running Rahu period activates it, "
+                                      "and the timing runs against it.")
+    work = {"key": "work", "say": "your work and reputation", "polarity": "opportunity", "jaimini": True,
+            "drivers": ["Jaimini chara period activates it mildly (via the \u0100tma/Am\u0101tya k\u0101raka)", "3 transit event(s) hitting houses [10, 6, 1]"]}
+    assert area_why(work, "do") == ("Your work and reputation is switched on today — today's transits are touching your 10th, 6th and "
+                                    "1st houses and your Jaimini (chara) period also points here.")
+    assert area_why({"say": "money", "drivers": []}, "do") == ""                 # nothing to cite -> no invented reason
+    assert area_why({}, "dont") == ""
