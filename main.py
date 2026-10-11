@@ -34595,6 +34595,8 @@ def _attach_month_decision(fn):
                 _md = _md_compose(r, _ml, period_line=_line.rstrip("."))
                 if _md:
                     r["decision"] = _md
+                    from antar_engine.legacy_reconcile import month as _lr_month
+                    _lr_month(r, _md)
         except Exception as _mde:
             print(f"[monthly] decision block skipped (non-fatal): {_mde}")
         return r
@@ -34617,6 +34619,9 @@ def _attach_today_decision(fn):
                 _td = _td_compose(r, _tl)
                 if _td:
                     r["decision"] = _td
+                    # [legacy-reconcile 2026-10-11] the old prose fields must not contradict the block
+                    from antar_engine.legacy_reconcile import today as _lr_today
+                    _lr_today(r, _td, _tl, do_by_domain=_DAILY_DO_DONT_BY_DOMAIN)
         except Exception as _tde:
             print(f"[today] decision block skipped (non-fatal): {_tde}")
         return r
@@ -42250,6 +42255,8 @@ def _attach_year_decision(fn):
                 _yd = _yd_compose(_src, _yl, period_line=_line.rstrip("."))
                 if _yd:
                     r["decision"] = _yd
+                    from antar_engine.legacy_reconcile import year as _lr_year
+                    _lr_year(r, _yd, _yl)
         except Exception as _yde:
             print(f"[annual] decision block skipped (non-fatal): {_yde}")
         return r

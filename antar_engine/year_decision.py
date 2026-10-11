@@ -141,7 +141,7 @@ def compose(p: dict, language: str = "en", today: date | None = None, period_lin
                 if label:
                     why_bits.append(tx["conv"].format(x=label, w=(tx["conv_w"].format(w=w) if w else "")))
                 break
-        if L == "en" and p.get("active"):
+        if L == "en" and p.get("active") and not pressed:
             why_bits.append(str(p["active"]).rstrip(".") + ".")      # the English prose line; no Spanish source for it
         why = " ".join(why_bits)
 
@@ -170,7 +170,11 @@ def compose(p: dict, language: str = "en", today: date | None = None, period_lin
         if live_pos:
             e = live_pos[0][1]
             txt = e["text"]
-            if not (L != "en" and _is_english(txt)):
+            # a "take the high-stakes role / visible step up" move contradicts a plan that says protect your reputation
+            _guard = " ".join((p.get("protect_this_year") or []) + (p.get("release_this_year") or []))
+            if re.search(r"(?i)high-stakes|visible step|gamble|put your name", txt) and re.search(r"(?i)reputation|visib|standing|gamble", _guard):
+                txt = ""
+            if txt and not (L != "en" and _is_english(txt)):
                 lab = e["date_label"]
                 if L == "es":
                     mo = _month_of(lab, today)
