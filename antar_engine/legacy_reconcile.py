@@ -92,38 +92,59 @@ _WK_PROSE = re.compile(r"(?i)decision-?maker|\bclient\b|senior contact|someone w
                        r"before noon|before midday|push forward|make the ask|"
                        r"tomador de decisiones|cliente|contacto clave|alguien con autoridad|autoridad|antes del mediod|"
                        r"llama o escribe|contacta|haz la petici")
-_WK_LINE = {
-    "en": "A quiet day for visibility: prepare the ask you'll make on Monday rather than making it today.",
-    "es": "Un d\u00eda tranquilo para la visibilidad: prepara hoy lo que pedir\u00e1s el lunes en lugar de pedirlo hoy.",
+# a weekday money action: negotiating / closing / signing is not a Sunday move
+_WK_DEAL = re.compile(r"(?i)negotiat|put a number on the table|close the deal|\bsign\b|"
+                      r"negoci|pon un n[u\u00fa]mero|cerrar el trato|firma")
+# one DIFFERENT sentence per field — the same line in five places reads as a bug when two of them sit on one screen
+_WK = {
+    "en": {
+        "wow": "A quiet day for visibility \u2014 use it to prepare, and let Monday be the day you ask.",
+        "observa": "Notice what you would want to put in front of someone senior; write it down today and keep it for Monday.",
+        "senal": "Today is better for preparing than pitching: draft the ask now, make it Monday.",
+        "sub": "Quiet for visibility \u2014 prepare today, ask on Monday.",
+        "do_ask": "Draft the ask you'll make on Monday \u2014 prepare it today, hold it until then.",
+        "do_num": "Write down the number and terms you'd put on the table on Monday \u2014 don't negotiate today.",
+    },
+    "es": {
+        "wow": "Un d\u00eda tranquilo para la visibilidad: \u00fasalo para preparar, y deja el lunes para pedir.",
+        "observa": "Fíjate en lo que querrías poner delante de alguien con peso; an\u00f3talo hoy y gu\u00e1rdalo para el lunes.",
+        "senal": "Hoy conviene preparar m\u00e1s que proponer: redacta la petici\u00f3n ahora y hazla el lunes.",
+        "sub": "Tranquilo para la visibilidad: prepara hoy, pide el lunes.",
+        "do_ask": "Redacta lo que pedir\u00e1s el lunes: prep\u00e1ralo hoy y gu\u00e1rdalo hasta entonces.",
+        "do_num": "Anota la cifra y las condiciones que pondr\u00edas sobre la mesa el lunes: hoy no negocies.",
+    },
 }
-_WK_PROSE_FIELDS = ("wow", "observa_hoy_text", "senal_de_hoy", "signal", "energy", "verdict_subline")
+_WK_FIELD = {"wow": "wow", "observa_hoy_text": "observa", "senal_de_hoy": "senal", "signal": "senal", "energy": "senal",
+             "verdict_subline": "sub"}
 _WK_LIST_FIELDS = ("haz_hoy", "aligned_for")
 
 
 def weekend_prose(p: dict, language: str = "en") -> list:
-    """On a weekend with a work/network lead, replace weekday-only contact prose in the older fields."""
+    """On a weekend with a work/network lead, replace weekday-only contact / deal prose in the older fields."""
     changed: list = []
     try:
         from antar_engine.today_decision import _is_weekend
-        if not isinstance(p, dict) or language not in _WK_LINE or not _is_weekend(p):
+        if not isinstance(p, dict) or language not in _WK or not _is_weekend(p):
             return changed
         if not any(k in ("work", "network") for k in ((p.get("evidence") or {}).get("chosen") or [])):
             return changed
-        line = _WK_LINE[language]
-        for k in _WK_PROSE_FIELDS:
+        tx = _WK[language]
+        weekday = lambda x: isinstance(x, str) and (_WK_PROSE.search(x) or _WK_DEAL.search(x))
+        for k, key in _WK_FIELD.items():
             v = p.get(k)
-            if isinstance(v, str) and v and v != line and _WK_PROSE.search(v):
-                p[k] = line
+            if isinstance(v, str) and v and v != tx[key] and weekday(v):
+                p[k] = tx[key]
                 changed.append(k)
         for k in _WK_LIST_FIELDS:
             v = p.get(k)
-            if isinstance(v, list) and any(isinstance(x, str) and _WK_PROSE.search(x) for x in v):
-                out, seen = [], False
+            if isinstance(v, list) and any(weekday(x) for x in v):
+                out, used = [], set()
                 for x in v:
-                    if isinstance(x, str) and _WK_PROSE.search(x):
-                        if not seen:
-                            out.append(line)
-                            seen = True
+                    if weekday(x):
+                        key = "do_ask" if _WK_PROSE.search(x) else "do_num"
+                        if key not in used:
+                            out.append(tx[key])
+                            used.add(key)
                     else:
                         out.append(x)
                 if out != v:
