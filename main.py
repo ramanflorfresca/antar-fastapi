@@ -39151,9 +39151,10 @@ def get_network(chart_id: str, language: str = "en"):
         from antar_engine import compatibility_reasons as _R
     except Exception:
         _R = None
+    from antar_engine import people_reading as _PR
     try:
         res = (supabase.table("compatibility_sessions")
-               .select("id,chart_id_b,name_b,compat_type,score,created_at")
+               .select("id,chart_id_b,name_b,compat_type,score,created_at,layer1_analysis,layer2_analysis,layer3_analysis")
                .eq("chart_id_a", chart_id)
                .order("created_at", desc=True).limit(50).execute())
         rows = res.data or []
@@ -39176,6 +39177,9 @@ def get_network(chart_id: str, language: str = "en"):
             **({"position": _positions[s.get("id")]} if _positions.get(s.get("id")) else {}),
             "score":       _score,
             "badge":       (_R.badge(int(_score)) if (_R and isinstance(_score, (int, float))) else None),
+            # [people-reading 2026-10-11] how far this reading goes (fit / who-leads-what / timing) + what produces the next part
+            "reading":     _PR.stage(s.get("layer1_analysis"), s.get("layer2_analysis"), s.get("layer3_analysis"),
+                                     s.get("name_b") or "", lang),
         }
         if cid_b not in by_cid:
             by_cid[cid_b] = {
