@@ -404,3 +404,40 @@ def stable_reconnection_move(verdict, chart_data, dashas, language="en", timing=
         return out.replace(" de el ", " del ") if language == "es" else out
     except Exception:
         return ""
+
+
+_EXISTING_UNION_TX = {
+    "en": "Decide what you actually want — rebuilding, a clean closure, or a new start — and write it down this week. Closeness reaches you through {ch}, so take any step yourself, once, and let the other person's response show you the rest.",
+    "es": "Decide qué quieres realmente — reconstruir, un cierre limpio o un nuevo comienzo — y escríbelo esta semana. La cercanía te llega a través de {ch}, así que da cualquier paso tú mismo, una sola vez, y deja que la respuesta de la otra persona te muestre el resto.",
+    "pt": "Decida o que você realmente quer — reconstruir, um encerramento limpo ou um novo começo — e escreva isso esta semana. A proximidade chega até você por este canal: {ch}. Dê qualquer passo por conta própria, uma vez só, e deixe a resposta da outra pessoa mostrar o resto.",
+}
+
+
+def existing_union_move(chart_data, dashas, language="en") -> str:
+    """One stable move for a reader asking about an EXISTING marriage whose new-union window verdict was suppressed.
+    Decision-shaped (rebuild / close / start again) so it never presumes the marriage can or can't be saved. Chart-linked
+    through the 7th-house ruler's channel. "" when the language or chart can't support one."""
+    try:
+        tx = _EXISTING_UNION_TX.get(language)
+        if not tx:
+            return ""
+        from antar_engine.ask_consultation import CONCERN_HOUSES
+        planets = (chart_data or {}).get("planets") or {}
+        lagna = ((chart_data or {}).get("lagna") or {}).get("sign")
+        houses = CONCERN_HOUSES.get("marriage")
+        if not houses or lagna not in _SIGNS or not planets:
+            return ""
+        h = _PRIMARY.get("marriage", houses[0])
+        lord = _LORD[_SIGNS[(_SIGNS.index(lagna) + h - 1) % 12]]
+        hs = (planets.get(lord) or {}).get("house")
+        if not isinstance(hs, int):
+            return ""
+        if language == "es":
+            from antar_engine.ask_basis_es import _CHANNEL as _ES_CH
+            ch = _ES_CH
+        else:
+            ch = _PT_CHANNEL if language == "pt" else _CHANNEL
+        out = tx.format(ch=ch.get(hs, ""))
+        return out.replace(" de el ", " del ") if language == "es" else out
+    except Exception:
+        return ""

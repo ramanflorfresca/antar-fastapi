@@ -447,3 +447,47 @@ def test_finality_rewrite_only_touches_relationship_topics():
     r = polish_answer({"read": "It won't come back. Your window opens in November.", "next": "Take one step."}, "en",
                       "Will my ex come back?", concern="reconciliation", chart_data=chart, dashas=dashas)
     assert "rebuilt rests with both people" in r["read"] and "won't come back" not in r["read"]
+
+
+def test_claims_about_the_other_persons_feelings_are_dropped_in_en_es_pt():
+    from antar_engine.answer_polish import _THIRD_FEELING as RX, polish_answer
+    for bad in ("Your ex is interested, but the signal is muted.", "She is still in love with you.", "He seems keen to talk.",
+                "The other person is hurting and waiting for you.", "Their response is likely to be warm.",
+                "Tu ex sigue interesado, pero la señal es tenue.", "Ella está esperando que le escribas.",
+                "Seu ex continua apaixonado por você.", "Ele está com saudade de você.", "She will reply within a week.",
+                "Your ex's pull toward you is real, but their response may come slower than you'd like.",
+                "Their response may be quieter than you hope.", "Your ex’s interest has not faded."):
+        assert RX.search(bad), bad
+    for ok in ("Your window is open now, through January.", "You are interested in a fresh start.", "The signal in your chart is muted.",
+               "Closeness reaches you through your own initiative.", "He is a Capricorn lagna reading.",
+               "They are two separate periods running together.", "The pull toward this person runs through your social circle.",
+               "Your response may need to be slower than you'd like."):
+        assert not RX.search(ok), ok
+    chart, dashas = _chart()
+    p = polish_answer({"read": "Yes — the window is open now. Your ex is interested, but the signal is muted. Keep it short.", "next": "x"},
+                      "en", "Will my ex come back?", concern="love", chart_data=chart, dashas=dashas)
+    assert "Your ex is interested" not in p["read"] and "Keep it short." in p["read"]
+
+
+def test_existing_marriage_gets_one_stable_move_only_in_the_existing_union_lane():
+    from antar_engine.ask_basis import existing_union_move as mv
+    from antar_engine.answer_polish import polish_answer
+    chart, dashas = _chart()
+    en, es, pt = mv(chart, dashas, "en"), mv(chart, dashas, "es"), mv(chart, dashas, "pt")
+    assert en.startswith("Decide what you actually want — rebuilding, a clean closure, or a new start — and write it down this week.")
+    assert "Closeness reaches you through your own initiative and communication" in en and en.endswith("show you the rest.")
+    assert es.startswith("Decide qué quieres realmente — reconstruir, un cierre limpio o un nuevo comienzo") and "a través de tu iniciativa y tu comunicación" in es
+    assert pt.startswith("Decida o que você realmente quer") and "por este canal: a sua iniciativa e a sua comunicação." in pt
+    assert mv(chart, dashas, "hi") == "" and mv({}, dashas, "en") == ""
+    chart2 = dict(chart, planets=dict(chart["planets"], Moon={"sign": "Pisces", "house": 2, "longitude": 340.0}))
+    assert "a través del ahorro y el dinero de la familia" in mv(chart2, dashas, "es")
+    # only when the caller says the reader is in the existing-union lane
+    base = {"read": "ok", "next": "Have one honest, unhurried conversation this week about what you need."}
+    on = polish_answer(dict(base), "en", "Will my marriage improve?", concern="marriage", chart_data=chart, dashas=dashas,
+                       existing_union=True)
+    assert on["next"] == en
+    off = polish_answer(dict(base), "en", "Will my marriage improve?", concern="marriage", chart_data=chart, dashas=dashas)
+    assert on["next"] != off["next"] and "unhurried" not in (off["next"] or "")      # the canned line is dropped either way
+    other = polish_answer({"read": "ok", "next": "Keep my move."}, "en", "Will I get the job?", concern="career",
+                          chart_data=chart, dashas=dashas, existing_union=True)
+    assert other["next"] == "Keep my move."                                          # only marriage / love / divorce
