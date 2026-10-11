@@ -86,6 +86,54 @@ def verdict(p: dict, language: str = "en") -> list:
     return changed
 
 
+# Saturday / Sunday: LLM-written prose that sends you to a decision-maker, client or senior contact "before noon" is a
+# weekday line. Replace it with the weekend read the decision block already gives (prepare today, send Monday).
+_WK_PROSE = re.compile(r"(?i)decision-?maker|\bclient\b|senior contact|someone with authority|authority and deals|reach out|"
+                       r"before noon|before midday|push forward|make the ask|"
+                       r"tomador de decisiones|cliente|contacto clave|alguien con autoridad|autoridad|antes del mediod|"
+                       r"llama o escribe|contacta|haz la petici")
+_WK_LINE = {
+    "en": "A quiet day for visibility: prepare the ask you'll make on Monday rather than making it today.",
+    "es": "Un d\u00eda tranquilo para la visibilidad: prepara hoy lo que pedir\u00e1s el lunes en lugar de pedirlo hoy.",
+}
+_WK_PROSE_FIELDS = ("wow", "observa_hoy_text", "senal_de_hoy", "signal", "energy", "verdict_subline")
+_WK_LIST_FIELDS = ("haz_hoy", "aligned_for")
+
+
+def weekend_prose(p: dict, language: str = "en") -> list:
+    """On a weekend with a work/network lead, replace weekday-only contact prose in the older fields."""
+    changed: list = []
+    try:
+        from antar_engine.today_decision import _is_weekend
+        if not isinstance(p, dict) or language not in _WK_LINE or not _is_weekend(p):
+            return changed
+        if not any(k in ("work", "network") for k in ((p.get("evidence") or {}).get("chosen") or [])):
+            return changed
+        line = _WK_LINE[language]
+        for k in _WK_PROSE_FIELDS:
+            v = p.get(k)
+            if isinstance(v, str) and v and v != line and _WK_PROSE.search(v):
+                p[k] = line
+                changed.append(k)
+        for k in _WK_LIST_FIELDS:
+            v = p.get(k)
+            if isinstance(v, list) and any(isinstance(x, str) and _WK_PROSE.search(x) for x in v):
+                out, seen = [], False
+                for x in v:
+                    if isinstance(x, str) and _WK_PROSE.search(x):
+                        if not seen:
+                            out.append(line)
+                            seen = True
+                    else:
+                        out.append(x)
+                if out != v:
+                    p[k] = out
+                    changed.append(k)
+    except Exception:
+        pass
+    return changed
+
+
 def today(p: dict, dec: dict, language: str = "en", do_by_domain: dict | None = None) -> list:
     """Align the Today payload `p` with its decision block `dec`. Returns the names of the fields changed."""
     changed: list = []
@@ -93,6 +141,7 @@ def today(p: dict, dec: dict, language: str = "en", do_by_domain: dict | None = 
         if not isinstance(p, dict) or not isinstance(dec, dict):
             return changed
         changed += verdict(p, language)
+        changed += weekend_prose(p, language)
 
         def _set(k, v):
             if v and p.get(k) != v:

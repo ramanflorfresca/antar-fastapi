@@ -177,3 +177,43 @@ def test_year_quality_fields_agree():
     p = {"quality": "Expansion", "year_quality": "transformation", "arcs": [], "theme": "t", "year_theme": "t", "year_summary": "s"}
     LR.year(p, {"prediction": "P.", "holds": "H.", "breaks": "B."}, "en")
     assert p["quality"] == "Transformation"
+
+
+# ---- weekend prose
+def _sun(**kw):
+    p = {"date": "2026-10-11", "day": "Sunday", "evidence": {"chosen": ["work", "network"]},
+         "wow": "Someone with authority — a client, a senior contact, or a decision-maker — is reachable today. If you get a response before noon, push forward.",
+         "observa_hoy_text": "Someone with authority is reachable today.",
+         "senal_de_hoy": "A decision-maker is reachable today.", "signal": "A decision-maker is reachable today — make the ask before midday.",
+         "energy": "A decision-maker is reachable today.", "verdict_subline": "Authority and deals are live — act before midday.",
+         "haz_hoy": ["Make the career move — reach out to the decision-maker directly before noon.",
+                     "Put a number on the table in any financial negotiation.", "Tidy your notes."],
+         "aligned_for": ["Make the career move — reach out to the decision-maker directly before noon."]}
+    p.update(kw)
+    return p
+
+
+def test_sunday_weekday_contact_prose_is_replaced():
+    p = _sun()
+    LR.weekend_prose(p, "en")
+    line = LR._WK_LINE["en"]
+    assert all(p[k] == line for k in ("wow", "observa_hoy_text", "senal_de_hoy", "signal", "energy", "verdict_subline"))
+    assert p["haz_hoy"][0] == line and "Tidy your notes." in p["haz_hoy"] and p["aligned_for"] == [line]
+
+
+def test_weekday_prose_is_untouched():
+    p = _sun(date="2026-10-12", day="Monday")
+    snap = dict(p)
+    assert LR.weekend_prose(p, "en") == [] and p == snap
+
+
+def test_weekend_without_a_work_lead_is_untouched():
+    p = _sun(evidence={"chosen": ["body", "family"]})
+    assert LR.weekend_prose(p, "en") == []
+
+
+def test_sunday_spanish_and_idempotent():
+    p = _sun(wow="Alguien con autoridad está disponible hoy: contacta al cliente antes del mediodía.", haz_hoy=["Llama o escribe al contacto clave antes del mediodía."])
+    LR.weekend_prose(p, "es")
+    assert p["wow"] == LR._WK_LINE["es"] and p["haz_hoy"] == [LR._WK_LINE["es"]]
+    assert LR.weekend_prose(p, "es") == [] or p["wow"] == LR._WK_LINE["es"]
