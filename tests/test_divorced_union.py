@@ -91,3 +91,12 @@ def test_the_composed_answer_is_applied_after_the_later_filters():
     assert src.index("[divorced-final 2026-10-11]") > src.index("[divorced-marriage 2026-10-11]")
     assert src.index("[divorced-final 2026-10-11]") < src.index("_ask_attach_disclaimer(payload, locals().get(\"_ask_concern\"), language, question)", src.index("[divorced-final 2026-10-11]"))
     assert "_du_final_read = _du[\"read\"]" in src
+
+
+def test_two_window_lane_skips_questions_it_does_not_answer():
+    import main
+    for q in ("Is there a third person in my relationship?", "Will I get over him or her?", "Is he cheating on me?", "Will my spouse be older or younger than me?", "What will my spouse's profession be?"):
+        assert main._DU_NOFIT_RX.search(q), q
+    for q in ("Will my marriage improve?", "Will we patch up?", "Should I wait for him or her, or move on?",
+              "Is there any problem in my married life?"):
+        assert not main._DU_NOFIT_RX.search(q), q

@@ -27307,6 +27307,14 @@ _EXISTING_UNION_RX = re.compile(
 
 
 # a retrospective question ("why did my marriage fail?") is not about its future — it stays out of the two-window lane
+# [divorced-gate 2026-10-12] the two-window answer (rebuild vs new partnership) only fits a question about the marriage's
+# future. It was also filling in for "is there a third person?" / "will I get over him?" because the NLU files those under
+# marriage / existing_relationship, so a divorced reader got the same canned block whatever they asked.
+_DU_NOFIT_RX = re.compile(
+    r"(?i)\b(third\s+(?:person|party)|other\s+(?:woman|man|person)|cheat\w*|affair|unfaithful|infiel|trai[cç][aã]o|"
+    r"get\s+over|over\s+(?:him|her|them)|forget|stop\s+(?:thinking|loving|missing)|miss(?:ing)?\s+(?:him|her)|"
+    r"contact\s+me|call\s+me|text\s+me|look\s+like|caste|religion|olvidar|esquecer|"
+    r"older\s+or\s+younger|(?:spouse|husband|wife|partner)(?:'s)?\s+(?:profession|job|age|salary|income)|be\s+(?:rich|wealthy|dominating))\b")
 _DU_PAST_RX = re.compile(r"(?i)\b(why did|what went wrong|how did|did (?:my|our)|was (?:my|our)|por qu\u00e9 (?:fall\u00f3|termin\u00f3)|por que (?:falhou|terminou))\b")
 
 
@@ -27729,6 +27737,13 @@ def _ask_pair_answer(question: str, chart_id: str, language, tz_offset):
     except Exception as e:
         print(f"[ask][circle] pair answer skipped: {str(e)[:160]}")
         return None
+
+
+def _ask_subject_ambiguous_partners(cands: list, language: str) -> dict:
+    """Which-one chips when the asker has several romantic people saved (same contract as the subject gate)."""
+    from antar_engine import ask_subject_person as _asp
+    res = {"relation": "partner", "candidates": [{"name": (c.get("name_b") or c.get("name") or "").strip()} for c in cands]}
+    return _asp.ambiguous_payload(res, language)
 
 
 async def _ask_subject_gate(question: str, chart_id: str, language: str, tz_offset):
@@ -29635,6 +29650,47 @@ async def _ask_endpoint_impl(request: AskRequest):
     except Exception:
         pass
 
+    # [people-pointer 2026-10-12] "Is my partner compatible with me?" / "Does my partner truly love me?" / "Is he the one?"
+    # can't be answered from the ASKER's chart. With no saved partner: say so, give the asker's side, point to People.
+    # With one: check whether THEIR current chapter is a partnership chapter. Deterministic, no LLM, never a feeling claim.
+    # Runs before the other-person rewrite so a saved partner gets a real read. Kill switch: ASK_PEOPLE_POINTER=off.
+    if (os.getenv("ASK_PEOPLE_POINTER") or "on").strip().lower() not in ("0", "off", "false", "no"):
+        try:
+            from antar_engine import people_pointer as _pp
+            _pp_kind = _pp.classify(question) if not _ask_detect_crisis(question) else None
+            if _pp_kind:
+                _pp_people = await asyncio.to_thread(_ask_load_people_sync, chart_id)
+                _pp_cands = _pp.partner_candidates(_pp_people)
+                if len(_pp_cands) == 1:
+                    _pp_who = _pp_cands[0]
+                    _pp_name = (_pp_who.get("name_b") or _pp_who.get("name") or "").strip() or "them"
+                    _pp_cid = _pp_who.get("chart_id_b") or _pp_who.get("chart_id")
+                    try:
+                        _pcd, _pdash, _acd = await asyncio.to_thread(_ask_load_person_sync, _pp_cid, chart_id)
+                        # a saved Person usually has no stored dasha rows (those are written for the primary chart only) -
+                        # compute theirs the way chart creation does
+                        if _pcd and not (_pdash or {}).get("vimsottari"):
+                            _pdash = {"vimsottari": _normalise_dashas(
+                                vimsottari.calculate_vimsottari_from_chart(_pcd, _pcd.get("birth_jd")))}
+                        _pp_payload = _pp.partner_payload(_pp_name, language, _acd or {}, _pcd or {}, _pdash or {}, _pp_kind)
+                    except Exception as _ppl:
+                        print(f"[ask][people-pointer] partner chart unreadable: {str(_ppl)[:140]}")
+                        _pp_payload = _pp.unreadable_payload(_pp_name, language, _pp_kind)
+                elif len(_pp_cands) > 1:
+                    _pp_payload = _ask_subject_ambiguous_partners(_pp_cands, language)
+                else:
+                    _pp_arow = await asyncio.to_thread(
+                        lambda: (supabase.table("charts").select("chart_data").eq("id", chart_id).limit(1).execute().data or [{}])[0])
+                    _pp_payload = _pp.missing_payload(language, _safe_jsonb(_pp_arow.get("chart_data")), _pp_kind)
+                print(f"[ask][people-pointer] {_pp_kind}: partners={len(_pp_cands)} -> {(_pp_payload.get('people_pointer') or {}).get('state') or 'which-one'}")
+                try:
+                    await _ask_persist(supabase, chart_id, question, _pp_payload, language, "explore", None)
+                except Exception as _ppe:
+                    print(f"[ask][people-pointer] persist non-fatal: {_ppe}")
+                return _pp_payload
+        except Exception as _ppx:
+            print(f"[ask][people-pointer] skipped (non-fatal): {_ppx}")
+
     # [other-person 2026-10-12] Antar answers what the asker should DO and WHEN, never what
     # another person feels or whether a body will fail. "Will my ex come back?" / "Does he
     # love me?" / "Will I have a health scare?" are rewritten into the asker's decision and
@@ -30432,6 +30488,18 @@ async def _ask_endpoint_impl(request: AskRequest):
                             _rp.append("There is a friction signature around partnership "
                                        "(handle early differences with patience); mention it "
                                        "gently as something to be aware of, not a curse.")
+                        # [rel-foundation 2026-10-12] layer 2: what the bond is MADE of — the
+                        # sustaining house (2nd from the marriage point), the partner-significator's
+                        # state in the reader's field, the marriage chart as the lifetime verdict.
+                        # Stops the narrator timing a window over a broken foundation, and keeps every
+                        # claim to the partner's ROLE in the reader's life, never their inner state.
+                        try:
+                            from antar_engine.relationship_foundation import analyze_foundation
+                            _fd = analyze_foundation(chart_data)
+                            if _fd.get("available"):
+                                _rp.extend(_fd["facts"])
+                        except Exception as _fde:
+                            logger.warning(f"[ask] relationship-foundation skipped (non-fatal): {_fde}")
                         _rp.append("Close with ONE concrete, agency-oriented next step.")
                         _ask_relationship_block = "\n".join(_rp)
             except Exception as _ree:
@@ -33814,6 +33882,8 @@ async def _ask_endpoint_impl(request: AskRequest):
                 if (not locals().get("_existing_union_lane") and _du_area == "separation" and _du_ms in ("divorced", "separated")
                         and _EXISTING_UNION_RX.search(question or "") and not _DU_PAST_RX.search(question or "")):
                     _existing_union_lane = True
+                if locals().get("_existing_union_lane") and _DU_NOFIT_RX.search(f"{locals().get('_ask_typed_q') or ''} {question or ''}"):
+                    _existing_union_lane = False
                 if locals().get("_existing_union_lane") and language in ("en", "es", "pt") and isinstance(payload, dict) \
                         and _du_ms in ("divorced", "separated"):
                     from antar_engine.event_narrator import run_event_engine as _du_ree

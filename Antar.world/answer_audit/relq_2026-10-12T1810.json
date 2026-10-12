@@ -1,0 +1,70 @@
+[
+ {
+  "persona": "Harleen",
+  "rep": 0,
+  "id": 37,
+  "group": "E",
+  "lane": "pattern",
+  "q": "Will my spouse be rich?",
+  "key": "7th lord in 2nd/11th, Venus in 2nd",
+  "concern": null,
+  "verdict": null,
+  "timing": null,
+  "reframed": null,
+  "read": "Just so I read the right chart — which partner do you mean?",
+  "next": "Tap the one you mean and I'll read their chart.",
+  "issues": [
+   "CLARIFY_ASKED"
+  ]
+ },
+ {
+  "persona": "Harleen",
+  "rep": 0,
+  "id": 39,
+  "group": "E",
+  "lane": "pattern",
+  "q": "Will my spouse be older or younger than me?",
+  "key": "Saturn in 7th (older), Mercury (younger)",
+  "concern": "marriage",
+  "verdict": null,
+  "timing": null,
+  "reframed": null,
+  "read": "The timing points toward someone older — reserved, dependable, and serious by nature. This person is more likely met through travel, a mentor connection, or a professional or academic setting. The bond can hold well, but it takes deliberate care from your side to keep it steady. It holds if closeness is built deliberately through mentors, teaching and long-range plans. It breaks if contact drifts and nobody makes the first deliberate move.",
+  "next": "Join one professional or interest-based group this month where you'd naturally meet someone older and established. That's the most likely path the timing points.",
+  "issues": []
+ },
+ {
+  "persona": "Harleen",
+  "rep": 0,
+  "id": 40,
+  "group": "E",
+  "lane": "pattern",
+  "q": "What will my spouse's profession be?",
+  "key": "7th lord's house, 10th from 7th",
+  "concern": "marriage",
+  "verdict": null,
+  "timing": null,
+  "reframed": null,
+  "read": "The timing points toward someone in a field that involves knowledge, guidance, or cross-cultural work — think education, law, consulting, or international trade. They are likely reserved and serious on the surface, but sharp and communicative once you know them. The bond that forms will need steady, deliberate care from your side to hold. It holds if closeness is built deliberately through mentors, teaching and long-range plans. It breaks if contact drifts and nobody makes the first deliberate move.",
+  "next": "Join one professional or interest-based group this month — that is the most likely setting where this person shows up.",
+  "issues": []
+ },
+ {
+  "persona": "Harleen",
+  "rep": 0,
+  "id": 41,
+  "group": "E",
+  "lane": "pattern",
+  "q": "Will my spouse be dominating?",
+  "key": "Mars/Saturn in 7th, 7th lord in Aries/Scorpio",
+  "concern": null,
+  "verdict": null,
+  "timing": null,
+  "reframed": null,
+  "read": "Just so I read the right chart — which partner do you mean?",
+  "next": "Tap the one you mean and I'll read their chart.",
+  "issues": [
+   "CLARIFY_ASKED"
+  ]
+ }
+]
