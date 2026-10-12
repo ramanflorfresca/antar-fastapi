@@ -51444,6 +51444,22 @@ async def get_chart_topic_read(chart_id: str, topic: str, scale: str = "month",
     out = await _topic_read_full(chart_id, topic, scale, language, tz_offset)
     if out is None:
         raise HTTPException(status_code=404, detail="Chart not found")
+    # [work-profile 2026-10-12] Business / Career / Money speak to THEIR work when we know it, and ask for what is missing (outside the cached body)
+    try:
+        from antar_engine import work_profile as _WP
+        if topic in _WP.TOPICS:
+            _wp = await run_in_threadpool(_WP.get, supabase, chart_id)
+            _lang = "es" if str(out.get("language") or language or "").startswith("es") else "en"
+            _mv = _WP.personalise_move(topic, out.get("tone") or "", _wp, _lang)
+            _qs = _WP.questions(_wp, topic, _lang)
+            out = dict(out)
+            if _mv:
+                out["your_move_generic"] = out.get("your_move")
+                out["your_move"] = _mv
+            out["work_profile"] = _wp or None
+            out["ask_work"] = _qs or None
+    except Exception as _wpe:
+        print(f"[work-profile] topic overlay skipped: {_wpe!r}")
     if background_tasks is not None:
         # [topic-checkback] after the response is sent; fail-open, never slows the read
         background_tasks.add_task(_topic_read_record, out, chart_id, _prac_local_date(tz_offset))
@@ -51459,6 +51475,34 @@ async def get_chart_topic_read(chart_id: str, topic: str, scale: str = "month",
             for k, v in sw.items():
                 out[k] = dict(out[k], shared_with=v)
     return out
+
+
+@app.get("/api/v1/chart/{chart_id}/work-profile")
+async def get_work_profile(chart_id: str, language: Optional[str] = None):
+    """What we know about the person's work + the questions still worth asking ([] when complete)."""
+    from antar_engine import work_profile as _WP
+    p = await run_in_threadpool(_WP.get, supabase, chart_id)
+    lang = "es" if str(language or "").startswith("es") else "en"
+    return {"profile": p or None, "questions": {t: _WP.questions(p, t, lang) for t in _WP.TOPICS}}
+
+
+class WorkProfileBody(BaseModel):
+    role: Optional[str] = None
+    what: Optional[str] = None
+    stage: Optional[str] = None
+    market: Optional[str] = None
+
+
+@app.put("/api/v1/chart/{chart_id}/work-profile")
+async def put_work_profile(chart_id: str, body: WorkProfileBody, authorization: Optional[str] = Header(None)):
+    """Save the answered fields (all optional). Owner only. 503 until the table exists."""
+    from antar_engine import work_profile as _WP
+    user_id = await asyncio.to_thread(_people_authz_owner_sync, chart_id, authorization)
+    try:
+        prof = await run_in_threadpool(_WP.save, supabase, chart_id, user_id, body.model_dump())
+    except RuntimeError:
+        raise HTTPException(status_code=503, detail="work profile storage not set up yet")
+    return {"profile": prof or None}
 
 
 _TOPIC_SHARED_PAIRS_MAX = 12
