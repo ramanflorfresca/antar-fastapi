@@ -195,3 +195,29 @@ def test_every_template_key_the_code_reads_exists_in_every_language():
     used = set(re.findall(r'tx\["([a-z_0-9]+)"\]', src))
     for lang, tx in P._TX.items():
         assert used <= set(tx), (lang, sorted(used - set(tx)))
+
+
+def _fake_score(base, shift):
+    sc = {l: round(v + shift, 4) for l, v in zip(P.LANES, base)}
+    return {"scores": sc, "parashari": dict(sc), "jaimini": dict(sc), "parts": {l: {"d1": 0.4, "d10": 0.4, "jaimini": 0.2, "dasha": 0.0} for l in P.LANES},
+            "amk": "Mercury", "ak": "Moon", "dk": "Sun", "md": "", "ad": "", "chara_md": "", "chara_ad": "", "have": {"d1": True, "d10": True, "jaimini": True, "dasha": True}}
+
+
+def test_a_person_level_offset_does_not_hand_one_person_every_lane(monkeypatch):
+    """Same profile, one chart simply reads 0.15 higher in EVERY lane: that is a level gap, not 6 leads (Raman vs saransh)."""
+    base = [0.50, 0.45, 0.55, 0.30, 0.48, 0.52]
+    seq = iter([_fake_score(base, 0.0), _fake_score(base, -0.15)])
+    monkeypatch.setattr(P, "score_person", lambda *a, **k: next(seq))
+    monkeypatch.setattr(P, "partnership_capacity", lambda *a, **k: {"level": "capable", "score": 0.7, "contested": False})
+    r = P.compare({"planets": {"Sun": {}}}, {}, {"planets": {"Sun": {}}}, {}, "Sam", "en", TODAY)
+    assert r["you"]["leads"] == [] and r["other"]["leads"] == []            # identical relative profiles: nothing to assign by strength alone
+
+
+def test_relative_strength_still_assigns_where_profiles_differ(monkeypatch):
+    a = [0.60, 0.40, 0.45, 0.45, 0.45, 0.45]                                 # A stands out in tech
+    b = [0.30, 0.45, 0.30, 0.30, 0.30, 0.30]                                 # B is lower everywhere but relatively strongest in ops
+    seq = iter([_fake_score(a, 0.0), _fake_score(b, 0.0)])
+    monkeypatch.setattr(P, "score_person", lambda *a_, **k: next(seq))
+    monkeypatch.setattr(P, "partnership_capacity", lambda *a_, **k: {"level": "capable", "score": 0.7, "contested": False})
+    r = P.compare({"planets": {"Sun": {}}}, {}, {"planets": {"Sun": {}}}, {}, "Sam", "en", TODAY)
+    assert "tech" in r["you"]["leads"] and "ops" in r["other"]["leads"]

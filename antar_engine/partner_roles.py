@@ -51,6 +51,7 @@ W_AMK, W_AK = 0.15, 0.10
 W_MD, W_AD, W_CAD = 0.06, 0.04, 0.05
 AMK_LIVE_HOUSES = (1, 5, 9, 10, 11)
 SHARE_BAND, GAP_BELOW = 0.06, 0.45
+REL_BAND = 0.03          # [lane-balance 2026-10-11] share band for the RELATIVE (own-average-centred) comparison: centring shrinks gaps, so the raw 0.06 swallowed them
 
 _HOUSE_FACTOR = {1: 1.0, 4: 1.0, 5: 1.0, 7: 1.0, 9: 1.0, 10: 1.0, 3: 0.9, 6: 0.9, 11: 0.9, 2: 0.75, 8: 0.45, 12: 0.45}
 _RAHU_KETU = ("Rahu", "Ketu")
@@ -443,22 +444,32 @@ def compare(chart_a: dict, dashas_a: dict, chart_b: dict, dashas_b: dict, name_b
         both_low = low(a) & low(b)
         leads_a, leads_b, shared, gap_c, contested = [], [], [], [], []
 
+        # [lane-balance 2026-10-11] Compare each person's lanes against THEIR OWN average (comparative advantage), not raw scores. Raw scores carry a
+        # person-level offset (one chart reads higher in every lane: running periods, karaka weight), so the stronger chart "won" 4 of 6 lanes and the other
+        # led none (Raman vs saransh). Who should OWN a lane is where each is relatively strongest; the two-systems agreement and the both-low gap rule stay.
+        mean = lambda d: (sum(d.values()) / len(d)) if d else 0.0
+        ma, mb = mean(a["scores"]), mean(b["scores"])
+        pm = {sysname: (mean({l: v for l, v in a[sysname].items() if v is not None}), mean({l: v for l, v in b[sysname].items() if v is not None}))
+              for sysname in ("parashari", "jaimini")}
+
         def _side(lane, sysname):
-            """+1 A ahead / -1 B ahead / 0 level (within the share band) / None when a system has no data for either person."""
+            """+1 A ahead / -1 B ahead / 0 level (within the share band) / None when a system has no data for either person. Each side is read
+            against its own average in that system."""
             xa, xb = a[sysname].get(lane), b[sysname].get(lane)
             if xa is None or xb is None:
                 return None
-            d = xa - xb
+            d = (xa - pm[sysname][0]) - (xb - pm[sysname][1])
             return 0 if abs(d) < SHARE_BAND else (1 if d > 0 else -1)
         for lane in LANES:
             sa, sb = a["scores"][lane], b["scores"][lane]
             if lane in both_low:
                 gap_c.append((max(sa, sb), lane))
                 continue
+            sa, sb = sa - ma, sb - mb          # relative strength: this lane against the person's own average
             ps, js = _side(lane, "parashari"), _side(lane, "jaimini")
             if ps is not None and js is not None and ps * js < 0:
                 contested.append(lane)               # one system puts A ahead, the other B: an open lane, not a lead
-            elif abs(sa - sb) < SHARE_BAND:
+            elif abs(sa - sb) < REL_BAND:
                 shared.append(lane)
             elif sa > sb:
                 leads_a.append((lane, sa - sb))
@@ -527,7 +538,7 @@ def compare(chart_a: dict, dashas_a: dict, chart_b: dict, dashas_b: dict, name_b
             "other": {"scores": b["scores"], "leads": [l for l, _ in leads_b], "amk": b["amk"], "ak": b["ak"], "dk": b["dk"], "md": b["md"], "ad": b["ad"], "chara_ad": b["chara_ad"]},
             "capacity": {"you": {k: cap_a[k] for k in ("score", "level")}, "other": {k: cap_b[k] for k in ("score", "level")},
                          "solo": solo},
-            "shared": shared, "gaps": gaps, "contested": contested, "partial": [k for k, sc in (("you", a), ("other", b)) if not all(sc["have"].values())],
+            "shared": shared, "gaps": [l for _, l in sorted(gap_c)], "contested": contested, "partial": [k for k, sc in (("you", a), ("other", b)) if not all(sc["have"].values())],
             "text": "\n".join(lines),
         }
     except Exception as e:                       # never break the page — but never fail silently either
