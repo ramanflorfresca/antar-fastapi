@@ -23,35 +23,35 @@ _OFFSETS = (90, 270, 540)           # the day inside each period whose running s
 
 # lord -> (key, group, label en, label es)
 SEASON: Dict[str, tuple] = {
-    "Rahu":    ("push", "out", "Push forward", "Impulso hacia adelante"),
-    "Sun":     ("lead", "out", "Step into the lead", "Tomar la delantera"),
-    "Mars":    ("act", "out", "Drive and act", "Impulso y acción"),
-    "Mercury": ("trade", "out", "Trade and talk", "Trato y comunicación"),
+    "Rahu":    ("push", "out", "Reach and experiment", "Explorar y probar"),
+    "Sun":     ("lead", "out", "Take the lead", "Tomar la delantera"),
+    "Mars":    ("act", "out", "Move fast", "Actuar con rapidez"),
+    "Mercury": ("trade", "out", "Deals and talks", "Tratos y conversaciones"),
     "Jupiter": ("grow", "out", "Grow and teach", "Crecer y enseñar"),
     "Venus":   ("relate", "out", "Build relationships", "Construir relaciones"),
     "Saturn":  ("build", "in", "Build structure", "Construir estructura"),
-    "Moon":    ("tend", "in", "Steady and caring", "Estable y de cuidado"),
-    "Ketu":    ("refine", "in", "Let go and refine", "Soltar y afinar"),
+    "Moon":    ("tend", "in", "Steady and tend", "Estabilidad y cuidado"),
+    "Ketu":    ("refine", "in", "Simplify and refine", "Simplificar y afinar"),
 }
 _TX = {
     "en": {
-        "flows": "Flows", "care": "Needs care", "open": "Open", "friction_low": "Friction is low", "friction_high": "Friction needs care",
-        "open_n": "{n} areas to decide", "open_1": "1 area to decide", "open_0": "Every area has an owner",
+        "flows": "Working together", "care": "Tend these", "open": "Who decides", "friction_low": "Little friction between you", "friction_high": "Friction to manage",
+        "open_n": "{n} areas have no owner yet", "open_1": "1 area has no owner yet", "open_0": "Every area has an owner",
         "care_none": "Nothing flagged",
         "sync": "Your seasons line up: you can move at the same pace.",
-        "out_a": "You are in a more outward season while {b} is in a more inward one. Decide early who sets the pace.",
-        "out_b": "{b} is in a more outward season while you are in a more inward one. Decide early who sets the pace.",
-        "mixed": "Your seasons differ at times. Name who sets the pace when they do.",
+        "out_a": "You are moving outward and {b} inward ({when}). Agree who sets the pace then.",
+        "out_b": "{b} is moving outward and you inward ({when}). Agree who sets the pace then.",
+        "mixed": "You are out of step in {n} of the 3 periods marked Out. Agree who sets the pace in those.",
         "you": "You", "no_data": "Timing for {who} is not on file, so there is no season to show.",
     },
     "es": {
-        "flows": "Fluye", "care": "Necesita cuidado", "open": "Abierto", "friction_low": "La fricción es baja", "friction_high": "La fricción necesita cuidado",
-        "open_n": "{n} áreas por decidir", "open_1": "1 área por decidir", "open_0": "Cada área tiene dueño",
+        "flows": "Trabajar juntos", "care": "Para cuidar", "open": "Quién decide", "friction_low": "Poca fricción entre ustedes", "friction_high": "Fricción por manejar",
+        "open_n": "{n} áreas sin dueño todavía", "open_1": "1 área sin dueño todavía", "open_0": "Cada área tiene dueño",
         "care_none": "Nada señalado",
         "sync": "Sus temporadas coinciden: pueden avanzar al mismo ritmo.",
-        "out_a": "Tú estás en una temporada más hacia afuera y {b} en una más hacia adentro. Decidan pronto quién marca el ritmo.",
-        "out_b": "{b} está en una temporada más hacia afuera y tú en una más hacia adentro. Decidan pronto quién marca el ritmo.",
-        "mixed": "Sus temporadas difieren a ratos. Acuerden quién marca el ritmo cuando pase.",
+        "out_a": "Tú vas hacia afuera y {b} hacia adentro ({when}). Acuerden quién marca el ritmo entonces.",
+        "out_b": "{b} va hacia afuera y tú hacia adentro ({when}). Acuerden quién marca el ritmo entonces.",
+        "mixed": "No van al mismo ritmo en {n} de los 3 periodos marcados Out. Acuerden quién marca el ritmo en esos.",
         "you": "Tú", "no_data": "Los tiempos de {who} no están disponibles, así que no hay temporada que mostrar.",
     },
 }
@@ -110,9 +110,9 @@ def build(session_out: dict, dashas_a: dict, dashas_b: dict, language: str = "en
         by = {l.get("layer_key"): l for l in layers}
         fr = by.get("friction")
         flows = {"state": "flows" if (fr and (fr.get("score") or 0) >= 60) else "care",
-                 "text": tx["friction_low"] if (fr and (fr.get("score") or 0) >= 60) else tx["friction_high"]}
+                 "label": tx["flows"], "text": tx["friction_low"] if (fr and (fr.get("score") or 0) >= 60) else tx["friction_high"]}
         low = [k for k, l in sorted(((k, l) for k, l in by.items() if k != "friction"), key=lambda kv: kv[1].get("score") or 0) if (l.get("score") or 0) < 55][:3]
-        care = {"areas": low, "text": ", ".join(_CARE[lang][k] for k in low) if low else tx["care_none"]}
+        care = {"label": tx["care"], "areas": low, "text": ", ".join(_CARE[lang][k] for k in low[:2]) if low else tx["care_none"]}
         lanes, open_n = [], 0
         if roles and roles.get("kind") != "hierarchy":
             nm = P._NAME[lang]
@@ -122,7 +122,7 @@ def build(session_out: dict, dashas_a: dict, dashas_b: dict, language: str = "en
                 owner = "you" if lane in you else "other" if lane in other else "shared" if lane in shared else "open" if lane in openl else "shared"
                 lanes.append({"lane": lane, "label": nm[lane], "owner": owner})
             open_n = sum(1 for l in lanes if l["owner"] == "open")
-        open_t = {"n": open_n, "text": tx["open_0"] if open_n == 0 else tx["open_1"] if open_n == 1 else tx["open_n"].format(n=open_n)}
+        open_t = {"label": tx["open"], "n": open_n, "text": tx["open_0"] if open_n == 0 else tx["open_1"] if open_n == 1 else tx["open_n"].format(n=open_n)}
         a, b = seasons_for(dashas_a, today, lang), seasons_for(dashas_b, today, lang)
         seasons = None
         name_b = (session_out.get("name_b") or "").strip().split(" ")[0] if session_out.get("name_b") else ""
@@ -131,10 +131,10 @@ def build(session_out: dict, dashas_a: dict, dashas_b: dict, language: str = "en
             if all(sync):
                 summary = tx["sync"]
             elif any(sync):
-                summary = tx["mixed"]
+                summary = tx["mixed"].format(n=sum(1 for ok in sync if not ok))
             else:
                 first = next(i for i, ok in enumerate(sync) if not ok)
-                summary = tx["out_a" if a[first]["group"] == "out" else "out_b"].format(b=name_b or ("la otra persona" if lang == "es" else "the other person"))
+                summary = tx["out_a" if a[first]["group"] == "out" else "out_b"].format(b=name_b or ("la otra persona" if lang == "es" else "the other person"), when=PERIOD_LABELS[lang][first].lower())
             seasons = {"periods": list(PERIODS), "period_labels": PERIOD_LABELS[lang], "you": a, "other": b, "in_sync": sync, "summary": summary}
         else:
             who = tx["you"] if not a else (name_b or "the other person")
