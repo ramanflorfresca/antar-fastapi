@@ -237,7 +237,42 @@ def _imm_lang(language: str) -> str:
     return b if b in ("en", "es", "pt") else "en"
 
 
+_COUNTRY_ISO = {
+    "india": "IN", "united states": "US", "united states of america": "US", "usa": "US", "us": "US",
+    "colombia": "CO", "mexico": "MX", "canada": "CA", "united kingdom": "GB", "uk": "GB",
+    "great britain": "GB", "england": "GB", "brazil": "BR", "brasil": "BR", "spain": "ES", "españa": "ES",
+    "australia": "AU", "pakistan": "PK", "bangladesh": "BD", "nepal": "NP", "sri lanka": "LK",
+    "united arab emirates": "AE", "uae": "AE", "germany": "DE", "france": "FR", "philippines": "PH",
+    "china": "CN", "argentina": "AR", "peru": "PE", "perú": "PE", "chile": "CL", "venezuela": "VE",
+    "ecuador": "EC", "portugal": "PT", "new zealand": "NZ", "singapore": "SG", "ireland": "IE",
+}
+
+
+def _iso(c) -> Optional[str]:
+    t = str(c or "").strip()
+    if not t:
+        return None
+    if len(t) == 2 and t.isalpha():
+        return t.upper()
+    return _COUNTRY_ISO.get(t.lower())
+
+
+def lives_abroad(current_country, birth_country) -> Optional[bool]:
+    """True if the person currently lives in a different country from where they were born;
+    False if the same; None when either is missing/unrecognised (country NAME vs ISO code both
+    handled — unknown stays None, never a guess)."""
+    cur, bth = _iso(current_country), _iso(birth_country)
+    if not cur or not bth:
+        return None
+    return cur != bth
+
+
 _IMM_LINE = {
+    "weak_abroad": {
+        "en": "Your chart doesn't show a strong pull to put down permanent roots abroad — treat staying long-term as one route among several, and keep a path home or to another country open.",
+        "es": "Tu carta no muestra una fuerte inclinación a echar raíces permanentes en el extranjero — trata quedarte a largo plazo como una ruta entre varias, y mantén abierto un camino de regreso o hacia otro país.",
+        "pt": "Seu mapa não mostra uma forte inclinação a fincar raízes permanentes no exterior — trate ficar a longo prazo como uma rota entre várias, e mantenha aberto um caminho de volta ou para outro país.",
+    },
     "weak": {
         "en": "Your chart doesn't show a strong pull to build a long-term life abroad — treat this as one route among several, and weigh a path nearer home or a points-based country seriously.",
         "es": "Tu carta no muestra una fuerte inclinación a construir una vida a largo plazo en el extranjero — trátalo como una ruta entre varias, y considera en serio un camino más cerca de casa o un país con sistema de puntos.",
@@ -287,19 +322,20 @@ _IMM_DISCLAIM = {
 
 
 def immigration_verdict(level: str, phase: str, hidden_obstacles: bool, best_year,
-                        language: str = "en", status_risk: bool = False, caution: str = "") -> dict:
+                        language: str = "en", status_risk: bool = False, caution: str = "",
+                        abroad: Optional[bool] = None) -> dict:
     """CHAPTER-level immigration verdict for the Ask /predict override. Never raises:
     {available, band, line, the_move, secondary_note, window_range, key}."""
     try:
         L = _imm_lang(language)
         if level == "weak":
-            key = "weak"
+            key = "weak_abroad" if abroad else "weak"
         else:
             key = phase if phase in ("slow", "releasing") else "mixed"
-        band = "WEAK" if key == "weak" else "MIXED"
+        band = "WEAK" if key in ("weak", "weak_abroad") else "MIXED"
         yr = str(best_year).strip() if best_year else ""
         win = {"en": f"around {yr}", "es": f"alrededor de {yr}", "pt": f"por volta de {yr}"}[L] if yr else ""
-        line = _IMM_LINE[key][L] + (_IMM_CHECK[L] if hidden_obstacles and key != "weak" else "")
+        line = _IMM_LINE[key][L] + (_IMM_CHECK[L] if hidden_obstacles and not key.startswith("weak") else "")
         if status_risk:
             line += _IMM_STATUS[L]
         if caution:
@@ -312,3 +348,24 @@ def immigration_verdict(level: str, phase: str, hidden_obstacles: bool, best_yea
                 "key": key}
     except Exception as e:
         return {"available": False, "error": str(e)[:160]}
+
+
+def _first_sentence(text: str) -> str:
+    """Up to and including the first sentence-ending full stop (the lead phrase)."""
+    t = (text or "").strip()
+    i = t.find(". ")
+    return t[: i + 1] if i != -1 else t
+
+
+# [outcome-lead 2026-10-12] The Ask lead for an immigration question is a LEAN on the pull and the
+# stretch — never "Likely —" / "No —" (which reads as a visa-approval forecast: live test, "Will my
+# H-1B get approved?" got "NO — No strong foreign move window"). Pairs with a suppressed verdict chip.
+def immigration_lead_phrase(level: str, phase: str, language: str = "en",
+                            abroad: Optional[bool] = None) -> str:
+    try:
+        L = _imm_lang(language)
+        key = (("weak_abroad" if abroad else "weak") if level == "weak"
+               else (phase if phase in ("slow", "releasing") else "mixed"))
+        return _first_sentence(_IMM_LINE[key][L])
+    except Exception:
+        return ""

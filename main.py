@@ -10450,7 +10450,9 @@ Do not use any planet names or astrological jargon — translate everything into
                              getattr(request, 'language', 'en') or 'en',
                              status_risk=_isr_fn(chart_data, _ids, _ia),
                              caution=_caution_text(chart_data, dashas_response,
-                                                   getattr(request, 'language', 'en') or 'en'))
+                                                   getattr(request, 'language', 'en') or 'en'),
+                             abroad=_lives_abroad(chart_record.get("current_country"),
+                                                  chart_record.get("birth_country")))
                 if _iv.get("available"):
                     _resolver_verdict["verdict"] = _iv["band"]
                     _resolver_verdict["verdict_line"] = _iv["line"]
@@ -10526,7 +10528,8 @@ Do not use any planet names or astrological jargon — translate everything into
                 _lv = _lv_fn(_outc.get("lean") or "contested",
                              bool(_outc.get("jupiter_protection")), _lyr, _cl2,
                              gate=_gl_fn(chart_data, _current_dasha_str(dashas_response)),
-                             caution=_caution_text(chart_data, dashas_response, _cl2))
+                             caution=_caution_text(chart_data, dashas_response, _cl2),
+                             lead_override=_creditor_lead(chart_data, request.question, _cl2))
                 if _lv.get("available"):
                     _resolver_verdict["verdict"] = _lv["band"]
                     _resolver_verdict["verdict_line"] = _lv["line"]
@@ -10554,7 +10557,8 @@ Do not use any planet names or astrological jargon — translate everything into
                     _dv = _dv_fn(_da["lean"], _dry, _dpy, _cl2,
                                  gate=_gl_fn2(chart_data, _dds),
                                  severe=_dsev_fn(chart_data, _dds, _da),
-                                 caution=_caution_text(chart_data, dashas_response, _cl2))
+                                 caution=_caution_text(chart_data, dashas_response, _cl2),
+                                 lead_override=_creditor_lead(chart_data, request.question, _cl2))
                     if _dv.get("available"):
                         _resolver_verdict["verdict"] = _dv["band"]
                         _resolver_verdict["verdict_line"] = _dv["line"]
@@ -10566,6 +10570,28 @@ Do not use any planet names or astrological jargon — translate everything into
                         _resolver_verdict["secondary_note"] = _dv["secondary_note"]
                         _resolver_verdict["_chapter_window_override"] = "debt"
                         print(f"[predict] debt-verdict override: band={_dv['band']} lean={_da['lean']}")
+            elif _is_loan_q(request.question):
+                from antar_engine.loan import (analyze_loan as _lna_fn, loan_phase as _lnp_fn,
+                                               loan_timing as _lnt_fn, loan_verdict as _lnv_fn)
+                _lna = _lna_fn(chart_data)
+                if _lna.get("available"):
+                    _lnt = _lnt_fn(chart_data, dashas_response, birth_date=_cbd)
+                    _lny = _chap_year((_lnt or {}).get("best") if isinstance(_lnt, dict) else None)
+                    _lnv = _lnv_fn(_lna["access"]["level"],
+                                   _lnp_fn(_lna, _current_dasha_str(dashas_response)), _lny, _cl2,
+                                   caution=_caution_text(chart_data, dashas_response, _cl2))
+                    if _lnv.get("available"):
+                        _resolver_verdict["verdict"] = _lnv["band"]
+                        _resolver_verdict["verdict_line"] = _lnv["line"]
+                        _resolver_verdict["the_move"] = _lnv["the_move"]
+                        if _lny:
+                            _resolver_verdict["window"] = {"date_range": _lnv["window_range"],
+                                                           "intraday_boundary": None}
+                            _resolver_verdict["timeframe"] = "chapter"
+                        _resolver_verdict["secondary_note"] = _lnv["secondary_note"]
+                        _resolver_verdict["_chapter_window_override"] = "loan"
+                        print(f"[predict] loan-verdict override: band={_lnv['band']} "
+                              f"access={_lna['access']['level']}")
             elif _is_health_q(request.question):
                 from antar_engine.health import health_timing as _ht_fn
                 _ht = _ht_fn(chart_data, dashas_response, birth_date=_cbd)
@@ -27104,6 +27130,38 @@ def _is_gambling_q(question):
 
 
 from antar_engine.immigration import is_immigration_q as _is_immigration_q  # noqa: E402
+from antar_engine.immigration import lives_abroad as _lives_abroad  # noqa: E402
+from antar_engine.loan import is_loan_q as _is_loan_q_raw  # noqa: E402
+
+
+from antar_engine.debt import is_creditor_q as _is_creditor_q  # noqa: E402
+
+
+def _creditor_lead(chart_data, question, language="en") -> str:
+    """[creditor-posture 2026-10-12] A creditor / collector matter reads USER vs the other side
+    (not legal.py's natal lean, which counts the 6th lord as the user's strength). '' otherwise."""
+    try:
+        if not _is_creditor_q(question):
+            return ""
+        from antar_engine.debt import analyze_creditor, creditor_posture_phrase
+        a = analyze_creditor(chart_data)
+        if not a.get("available"):
+            return ""
+        base = creditor_posture_phrase(a.get("posture"), language)
+        # [case-now 2026-10-12] the birth chart is the promise, the moment chart is the present:
+        # add what is true RIGHT NOW (or that it still holds). Kill switch ASK_CASE_NOW=off.
+        if base and os.getenv("ASK_CASE_NOW", "on").lower() != "off":
+            from antar_engine.case_now import creditor_now, now_clause
+            n = creditor_now()
+            base += now_clause(a.get("posture"), n.get("posture") if n.get("available") else None, language)
+        return base
+    except Exception:
+        return ""
+
+
+def _is_loan_q(question):
+    """Loan-APPROVAL lane. Debt payoff and legal take precedence; business funding is excluded."""
+    return bool(_is_loan_q_raw(question) and not _is_debt_q(question) and not _is_legal_q(question))
 from antar_engine.debt import is_debt_q as _is_debt_q  # noqa: E402
 
 
@@ -27129,7 +27187,27 @@ def _is_legal_q(question):
         "being sued", "suing", "sue them", "take them to court", "in court",
         "trial", "hearing", "settlement", "judge", "verdict", "dispute with",
         "legal fight", "arbitration", "custody", "restraining order",
-    ))
+    )) or any(w in ql for w in _LEGAL_I18N)
+
+
+# [legal-i18n 2026-10-12] Spanish / Portuguese / Hinglish legal phrases. Deliberately specific:
+# bare "demanda" is also "demand", "juicio" also "good judgement", "processo" also "process".
+_LEGAL_I18N = (
+    # es
+    "mi demanda", "la demanda judicial", "demanda legal", "ganar la demanda", "ganar mi demanda",
+    "me demandan", "me van a demandar", "demandarme", "demandar a", "demandado", "demandante",
+    "ganar el juicio", "ganar mi juicio", "perder el juicio", "juicio legal", "juicio civil",
+    "juicio penal", "mi juicio", "mi caso legal", "caso judicial", "mi caso en", "el tribunal",
+    "un tribunal", "ante el juez", "el juzgado", "audiencia judicial", "custodia de", "orden de alejamiento",
+    "pleito", "litigio", "acuerdo extrajudicial",
+    # pt
+    "processo judicial", "ganhar o processo", "ganhar meu processo", "perder o processo",
+    "ação judicial", "acao judicial", "me processar", "vão me processar", "meu processo na justiça",
+    "o tribunal", "um tribunal", "julgamento", "audiência", "audiencia de", "guarda dos filhos",
+    "litígio", "ação na justiça",
+    # hinglish
+    "mukadma", "mukadme", "mukaddama", "adalat", "kanooni case", "court mein", "case jeet", "case haar",
+)
 
 
 def _ask_legal_lead_phrase(lean, jup, lang="en"):
@@ -30205,7 +30283,7 @@ async def _ask_endpoint_impl(request: AskRequest):
                 # set from the profile card, and no chart has both (see
                 # life_context._norm_marital, which prefers patra then falls back).
                 chart_row = supabase.table("charts") \
-                    .select("chart_data, jaimini_data, lal_kitab_data, birth_date, first_name, current_country, latitude, longitude, "
+                    .select("chart_data, jaimini_data, lal_kitab_data, birth_date, first_name, current_country, birth_country, latitude, longitude, "
                             "marital_status, children_status, career_stage, health_status, financial_status, "
                             "profession, life_work, life_relationship, life_kids, "
                             "language, needs_lang_prompt, locale_variant, "
@@ -30812,8 +30890,15 @@ async def _ask_endpoint_impl(request: AskRequest):
             _ask_legal_block = ""
             _ask_legal_lean = None
             _ask_legal_jup = False
+            _ask_immigration_lead = ""
+            _ask_debt_lead = ""
+            _ask_loan_lead = ""
+            _ask_loan_block = ""
             try:
-                if _is_legal_q(question):
+                # [creditor-posture 2026-10-12] a creditor matter is read as USER vs the OTHER SIDE by
+                # the debt block below; legal.py's natal lean counts the 6th as the user's strength and
+                # would contradict it ("leans in your favour… the other side holds the stronger hand").
+                if _is_legal_q(question) and not _is_creditor_q(question):
                     from antar_engine.legal import analyze_legal, legal_timing
                     _la = analyze_legal(chart_data)
                     if _la.get("available"):
@@ -30831,7 +30916,7 @@ async def _ask_endpoint_impl(request: AskRequest):
                                # win', never state a definitive win/lose — frame as a LEAN only.
                                "HARD RULE: do NOT promise a win or say 'yes'. Never claim they "
                                "will win or lose. Frame the outcome only as a LEAN that "
-                               "preparation and counsel turn into a result."]
+                               "preparation and counsel turn into a result. A WINDOW is when acting is workable — NEVER call it a deadline, cutoff or due date unless the person gave you that date."]
                         _lcause = (_lt.get("cause") or _la.get("likely_causes") or [])
                         if _lcause:
                             # [audit r11] a tendency, never a statement of what THEIR case is about
@@ -30894,6 +30979,11 @@ async def _ask_endpoint_impl(request: AskRequest):
                         _imt = immigration_timing(chart_data, _imdash, birth_date=_ask_birth_date)
                         _ims = _ima["structure"]
                         _imph = immigration_phase(chart_data, _current_dasha_str(_imdash))
+                        from antar_engine.immigration import immigration_lead_phrase
+                        _imab = _lives_abroad(chart_row.data.get("current_country"),
+                                              chart_row.data.get("birth_country"))
+                        _ask_immigration_lead = immigration_lead_phrase(_ims["level"], _imph, language,
+                                                                        abroad=_imab)
                         _imp = ["IMMIGRATION QUESTION — answer from THIS deterministic reading. Never "
                                 "name a planet, house, or system — plain life-language only.",
                                 f"PULL TO BUILD A LIFE ABROAD: {_ims['level']}. CURRENT STRETCH: {_imph} "
@@ -30902,11 +30992,18 @@ async def _ask_endpoint_impl(request: AskRequest):
                                 "status will be approved or denied — the authorities and the rules decide "
                                 "that, not timing. Never cite specific current laws, caps, fees or "
                                 "processing times. Frame ONLY the pull, the phase and the window. "
-                                "Distinguish a DELAY from a DENIAL."]
+                                "Distinguish a DELAY from a DENIAL. A WINDOW is when acting is workable — NEVER call it a deadline, cutoff or due date unless the person gave you that date."]
                         if _ims["level"] == "weak":
-                            _imp.append("Be honest that the chart does not show a strong long-term pull "
-                                        "to settle abroad: treat this as one route among several, and "
-                                        "invite weighing a path nearer home or another country — not as failure.")
+                            if _imab:
+                                _imp.append("The person ALREADY LIVES abroad. Be honest that the chart does "
+                                            "not show a strong pull to put down permanent roots there: "
+                                            "treat staying long-term as one route among several and keep "
+                                            "a path home or elsewhere open. NEVER tell them to go home or "
+                                            "to leave — it is their decision, not a failure.")
+                            else:
+                                _imp.append("Be honest that the chart does not show a strong long-term pull "
+                                            "to settle abroad: treat this as one route among several, and "
+                                            "invite weighing a path nearer home or another country — not as failure.")
                         else:
                             if _ims.get("plain"):
                                 _imp.append("WHY (plain, a tendency): " + "; ".join(_ims["plain"][:2]) + ".")
@@ -30949,12 +31046,17 @@ async def _ask_endpoint_impl(request: AskRequest):
             # the squeeze window and the relief window. A LEAN, never "you'll be debt-free".
             _ask_debt_block = ""
             try:
-                if _is_debt_q(question) and not _is_legal_q(question):
+                if _is_debt_q(question) and (not _is_legal_q(question) or _is_creditor_q(question)):
                     from antar_engine.debt import analyze_debt, debt_timing
                     _dba = analyze_debt(chart_data)
                     if _dba.get("available"):
                         _dbt = debt_timing(chart_data, get_dashas_for_chart(chart_id),
                                            birth_date=_ask_birth_date)
+                        from antar_engine.debt import debt_lead_phrase, debt_severity as _dsev0
+                        _ask_debt_lead = debt_lead_phrase(
+                            _dba["lean"],
+                            _dsev0(chart_data, _current_dasha_str(get_dashas_for_chart(chart_id)), _dba),
+                            language)
                         _dbp = ["DEBT QUESTION — answer from THIS deterministic reading. Never name a "
                                 "planet, house, or system — plain life-language only.",
                                 f"PRESSURE: {_dba['pressure']['level']}. CAPACITY TO CLEAR: "
@@ -30962,7 +31064,7 @@ async def _ask_endpoint_impl(request: AskRequest):
                                 "HARD RULES: never promise they will be debt-free or by when; never "
                                 "give investment, tax or bankruptcy-filing advice; frame only as a LEAN "
                                 "that a clear plan and a qualified counsellor turn into a result. "
-                                "Never shame the person."]
+                                "Never shame the person. A WINDOW is when acting is workable — NEVER call it a deadline, cutoff or due date unless the person gave you that date."]
                         if _dba["recovery"].get("plain"):
                             _dbp.append("WHAT HELPS (plain, a tendency): "
                                         + "; ".join(_dba["recovery"]["plain"][:2]) + ".")
@@ -30997,11 +31099,48 @@ async def _ask_endpoint_impl(request: AskRequest):
                             _dbp.append("CURRENT STRETCH: nothing in the present period is pressing on "
                                         "money obligations — say plainly it reads more as worry than an "
                                         "active squeeze, WITHOUT claiming pressure cannot come later.")
+                        _cpl = _creditor_lead(chart_data, question, language)
+                        if _cpl:
+                            _dbp.append("CREDITOR MATTER — the posture against the other side is: " + _cpl
+                                        + " Say it as a negotiating posture, never as who will win. Advise "
+                                        "negotiating in good faith, never hiding, and a qualified professional.")
                         _dbp.append("Close with ONE concrete step (list every obligation, rank by "
                                     "interest and urgency). This is not financial or legal advice.")
                         _ask_debt_block = "\n".join(_dbp)
             except Exception as _dbe:
                 logger.warning(f"[ask] debt-engine skipped (non-fatal): {_dbe}")
+
+            # [loan engine 2026-10-12] personal loan / mortgage APPROVAL — access to other people's
+            # money + phase + window. A lender decides; the chart only shows posture and timing.
+            try:
+                if _is_loan_q(question):
+                    from antar_engine.loan import (analyze_loan, loan_phase, loan_timing,
+                                                   loan_lead_phrase)
+                    _lna2 = analyze_loan(chart_data)
+                    if _lna2.get("available"):
+                        _lndash = get_dashas_for_chart(chart_id)
+                        _lnt2 = loan_timing(chart_data, _lndash, birth_date=_ask_birth_date)
+                        _lnph = loan_phase(_lna2, _current_dasha_str(_lndash))
+                        _lnlv = _lna2["access"]["level"]
+                        _ask_loan_lead = loan_lead_phrase(_lnlv, language)
+                        _lnp = ["LOAN QUESTION — answer from THIS deterministic reading. Never name a "
+                                "planet, house, or system — plain life-language only.",
+                                f"ACCESS TO BORROWED MONEY: {_lnlv}. CURRENT STRETCH: {_lnph} "
+                                "(supportive = workable to apply; strained = better for preparing).",
+                                "HARD RULES: NEVER say a loan will or won't be approved — a lender decides "
+                                "on credit, income and terms, not timing. Frame only the access lean, the "
+                                "stretch and the window. A WINDOW is when applying is workable — NEVER call "
+                                "it a deadline unless the person gave you that date. Never give "
+                                "investment or product advice."]
+                        if _lna2["access"].get("plain"):
+                            _lnp.append("WHY (plain, a tendency): " + "; ".join(_lna2["access"]["plain"][:2]) + ".")
+                        if _lnt2.get("best"):
+                            _lnp.append("TIMING: " + _lnt2["summary"] + " Say it in plain months-years.")
+                        _lnp.append("Close with ONE concrete step (check the credit report, document income, "
+                                    "borrow only what a lean month can repay). This is not financial advice.")
+                        _ask_loan_block = "\n".join(_lnp)
+            except Exception as _lne:
+                logger.warning(f"[ask] loan-engine skipped (non-fatal): {_lne}")
 
             # [health engine] deterministic constitution + chronic/acute (D-1 & D-9)
             # + nature/body + vulnerable-window timing (varshphal-heavy + Sade Sati).
@@ -32902,6 +33041,7 @@ async def _ask_endpoint_impl(request: AskRequest):
                     + (f"\n\n{_ask_legal_block}" if _ask_legal_block else "")
                     + (f"\n\n{_ask_immigration_block}" if _ask_immigration_block else "")
                     + (f"\n\n{_ask_debt_block}" if _ask_debt_block else "")
+                    + (f"\n\n{_ask_loan_block}" if _ask_loan_block else "")
                     + (f"\n\n{_ask_health_block}" if _ask_health_block else "")
                     + (f"\n\n{_ask_material_block}" if locals().get("_ask_material_block") else "")
                     + (f"\n\n{_ask_wealth_block}" if locals().get("_ask_wealth_block") else "")
@@ -33142,6 +33282,7 @@ async def _ask_endpoint_impl(request: AskRequest):
                     + (f"\n\n{_ask_legal_block}" if _ask_legal_block else "")
                     + (f"\n\n{_ask_immigration_block}" if _ask_immigration_block else "")
                     + (f"\n\n{_ask_debt_block}" if _ask_debt_block else "")
+                    + (f"\n\n{_ask_loan_block}" if _ask_loan_block else "")
                     + (f"\n\n{_ask_health_block}" if _ask_health_block else "")
                     + (f"\n\n{_ask_material_block}" if locals().get("_ask_material_block") else "")
                     + (f"\n\n{_ask_wealth_block}" if locals().get("_ask_wealth_block") else "")
@@ -33285,6 +33426,20 @@ async def _ask_endpoint_impl(request: AskRequest):
                     _ask_legal_lean, _ask_legal_jup, language)
                 _ask_conv["suppress_verdict"] = False
                 print(f"[ask][legal-framing] verdict lean-override: {_ask_legal_lean}")
+            # [outcome-lead 2026-10-12] immigration / debt: a LEAN lead, never "Likely —"/"No —".
+            if _ask_conv and _ask_immigration_lead and _is_immigration_q(question):
+                _ask_conv["verdict_phrase"] = _ask_immigration_lead
+                print(f"[ask][outcome-lead] immigration lean lead for {chart_id[:8]}")
+            elif _ask_conv and _ask_debt_lead and _is_debt_q(question) and not _is_legal_q(question):
+                _ask_conv["verdict_phrase"] = _ask_debt_lead
+                print(f"[ask][outcome-lead] debt lean lead for {chart_id[:8]}")
+            elif _ask_conv and _ask_loan_lead and _is_loan_q(question):
+                _ask_conv["verdict_phrase"] = _ask_loan_lead
+                print(f"[ask][outcome-lead] loan lean lead for {chart_id[:8]}")
+            _cred_lead = _creditor_lead(chart_data, question, language) if _ask_conv else ""
+            if _cred_lead:
+                _ask_conv["verdict_phrase"] = _cred_lead
+                print(f"[ask][outcome-lead] creditor posture lead for {chart_id[:8]}")
 
             # [domain-fit-veto 2026-09-30] A misaligned APPROACH must not wear an
             # affirmative chip or a "Yes —" lead: that green-lights the very approach
@@ -33368,6 +33523,19 @@ async def _ask_endpoint_impl(request: AskRequest):
                     print(f"[ask][health-soften] verdict chip + lead phrase suppressed for {chart_id[:8]}")
             except Exception as _hse:
                 print(f"[ask][health-soften] skipped: {_hse}")
+            # [outcome-lead 2026-10-12] Legal / immigration / debt outcomes are never ours to chip as
+            # "Likely"/"Yes"/"No" (live test: "Will I win my lawsuit?" → LIKELY; "Will my H-1B get
+            # approved?" → NO; "Will I ever get out of debt?" → "Likely within the year"). The lean
+            # lead phrase stays; the binary chip goes. Kill switch: ASK_OUTCOME_CHIP=on.
+            try:
+                if (_ask_conv and os.getenv("ASK_OUTCOME_CHIP", "off").lower() != "on"
+                        and (_is_legal_q(question) or _is_immigration_q(question)
+                             or _is_debt_q(question) or _is_loan_q(question)
+                             or _is_creditor_q(question))):
+                    _ask_conv["suppress_verdict"] = True
+                    print(f"[ask][outcome-lead] verdict chip suppressed for {chart_id[:8]}")
+            except Exception as _ole:
+                print(f"[ask][outcome-lead] skipped: {_ole}")
 
             if _ask_decision and _ask_conv:
                 _verdict_phrase = (_ask_conv.get("verdict_phrase") or "").strip()

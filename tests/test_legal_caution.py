@@ -87,5 +87,5 @@ def test_never_raises_on_bad_input():
 
 def test_wired_into_main():
     src = (Path(__file__).resolve().parent.parent / "main.py").read_text()
-    assert src.count("caution=_caution_text(") == 3
+    assert src.count("caution=_caution_text(") >= 4          # immigration, legal, debt, loan
     assert src.count("PROACTIVE CAUTION (give it as a calm heads-up") == 3
