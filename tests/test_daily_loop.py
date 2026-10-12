@@ -227,3 +227,25 @@ def test_carry_over_skips_stale_or_empty_streaks(monkeypatch):
     sb2 = FakeSB()
     sb2.tables["user_streaks"] = [{"user_id": "u1", "current_streak": 0, "last_active_date": t.isoformat()}]
     assert DL.carry_over(sb2, "c1", t) is False
+
+
+def test_rituals_completions_feed_the_loop_practice_step(monkeypatch):
+    import main
+    seen = []
+    monkeypatch.setattr(DL, "record_step", lambda sb, cid, step, tz=0, **kw: seen.append((cid, step, tz, kw)) or {})
+    main._loop_mark_practice("c1", 330, other_practice=True)
+    main._loop_mark_practice("c1", None, mantra_count=108)
+    assert seen[0] == ("c1", "practice", 330, {"mantra_count": None, "other_practice": True})
+    assert seen[1][3] == {"mantra_count": 108, "other_practice": False} and seen[1][2] == 0
+
+
+def test_loop_hook_never_raises(monkeypatch):
+    import main
+    monkeypatch.setattr(DL, "record_step", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("down")))
+    main._loop_mark_practice("c1", 0, other_practice=True)      # must not raise
+
+
+def test_next_milestone_carries_days_and_credits_for_the_app():
+    from antar_engine import gamification as G
+    nm = G.next_milestone(6)
+    assert nm["at"] == 7 and nm["in_days"] == 1 and nm["ask"] == 3
