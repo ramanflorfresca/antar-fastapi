@@ -89,6 +89,70 @@ def _yoga_relevant(concern: str, cat: str, name: str, involved: list,
     return bool(inv & set(karakas)) or bool(inv & set(concern_lords))
 
 
+_KENDRA_TRIKONA = {1, 4, 5, 7, 9, 10}
+_DUSTHANA = {6, 8, 12}
+_CAREER_CONCERNS = {"career", "business"}
+
+
+def _d10_delivery(chart_data: dict, planets: dict, lagna_idx: int) -> Optional[dict]:
+    """[d10-delivery] Career DELIVERY read — does the D-1 promise repeat in the
+    D-10? Returns {points, details, afflictions} or None if unassessable.
+    Descriptive dial input only (never an outcome label)."""
+    from antar_engine.antar_ephemeris import divisional_chart, _planet_strength
+    d10 = divisional_chart(chart_data, 10)
+    d10_lagna = (d10.get("Lagna") or {}).get("sign")
+    if d10_lagna not in SIGNS:
+        return None
+    dl_idx = SIGNS.index(d10_lagna)
+
+    def d10_house(pl):
+        sg = (d10.get(pl) or {}).get("sign")
+        return ((SIGNS.index(sg) - dl_idx) % 12) + 1 if sg in SIGNS else None
+
+    lord10 = SIGN_LORDS[SIGNS[(lagna_idx + 9) % 12]]
+    d10_lagna_lord = SIGN_LORDS[d10_lagna]
+    d10_10lord = SIGN_LORDS[SIGNS[(dl_idx + 9) % 12]]
+    pts, det, aff = 0.0, [], []
+
+    # Vargottama in the career chart: 10th lord (and Saturn/Sun karakas)
+    for pl in dict.fromkeys([lord10, "Saturn", "Sun"]):
+        d1s = (planets.get(pl) or {}).get("sign")
+        if d1s and d1s == (d10.get(pl) or {}).get("sign"):
+            pts += 1.0 if pl == lord10 else 0.5
+            det.append(f"{pl} vargottama")
+
+    # 10th lord placement in D-10
+    h = d10_house(lord10)
+    if h in _KENDRA_TRIKONA:
+        pts += 1.0; det.append(f"10th lord in D10 house {h}")
+    elif h in _DUSTHANA:
+        pts -= 1.0; det.append(f"10th lord in D10 dusthana {h}")
+    # D-10 lagna lord — the pivot of the working life
+    h = d10_house(d10_lagna_lord)
+    if h in _KENDRA_TRIKONA:
+        pts += 0.5; det.append(f"D10 lagna lord in house {h}")
+    elif h in _DUSTHANA:
+        pts -= 1.0; det.append(f"D10 lagna lord in dusthana {h}")
+    # D-10 10th lord dignity
+    ds = _planet_strength(d10_10lord, (d10.get(d10_10lord) or {}).get("sign") or "")
+    if ds in ("exalted", "own"):
+        pts += 0.5; det.append(f"D10 10th lord {ds}")
+    elif ds == "debilitated":
+        pts -= 0.5; det.append("D10 10th lord debilitated")
+
+    # Affliction filters
+    for pl in dict.fromkeys([lord10, "Saturn"]):
+        if pl != "Sun" and (planets.get(pl) or {}).get("is_combust"):
+            pts -= 1.0; aff.append(f"{pl} combust")
+    d1h = (planets.get(lord10) or {}).get("house")
+    d10h = d10_house(lord10)
+    if d1h in (8, 12) and d10h in (8, 12):
+        pts -= 1.5; aff.append(f"10th lord in {d1h}th (D1) and {d10h}th (D10)")
+    elif d1h in (8, 12):
+        pts -= 0.5; aff.append(f"10th lord in {d1h}th (D1)")
+    return {"points": round(pts, 2), "details": det, "afflictions": aff}
+
+
 def assess_promise(chart_data: dict, houses: List[int], karakas: List[str],
                    *, md_lord: str = "", ad_lord: str = "",
                    concern: str = "general") -> dict:
@@ -220,6 +284,22 @@ def assess_promise(chart_data: dict, houses: List[int], karakas: List[str],
                 factors.append({"stage": "promise", "factor": f"chapter lord {_lord}",
                                 "detail": f"{_cs['summary']} | relevance {_rel}",
                                 "points": _cs["points"]})
+
+        # ── 6. D-10 delivery + career afflictions [d10-delivery] ────────────
+        if concern in _CAREER_CONCERNS:
+            try:
+                _dd = _d10_delivery(chart_data, planets, lagna_idx)
+                if _dd:
+                    comps.append((0.25, _clamp(_dd["points"] / 3.0)))
+                    factors.append({"stage": "promise", "factor": "D10 delivery",
+                                    "detail": ", ".join(_dd["details"]) or "no D10 markers",
+                                    "points": _dd["points"]})
+                    if _dd["afflictions"]:
+                        factors.append({"stage": "promise", "factor": "D10 afflictions",
+                                        "detail": ", ".join(_dd["afflictions"]),
+                                        "points": 0})
+            except Exception:
+                pass
 
         if not comps:
             return out
