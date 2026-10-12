@@ -146,3 +146,20 @@ def personalise_move(topic: str, tone: str, profile: Dict[str, Any], lang: str =
     key = (role, profile.get("stage") if role == "running_business" else None, mode)
     tpl = _MOVE.get(key) or _MOVE.get((role, None, mode))
     return tpl[i].format(what=what) if tpl else None
+
+
+def fit_for(sb, chart_id: str, profile: Dict[str, Any], lang: str = "en") -> Optional[dict]:
+    """The chart's fit read (best / uphill lanes always; the tier for THEIR work once they have said what it is). None when the chart has no career ranking."""
+    try:
+        from antar_engine import d10_career, work_fit
+        c = (sb.table("charts").select("chart_data").eq("id", chart_id).limit(1).execute().data) or []
+        if not c:
+            return None
+        cd = c[0].get("chart_data")
+        if isinstance(cd, str):
+            import json as _json
+            cd = _json.loads(cd)
+        ranked = (d10_career.analyze_career(cd or {}) or {}).get("careers") or []
+        return work_fit.fit(ranked, (profile or {}).get("what") or "", lang)
+    except Exception:
+        return None

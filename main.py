@@ -51458,6 +51458,8 @@ async def get_chart_topic_read(chart_id: str, topic: str, scale: str = "month",
                 out["your_move"] = _mv
             out["work_profile"] = _wp or None
             out["ask_work"] = _qs or None
+            if topic in ("business", "career"):   # which kinds of work run WITH / AGAINST this chart (and the tier for THEIR work once known)
+                out["work_fit"] = await run_in_threadpool(_WP.fit_for, supabase, chart_id, _wp, _lang)
     except Exception as _wpe:
         print(f"[work-profile] topic overlay skipped: {_wpe!r}")
     if background_tasks is not None:
@@ -51483,7 +51485,8 @@ async def get_work_profile(chart_id: str, language: Optional[str] = None):
     from antar_engine import work_profile as _WP
     p = await run_in_threadpool(_WP.get, supabase, chart_id)
     lang = "es" if str(language or "").startswith("es") else "en"
-    return {"profile": p or None, "questions": {t: _WP.questions(p, t, lang) for t in _WP.TOPICS}}
+    return {"profile": p or None, "questions": {t: _WP.questions(p, t, lang) for t in _WP.TOPICS},
+            "fit": await run_in_threadpool(_WP.fit_for, supabase, chart_id, p, lang)}
 
 
 class WorkProfileBody(BaseModel):
