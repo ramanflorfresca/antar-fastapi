@@ -39660,7 +39660,7 @@ def get_network(chart_id: str, language: str = "en"):
     from antar_engine import people_reading as _PR
     try:
         res = (supabase.table("compatibility_sessions")
-               .select("id,chart_id_b,name_b,compat_type,score,created_at,layer1_analysis,layer2_analysis,layer3_analysis")
+               .select("id,chart_id_b,name_a,name_b,compat_type,score,created_at,layer1_analysis,layer2_analysis,layer3_analysis")
                .eq("chart_id_a", chart_id)
                .order("created_at", desc=True).limit(50).execute())
         rows = res.data or []
@@ -39732,6 +39732,22 @@ def get_network(chart_id: str, language: str = "en"):
         p["name"] = _rn
         p["today"] = _network_today_glance(cid_b, lang)
         people.append(p)
+
+    # [first-names 2026-10-11] the People list showed "Raman Singh and Andres Botero are on different clocks…" next to rows that say "saransh" / "Rishi": serve first names.
+    # Applied to the generated reading text and the row name only; the user's own note is never rewritten. Shared first names stay full (ambiguous otherwise).
+    try:
+        from antar_engine import display_names as _DN
+        _all_names = [r.get("name_a") for r in rows] + [r.get("name_b") for r in rows] + [p.get("name") for p in people]
+        _owner_nm = (_chart_names.get(chart_id) or "") if isinstance(_chart_names, dict) else ""
+        _all_names.append(_owner_nm)
+        _uniq = list(dict.fromkeys(n.strip() for n in _all_names if n and n.strip()))
+        for p in people:
+            p["relationships"] = _DN.apply(p.get("relationships"), _uniq)
+            p["primary"] = _DN.apply(p.get("primary"), _uniq)
+            p["full_name"] = p.get("name")
+            p["name"] = _DN.apply(p.get("name"), _uniq)
+    except Exception as _dne:
+        print(f"[network][first-names] non-fatal: {_dne}")
 
     # [conn-note 2026-10-02] attach each person's permanent note in one query.
     _notes = _connection_notes_bulk(chart_id, [p["connection_chart_id"] for p in people])
