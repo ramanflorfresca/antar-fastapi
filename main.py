@@ -27739,6 +27739,13 @@ def _ask_pair_answer(question: str, chart_id: str, language, tz_offset):
         return None
 
 
+def _ask_subject_ambiguous_partners(cands: list, language: str) -> dict:
+    """Which-one chips when the asker has several romantic people saved (same contract as the subject gate)."""
+    from antar_engine import ask_subject_person as _asp
+    res = {"relation": "partner", "candidates": [{"name": (c.get("name_b") or c.get("name") or "").strip()} for c in cands]}
+    return _asp.ambiguous_payload(res, language)
+
+
 async def _ask_subject_gate(question: str, chart_id: str, language: str, tz_offset):
     """[ask-subject 2026-10-06] Who is this question ABOUT? Returns (None) for the
     asker themself (the normal pipeline continues untouched) or a finished payload
@@ -29642,6 +29649,47 @@ async def _ask_endpoint_impl(request: AskRequest):
             mode = "explore"
     except Exception:
         pass
+
+    # [people-pointer 2026-10-12] "Is my partner compatible with me?" / "Does my partner truly love me?" / "Is he the one?"
+    # can't be answered from the ASKER's chart. With no saved partner: say so, give the asker's side, point to People.
+    # With one: check whether THEIR current chapter is a partnership chapter. Deterministic, no LLM, never a feeling claim.
+    # Runs before the other-person rewrite so a saved partner gets a real read. Kill switch: ASK_PEOPLE_POINTER=off.
+    if (os.getenv("ASK_PEOPLE_POINTER") or "on").strip().lower() not in ("0", "off", "false", "no"):
+        try:
+            from antar_engine import people_pointer as _pp
+            _pp_kind = _pp.classify(question) if not _ask_detect_crisis(question) else None
+            if _pp_kind:
+                _pp_people = await asyncio.to_thread(_ask_load_people_sync, chart_id)
+                _pp_cands = _pp.partner_candidates(_pp_people)
+                if len(_pp_cands) == 1:
+                    _pp_who = _pp_cands[0]
+                    _pp_name = (_pp_who.get("name_b") or _pp_who.get("name") or "").strip() or "them"
+                    _pp_cid = _pp_who.get("chart_id_b") or _pp_who.get("chart_id")
+                    try:
+                        _pcd, _pdash, _acd = await asyncio.to_thread(_ask_load_person_sync, _pp_cid, chart_id)
+                        # a saved Person usually has no stored dasha rows (those are written for the primary chart only) -
+                        # compute theirs the way chart creation does
+                        if _pcd and not (_pdash or {}).get("vimsottari"):
+                            _pdash = {"vimsottari": _normalise_dashas(
+                                vimsottari.calculate_vimsottari_from_chart(_pcd, _pcd.get("birth_jd")))}
+                        _pp_payload = _pp.partner_payload(_pp_name, language, _acd or {}, _pcd or {}, _pdash or {}, _pp_kind)
+                    except Exception as _ppl:
+                        print(f"[ask][people-pointer] partner chart unreadable: {str(_ppl)[:140]}")
+                        _pp_payload = _pp.unreadable_payload(_pp_name, language, _pp_kind)
+                elif len(_pp_cands) > 1:
+                    _pp_payload = _ask_subject_ambiguous_partners(_pp_cands, language)
+                else:
+                    _pp_arow = await asyncio.to_thread(
+                        lambda: (supabase.table("charts").select("chart_data").eq("id", chart_id).limit(1).execute().data or [{}])[0])
+                    _pp_payload = _pp.missing_payload(language, _safe_jsonb(_pp_arow.get("chart_data")), _pp_kind)
+                print(f"[ask][people-pointer] {_pp_kind}: partners={len(_pp_cands)} -> {(_pp_payload.get('people_pointer') or {}).get('state') or 'which-one'}")
+                try:
+                    await _ask_persist(supabase, chart_id, question, _pp_payload, language, "explore", None)
+                except Exception as _ppe:
+                    print(f"[ask][people-pointer] persist non-fatal: {_ppe}")
+                return _pp_payload
+        except Exception as _ppx:
+            print(f"[ask][people-pointer] skipped (non-fatal): {_ppx}")
 
     # [other-person 2026-10-12] Antar answers what the asker should DO and WHEN, never what
     # another person feels or whether a body will fail. "Will my ex come back?" / "Does he

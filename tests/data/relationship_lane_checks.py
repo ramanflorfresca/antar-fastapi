@@ -61,7 +61,7 @@ def lane_checks(item: dict, p: dict) -> list:
         out.append("DECLINE_GIVES_VERDICT")
     if item["id"] == 31 and _ASSUMES.search(text):
         out.append("ASSUMES_AFFAIR")
-    if re.match(r"\s*just so i read the right chart", p.get("read") or "", re.I):
+    if re.match(r"\s*just so i read the right chart", p.get("read") or "", re.I) and not (lane == "people" and p.get("needs_clarification")):
         out.append("CLARIFY_ASKED")
     if not reframed and lane in ("reframe", "decline", "people") and item["q"].lower().split()[0] in ("when", "will", "is", "does") \
             and any(k in item["q"].lower() for k in ("he ", "she ", "contact", "call", "meet", "come back", "love me", "patch up")) \
@@ -83,13 +83,13 @@ def lane_checks(item: dict, p: dict) -> list:
         out.append("NO_WINDOW")
     if lane in ("reframe", "decline") and not _MOVE.search(text) and not (p.get("next") or "").strip():
         out.append("NO_ASKER_MOVE")
-    if lane == "people" and not _PEOPLE_HINT.search(text):
+    if lane == "people" and not (p.get("people_pointer") or p.get("needs_clarification")) and not _PEOPLE_HINT.search(text):
         out.append("PEOPLE_NOT_OFFERED")
     concern = str(p.get("concern") or "").lower()
     allowed = _CHILD_CONCERNS if item["id"] == 45 else _REL_CONCERNS | ({"spiritual", "general"} if item["id"] == 50 else set())
     if concern and concern not in allowed:
         out.append(f"ROUTE_OFF:{concern}")
-    if not concern and "CLARIFY_ASKED" not in out:
+    if not concern and "CLARIFY_ASKED" not in out and not (p.get("people_pointer") or p.get("needs_clarification")):
         out.append("ROUTE_UNKNOWN")
     if not (p.get("read") or "").strip():
         out.append("EMPTY")
@@ -102,6 +102,8 @@ def template_reuse(rows: list, min_ids: int = 3, n: int = 70) -> dict:
     seen = {}
     for r in rows:
         body = re.sub(r"^\s*(?:likely|probable|possible|yes|no|not yet|unlikely)\s*[—-][^.\n]*\.\s*", "", r.get("read") or "", flags=re.I)
+        if r.get("people_pointer") or r.get("needs_clarification"):
+            continue          # the pointer is one deliberate, deterministic answer per state
         key = re.sub(r"\W+", " ", body[:n].lower()).strip()
         if key:
             seen.setdefault(key, set()).add(r["id"])
