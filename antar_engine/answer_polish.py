@@ -609,7 +609,9 @@ def polish_answer(payload: dict, language: str = "en", typed_question: str = "",
             from antar_engine import window_guard as _wg
             _r0 = payload.get("read")
             payload["read"] = _wg.clip_forward(payload.get("read"))
-            payload["read"] = _wg.drop_conflicting_window_sentences(payload.get("read"), payload.get("timing"))
+            # the divorced / separated answer NAMES two windows on purpose (rebuild and new partnership): not a conflict
+            if not existing_union:
+                payload["read"] = _wg.drop_conflicting_window_sentences(payload.get("read"), payload.get("timing"))
             if isinstance(payload.get("next"), str):
                 payload["next"] = _wg.clip_forward(payload["next"], keep_min=1)
             if payload.get("read") != _r0:

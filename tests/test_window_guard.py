@@ -121,3 +121,17 @@ def test_unchanged_text_is_returned_untouched_line_breaks_included():
     assert wg.clip_forward(t, TODAY) == t
     assert wg.drop_conflicting_window_sentences(t, "Mar 2028", TODAY) == t
     assert wg.drop_conflicting_window_sentences(t, "Nov 2026 – Apr 2027", TODAY) != "" 
+
+
+def test_the_divorced_answer_names_two_windows_on_purpose():
+    from antar_engine.answer_polish import polish_answer
+    from tests.data.relationship_lane_checks import lane_checks
+    read = ("You're deciding between waiting on your former spouse and building something new.\n"
+            "Rebuilding with your former spouse: the supportive window opens Mar 2028 – May 2028; until then it is groundwork.\n"
+            "A new partnership: the next supportive window is Nov 2026 – Jan 2027; before it, build the ground.\n"
+            "The timing shows what supports you; it cannot show what the other person will do.")
+    pay = {"read": read, "next": "Decide what you want.", "timing": "Nov 2026 – Jan 2027"}
+    polish_answer(pay, language="en", typed_question="Should I wait or move on?", concern="love", existing_union=True)
+    assert "Mar 2028" in pay["read"] and "Nov 2026" in pay["read"]
+    q = {"id": 30, "lane": "reframe", "q": "Should I wait for him or her, or move on?"}
+    assert "WINDOW_CONFLICT" not in lane_checks(q, {"read": read, "next": "x", "concern": "love", "timing": "Nov 2026 – Jan 2027"})

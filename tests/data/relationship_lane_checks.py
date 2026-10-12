@@ -105,7 +105,8 @@ def lane_checks(item: dict, p: dict) -> list:
         _body = str(p.get("read") or "")
         if _wg.clip_forward(_body) != _body:
             out.append("PAST_WINDOW")
-        if p.get("timing") and _wg.drop_conflicting_window_sentences(_body, str(p.get("timing"))) != _body:
+        two_window = bool(re.search(r"Rebuilding with .*\n.*A new partnership:|A new partnership:.*\n.*Rebuilding with", _body, re.S))
+        if p.get("timing") and not two_window and _wg.drop_conflicting_window_sentences(_body, str(p.get("timing"))) != _body:
             out.append("WINDOW_CONFLICT")
     except Exception:
         pass
