@@ -35055,6 +35055,11 @@ def _attach_month_decision(fn):
     return _wrapper
 
 
+def _cap_first_items(items):
+    """['handle a money task', "don't stake…"] -> ['Handle a money task', "Don't stake…"]; non-strings untouched."""
+    return [(x[:1].upper() + x[1:]) if isinstance(x, str) and x else x for x in items]
+
+
 def _attach_today_decision(fn):
     """[today-decision 2026-10-10] The Today card calls GET /daily-signal/{id} (confirmed by the front end), so the
     decision block is attached HERE — to the payload the card actually renders — not only on the /predict/daily
@@ -35076,6 +35081,13 @@ def _attach_today_decision(fn):
                     _lr_today(r, _td, _tl, do_by_domain=_DAILY_DO_DONT_BY_DOMAIN)
         except Exception as _tde:
             print(f"[today] decision block skipped (non-fatal): {_tde}")
+        try:   # [capital-lines 2026-10-12] every do / don't line starts with a capital, whatever built it (domain map, panchanga list) and whether the card was cached or fresh
+            if isinstance(r, dict):
+                for _k in ("do_today", "dont_today"):
+                    if isinstance(r.get(_k), list):
+                        r[_k] = _cap_first_items(r[_k])
+        except Exception:
+            pass
         return r
     return _wrapper
 

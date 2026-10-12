@@ -205,11 +205,12 @@ def today(p: dict, dec: dict, language: str = "en", do_by_domain: dict | None = 
 
         # Do list: keep only items whose domain agrees with the lead; never leave the list empty
         if do_by_domain:
-            rev = {v["do"]: k for k, v in do_by_domain.items()}
+            _nl = lambda x: (x[:1].lower() + x[1:]) if isinstance(x, str) else x      # the lines start with a capital now; cached cards still carry the lower-case form
+            rev = {_nl(v["do"]): k for k, v in do_by_domain.items()}
             allowed = set().union(*(_AGREES[k] for k in chosen))
             do, why = list(p.get("do_today") or []), list(p.get("do_today_why") or [])
-            if do and all(x in rev for x in do):
-                keep = [i for i, x in enumerate(do) if rev[x] in allowed]
+            if do and all(_nl(x) in rev for x in do):
+                keep = [i for i, x in enumerate(do) if rev[_nl(x)] in allowed]
                 if len(keep) != len(do):
                     if keep:
                         p["do_today"] = [do[i] for i in keep]
