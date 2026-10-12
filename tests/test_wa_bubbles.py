@@ -729,3 +729,12 @@ def test_weak_ruler_is_said_once_in_plain_words_not_in_every_move():
         assert "ruler" not in mv and "weakened" not in mv and "sub-period" not in mv
         cond = conditions("business", chart, dashas, "en", q)
         assert "ruler of your" not in cond and "sub-period" not in cond and "in your chart" in cond
+
+
+def test_second_weakness_sentence_is_plain():
+    from antar_engine.ask_basis import conditions
+    chart, dashas = _chart()
+    for con in ("business", "career"):
+        c = conditions(con, chart, dashas, "en", "Will it grow?")
+        assert "significator" not in c
+        assert not any(p in c for p in ("Mercury", "Sun,", "Jupiter", "Venus", "Saturn", "Mars", "Rahu", "Ketu"))
