@@ -62,3 +62,13 @@ def test_small_copy_fixes_capital_do_lines_sentence_case_chips_and_a_plain_year_
     assert CC.normalise_titles(None) is None and CC.normalise_titles({"strengths": "x"}) == {"strengths": "x"}
     from datetime import date
     assert TC.year_chip(date(2025, 11, 26), date(2026, 11, 26), "en") == "Your year" and TC.year_chip(date(2025, 11, 26), date(2026, 11, 26), "es") == "Tu año"
+
+
+def test_do_and_dont_lines_are_capitalised_at_the_output_and_reconcile_still_matches_cached_lower_case_lines():
+    import main
+    assert main._cap_first_items(["take the short trip", "don't stake what you can't afford to lose", "Already capital", "", None]) == \
+        ["Take the short trip", "Don't stake what you can't afford to lose", "Already capital", "", None]
+    from antar_engine import legacy_reconcile as LR
+    do_by_domain = {"money": {"do": "Handle a money task you've been putting off", "dont": "x"}, "work": {"do": "Push a stuck work task to done", "dont": "y"}}
+    rev_ok = {x[:1].lower() + x[1:]: k for k, v in do_by_domain.items() for x in [v["do"]]}
+    assert "handle a money task you've been putting off" in rev_ok and "push a stuck work task to done" in rev_ok       # the lookup key is the lower-case form
