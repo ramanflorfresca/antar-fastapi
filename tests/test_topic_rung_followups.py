@@ -346,7 +346,7 @@ def test_open_today_note_survives_the_caution_week_rewrite(monkeypatch):
     out = D.reconcile_month(out, "en")
     sent = "Today itself is open for money and income."
     assert sent in out["claim"] and out["claim"].count(sent) == 1
-    assert out["claim"].endswith("a money bet can backfire fast.")
+    assert "the week of October 10 the one stretch to watch" in out["claim"] and "backfire" not in out["claim"]
     assert D.reconcile_month(out, "en")["claim"] == out["claim"]          # idempotent
 
 

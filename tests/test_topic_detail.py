@@ -440,7 +440,7 @@ def test_route_attaches_detail_and_reconciles(client, monkeypatch):
     assert calls == ["daily"]
     c.get("/api/v1/chart/c/topic-read?topic=money&scale=today&tz_offset=-240")
     assert calls == ["daily"]                                                     # second hit is served from the cache
-    assert any(k[:2] == ("topic-read", "v16-hedge") for k in te._CACHE)           # version-salted key
+    assert any(k[:2] == ("topic-read", "v17-steady-month") for k in te._CACHE)           # version-salted key
 
 
 @pytest.mark.parametrize("scale,need", [("month", "month"), ("year", "year"), ("season", "arc"), ("chapter", "arc")])
@@ -536,18 +536,39 @@ def test_open_month_claim_gains_the_caution_week():
     assert D.reconcile_month(out, "en")["claim"] == out["claim"]               # idempotent
 
 
-def test_steady_month_claim_is_replaced_not_contradicted():
+def test_steady_month_claim_names_the_week_without_the_raw_line():
     out = D.reconcile_month(_month_out("steady"), "en")
-    assert out["claim"] == ("Over the next 30 days, it is steady overall for money and income, with one stretch to watch. "
-                            + MONTH["caution_week"])
-    assert "nothing sharp" not in out["claim"]
+    assert out["claim"] == ("Over the next 30 days, it is steady overall for money and income, "
+                            "with the week of October 9 the one stretch to watch.")
+    assert MONTH["caution_week"] not in out["claim"] and "nothing sharp" not in out["claim"]
+    assert out["detail"]["caution_note"] == MONTH["caution_week"]
 
 
 @pytest.mark.parametrize("lang", LANGS)
 def test_month_claim_reconciles_in_every_language(lang):
     out = D.reconcile_month(_month_out("steady", lang), lang)
-    assert out["claim"].startswith(C.SPAN_LEAD[lang]["month"]) and out["claim"].endswith(MONTH["caution_week"]), out["claim"]
+    assert out["claim"].startswith(C.SPAN_LEAD[lang]["month"]) and MONTH["caution_week"] not in out["claim"], out["claim"]
+    assert _one_sentence(out["claim"]) and "October 9" in out["claim"] or lang != "en"
+    assert out["detail"]["caution_note"] == MONTH["caution_week"]
     assert not _JARGON.search(C.MONTH_CAUTION_CORE[lang])
+
+
+def test_steady_month_with_a_lone_open_today_keeps_that_sentence_but_not_the_raw_line():
+    base = _month_out("steady")
+    base["claim"] = ("Over the next 30 days, nothing sharp is pulling on money and income. "
+                     + C.MONTH_OPEN_TODAY["en"].format(area=C.AREA["en"]["money"]))
+    out = D.reconcile_month(base, "en")
+    assert out["claim"] == ("Over the next 30 days, it is steady overall for money and income, with the week of October 9 "
+                            "the one stretch to watch. Today itself is open for money and income.")
+    assert MONTH["caution_week"] not in out["claim"]
+
+
+def test_steady_month_with_an_unreadable_week_keeps_the_generic_core_and_no_raw_line():
+    base = _month_out("steady")
+    base["detail"] = dict(base["detail"], caution_week="A speculative bet or creative risk can backfire fast.")
+    out = D.reconcile_month(base, "en")
+    assert out["claim"] == "Over the next 30 days, it is steady overall for money and income, with one stretch to watch."
+    assert out["detail"]["caution_note"] == "A speculative bet or creative risk can backfire fast."
 
 
 def test_month_without_a_topic_caution_is_untouched():
