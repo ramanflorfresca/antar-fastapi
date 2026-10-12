@@ -33913,10 +33913,14 @@ async def _ask_endpoint_impl(request: AskRequest):
                         except Exception:
                             _until = ""
                         _win = ""
-                        try:
-                            _eec = run_event_engine(chart_data, locals().get("_ask_jd"), locals().get("_ask_dashas"), locals().get("_ask_bdate"), "career")
+                        try:   # the next career window (explicit import: this block can run on a path where the event engine was never imported)
+                            from antar_engine.event_narrator import run_event_engine as _ree_pos
+                            _eec = _ree_pos(chart_data, locals().get("_ask_jd"), locals().get("_ask_dashas"), locals().get("_ask_bdate"), "career")
                             _win = (_eec or {}).get("timing_label") or ""
-                        except Exception:
+                            if not _win:
+                                print(f"[ask][positioning] no career window: verdict={((_eec or {}).get('verdict') or {}).get('verdict')}")
+                        except Exception as _wine:
+                            print(f"[ask][positioning] career window failed: {_wine!r}")
                             _win = ""
                         _vs = await asyncio.to_thread(_read_ventures, chart_id)
                         _past = []
