@@ -272,6 +272,15 @@ def _select_window(verdict: str, board: dict) -> Optional[dict]:
     if verdict in ("supported", "supported_likely"):
         # tightest current connecting period: PD if present, else AD
         pd = vim.get("pd")
+        # [window-connecting 2026-10-11] The window must be a sub-period that actually touches THIS concern's houses. The current PD was used
+        # even when it did not (the verdict came from the AD), so every concern shared one window (Andres: marriage = career = funding).
+        # If the current PD does not connect, take the next connecting PD that still falls inside the running AD.
+        if pd and pd.get("connects_event") is False:
+            ad_end = ((vim.get("ad") or {}).get("end") or "")[:10]
+            for up in (pd.get("upcoming") or []):
+                if up.get("connects_event") and up.get("start") and (not ad_end or str(up["start"])[:10] <= ad_end):
+                    pd = up
+                    break
         if pd and pd.get("start") and pd.get("end"):
             lbl = _fmt_window(_clamp_start_today(pd["start"]), pd["end"])
             if lbl:
@@ -551,6 +560,9 @@ def run_event_engine(chart_data, jaimini_data, dashas, birth_date, concern,
         pass
     raw_client = client
     if client == "NOT_YET" and horizon is not None and horizon <= 12:
+        client = "LIKELY"
+    # [window-connecting 2026-10-11] A supported event whose connecting window has not started yet is not "open now" — it is likely, later.
+    if client == "YES" and horizon is not None and horizon >= 1:
         client = "LIKELY"
     return {
         "board": board,

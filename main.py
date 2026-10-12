@@ -31884,7 +31884,7 @@ async def _ask_endpoint_impl(request: AskRequest):
                                                if _label else f"Yes — {_noun}.")
                                 elif _client == "LIKELY":
                                     _hm = _ee.get("horizon_months")
-                                    if _label and _ee.get("client_verdict_raw") == "NOT_YET" and isinstance(_hm, int) and _hm >= 2:
+                                    if _label and _ee.get("client_verdict_raw") in ("NOT_YET", "YES") and isinstance(_hm, int) and _hm >= 2:
                                         # [horizon-rule 2026-10-11] a promised event whose window starts within 12 months: say it comes within the
                                         # year, and that until then it is groundwork
                                         _phrase = (f"Likely within the year — the {_noun} is {_label}; until then it is groundwork.")
