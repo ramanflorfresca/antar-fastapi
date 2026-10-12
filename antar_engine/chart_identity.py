@@ -288,6 +288,19 @@ def build_chart_identity(chart_data: Any, vim_rows: Any = None,
         atma = atma.get("planet") or atma.get("name")
 
     chapter = _running_chapter(vim_rows, today)
+    # [identity-pd 2026-10-11] People sub-charts store only MD + AD rows, so the inner sub-period (pratyantar) was missing for them while it
+    # exists for full charts. When a running antar is known but no pratyantar, derive it from the chart (never invented; omitted on any failure).
+    if chapter.get("antar") and not chapter.get("pratyantar") and cd.get("birth_jd") is not None:
+        try:
+            from datetime import datetime as _dt, timedelta as _td, timezone as _tz
+            from antar_engine.event_evidence import _vim_tree_live
+            _now = _dt.combine(today, _dt.min.time(), tzinfo=_tz.utc) + _td(hours=12)
+            _tree, _why = _vim_tree_live(cd, cd["birth_jd"], _now)
+            _pd = (_tree or {}).get("pd") or {}
+            if _pd.get("lord"):
+                chapter["pratyantar"] = _pd["lord"]
+        except Exception:
+            pass
     asc_lord = _SIGN_LORD.get(asc_sign or "")
 
     # Top yogas, strongest first. De-jargoned at render time: the user-facing
