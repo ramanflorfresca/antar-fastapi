@@ -71,18 +71,18 @@ _TX = {
         "nature": "{who} {is_} strongest in {lanes}.",
         "you": "You", "is_you_n": "are", "is_other_n": "is", "lead": "{who} should lead {lanes}", "basis": " ({basis})",
         "lead_join": "; ", "lead_h": "Who should lead what: ",
-        "share": "Share {lanes}: you are close enough that neither should own it alone.",
+        "share": "Share {lanes}: you are about equally strong here, so neither of you should own it alone.",
         "gap": "Neither of you is built for {lanes}. Hire, partner or outsource it rather than assume one of you will absorb it.",
-        "now": "Right now {who} {is_} in {md}–{ad}{chara}, which switches on {lanes}.", "chara": " (and the {sign} Chara period)",
+        "now": "Right now {who} {is_} in a season that favours {lanes}.", "chara": "",
         "is_you": "are", "is_other": "is", "cap_is_you": "are", "cap_is_other": "is", "partial": "Timing for {who} is not on file, so the read for {who} rests on the chart alone.",
         "fact": "{planet} in {sign}, house {h}", "fact_d10": "{planet} in D10 house {h}",
         "ak": "{planet} as the soul planet", "amk": "{planet} as the career planet",
-        "close": "This is the chart's read of nature and timing; roles still need to be agreed in writing.",
-        "cap_solo": "{who} {is_} built to run things alone: the 7th house (partners and contracts) does not read as supportive in the birth chart and the career chart ({basis}). A co-founder split rarely holds. Work together on narrow, written terms such as advisor, investor or contractor.",
-        "cap_cond": "{who} can partner, but only with clear written terms: the 7th house reads mixed ({basis}).", "cap_split": "{who} can partner, but the two systems point different ways: the 7th house and the Darakaraka (the partner planet) disagree. Agree the terms in writing before building together ({basis}).",
-        "cap_ok": "Both of you can partner: the 7th house reads supportive in the birth chart and the career chart.",
+        "close": "This is a read of strengths and timing, not a verdict. Agree roles in writing.",
+        "cap_solo": "{who} {is_} built to run things alone: the signs for a lasting business partnership are weak across both of the charts we read. A co-founder split rarely holds. Work together on narrow, written terms such as advisor, investor or contractor.",
+        "cap_cond": "{who} can partner, but only with clear written terms: the signs for partnership are mixed.", "cap_split": "{who} can partner, but the signs point different ways. Agree the terms in writing before building together.",
+        "cap_ok": "Both of you can partner: the signs for a lasting business partnership are good for each of you.",
         "cap_basis": "birth chart: {l1} rules the 7th, in house {h1}{o1}; career chart: {l10} rules the 7th, in house {h10}{o10}",
-        "occ": ", with {occ}", "contested": "The two systems split on {lanes}: Parashari (the birth and career charts) and Jaimini (the karakas and Chara period) put different people ahead. Treat it as open and decide it together rather than assign it.", "agree": "Both systems agree on the leads above (Parashari with Vimshottari, Jaimini with Chara).", "cap_after_solo": "Read the split below as who should own what inside a defined scope, not as a co-founder arrangement.",
+        "occ": ", with {occ}", "contested": "On {lanes}, our two ways of reading the charts disagree about who is stronger. Treat it as open and decide it together rather than assign it.", "agree": "Both of our readings agree on the leads above.", "cap_after_solo": "Read the split below as who should own what inside a defined scope, not as a co-founder arrangement.",
     },
     "es": {
         "title": "Cómo trabajar con {b}",
@@ -91,17 +91,17 @@ _TX = {
         "lead_join": "; ", "lead_h": "Quién debería liderar qué: ",
         "share": "Compartan {lanes}: están tan cerca que ninguno debería ser dueño único.",
         "gap": "Ninguno de los dos está hecho para {lanes}. Contraten, asóciense o externalicen en lugar de suponer que uno lo absorberá.",
-        "now": "Ahora mismo {who} {is_} en {md}–{ad}{chara}, lo que activa {lanes}.", "chara": " (y el periodo Chara de {sign})",
+        "now": "Ahora mismo {who} {is_} en una temporada que favorece {lanes}.", "chara": "",
         "is_you": "estás", "is_other": "está", "cap_is_you": "rindes", "cap_is_other": "rinde",
         "partial": "Los tiempos de {who} no están disponibles, así que su lectura se basa solo en la carta.",
         "fact": "{planet} en {sign}, casa {h}", "fact_d10": "{planet} en la casa {h} del D10",
         "ak": "{planet} como planeta del alma", "amk": "{planet} como planeta de la carrera",
-        "close": "Es la lectura de la carta sobre naturaleza y tiempos; los roles aún deben acordarse por escrito.",
-        "cap_solo": "{who} {is_} mejor en solitario: la casa 7 (socios y contratos) no se lee favorable en la carta natal ni en la de carrera ({basis}). Un reparto de cofundadores rara vez se sostiene. Trabajen con términos acotados y por escrito, como asesor, inversionista o contratista.",
-        "cap_cond": "{who} puede asociarse, pero solo con términos claros por escrito: la casa 7 se lee mixta ({basis}).", "cap_split": "{who} puede asociarse, pero los dos sistemas apuntan en direcciones distintas: la casa 7 y el Darakaraka (el planeta de la pareja o socio) no coinciden. Acuerden los términos por escrito antes de construir juntos ({basis}).",
-        "cap_ok": "Los dos pueden asociarse: la casa 7 se lee favorable en la carta natal y en la de carrera.",
+        "close": "Es una lectura de fortalezas y tiempos, no un veredicto. Acuerden los roles por escrito.",
+        "cap_solo": "{who} {is_} mejor en solitario: las señales de una sociedad duradera son débiles en las dos cartas que leemos. Un reparto de cofundadores rara vez se sostiene. Trabajen con términos acotados y por escrito, como asesor, inversionista o contratista.",
+        "cap_cond": "{who} puede asociarse, pero solo con términos claros por escrito: las señales de sociedad son mixtas.", "cap_split": "{who} puede asociarse, pero las señales apuntan en direcciones distintas. Acuerden los términos por escrito antes de construir juntos.",
+        "cap_ok": "Los dos pueden asociarse: las señales de una sociedad duradera son buenas para cada uno.",
         "cap_basis": "carta natal: {l1} rige la casa 7, en la casa {h1}{o1}; carta de carrera: {l10} rige la casa 7, en la casa {h10}{o10}",
-        "occ": ", con {occ}", "contested": "Los dos sistemas se dividen en {lanes}: Parashari (carta natal y de carrera) y Jaimini (karakas y periodo Chara) ponen adelante a personas distintas. Trátenlo como abierto y decídanlo juntos en lugar de asignarlo.", "agree": "Los dos sistemas coinciden en los liderazgos de arriba (Parashari con Vimshottari, Jaimini con Chara).", "cap_after_solo": "Lean el reparto de abajo como quién responde de qué dentro de un alcance definido, no como un acuerdo de cofundadores.",
+        "occ": ", con {occ}", "contested": "En {lanes}, nuestras dos formas de leer las cartas no coinciden sobre quién es más fuerte. Trátenlo como abierto y decídanlo juntos en lugar de asignarlo.", "agree": "Nuestras dos lecturas coinciden en los liderazgos de arriba.", "cap_after_solo": "Lean el reparto de abajo como quién responde de qué dentro de un alcance definido, no como un acuerdo de cofundadores.",
     },
 }
 _SIGN_ES = {"Aries": "Aries", "Taurus": "Tauro", "Gemini": "Géminis", "Cancer": "Cáncer", "Leo": "Leo", "Virgo": "Virgo",
@@ -499,7 +499,7 @@ def compare(chart_a: dict, dashas_a: dict, chart_b: dict, dashas_b: dict, name_b
         lines += caps + ([tx["cap_after_solo"]] if solo else []) + ([""] if caps else [])
         lines.append(tx["nature"].format(who=you, is_=tx["is_you_n"], lanes=lanes_txt(nat(a))) + " "
                      + tx["nature"].format(who=name_b, is_=tx["is_other_n"], lanes=lanes_txt(nat(b))))
-        lead_bits = []
+        lead_bits, basis_facts = [], []        # chart placements stay OUT of the text; they are returned as basis_facts for anyone who wants them
         for who, chart, ls in ((you, chart_a, leads_a), (name_b, chart_b, leads_b)):
             if not ls:
                 continue
@@ -509,7 +509,8 @@ def compare(chart_a: dict, dashas_a: dict, chart_b: dict, dashas_b: dict, name_b
                 f = _top_fact(chart, l, lang)
                 if f and f not in facts:
                     facts.append(f)
-            lead_bits.append(tx["lead"].format(who=who, lanes=lanes_txt(top)) + (tx["basis"].format(basis="; ".join(facts[:2])) if facts else ""))
+            lead_bits.append(tx["lead"].format(who=who, lanes=lanes_txt(top)))
+            basis_facts += facts[:2]
         if lead_bits:
             lines.append(tx["lead_h"] + tx["lead_join"].join(lead_bits) + ".")
         if shared:
@@ -525,8 +526,8 @@ def compare(chart_a: dict, dashas_a: dict, chart_b: dict, dashas_b: dict, name_b
                 pn = (lambda x: x) if lang == "en" else (lambda x: _PLANET_ES.get(x, x))
                 top = [l for l, v in sorted(sc["parts"].items(), key=lambda kv: -kv[1]["dasha"]) if sc["parts"][l]["dasha"] > 0][:2]
                 if top:
-                    ch = (tx["chara"].format(sign=sc["chara_ad"] if lang == "en" else _SIGN_ES.get(sc["chara_ad"], sc["chara_ad"])) if sc.get("chara_ad") else "")
-                    lines.append(tx["now"].format(who=who, is_=is_, md=pn(sc["md"]), ad=pn(sc["ad"] or sc["md"]), chara=ch, lanes=lanes_txt(top)))
+                    basis_facts.append(f"{who}: " + "/".join(x for x in (pn(sc["md"]), pn(sc["ad"] or sc["md"])) if x) + (f" + {sc['chara_ad']} Chara" if sc.get("chara_ad") else ""))
+                    lines.append(tx["now"].format(who=(who.lower() if who == you else who), is_=is_, lanes=lanes_txt(top)))
         for who, sc in ((you, a), (name_b, b)):
             if not sc["have"]["dasha"]:
                 lines.append(tx["partial"].format(who=who))
@@ -540,6 +541,7 @@ def compare(chart_a: dict, dashas_a: dict, chart_b: dict, dashas_b: dict, name_b
                          "solo": solo},
             "shared": shared, "gaps": [l for _, l in sorted(gap_c)], "contested": contested, "partial": [k for k, sc in (("you", a), ("other", b)) if not all(sc["have"].values())],
             "text": "\n".join(lines),
+            "basis_facts": basis_facts + [b for b in (_cap_basis(cap_a, lang), _cap_basis(cap_b, lang)) if b],
         }
     except Exception as e:                       # never break the page — but never fail silently either
         print(f"[partner-roles] compare failed: {type(e).__name__}: {e}")
