@@ -311,7 +311,7 @@ def conditions(concern, chart_data, dashas, language="en", question="") -> str:
             kp = planets.get(k) or {}
             if k != lord and kp.get("sign") and any(
                     n == "debilitated" or n.startswith("combust") for n in _dignity(k, kp["sign"], planets)):
-                out += f"{k}, the main significator here, is weakened too, so this needs deliberate effort rather than arriving on its own. "
+                out += "The part of your chart that carries this is under strain too, so it needs deliberate effort rather than arriving on its own. "     # [plain 2026-10-11] no planet / \"significator\" in the answer; the basis line keeps the fact
         return out + f"It breaks if {_f[2] if _f else _BREAKS[concern]}."
     except Exception:
         return ""
