@@ -57,6 +57,8 @@ _HEALTH = [
     re.compile(r"\b(when|how)\s+(will|am)\s+i\s+(going\s+to\s+)?die\b|\bwill\s+i\s+die\b|\bhow\s+long\s+(will|am)\s+i\s+(going\s+to\s+)?live\b|\blife\s?span\b|\bwhen\s+is\s+my\s+death\b", _I),
     re.compile(r"\b(tendr[eé]|voy\s+a\s+tener|sufrir[eé])\b[^?]{0,40}\b(c[aá]ncer|enfermedad|operaci[oó]n|cirug[ií]a|accidente|infarto|problema\s+de\s+salud)\b|\bcu[aá]ndo\s+(voy\s+a\s+)?morir[eé]?\b|\bcu[aá]nto\s+(voy\s+a\s+)?vivir[eé]?\b", _I),
     re.compile(r"\b(vou\s+(ter|ficar)|terei|vou\s+sofrer)\b[^?]{0,40}\b(c[aâ]ncer|doen[cç]a|doente|cirurgia|acidente|infarto|problema\s+de\s+sa[uú]de)\b|\bquando\s+(vou\s+)?morrer\b|\bquanto\s+tempo\s+(vou\s+)?viver\b", _I),
+    re.compile(r"\b(will|am|could|might)\s+i\s+(ever\s+)?(fall\s+ill|become\s+(sick|ill)|get\s+seriously\s+ill)\b", _I),
+    re.compile(r"\b(voy\s+a\s+enfermar(me)?|me\s+enfermar[eé]|enfermar[eé])\b|\b(vou\s+adoecer|adoecerei)\b", _I),
     re.compile(r"\b(bimar|bimaar)\s+(padunga|padungi|hounga|hoongi)\b|\bkab\s+(marunga|marungi)\b|\bkitna\s+(jiyunga|jiyungi)\b|\bcancer\s+(hoga|ho\s+jayega)\b|\boperation\s+(hoga|karna\s+padega)\b", _I),
     re.compile(r"कब\s*मरूँ?गा|कब\s*मरूँ?गी|कितना\s*जिऊँ?गा|बीमार\s*(पड़ूँ?गा|पड़ूँ?गी|हो\s*जाऊँ?गा)"),
 ]
