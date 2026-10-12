@@ -64,3 +64,23 @@ def test_spanish_is_native_and_nothing_without_a_fit_or_a_what():
     text = "\n".join(r["messages"])
     assert text.startswith("Respuesta directa") and "Empieza por:" in text and "Evita:" in text and "Why:" not in text and "Lead with" not in text and "Avoid" not in text
     assert POS.compose(CHART, None, PROFILE, lang="en") is None and POS.compose(CHART, WF.fit(RAMAN_RANK, "", "en"), {"role": "job"}, lang="en") is None
+
+
+def test_positioning_is_answered_early_by_a_shared_helper(monkeypatch):
+    import asyncio
+    import main
+
+    class _Boom:
+        def table(self, name):
+            raise RuntimeError("no table")
+    monkeypatch.setattr(main, "supabase", _Boom())             # no work profile anywhere -> the interview, without touching a database
+    r = asyncio.run(main._positioning_answer("c1", {"planets": {}}, {}, None, "1990-01-01", "How should I position my startup?", "en"))
+    assert r["ask_back"]["key"] == "role" and r["messages"] == [r["ask_back"]["prompt"]]
+    assert asyncio.run(main._positioning_answer("c1", {}, {}, None, "", "When will my income increase?", "en")) is None      # not a positioning question
+    assert asyncio.run(main._positioning_answer("c1", {}, {}, None, "", "How should I position my startup?", "pt")) is None    # en / es only
+    p = main._positioning_payload(r)
+    assert p["answer_kind"] == "positioning" and p["messages"] == r["messages"] and p["read"] == r["messages"][0] and p["verdict"] is None and p["basis"] == ""
+    src = open(main.__file__, encoding="utf-8").read()
+    early = src.index("[positioning-early 2026-10-12]")
+    assert 'str(chart_row.data.get("birth_date") or "")[:10]' in src[early - 300:early]                  # right after the chart loads
+    assert early < src.index("[career-clarify 2026-09-24]", early) < src.index("_known_role = _ask_known_current_role", early)    # before the career clarify and before any LLM work
