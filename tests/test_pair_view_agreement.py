@@ -270,3 +270,21 @@ def test_the_server_sends_period_labels_and_an_agreement_flag():
     assert WA.availability("advisor", _hier("advisor"))["title"] == "Advisory agreement (template)"
     assert WA.availability("employee", _hier("employee", "operations"))["type"] == "employee"
     assert WA.availability("friend", None) == {"available": False} and WA.availability("sibling", ROLES) == {"available": False}
+
+
+def test_chip_and_tile_say_the_same_overall_verdict():
+    for badge, label, text in (("FLOW", "Strong", "Works well together"), ("MIXED", "Mixed", "Works with some effort"), ("STRAIN", "Needs care", "Needs care to work well")):
+        r = PV.build({**SESSION, "badge": badge}, _dashas("Rahu", "Rahu", "Rahu"), _dashas("Saturn", "Saturn", "Rahu"), "en", TODAY)
+        assert r["status"]["label"] == label and r["tiles"]["flows"]["text"] == text
+        assert "friction" not in r["tiles"]["flows"]["text"].lower()         # a red chip must never sit over "little friction"
+    es = PV.build({**SESSION, "badge": "STRAIN"}, _dashas("Rahu", "Rahu", "Rahu"), _dashas("Saturn", "Saturn", "Rahu"), "es", TODAY)
+    assert es["status"]["label"] == "Necesita cuidado"
+
+
+def test_advisor_reading_has_no_cofounder_wording():
+    adv = {**SESSION, "compat_type": "advisor", "badge": "STRAIN", "roles": {"kind": "hierarchy"}}
+    r = PV.build(adv, _dashas("Rahu", "Rahu", "Rahu"), _dashas("Rahu", "Saturn", "Saturn"), "en", TODAY)
+    assert r["tiles"]["open"]["text"] == "You decide; they advise" and "areas have no owner" not in r["tiles"]["open"]["text"]
+    assert "sets the pace" not in r["seasons"]["summary"] and "Agree who" not in r["seasons"]["summary"]
+    one = PV.build(adv, _dashas("Rahu", "Rahu", "Rahu"), _dashas("Saturn", "Rahu", "Rahu"), "en", TODAY)
+    assert "different seasons" in one["seasons"]["summary"] and "next 6 months" in one["seasons"]["summary"]
