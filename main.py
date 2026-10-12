@@ -27145,7 +27145,16 @@ def _creditor_lead(chart_data, question, language="en") -> str:
             return ""
         from antar_engine.debt import analyze_creditor, creditor_posture_phrase
         a = analyze_creditor(chart_data)
-        return creditor_posture_phrase(a.get("posture"), language) if a.get("available") else ""
+        if not a.get("available"):
+            return ""
+        base = creditor_posture_phrase(a.get("posture"), language)
+        # [case-now 2026-10-12] the birth chart is the promise, the moment chart is the present:
+        # add what is true RIGHT NOW (or that it still holds). Kill switch ASK_CASE_NOW=off.
+        if base and os.getenv("ASK_CASE_NOW", "on").lower() != "off":
+            from antar_engine.case_now import creditor_now, now_clause
+            n = creditor_now()
+            base += now_clause(a.get("posture"), n.get("posture") if n.get("available") else None, language)
+        return base
     except Exception:
         return ""
 
