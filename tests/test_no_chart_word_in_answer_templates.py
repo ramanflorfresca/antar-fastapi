@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 
 RX = re.compile(r"\b(charts?|horoscopes?|astrolog\w*|cartas?|mapa astral|casa \d+|\d+(?:st|nd|rd|th) house)\b", re.I)
-FILES = ["ask_basis", "ask_basis_es", "basis_plain", "positioning", "work_fit", "work_profile", "staff_decision", "authority_read", "partner_roles", "pair_view", "divorced_union", "ask_families", "ask_followups"]
+FILES = ["ask_basis", "ask_basis_es", "basis_plain", "positioning", "work_fit", "work_profile", "staff_decision", "authority_read", "partner_roles", "pair_view", "divorced_union", "ask_families", "ask_followups", "medical_safety"]
 ROOT = Path(__file__).resolve().parent.parent / "antar_engine"
 
 

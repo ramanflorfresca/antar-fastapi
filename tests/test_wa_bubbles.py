@@ -511,18 +511,18 @@ def test_medical_safe_answer_has_no_verdict_no_deadline_and_the_same_move_in_eve
     from antar_engine.medical_safety import safe_answer
     chart, dashas = _chart()          # 6th-house ruler (Mercury) is combust in the fixture -> "weakened"
     en, es, pt = (safe_answer(chart, dashas, l) for l in ("en", "es", "pt"))
-    assert en["read"].startswith("The chart can't say whether surgery is right for you or when to have it — that is a medical decision for you and your doctor.")
-    assert "the ruler of your 6th house is weakened, so recovery tends to run slower" in en["read"]
-    assert en["read"].endswith("not around a date from the chart.")
+    assert en["read"].startswith("Antar can't say whether surgery is right for you or when to have it — that is a medical decision for you and your doctor.")
+    assert "your recovery capacity is under strain right now, so recovery tends to run slower" in en["read"]
+    assert en["read"].endswith("not around a date from this reading.")
     assert en["next"].startswith("Ask your surgeon for the specific risk of acting now versus waiting, get a second opinion")
-    assert es["read"].startswith("La carta no puede decir si la cirugía es lo correcto para ti ni cuándo hacerla") and "segunda opinión" in es["next"]
-    assert pt["read"].startswith("O mapa não pode dizer se a cirurgia é o certo para você") and "segunda opinião" in pt["next"]
+    assert es["read"].startswith("Antar no puede decir si la cirugía es lo correcto para ti ni cuándo hacerla") and "segunda opinión" in es["next"]
+    assert pt["read"].startswith("O Antar não pode dizer se a cirurgia é o certo para você") and "segunda opinião" in pt["next"]
     import re
     for a in (en, es, pt):
         assert not re.search(r"(?i)window|ventana|janela|january|enero|janeiro|if you wait|si esperas|se esperar|deadline", a["read"] + a["next"])
     fine = {"lagna": {"sign": "Capricorn"}, "planets": {"Mercury": {"sign": "Gemini", "house": 6, "longitude": 70.0},
                                                          "Sun": {"sign": "Scorpio", "house": 11, "longitude": 220.0}}}
-    assert "your health house is well supported" in safe_answer(fine, dashas, "en")["read"]
+    assert "your health is well supported right now" in safe_answer(fine, dashas, "en")["read"]
     assert "recover" not in safe_answer({}, dashas, "en")["read"].split("—")[1].split(".")[0]      # no chart -> no recovery claim
     assert safe_answer(chart, dashas, "hi") is None and safe_answer(chart, dashas, "hinglish") is None
 
@@ -711,7 +711,7 @@ def test_portuguese_fallback_moves_exist_for_every_topic_and_read_naturally():
         assert "{ch}" not in pt and "por a " not in pt and "Block one hour" not in pt, (c, pt)
     career = chart_move("career", chart, dashas, "pt")
     assert career.startswith("Como o regente da sua casa 10 está enfraquecido, os resultados ficam atrás do esforço — ponha o esforço neste canal: a sua rede de contatos e os seus ganhos")
-    assert career.endswith("Reavalie quando o subperíodo atual terminar em 25 de abril de 2100.")
+    assert career.endswith("Reavalie quando esta etapa terminar em 25 de abril de 2100.")
     assert chart_move("health", chart, dashas, "pt").startswith("Organize primeiro os horários de sono e de refeição")
     assert "Defina o máximo que você pode perder" in chart_move("speculation", chart, dashas, "pt")
     assert chart_move("career", chart, dashas, "hi") == ""            # hi / hinglish unchanged

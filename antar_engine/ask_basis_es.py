@@ -174,10 +174,10 @@ def conditions(concern, chart_data, dashas) -> str:
             return ""
         grp = B._GROUP[concern]
         h, weak, ch = f["h"], f["weak"], f["ch"]
-        until_p = f" (el subperiodo actual llega hasta el {I18.date_long(f['end'], L)})" if f["end"] else ""
+        until_p = f" (esta etapa llega hasta el {I18.date_long(f['end'], L)})" if f["end"] else ""
         if grp == "health":
             tail = (f"El regente de tu {_ord(h)} está debilitado, así que la recuperación va más lenta que el esfuerzo que haces{until_p}"
-                    if weak else "Tu casa de la salud está bien apoyada, así que los hábitos pequeños rinden mucho")
+                    if weak else "Tu salud está bien apoyada ahora, así que los hábitos pequeños rinden mucho")
             return ("El riesgo se mantiene bajo si actúas pronto y proteges el sueño y el tiempo de recuperación. "
                     + tail + f". Se rompe si {_BREAKS[concern]}.")
         if grp == "speculation":
@@ -186,7 +186,7 @@ def conditions(concern, chart_data, dashas) -> str:
             return ("Se sostiene si limitas lo que arriesgas a una cantidad que puedes permitirte perder. "
                     + tail + f". Se rompe si {_BREAKS[concern]}.")
         fine, weak_t, meaning = _HOLDS[grp]
-        until = f" (el subperiodo actual llega hasta el {I18.date_long(f['end'], L)})" if f["end"] else ""
+        until = f" (esta etapa llega hasta el {I18.date_long(f['end'], L)})" if f["end"] else ""
         holds = (weak_t.format(ch=ch) + f" — el regente de tu {_ord(h)} está debilitado: " + meaning.format(until=until)
                  if weak else fine.format(ch=ch))
         out = holds + ". "
@@ -210,11 +210,11 @@ def chart_move(concern, chart_data, dashas) -> str:
             return ""
         end = I18.date_long(f["end"], L) if f["end"] else ""
         if concern == "health":
-            when = (f" Cuenta con una recuperación más lenta durante el subperiodo actual (hasta el {end}); "
+            when = (f" Cuenta con una recuperación más lenta durante esta etapa (hasta el {end}); "
                     "no esperes a que se arregle solo.") if (f["weak"] and end) else ""
             return "Ordena primero los horarios de sueño y comida, y revisa cuanto antes cualquier cosa inusual." + when
         if concern == "speculation":
-            tail = f" Reevalúa cuando termine el subperiodo actual el {end}." if (f["weak"] and end) else ""
+            tail = f" Reevalúa cuando termine esta etapa el {end}." if (f["weak"] and end) else ""
             return ("Fija lo máximo que puedes permitirte perder, escríbelo antes de colocar nada y detente en esa cifra — "
                     "las ganancias aquí llegan a golpes y se escapan." + tail)
         act = _ACT.get(concern)
@@ -222,7 +222,7 @@ def chart_move(concern, chart_data, dashas) -> str:
             return ""
         lead = (f"Como el regente de tu {_ord(f['h'])} está debilitado, los resultados van por detrás del esfuerzo — "
                 if f["weak"] else "")
-        tail = f" Reevalúa cuando termine el subperiodo actual el {end}." if (f["weak"] and end) else ""
+        tail = f" Reevalúa cuando termine esta etapa el {end}." if (f["weak"] and end) else ""
         out = (lead + act.format(ch=f["ch"]) + "." + tail).replace(" de el ", " del ")
         return out[0].upper() + out[1:]
     except Exception:
