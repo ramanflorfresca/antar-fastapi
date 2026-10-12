@@ -34142,6 +34142,15 @@ async def _ask_endpoint_impl(request: AskRequest):
                     payload["basis"] = ((payload.get("basis") or "") + " " + _sd_basis).strip()
             except Exception as _bse:
                 print(f"[ask] basis skipped (non-fatal): {_bse}")
+            try:   # [why-factors 2026-10-12] the same facts as labelled, plain-worded reasons for the Why sheet (en/es)
+                if isinstance(payload, dict) and not _pos_done and payload.get("basis_facts"):
+                    from antar_engine import why_factors as _WFX
+                    _wfx = _WFX.build(locals().get("_ask_concern"), chart_data, locals().get("_ask_dashas"),
+                                      _ask_norm_lang(language))
+                    if _wfx:
+                        payload["why_factors"] = _wfx
+            except Exception as _wfe:
+                print(f"[ask] why_factors skipped (non-fatal): {_wfe}")
             await _ask_persist(supabase, chart_id, question, payload, language,
                                "explore", locals().get("_ask_concern"))
             return payload
