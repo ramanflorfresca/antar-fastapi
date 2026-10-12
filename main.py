@@ -17324,6 +17324,8 @@ def places_potential_endpoint(req: PlacesPotentialReq):
                  "what_changes": card.get("what_changes") or [],
                  "varga": card.get("varga") or [],   # relocated D-9/D-10 line
                  "feel": card.get("feel"), "drishti": card.get("drishti"),
+                 # hard-caution first: the entry projection is lean, so it must carry these
+                 "watch_outs": [_places_strip(_t, lang) for _t in (card.get("watch_outs") or [])],
                  "_thin": thin}
         if best_for:
             entry["best_for"] = best_for
@@ -17700,6 +17702,11 @@ def places_prescribe_endpoint(req: PlacesPrescribeReq):
                     if _dr else None)
         except Exception:
             _feel, _drs = None, None
+        try:   # cautions for the diagnosed area (hard vetoes lead; max 2; fail-open)
+            _wo = [_places_strip(_t, lang)
+                   for _t in _pcomp.compose_watch_outs(cn, s.get("_watch", []), lang)]
+        except Exception:
+            _wo = []
         cy = s.get("city") or {}
         lift = int(round((s.get("score", 0) or 0) - home_by.get(cn, {}).get("score", 0)))
         # Method-B headline: which natal house rises here (the relocated ascendant's
@@ -17727,6 +17734,7 @@ def places_prescribe_endpoint(req: PlacesPrescribeReq):
             "varga": _vg,
             "feel": _feel,
             "drishti": _drs,
+            "watch_outs": _wo,
         }
 
     prescription = None
