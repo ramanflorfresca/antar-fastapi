@@ -62,16 +62,24 @@ def test_lagna_stalled_when_lagna_lord_in_relocated_twelfth():
     assert "lagna_stalled" in _kinds(relocation_veto_watch(CH, "career", RELOC_V, {}, [], 0, 0))
 
 
-def test_eighth_lord_on_any_close_angle():
-    w = relocation_veto_watch(CH, "career", RELOC_V, {}, [_line("Saturn", "IC")], 10.0, 10.0)
+def test_eighth_lord_on_self_or_career_angle_only():
+    w = relocation_veto_watch(CH, "career", RELOC_V, {}, [_line("Saturn", "MC")], 10.0, 10.0)
     assert "eighth_lord_angle" in _kinds(w)
-    w = relocation_veto_watch(CH, "career", RELOC_V, {}, [_line("Saturn", "IC", 10.0, 40.0)], 10.0, 10.0)
-    assert "eighth_lord_angle" not in _kinds(w)
+    # IC / DC are not flagged outside love; far lines never are
+    assert "eighth_lord_angle" not in _kinds(relocation_veto_watch(CH, "career", RELOC_V, {}, [_line("Saturn", "IC")], 10.0, 10.0))
+    assert "eighth_lord_angle" not in _kinds(relocation_veto_watch(CH, "career", RELOC_V, {}, [_line("Saturn", "DC")], 10.0, 10.0))
+    assert "eighth_lord_angle" in _kinds(relocation_veto_watch(CH, "love", RELOC_V, {}, [_line("Saturn", "DC")], 10.0, 10.0))
+    assert "eighth_lord_angle" not in _kinds(relocation_veto_watch(CH, "career", RELOC_V, {}, [_line("Saturn", "MC", 10.0, 40.0)], 10.0, 10.0))
 
 
-def test_node_on_ac_or_mc_only():
-    assert "node_angle" in _kinds(relocation_veto_watch(CH, "career", RELOC_V, {}, [_line("Rahu", "MC")], 10.0, 10.0))
-    assert "node_angle" not in _kinds(relocation_veto_watch(CH, "career", RELOC_V, {}, [_line("Rahu", "IC")], 10.0, 10.0))
+def test_node_on_ac_or_mc_only_and_mc_is_exempt_for_career_money_business():
+    # love / peace / health / family: AC or MC counts
+    assert "node_angle" in _kinds(relocation_veto_watch(CH, "peace", RELOC_V, {}, [_line("Rahu", "MC")], 10.0, 10.0))
+    assert "node_angle" not in _kinds(relocation_veto_watch(CH, "peace", RELOC_V, {}, [_line("Rahu", "IC")], 10.0, 10.0))
+    # career / business / money: a node on the MC is worldly ambition, only the AC is flagged
+    for cn in ("career", "business", "money"):
+        assert "node_angle" not in _kinds(relocation_veto_watch(CH, cn, RELOC_V, {}, [_line("Rahu", "MC")], 10.0, 10.0))
+        assert "node_angle" in _kinds(relocation_veto_watch(CH, cn, RELOC_V, {}, [_line("Rahu", "AC")], 10.0, 10.0))
 
 
 def test_weak_love_karaka_on_dc_unless_rescued():

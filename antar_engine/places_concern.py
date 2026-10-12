@@ -214,10 +214,17 @@ def relocation_veto_watch(chart: dict, concern: str, relocation: dict, condition
             continue
         if distance_city_to_line(lat, lon, ln["polyline"]) < _STRONG_KM:
             close.setdefault(pl, set()).add(ln["angle"])
-    if eighth and close.get(eighth):
-        out.append({"kind": "eighth_lord_angle", "planet": eighth, "angle": sorted(close[eighth])[0]})
+    # The 8th lord is a caution on the self / career lines (AC, MC) - plus the
+    # partnership line (DC) when the question is love - not on every angle.
+    eighth_angles = {"AC", "MC"} | ({"DC"} if concern == "love" else set())
+    hit8 = close.get(eighth, set()) & eighth_angles if eighth else set()
+    if hit8:
+        out.append({"kind": "eighth_lord_angle", "planet": eighth, "angle": sorted(hit8)[0]})
+    # A node on the career line (MC) is the classic worldly-ambition signature, so
+    # for career / business / money only the self line (AC) is flagged as instability.
+    node_angles = {"AC"} if concern in ("career", "business", "money") else {"AC", "MC"}
     for node in ("Rahu", "Ketu"):
-        hit = close.get(node, set()) & {"AC", "MC"}
+        hit = close.get(node, set()) & node_angles
         if hit:
             out.append({"kind": "node_angle", "planet": node, "angle": sorted(hit)[0]})
             break
@@ -267,7 +274,7 @@ def lord_trap_watch(chart: dict, concern: str, all_lines: list, lat: float, lon:
         if planet not in kinds or ln["angle"] not in angles:
             continue
         d = distance_city_to_line(lat, lon, ln["polyline"])
-        if _band(d) == "ignored":
+        if _band(d) != "strong":      # [places-noise] only a line you are ON, not one within 700 km
             continue
         kind, rules = kinds[planet]
         if any(w["planet"] == planet for w in out):
@@ -709,11 +716,16 @@ def score_city_for_concern(
                 "condition": hit["condition"],
             })
 
-    watch.extend(lord_trap_watch(chart, concern, all_lines, lat, lon))  # [places-lords] trap lines
-    # [places-veto] hard flags lead the watch list so they are never buried
+    traps = lord_trap_watch(chart, concern, all_lines, lat, lon)  # [places-lords] trap lines
+    # [places-veto] hard flags lead the watch list so they are never buried, then
+    # the rulership traps, then the older generic friction / hidden-cost notes.
     vetoes = relocation_veto_watch(chart, concern, relocation, conditions,
                                    all_lines, lat, lon, dasha_lords)
-    watch = vetoes + watch
+    # [places-noise] one "stalled" message is enough: if the concern's own lord is
+    # already stalled here, the lagna-lord flag is the same story twice.
+    if any(v["kind"] == "lord_stalled" for v in vetoes):
+        vetoes = [v for v in vetoes if v["kind"] != "lagna_stalled"]
+    watch = vetoes + traps + watch
 
     signals.sort(key=lambda s: -s["strength"])
 
