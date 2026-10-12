@@ -30515,6 +30515,16 @@ async def _ask_endpoint_impl(request: AskRequest):
                             _rp.append("There is a friction signature around partnership "
                                        "(handle early differences with patience); mention it "
                                        "gently as something to be aware of, not a curse.")
+                        # [rel-pattern 2026-10-12] layer 1: what kind of love life this is - falling in love (5th) vs staying (7th), which
+                        # of the two the CURRENT period runs on, Venus (incl. retrograde, derived from the birth moment) and the Moon's
+                        # attachment style. The reader's own pattern; never what another person feels.
+                        try:
+                            from antar_engine.relationship_pattern import analyze_pattern as _analyze_pattern
+                            _pt = _analyze_pattern(chart_data, _rel_dashas)
+                            if _pt.get("available"):
+                                _rp.extend(_pt["facts"])
+                        except Exception as _pte:
+                            logger.warning(f"[ask] relationship-pattern skipped (non-fatal): {_pte}")
                         # [rel-foundation 2026-10-12] layer 2: what the bond is MADE of — the
                         # sustaining house (2nd from the marriage point), the partner-significator's
                         # state in the reader's field, the marriage chart as the lifetime verdict.
