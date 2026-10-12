@@ -6621,8 +6621,9 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
             if payload.get("next"):
                 send("→ " + str(payload["next"]))
             _pf = [f for f in (payload.get("suggested_followups") or []) if isinstance(f, dict) and f.get("q")]
-            if _pf:
-                send_choices("…", "btn_next", _q_items([f["q"] for f in _pf], {f["q"]: f.get("title") for f in _pf}))
+            if _pf:   # the numbered lines ARE the message body (inline replies carry no list); a tappable list is built from them when REST works
+                _fu_text = _wa_text("next_intro", lang) + "\n\n" + "\n".join(f"{i}  {f['q']}" for i, f in enumerate(_pf[:3], 1))
+                send_choices(_fu_text, "btn_next", _q_items([f["q"] for f in _pf[:3]], {f["q"]: f.get("title") for f in _pf}))
             _save(_msg.remember_options(ctx, "ask", [f["q"] for f in _pf]) if _pf else {k: v for k, v in ctx.items() if k != "options"})
             return
         text, fus = _msg.format_ask_whatsapp_v2(payload, lang, header=header, asked=question,
