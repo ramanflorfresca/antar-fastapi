@@ -27561,16 +27561,23 @@ def _ask_life_chapter_block(chart_data, dashas, question="", first_name=""):
 
 
 _ASK_PERIOD_MARKERS = (
-    "dasha", "mahadasha", "antardasha", "antar dasha", "maha dasha", "my period",
-    "this period", "current period", "present period", "planetary period",
+    "dasha", "mahadasha", "antardasha", "antar dasha", "maha dasha", "planetary period",
     "which period am i", "what period am i", "chara dasha", "vimshottari", "vimsottari",
 )
+# [period-jargon 2026-10-12] "my period / this period" alone is ordinary English: the chip "How do I make the most of this period for my venture?" got the planet-and-house
+# explainer ("You're in Jupiter mahadasha… Jupiter sits in Cancer, your 10th house"). It only counts as a dasha question when the reader asks WHAT the period is.
+_ASK_PERIOD_WEAK = ("my period", "this period", "current period", "present period")
+_ASK_PERIOD_IDENTITY = re.compile(r"(?i)^\s*(what|which|tell me|explain|describe|when does|how long)\b")
+_ASK_PERIOD_ACTION = re.compile(r"(?i)\b(make the most|how do i|how can i|should i|for my|help me|use this|get through|handle)\b")
 
 
 def _is_dasha_q(q):
     """[ask-direct 2026-10-10] the reader asks about their dasha / current planetary period."""
     ql = (q or "").lower()
-    return any(m in ql for m in _ASK_PERIOD_MARKERS)
+    if any(m in ql for m in _ASK_PERIOD_MARKERS):
+        return True
+    return (any(m in ql for m in _ASK_PERIOD_WEAK) and bool(_ASK_PERIOD_IDENTITY.search(ql))
+            and not _ASK_PERIOD_ACTION.search(ql))
 
 
 _ASK_SIGNS = ("aries", "taurus", "gemini", "cancer", "leo", "virgo", "libra", "scorpio",
