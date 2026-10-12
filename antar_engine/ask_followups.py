@@ -432,8 +432,9 @@ def _lang(language: str) -> str:
 
 
 def pick(bucket: str, question: str, language: str = "en", answered_when: bool = False,
-         avoid_words: tuple = (), k: int = 3) -> list:
-    """[{q, lane, title}] — the next questions for this answer, best first."""
+         avoid_words: tuple = (), k: int = 3, exclude_questions: tuple = ()) -> list:
+    """[{q, lane, title}] — the next questions for this answer, best first.
+    `exclude_questions`: other wordings of what was just asked (the TYPED question when `question` is its resolved rewrite): a follow-up never repeats them."""
     lang = _lang(language)
     table = _Q[lang]
     pool = table.get(bucket) or table["general"]
@@ -454,10 +455,11 @@ def pick(bucket: str, question: str, language: str = "en", answered_when: bool =
     ranked = ([l for l in order if l in pool and l not in covered]
               + [l for l in order if l in pool and l in covered])
     qn = _norm(question)
+    _skip = {qn} | {_norm(x) for x in (exclude_questions or ()) if x}      # [fu-repeat 2026-10-12] the audit found the tapped chip coming back as its own follow-up
 
     def ok(q):
         ql = q.lower()
-        return _norm(q) != qn and not any(w in ql for w in avoid_words)
+        return _norm(q) not in _skip and not any(w in ql for w in avoid_words)
 
     titles = _LANE_TITLE[lang]
     out = [{"q": pool[l], "lane": l, "title": titles[l]} for l in ranked if ok(pool[l])]
