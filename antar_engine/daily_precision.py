@@ -14,9 +14,10 @@ read by the caller (DAILY_PRECISION_SCORE).
 SOURCE DISCIPLINE
   * Tara Bala quality is canonical (classical Navatara). Its mapping to a score
     delta is a PROVISIONAL engineering weight, not doctrine.
-  * Moon house-from-lagna gives the LIT DOMAIN (canonical house meaning). The
-    house *favorability* delta is INDICATIVE (true Chandra gochar is measured
-    from the Moon, not the lagna) — kept small and flagged; never the lead claim.
+  * Moon house-from-lagna gives the LIT DOMAIN (canonical house meaning). Its
+    *favorability* delta is INDICATIVE and scored. True Chandra gochar (Moon from
+    the natal Moon) is computed alongside as a CONFIDENCE input only — it is
+    never blended into the score, so day scores are unchanged.
 """
 
 from __future__ import annotations
@@ -52,6 +53,20 @@ _HOUSE_FAVOR = {
     7: 0, 8: -1, 9: 1, 10: 1, 11: 1, 12: -1,
 }
 
+# Chandra gochar — today's Moon counted from the NATAL MOON (the classical
+# measure; the lagna count above is only indicative). Good: 1,3,6,7,10,11.
+# 2,5,9 are neutral-supportive (no penalty), 4,8,12 difficult. Same table as
+# daily_prediction_engine.get_chandra_bala (parity is unit-tested). This feeds
+# CONFIDENCE only — it is deliberately NOT blended into the score.
+_CHANDRA_FAVOR = {
+    1: 1, 2: 0, 3: 1, 4: -1, 5: 0, 6: 1,
+    7: 1, 8: -1, 9: 0, 10: 1, 11: 1, 12: -1,
+}
+
+# Vedic weekday -> vara lord (Python weekday(): Monday=0).
+_VARA_LORD = {0: "Moon", 1: "Mars", 2: "Mercury", 3: "Jupiter",
+              4: "Venus", 5: "Saturn", 6: "Sun"}
+
 _SOURCE = ("Tara Bala: classical Navatara (tara_bala.compute_tara_bala); "
            "Moon-house: house-from-lagna [lit-domain canonical; "
            "favorability INDICATIVE]")
@@ -73,8 +88,44 @@ def moon_house_from_lagna(today_moon_sign: str, natal_lagna_sign: str) -> Option
     return (mi - li) % 12 + 1
 
 
+def moon_house_from_moon(today_moon_sign: str, natal_moon_sign: str) -> Optional[int]:
+    """Whole-sign house (1-12) of today's Moon counted from the natal Moon
+    (Chandra gochar)."""
+    return moon_house_from_lagna(today_moon_sign, natal_moon_sign)
+
+
+def chandra_agreement(lagna_delta: int, chandra_delta: int) -> str:
+    """Do the lagna count and the Moon count read the day the same way?
+    agree / disagree only when BOTH take a side; otherwise n/a."""
+    a, b = int(lagna_delta or 0), int(chandra_delta or 0)
+    if a == 0 or b == 0:
+        return "n/a"
+    return "agree" if (a > 0) == (b > 0) else "disagree"
+
+
+def vara_lord(weekday_index: int) -> Optional[str]:
+    return _VARA_LORD.get(weekday_index)
+
+
+def day_owned_by(weekday_index: Optional[int], ad: str = "", pd: str = "") -> Optional[str]:
+    """'ad' / 'pd' when today's day-lord IS the running antardasha / pratyantar
+    lord — that day 'belongs' to the running period's theme. Texture only."""
+    if weekday_index is None:
+        return None
+    vl = vara_lord(weekday_index)
+    if not vl:
+        return None
+    for tag, lord in (("ad", ad), ("pd", pd)):
+        if str(lord or "").strip().title() == vl:
+            return tag
+    return None
+
+
 def compute_daily_precision(natal_moon_nak: str, natal_lagna_sign: str,
-                            today_moon_nak: str, today_moon_sign: str) -> Dict[str, Any]:
+                            today_moon_nak: str, today_moon_sign: str,
+                            natal_moon_sign: str = "",
+                            weekday_index: Optional[int] = None,
+                            dasha_ad: str = "", dasha_pd: str = "") -> Dict[str, Any]:
     """Return the chart-relative daily layer. Always returns a dict; individual
     fields are None when an input is missing (degrades gracefully)."""
     out: Dict[str, Any] = {
@@ -82,6 +133,8 @@ def compute_daily_precision(natal_moon_nak: str, natal_lagna_sign: str,
         "tara_score_delta": 0,
         "moon_house_from_lagna": None, "lit_domain": None,
         "house_score_delta": 0,
+        "moon_house_from_moon": None, "chandra_delta": 0,
+        "chandra_agreement": "n/a", "day_owned_by": None,
         "source": _SOURCE,
     }
 
@@ -97,6 +150,16 @@ def compute_daily_precision(natal_moon_nak: str, natal_lagna_sign: str,
         out["moon_house_from_lagna"] = h
         out["lit_domain"] = _HOUSE_DOMAIN.get(h)
         out["house_score_delta"] = _HOUSE_FAVOR.get(h, 0)
+
+    # Chandra gochar + day-lord ownership: confidence/texture ONLY — neither
+    # delta is read by apply_precision_to_score, so day scores are unchanged.
+    hm = moon_house_from_moon(today_moon_sign, natal_moon_sign)
+    if hm:
+        out["moon_house_from_moon"] = hm
+        out["chandra_delta"] = _CHANDRA_FAVOR.get(hm, 0)
+        out["chandra_agreement"] = chandra_agreement(
+            out["house_score_delta"], out["chandra_delta"])
+    out["day_owned_by"] = day_owned_by(weekday_index, dasha_ad, dasha_pd)
 
     return out
 
@@ -118,7 +181,10 @@ def precision_fields(precision: Dict[str, Any]) -> Dict[str, Any]:
         return {}
     keys = ("tara", "tara_quality", "tara_advice",
             "moon_house_from_lagna", "lit_domain", "source")
-    return {k: precision[k] for k in keys if precision.get(k) is not None}
+    out = {k: precision[k] for k in keys if precision.get(k) is not None}
+    if precision.get("day_owned_by"):
+        out["day_owned_by_dasha"] = True
+    return out
 
 
 def strongest_signal_phrase(precision: Dict[str, Any]) -> Optional[str]:
@@ -210,6 +276,15 @@ def build_day_signals(precision: dict,
         "direction": _dir_from(p.get("house_score_delta", 0)) if h else "unknown",
         "weight": int(p.get("house_score_delta", 0) or 0),
         "available": h is not None,
+        # Confidence-only extras read by daily_convergence (never scored):
+        # the Moon-from-Moon count and the slow-planet double transit on the
+        # lit house. They ride this row — same transiting Moon, same house — so
+        # they fold into the ONE Moon axis instead of voting as extra layers.
+        "chandra_direction": (_dir_from(p.get("chandra_delta", 0))
+                              if p.get("moon_house_from_moon") else None),
+        "chandra_agreement": p.get("chandra_agreement"),
+        "dt_direction": p.get("dt_direction"),
+        "dt_verdict": p.get("dt_verdict"),
     })
 
     # 3. DASHA — the running period. The antardasha is the practical driver;
