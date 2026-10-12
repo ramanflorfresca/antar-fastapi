@@ -249,3 +249,14 @@ def test_next_milestone_carries_days_and_credits_for_the_app():
     from antar_engine import gamification as G
     nm = G.next_milestone(6)
     assert nm["at"] == 7 and nm["in_days"] == 1 and nm["ask"] == 3
+
+
+def test_stored_question_keeps_a_why_line_after_the_ranking_moves():
+    sb = FakeSB()
+    t = DL.local_date(0)
+    DL.ensure_question(sb, "c1", t, CANDS)
+    # later in the day the original question is no longer ranked; another money candidate still explains the topic
+    later = [{"id": "z", "topic": "money", "text": "Something else about money?", "reason": "Timing is worth checking for money."}]
+    q = DL.ensure_question(sb, "c1", t, later)
+    assert q["text"] == CANDS[0]["text"] and q["reason"] == "Timing is worth checking for money."
+    assert DL.ensure_question(sb, "c1", t, [])["reason"] is None       # nothing to say: none, never invented

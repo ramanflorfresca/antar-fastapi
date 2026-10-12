@@ -152,9 +152,12 @@ def ensure_question(sb, chart_id: str, d: date, candidates: List[dict]) -> Optio
     if row and row.get("question_text"):
         nxt = next((c.get("topic") for c in (candidates or [])
                     if c.get("topic") and c.get("topic") != row.get("question_theme")), None)
+        # The reason is not stored with the day's question, so take it from the same question if it is still ranked,
+        # else from any current candidate about the same topic (a plain "why this topic" line), else none.
+        same = next((c.get("reason") for c in (candidates or []) if c.get("text") == row["question_text"]), None)
+        topic = next((c.get("reason") for c in (candidates or []) if c.get("topic") == row.get("question_theme")), None)
         return {"id": row.get("question_id"), "text": row["question_text"], "topic": row.get("question_theme"),
-                "reason": next((c.get("reason") for c in (candidates or []) if c.get("text") == row["question_text"]), None),
-                "next_topic": nxt}
+                "reason": same or topic, "next_topic": nxt}
     q = pick_question(candidates, recent_rows(sb, chart_id, d), d)
     if q:
         _save_row(sb, chart_id, d, {"question_id": q.get("id"), "question_text": q["text"],
