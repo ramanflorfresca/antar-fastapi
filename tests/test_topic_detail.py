@@ -440,7 +440,7 @@ def test_route_attaches_detail_and_reconciles(client, monkeypatch):
     assert calls == ["daily"]
     c.get("/api/v1/chart/c/topic-read?topic=money&scale=today&tz_offset=-240")
     assert calls == ["daily"]                                                     # second hit is served from the cache
-    assert any(k[:2] == ("topic-read", "v14-consolidated") for k in te._CACHE)           # version-salted key
+    assert any(k[:2] == ("topic-read", "v15-volatile-balanced") for k in te._CACHE)           # version-salted key
 
 
 @pytest.mark.parametrize("scale,need", [("month", "month"), ("year", "year"), ("season", "arc"), ("chapter", "arc")])
@@ -705,10 +705,33 @@ def test_steady_love_claim_no_longer_says_nothing_sharp_when_the_domain_is_volat
     assert "nothing sharp" not in o["claim"] and o["detail"]["watch_for"] == _VOL
 
 
-def test_open_love_claim_gains_the_engines_own_sentence_once():
-    o = D.reconcile(dict(_love("open"), claim="Today, good for close relationships."), _VDAILY, "en")
-    assert o["claim"] == f"Today, good for close relationships. {_VOL}"
-    assert D.reconcile(o, _VDAILY, "en")["claim"].count(_VOL) == 1
+def test_open_love_claim_is_one_balanced_sentence_when_the_domain_is_volatile():
+    o = D.reconcile(dict(_love("open"), claim="Today, good for close relationships.",
+                         your_move="Spend one unhurried hour with someone who matters."), _VDAILY, "en")
+    assert o["claim"] == "Today, good for honest, warm conversations, but careful with ups and downs in close talks."
+    assert _VOL not in o["claim"] and o["detail"]["watch_for"] == _VOL
+    assert o["your_move"].endswith("But stay careful with ups and downs in close talks.") and "bet" not in o["your_move"]
+    assert D.reconcile(o, _VDAILY, "en") == o                                   # idempotent
+
+
+def test_open_money_claim_is_one_balanced_sentence_when_the_domain_is_volatile():
+    vol = "Money moves BOTH ways today — gain and loss are both live. Do not put money at risk: this is exactly the day it cuts both ways."
+    daily = {"domains": [{"key": "money", "state": "volatile", "line": vol}]}
+    out = D.reconcile(_open_today(your_move="Review pricing and collections on your business."), daily, "en")
+    assert out["claim"] == "Today, good for income and pricing, but careful with money swings."
+    assert "BOTH" not in out["claim"] and _one_sentence(out["claim"])
+    assert out["your_move"] == "Review pricing and collections on your business. But keep any bet small."
+    assert out["detail"]["watch_for"] == vol
+
+
+@pytest.mark.parametrize("lang", LANGS)
+def test_volatile_balanced_copy_in_every_language(lang):
+    assert set(C.BAL_SWING[lang]) == set(KEYS)
+    assert all(not _JARGON.search(x) and not _OUTCOME.search(x) for x in C.BAL_SWING[lang].values())
+    daily = {"domains": [{"key": "money", "state": "volatile", "line": "Money moves both ways today."}]}
+    out = D.reconcile(_open_today(language=lang), daily, lang)
+    assert C.BAL_GOOD[lang]["money"] in out["claim"] and C.BAL_SWING[lang]["money"] in out["claim"]
+    assert _one_sentence(out["claim"]) and "both ways" not in out["claim"]
 
 
 def test_volatile_reconcile_leaves_other_states_and_tones_alone():

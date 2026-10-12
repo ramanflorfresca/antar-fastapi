@@ -521,6 +521,24 @@ BAL_CARE: Dict[str, Dict[str, Dict[str, str]]] = {
                    "conflict": "purani behes se savdhaan", "neutral": "bade commitments se pehle savdhaan"},
     },
 }
+BAL_SWING: Dict[str, Dict[str, str]] = {   # the careful half when the topic's own read for the day runs hot and cold
+    "en": {"money": "careful with money swings", "career": "careful with ups and downs at work",
+           "love": "careful with ups and downs in close talks", "health": "careful with energy swings",
+           "business": "careful with ups and downs in deals", "peace": "careful with mood swings",
+           "family": "careful with ups and downs at home"},
+    "es": {"money": "con cuidado con los vaivenes del dinero", "career": "con cuidado con los altibajos en el trabajo",
+           "love": "con cuidado con los altibajos en las conversaciones cercanas", "health": "con cuidado con los vaivenes de energía",
+           "business": "con cuidado con los altibajos en los tratos", "peace": "con cuidado con los cambios de ánimo",
+           "family": "con cuidado con los altibajos en casa"},
+    "pt": {"money": "com cuidado com as oscilações do dinheiro", "career": "com cuidado com os altos e baixos no trabalho",
+           "love": "com cuidado com os altos e baixos nas conversas próximas", "health": "com cuidado com as oscilações de energia",
+           "business": "com cuidado com os altos e baixos nos negócios", "peace": "com cuidado com as mudanças de humor",
+           "family": "com cuidado com os altos e baixos em casa"},
+    "hinglish": {"money": "paison ke utaar-chadhaav se savdhaan", "career": "kaam ke utaar-chadhaav se savdhaan",
+                 "love": "kareebi baat-cheet ke utaar-chadhaav se savdhaan", "health": "energy ke utaar-chadhaav se savdhaan",
+                 "business": "deals ke utaar-chadhaav se savdhaan", "peace": "mood ke utaar-chadhaav se savdhaan",
+                 "family": "ghar ke utaar-chadhaav se savdhaan"},
+}
 BAL_JOIN: Dict[str, str] = {   # {lead}, {good}, but {care}{tail}.
     "en": "{lead}, {good}, but {care}{tail}.", "es": "{lead}, {good}, pero {care}{tail}.",
     "pt": "{lead}, {good}, mas {care}{tail}.", "hinglish": "{lead} {good}, lekin {care}{tail}."}
