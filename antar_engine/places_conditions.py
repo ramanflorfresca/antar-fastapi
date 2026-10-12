@@ -32,6 +32,11 @@ CONDITION_WEIGHTS: dict[str, dict] = {
     "sleeping":    {"weight": 0.5, "color": "purple_dim",   "polarity": "mixed"},
 }
 
+# [places-condition 2026-10-12] Neecha Bhanga lifts a debilitated planet from 0.4
+# to roughly an enemy-sign planet; vargottama adds a modest bonus (capped at 1.5).
+_CANCELLED_DEBILITY_WEIGHT = 0.9
+_VARGOTTAMA_BONUS = 0.2
+
 # Sign indices: 0 = Aries .. 11 = Pisces
 EXALT_SIGNS = {
     "Sun": 0, "Moon": 1, "Mars": 9, "Mercury": 5,
@@ -110,6 +115,54 @@ def _sleeping_set(chart: dict) -> set:
         return {s["planet"] for s in detect_sleeping_planets(planets)}
     except Exception:
         return set()
+
+
+def _kendra_from(a: int, b: int) -> bool:
+    """True when sign index `a` is in a kendra (1/4/7/10) counted from sign `b`."""
+    return ((a - b) % 12) in (0, 3, 6, 9)
+
+
+def neecha_bhanga(planet: str, chart: dict) -> bool:
+    """[places-condition 2026-10-12] Cancellation of debilitation. A debilitated
+    planet is rescued when any of these sits in a kendra from the lagna or from
+    the Moon: (A) the lord of the sign it is debilitated in; (B) the lord of the
+    sign it would be exalted in; (C) a planet exalted in its debilitation sign.
+    False when the planet is not debilitated or the data is missing."""
+    rec = _planet_record(chart, planet)
+    si = _sign_index(rec)
+    deb = DEBIL_SIGNS.get(planet)
+    if si is None or deb is None or si != deb:
+        return False
+    try:
+        from antar_engine.places_relocation import _natal_lagna_index
+        lagna = _natal_lagna_index(chart)
+    except Exception:
+        lagna = None
+    moon = _sign_index(_planet_record(chart, "Moon"))
+    refs = [r for r in (lagna, moon) if r is not None]
+    if not refs:
+        return False
+    cands = {SIGN_LORDS_BY_INDEX[deb], SIGN_LORDS_BY_INDEX[EXALT_SIGNS[planet]]}
+    cands |= {p2 for p2, ex in EXALT_SIGNS.items() if ex == deb}
+    cands.discard(planet)
+    for c in cands:
+        ci = _sign_index(_planet_record(chart, c))
+        if ci is not None and any(_kendra_from(ci, r) for r in refs):
+            return True
+    return False
+
+
+def is_vargottama(planet: str, chart: dict) -> bool:
+    """Same sign in the birth chart (D-1) and the navamsa (D-9)."""
+    rec = _planet_record(chart, planet)
+    si, lon = _sign_index(rec), rec.get("longitude")
+    if si is None or lon is None:
+        return False
+    try:
+        from antar_engine.antar_ephemeris import _divisional_sign_index
+        return (_divisional_sign_index(float(lon), 9) % 12) == si
+    except Exception:
+        return False
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -197,10 +250,23 @@ def compute_all_conditions(chart: dict) -> dict[str, dict]:
             continue
         cond = compute_natal_condition(planet, chart, _sleeping=sleeping)
         meta = condition_meta(cond)
+        weight, polarity = meta["weight"], meta["polarity"]
+        # Neecha Bhanga: a rescued debilitation is no longer a friction planet.
+        # The condition NAME stays "debilitated" (many surfaces key on it); only
+        # the weight/polarity move, plus an explicit flag.
+        cancelled = cond == "debilitated" and neecha_bhanga(planet, chart)
+        if cancelled:
+            weight, polarity = _CANCELLED_DEBILITY_WEIGHT, "mixed"
+        # Vargottama: strong in the navamsa too (planets already at the cap stay).
+        varg = is_vargottama(planet, chart)
+        if varg:
+            weight = min(1.5, weight + _VARGOTTAMA_BONUS)
         out[planet] = {
             "condition": cond,
-            "weight": meta["weight"],
+            "weight": weight,
             "color": meta["color"],
-            "polarity": meta["polarity"],
+            "polarity": polarity,
+            "cancelled": cancelled,
+            "vargottama": varg,
         }
     return out

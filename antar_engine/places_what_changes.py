@@ -86,7 +86,8 @@ def _lang(language) -> str:
 
 def _polarity(planet: str, house: int) -> str:
     """gift | cost for a planet landing in `house` (relocated). Honors the
-    upachaya rule: malefics/nodes in 3/6/11 thrive."""
+    upachaya rule: malefics/nodes in 3/6/10/11 thrive (3, 10 and 11 already read as
+    gifts above; 6 is the one that needs the explicit malefic/benefic split)."""
     if house in (1, 4, 5, 7, 9, 10, 11):
         return "gift"
     if house == 6:

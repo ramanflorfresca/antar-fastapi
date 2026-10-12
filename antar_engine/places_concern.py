@@ -117,6 +117,27 @@ def houses_ruled(chart: dict, planet: str) -> list:
     return [h for h in range(1, 13) if _SIGN_LORD[(lagna + h - 1) % 12] == planet]
 
 
+# [places-digbala 2026-10-12] Directional strength is by HOUSE, so it changes on a
+# relocated chart. Jupiter/Mercury peak in the 1st, Sun/Mars in the 10th, Saturn
+# in the 7th, Moon/Venus in the 4th; the opposite house is the weakest point.
+_DIG_HOUSE = {"Jupiter": 1, "Mercury": 1, "Sun": 10, "Mars": 10,
+              "Saturn": 7, "Moon": 4, "Venus": 4}
+_DIG_UP, _DIG_DOWN = 1.15, 0.90
+
+
+def dig_bala_factor(planet: str, house: int) -> float:
+    """Strength modifier for a planet in a RELOCATED house: x1.15 in its
+    directional-strength house, x0.90 in the opposite one, else 1.0."""
+    peak = _DIG_HOUSE.get(planet)
+    if peak is None or not house:
+        return 1.0
+    if house == peak:
+        return _DIG_UP
+    if house == ((peak + 5) % 12) + 1:      # the opposite house
+        return _DIG_DOWN
+    return 1.0
+
+
 # Concerns where a malefic ruling the primary house is a caution on its angle
 # (relating / belonging / inner peace). For career, business, money and health a
 # malefic lord on an angle is upachaya-style strength, so it is never flagged.
@@ -154,7 +175,9 @@ def relocation_veto_watch(chart: dict, concern: str, relocation: dict, condition
             out.append({"kind": "lord_stalled", "planet": lord, "house": h})
     lead = cfg["karakas"][0]
     kh = house_of(lead)
-    if kh in (6, 8, 12) and (conditions.get(lead) or {}).get("condition") == "debilitated":
+    lead_cond = conditions.get(lead) or {}
+    if (kh in (6, 8, 12) and lead_cond.get("condition") == "debilitated"
+            and not lead_cond.get("cancelled")):      # a Neecha-Bhanga rescue is not broken
         out.append({"kind": "karaka_broken", "planet": lead, "house": kh})
     if dasha_lords:
         md = dasha_lords[0][0]
@@ -526,7 +549,8 @@ def score_city_for_concern(
                 cond = conditions.get(planet, {})
                 cond_w = cond.get("weight", 0.9)
                 is_karaka = planet in karakas
-                weight = cond_w * (1.5 if is_karaka else 1.0)
+                dig = dig_bala_factor(planet, reloc_house)   # [places-digbala]
+                weight = cond_w * dig * (1.5 if is_karaka else 1.0)
                 house_num += weight
                 house_den += 1.5 * (1.5 if is_karaka else 1.0)
                 house_hits.append({
@@ -534,8 +558,9 @@ def score_city_for_concern(
                     "condition": cond.get("condition", "neutral"),
                     "polarity": cond.get("polarity", "mixed"),
                     "is_karaka": is_karaka,
+                    "dig_bala": dig,
                 })
-    house_score = (house_num / house_den) if house_den else 0.0
+    house_score = min(1.0, (house_num / house_den)) if house_den else 0.0
 
     # ── 4b. Negative-house screen (dusthana dominance) ──────────────────────
     # [places-domain-screen] Count concern-relevant planets relocating into
