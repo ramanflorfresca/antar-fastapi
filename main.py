@@ -41091,6 +41091,26 @@ async def _prewarm_daily_week_cache(chart_id: str, tz_offset: Optional[float] = 
         print(f"[prewarm] daily-signal complete chart={chart_id} lang={language}")
     except Exception as _dse:
         print(f"[prewarm] daily-signal FAILED (non-fatal) chart={chart_id}: {_dse}")
+    await _prewarm_topic_surfaces(chart_id, eff_tz, language)
+
+
+async def _prewarm_topic_surfaces(chart_id: str, tz_hours, language: str = "en"):
+    """[home-speed 2026-10-12] Warm what Home reads first: the topic list and the "Questions for you"
+    list (which also builds the Windows feed). A cold topic list measured ~3.8s against ~0.3s warm,
+    and every cache here is per process, so the first Home open after a deploy or a quiet spell paid
+    for it. Same cache keys the endpoints use (chart, language, local day), so a hit is a real hit.
+    Failures are swallowed: a warmer must never break the job that called it."""
+    try:
+        tz_min = int(round(float(tz_hours) * 60))
+    except (TypeError, ValueError):
+        tz_min = 0
+    for name, fn, args in (("topics", _topics_compute, (chart_id, language, tz_min)),
+                           ("suggested-questions", _suggested_questions_compute, (chart_id, language, tz_min, 3))):
+        try:
+            await run_in_threadpool(fn, *args)
+            print(f"[prewarm] {name} complete chart={chart_id} lang={language}")
+        except Exception as _te_err:
+            print(f"[prewarm] {name} FAILED (non-fatal) chart={chart_id}: {_te_err}")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
