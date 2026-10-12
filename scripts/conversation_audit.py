@@ -16,6 +16,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from dotenv import load_dotenv
 load_dotenv()
 import main  # noqa: E402
+from antar_engine.conversation import language_switch  # noqa: E402
 from antar_engine.narration_validator import validate_narration  # noqa: E402
 from antar_engine.daily_prediction_engine import _looks_broken  # noqa: E402
 from antar_engine.readability import _CHILDISH_RX  # noqa: E402
@@ -318,11 +319,15 @@ async def run_chain(sem, persona, chain_name, steps, rep, profile, chart_lean, u
     async with sem:
         thread, turns = [], []
         try:
-            last = None
+            last, prev_real = None, ""
             for q in steps:
                 q = q.format(one=persona["one"], two=persona["two"])
                 p = await ask(persona, q, thread)
-                turns.append(_turn(p, q, persona, profile, chart_lean, chain_name, rep, tap=None))
+                # [audit 2026-10-12] "English please" replays the previous question: grade it against THAT question
+                eff = prev_real if (prev_real and language_switch(q)) else q
+                turns.append(_turn(p, q, persona, profile, chart_lean, chain_name, rep, tap=None, eff=eff))
+                if not language_switch(q):
+                    prev_real = q
                 last = p
             base = list(thread)
             for f in (last.get("suggested_followups") or []):
@@ -339,13 +344,13 @@ async def run_chain(sem, persona, chain_name, steps, rep, profile, chart_lean, u
         return conv
 
 
-def _turn(p, q, persona, profile, chart_lean, chain, rep, tap):
+def _turn(p, q, persona, profile, chart_lean, chain, rep, tap, eff=None):
     return {"persona": persona["name"], "chain": chain, "rep": rep, "tap": tap, "q": q,
             "verdict": p.get("verdict"), "timing": p.get("timing"),
             "read": (p.get("read") or p.get("why") or "").strip(), "next": (p.get("next") or "").strip(),
             "followups": [f"{f.get('title')} | {f.get('q')}" for f in (p.get("suggested_followups") or [])],
             "lean": _lean_of((_SENT.split((p.get("read") or "").strip()) or [""])[0]),
-            "issues": turn_checks(p, q, persona["lang"], persona, profile, chart_lean)}
+            "issues": turn_checks(p, eff or q, persona["lang"], persona, profile, chart_lean)}
 
 
 def repeat_flips(convs: list) -> list:
