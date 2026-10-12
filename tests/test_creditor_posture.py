@@ -60,3 +60,10 @@ def test_wired_into_main():
     for needle in ("lead_override=_creditor_lead(", "creditor posture lead", "CREDITOR MATTER",
                    "or _is_creditor_q(question)"):
         assert needle in src, needle
+
+
+def test_legal_block_skips_creditor_matters():
+    """The natal legal lean counts the 6th lord as the USER's strength and would contradict the
+    creditor posture ('leans in your favour' + 'the other side holds the stronger hand')."""
+    src = (Path(__file__).resolve().parent.parent / "main.py").read_text()
+    assert "if _is_legal_q(question) and not _is_creditor_q(question):" in src

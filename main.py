@@ -30895,7 +30895,10 @@ async def _ask_endpoint_impl(request: AskRequest):
             _ask_loan_lead = ""
             _ask_loan_block = ""
             try:
-                if _is_legal_q(question):
+                # [creditor-posture 2026-10-12] a creditor matter is read as USER vs the OTHER SIDE by
+                # the debt block below; legal.py's natal lean counts the 6th as the user's strength and
+                # would contradict it ("leans in your favour… the other side holds the stronger hand").
+                if _is_legal_q(question) and not _is_creditor_q(question):
                     from antar_engine.legal import analyze_legal, legal_timing
                     _la = analyze_legal(chart_data)
                     if _la.get("available"):
