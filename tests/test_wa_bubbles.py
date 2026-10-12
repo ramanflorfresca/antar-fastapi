@@ -635,16 +635,17 @@ def test_mantra_card_carries_a_plain_why_naming_the_real_cause_in_en_es_pt():
     from antar_engine.daily_wisdom import _why_mantra, _mantra_with_why, build_daily_wisdom
     moon = {"kind": "moon", "house": 8}
     en = _why_mantra("consolidating", moon, "Om Namah Shivaya", "en")
-    assert en == ("Why this one: today's Moon is in the 8th house from your own Moon, a placement that favours turning inward and "
-                  "building steadily over pushing. Om Namah Shivaya settles worry and steadies effort.")
+    assert en == ("Why this one: today's Moon is in a placement that favours turning inward and "
+                  "building steadily over pushing. Om Namah Shivaya settles worry and steadies effort.")      # [plain 2026-10-12] no "8th house from your own Moon"
+    assert "house" not in en
     assert _why_mantra("expansive", {"kind": "moon", "house": 1}, "Om Gam Ganapataye Namaha", "en").startswith(
-        "Why this one: today's Moon is in the 1st house from your own Moon, a placement that favours moving forward.")
+        "Why this one: today's Moon is in a placement that favours moving forward.")
     es = _why_mantra("consolidating", moon, "Om Namah Shivaya", "es")
-    assert es.startswith("Por qué éste: la Luna de hoy está en la casa 8 desde tu propia Luna") and es.endswith("calma la preocupación y afirma el esfuerzo.")
+    assert es.startswith("Por qué éste: la Luna de hoy está en una posición") and "casa 8" not in es and es.endswith("calma la preocupación y afirma el esfuerzo.")
     pt = _why_mantra("consolidating", moon, "Om Namah Shivaya", "pt")
-    assert pt.startswith("Por que este: a Lua de hoje está na casa 8 a partir da sua própria Lua")
+    assert pt.startswith("Por que este: a Lua de hoje está em uma posição") and "casa 8" not in pt
     d = _why_mantra("consolidating", {"kind": "dasha", "lord": "Saturn", "level": "antardasha"}, "Om Namah Shivaya", "es")
-    assert "la Luna de hoy es neutra, así que tu subperiodo de Saturno marca el tono y es de consolidación" in d
+    assert "la Luna de hoy es neutra, así que la etapa de vida en que estás marca el tono y es de consolidación" in d and "Saturno" not in d and "subperiodo" not in d
     assert _why_mantra("steady", {"kind": "default"}, "Gayatri Mantra", "en") == (
         "Why this one: today reads as a steady day for you. Gayatri Mantra clears and sharpens the mind.")
     m = _mantra_with_why("steady", {"kind": "default"}, "en")

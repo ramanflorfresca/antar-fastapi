@@ -43,3 +43,22 @@ def test_a_year_level_read_never_opens_with_a_today_sounding_right_now():
     assert AP.scope_right_now("Ahora mismo, el momento muestra presión.", "¿Subirán mis ingresos?", "es") == "En esta etapa, el momento muestra presión."
     assert AP.scope_right_now("They said it right now.", "x", "en") == "They said it right now."   # mid-sentence untouched
     assert AP.scope_right_now(None, "x", "en") is None
+
+
+def test_small_copy_fixes_capital_do_lines_sentence_case_chips_and_a_plain_year_tab():
+    import re
+    import main
+    from antar_engine import connection_card as CC, topic_copy as TC
+    src = open(main.__file__, encoding="utf-8").read()
+    blk = src[src.index("_DAILY_DO_DONT_BY_DOMAIN = {"):]
+    blk = blk[:blk.index("\n}\n")]
+    assert all(m.group(2).isupper() for m in re.finditer(r'"(do|dont)":\s*"(.)', blk))                 # every do / don't line starts with a capital
+    assert "Handle a money task you've been putting off" in blk
+    card = {"strengths": [{"title": "Low Hidden Friction", "text": "Andres sees it."}, {"title": "Easy Honest Exchange", "text": "x"}, {"title": "AI Agents Fit", "text": "y"}],
+            "frictions": [{"title": "Different Clocks With Andres", "issue": "z"}]}
+    out = CC.normalise_titles(card, keep=["Andres"])
+    assert [x["title"] for x in out["strengths"]] == ["Low hidden friction", "Easy honest exchange", "AI agents fit"]      # acronym kept, first word capital
+    assert out["frictions"][0]["title"] == "Different clocks with Andres" and out["strengths"][0]["text"] == "Andres sees it."   # names kept, text untouched
+    assert CC.normalise_titles(None) is None and CC.normalise_titles({"strengths": "x"}) == {"strengths": "x"}
+    from datetime import date
+    assert TC.year_chip(date(2025, 11, 26), date(2026, 11, 26), "en") == "Your year" and TC.year_chip(date(2025, 11, 26), date(2026, 11, 26), "es") == "Tu año"

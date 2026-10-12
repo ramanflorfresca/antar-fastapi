@@ -24480,6 +24480,11 @@ async def get_compatibility_session(session_id: str, language: str = "en"):
         _note = out.get("user_note")
         out = _DN.apply(out, _fn)
         out["user_note"] = _note                       # the user's own words are never rewritten
+        try:   # [sentence-case 2026-10-12] 'Easy Honest Exchange' -> 'Easy honest exchange' (names kept)
+            from antar_engine import connection_card as _CCN
+            out["card"] = _CCN.normalise_titles(out.get("card"), [_DN.first(n) for n in _fn] + [x for n in _fn for x in str(n or "").split(" ")])
+        except Exception:
+            pass
         out["full_name_a"], out["full_name_b"] = _fn[0], _fn[1]
     except Exception as _dne:
         print(f"[compat][first-names] non-fatal: {_dne}")
@@ -34960,18 +34965,18 @@ def save_onboarding_reason(request: OnboardingReasonRequest):
 # nakshatra list. Phrases are plain, jargon-free, and coherent with the
 # headline (the lead domain drives both).
 _DAILY_DO_DONT_BY_DOMAIN = {
-    "work":         {"do": "push a stuck work task to done",              "dont": "don't over-commit or take on more than you can finish"},
-    "authority":    {"do": "make the ask to someone senior",             "dont": "don't clash with someone in charge"},
-    "money":        {"do": "handle a money task you've been putting off", "dont": "don't make a big purchase or transfer"},
-    "speculation":  {"do": "take a small, capped position only if you must",   "dont": "don't stake what you can't afford to lose"},
-    "home":         {"do": "put real time into home or a household fix",  "dont": "don't force a big home decision"},
-    "relationship": {"do": "reach out to someone close",                  "dont": "don't force a hard conversation"},
-    "family":       {"do": "give family some real attention",            "dont": "don't reopen an old family tension"},
-    "health":       {"do": "move your body and keep meals light",         "dont": "don't skip rest or push through pain"},
-    "travel":       {"do": "take the short trip or make the far-off call","dont": "don't over-pack the day with travel"},
-    "spiritual":    {"do": "take quiet time to think or reset",           "dont": "don't let mental noise make the call"},
-    "learning":     {"do": "study or learn something new",               "dont": "don't scatter your focus"},
-    "children":     {"do": "spend time with your kids or a creative project", "dont": "don't force a creative bet"},
+    "work":         {"do": "Push a stuck work task to done",              "dont": "Don't over-commit or take on more than you can finish"},
+    "authority":    {"do": "Make the ask to someone senior",             "dont": "Don't clash with someone in charge"},
+    "money":        {"do": "Handle a money task you've been putting off", "dont": "Don't make a big purchase or transfer"},
+    "speculation":  {"do": "Take a small, capped position only if you must",   "dont": "Don't stake what you can't afford to lose"},
+    "home":         {"do": "Put real time into home or a household fix",  "dont": "Don't force a big home decision"},
+    "relationship": {"do": "Reach out to someone close",                  "dont": "Don't force a hard conversation"},
+    "family":       {"do": "Give family some real attention",            "dont": "Don't reopen an old family tension"},
+    "health":       {"do": "Move your body and keep meals light",         "dont": "Don't skip rest or push through pain"},
+    "travel":       {"do": "Take the short trip or make the far-off call","dont": "Don't over-pack the day with travel"},
+    "spiritual":    {"do": "Take quiet time to think or reset",           "dont": "Don't let mental noise make the call"},
+    "learning":     {"do": "Study or learn something new",               "dont": "Don't scatter your focus"},
+    "children":     {"do": "Spend time with your kids or a creative project", "dont": "Don't force a creative bet"},
 }
 
 # [no-income 2026-09-23] Whether a "give money / donate" nudge is appropriate.

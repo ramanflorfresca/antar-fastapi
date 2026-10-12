@@ -306,3 +306,32 @@ def store(sb, session_id: str, language: str, fhash: str, card: dict, model: str
                                             on_conflict="session_id,language").execute()
     except Exception as e:
         print(f"[connection-card] store skipped (table missing?): {type(e).__name__}")
+
+
+def _sentence_case(t: str, keep=()) -> str:
+    """'Low Hidden Friction' -> 'Low hidden friction'. Keeps the first word's capital, acronyms (<= 4 upper-case letters), words with digits, and any word in `keep` (first names)."""
+    words = str(t or "").split(" ")
+    kept = {k.lower() for k in keep if k}
+    out = []
+    for i, w in enumerate(words):
+        core = w.strip(".,;:!?—-()\"'")
+        if i == 0 or not core or core.lower() in kept or (core.isupper() and len(core) <= 4) or any(ch.isdigit() for ch in core):
+            out.append(w)
+        else:
+            out.append(w[:1].lower() + w[1:] if w[:1].isupper() else w)
+    return " ".join(out)
+
+
+def normalise_titles(card, keep=()):
+    """[sentence-case 2026-10-12] Card strength / friction titles came back in Title Case ('Easy Honest Exchange'), next to sentence-case copy everywhere else. Applied when the card is SERVED (stored
+    cards included). Titles only; the text lines are never touched. Never raises."""
+    try:
+        if not isinstance(card, dict):
+            return card
+        card = dict(card)
+        for k in ("strengths", "frictions"):
+            if isinstance(card.get(k), list):
+                card[k] = [dict(x, title=_sentence_case(x.get("title"), keep)) if isinstance(x, dict) and x.get("title") else x for x in card[k]]
+        return card
+    except Exception:
+        return card

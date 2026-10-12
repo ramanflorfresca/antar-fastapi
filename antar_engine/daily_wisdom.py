@@ -938,19 +938,14 @@ def _why_mantra(season: str, cause: dict, name: str, lang: str) -> str:
     tone, does = _TONE.get(season, _TONE["steady"])[lang]
     kind = (cause or {}).get("kind")
     if kind == "moon" and isinstance((cause or {}).get("house"), int):
-        h = cause["house"]
-        cs = {"en": f"today's Moon is in the {h}{'st' if h == 1 else 'nd' if h == 2 else 'rd' if h == 3 else 'th'} house from your own Moon, {tone}",
-              "es": f"la Luna de hoy est\u00e1 en la casa {h} desde tu propia Luna, {tone}",
-              "pt": f"a Lua de hoje est\u00e1 na casa {h} a partir da sua pr\u00f3pria Lua, {tone}"}[lang]
+        cs = {"en": f"today's Moon is in {tone}",
+              "es": f"la Luna de hoy est\u00e1 en {tone}",
+              "pt": f"a Lua de hoje est\u00e1 em {tone}"}[lang]
     elif kind == "dasha" and (cause or {}).get("lord"):
-        lord = cause["lord"]
-        ln = lord if lang == "en" else _PLANET_L[lang].get(lord, lord)
         lean = _LEAN[season][lang]
-        lvl = {"antardasha": {"en": "sub-period", "es": "subperiodo", "pt": "subper\u00edodo"},
-               "mahadasha": {"en": "period", "es": "periodo", "pt": "per\u00edodo"}}[cause.get("level") or "antardasha"][lang]
-        cs = {"en": f"today's Moon is neutral, so your running {ln} {lvl} sets the tone and it is {lean}",
-              "es": f"la Luna de hoy es neutra, as\u00ed que tu {lvl} de {ln} marca el tono y es {lean}",
-              "pt": f"a Lua de hoje \u00e9 neutra, ent\u00e3o o seu {lvl} de {ln} d\u00e1 o tom e \u00e9 {lean}"}[lang]
+        cs = {"en": f"today's Moon is neutral, so the stretch of life you are in sets the tone and it is {lean}",
+              "es": f"la Luna de hoy es neutra, as\u00ed que la etapa de vida en que est\u00e1s marca el tono y es {lean}",
+              "pt": f"a Lua de hoje \u00e9 neutra, ent\u00e3o a fase da vida em que voc\u00ea est\u00e1 d\u00e1 o tom e \u00e9 {lean}"}[lang]
     else:
         cs = {"en": "today reads as a steady day for you", "es": "hoy se lee como un d\u00eda estable para ti",
               "pt": "hoje se l\u00ea como um dia est\u00e1vel para voc\u00ea"}[lang]
