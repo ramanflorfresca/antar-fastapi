@@ -36,7 +36,7 @@ from antar_engine.constants import SONNET_MODEL, HAIKU_MODEL
 # [pricing-2026-07] Single paid tier. "seeker"/"navigator" remain as aliases so
 # historical subscription rows still resolve — see entitlements.PAID_TIERS.
 from antar_engine.entitlements import PAID_TIERS as _PAID_TIERS
-from antar_engine.karakas import psychological_profile, get_all_karakas
+from antar_engine.karakas import psychological_profile
 from antar_engine import transits, divisional, timing_engine, nation_engine, remedy_selector
 from antar_engine.natal_signatures import ensure_signatures, build_signature_context_block, compute_natal_signatures, derive_archetype
 
@@ -10010,7 +10010,6 @@ Do not use any planet names or astrological jargon — translate everything into
         print(f"[predict] Compat context injected for {_cc_name_b} ({_cc_rel})")
 
     # ── REMEDIES ──────────────────────────────────────────────────
-    karakas_list = get_all_karakas(chart_data)
     user_age = patra.age
 
     # [P0 coherence 2026-07-31] Compute the chart's FOCUS planet (the convergence
