@@ -29052,6 +29052,18 @@ _ASK_TYPED_Q = _cv_ask.ContextVar("ask_typed_question", default=None)
 # [other-person 2026-10-12] set when a question about another person's feelings, or a forecast of
 # illness, was rewritten into the asker's decision: {"kind", "original", "question"}.
 _ASK_REFRAMED = _cv_ask.ContextVar("ask_reframed", default=None)
+
+
+def _health_soften_on() -> bool:
+    return (os.getenv("ASK_HEALTH_SOFTEN") or "on").strip().lower() not in ("0", "off", "false", "no")
+
+
+def _health_soften_applies(concern, reframed) -> bool:
+    """[health-soften 2026-10-12] True for a health-concern answer, or one rewritten from an illness
+    forecast: those carry no Yes/Likely chip and no verdict lead phrase."""
+    if not _health_soften_on():
+        return False
+    return str(concern or "").strip().lower() == "health" or (reframed or {}).get("kind") == "health_event"
 # [outcome-loop] which surface asked (app | whatsapp) — recorded on each claim.
 _ASK_CHANNEL = _cv_ask.ContextVar("ask_channel", default="app")
 
@@ -32847,6 +32859,16 @@ async def _ask_endpoint_impl(request: AskRequest):
                 _ask_conv["verdict_phrase"] = ""
                 print(f"[ask][domain-fit] verdict chip + lead phrase suppressed "
                       f"(misaligned approach) for {chart_id[:8]}")
+            # [health-soften 2026-10-12] A health read is a period to look after something, never a
+            # verdict: no "Likely"/"Yes" chip and no "Likely — health window …" lead. The read keeps
+            # what to protect and when. Kill switch: ASK_HEALTH_SOFTEN=off.
+            try:
+                if _ask_conv and _health_soften_applies(locals().get("_ask_concern"), _ASK_REFRAMED.get()):
+                    _ask_conv["suppress_verdict"] = True
+                    _ask_conv["verdict_phrase"] = ""
+                    print(f"[ask][health-soften] verdict chip + lead phrase suppressed for {chart_id[:8]}")
+            except Exception as _hse:
+                print(f"[ask][health-soften] skipped: {_hse}")
 
             if _ask_decision and _ask_conv:
                 _verdict_phrase = (_ask_conv.get("verdict_phrase") or "").strip()
@@ -33639,6 +33661,15 @@ async def _ask_endpoint_impl(request: AskRequest):
                     payload["convergence"] = None
             except Exception as _spg:
                 print(f"[ask] speculation chip-suppress non-fatal: {_spg}")
+            # [health-soften 2026-10-12] A question that asked for an illness forecast ("will I have a
+            # health scare?") gets no dated window either: a date next to it reads as "when it happens".
+            try:
+                if (_ASK_REFRAMED.get() or {}).get("kind") == "health_event" and _health_soften_on():
+                    payload["verdict"] = None
+                    payload["timing"] = None
+                    payload["convergence"] = None
+            except Exception as _hsc:
+                print(f"[ask][health-soften] chip suppress non-fatal: {_hsc}")
             # [window-dates 2026-10-07] Parsed bounds for the timing chip, so the
             # answer card can DRAW the window instead of only labelling it.
             #

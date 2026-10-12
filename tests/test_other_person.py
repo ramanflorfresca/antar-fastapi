@@ -28,6 +28,9 @@ CAUGHT = [
     ("¿Tendré cáncer?", "health_event"),
     ("Quando vou morrer?", "health_event"),
     ("kab marunga", "health_event"),
+    ("¿Voy a enfermarme este año?", "health_event"),
+    ("Vou adoecer este ano?", "health_event"),
+    ("Will I fall ill this winter?", "health_event"),
 ]
 
 LEFT_ALONE = [
@@ -73,3 +76,19 @@ def test_reframed_question_is_not_caught_again():
 def test_unknown_language_falls_back_to_english():
     assert reframe("feelings", "xx") == _REFRAME["feelings"]["en"]
     assert reframe("nope", "en") == ""
+
+
+# ── health softening: no verdict chip, no lead phrase, no dated window for an illness forecast ──
+def test_health_soften_applies_to_health_answers_and_illness_forecasts_only():
+    import main
+    assert main._health_soften_applies("health", None) is True
+    assert main._health_soften_applies("career", {"kind": "health_event", "original": "x"}) is True
+    assert main._health_soften_applies("career", None) is False
+    assert main._health_soften_applies("career", {"kind": "feelings"}) is False
+    assert main._health_soften_applies("", None) is False
+
+
+def test_health_soften_kill_switch(monkeypatch):
+    import main
+    monkeypatch.setenv("ASK_HEALTH_SOFTEN", "off")
+    assert main._health_soften_applies("health", None) is False
