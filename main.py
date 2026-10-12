@@ -10420,8 +10420,50 @@ Do not use any planet names or astrological jargon — translate everything into
     # chapter. For residence questions, override the (post-re-run) resolver verdict's
     # window (chapter, months-years), line, move and band from the residence read +
     # the dasha gate ("you can't outrun your dasha"). WHERE stays a Places question.
+    # [immigration-verdict 2026-10-12] Visa / immigration / settle-abroad is a life-CHAPTER
+    # question with its own honest read: does the chart carry a long-term-abroad pull
+    # (STRUCTURE), is the running chapter releasing or slow (PHASE), and the next window
+    # worth pushing (TIMING). Never an approval prediction — the authorities decide that.
+    # Runs BEFORE residence (which also matches 'immigration'/'green card') and owns it.
     try:
-        if _resolver_verdict and _is_residence_q(request.question):
+        if _resolver_verdict and _is_immigration_q(request.question):
+            from antar_engine.immigration import (analyze_immigration as _ia_fn,
+                                                  immigration_phase as _ip_fn,
+                                                  immigration_timing as _it_fn,
+                                                  immigration_verdict as _iv_fn)
+            _ia = _ia_fn(chart_data)
+            if _ia.get("available"):
+                _ibd = chart_record.get("birth_date") if isinstance(chart_record, dict) else None
+                _it = _it_fn(chart_data, dashas_response, birth_date=_ibd)
+                _ib = (_it or {}).get("best") if isinstance(_it, dict) else None
+                _iy = (_ib or {}).get("year") or ((_ib or {}).get("start") or "")[:4]
+                try:
+                    from datetime import date as _imd
+                    _iy = int(_iy) if int(_iy) >= _imd.today().year else None
+                except (TypeError, ValueError):
+                    _iy = None
+                _iv = _iv_fn(_ia["structure"]["level"],
+                             _ip_fn(chart_data, _current_dasha_str(dashas_response)),
+                             bool(_ia.get("hidden_obstacles")), _iy,
+                             getattr(request, 'language', 'en') or 'en')
+                if _iv.get("available"):
+                    _resolver_verdict["verdict"] = _iv["band"]
+                    _resolver_verdict["verdict_line"] = _iv["line"]
+                    _resolver_verdict["the_move"] = _iv["the_move"]
+                    if _iy:
+                        _resolver_verdict["window"] = {"date_range": _iv["window_range"],
+                                                       "intraday_boundary": None}
+                        _resolver_verdict["timeframe"] = "chapter"
+                    _resolver_verdict["secondary_note"] = _iv["secondary_note"]
+                    _resolver_verdict["_immigration_override"] = True
+                    print(f"[predict] immigration-verdict override: band={_iv['band']} "
+                          f"key={_iv['key']} level={_ia['structure']['level']}")
+    except Exception as _ime:
+        print(f"[predict] immigration-verdict override skipped: {_ime}")
+
+    try:
+        if (_resolver_verdict and _is_residence_q(request.question)
+                and not _resolver_verdict.get("_immigration_override")):
             from antar_engine.residence import residence_timing as _rv_rt_fn
             from antar_engine.move_convergence import residence_verdict as _rv_verdict
             _rv_bd = chart_record.get("birth_date") if isinstance(chart_record, dict) else None
@@ -10452,7 +10494,8 @@ Do not use any planet names or astrological jargon — translate everything into
     # HEALTH gets a window-only swap (keep its careful non-alarmist band/line).
     # Future-year guard; residence already owns its verdict above; fail-open.
     try:
-        if _resolver_verdict and not _resolver_verdict.get("_residence_override"):
+        if (_resolver_verdict and not _resolver_verdict.get("_residence_override")
+                and not _resolver_verdict.get("_immigration_override")):
             _cbd = chart_record.get("birth_date") if isinstance(chart_record, dict) else None
             _cl2 = (getattr(request, 'language', 'en') or 'en').split('-')[0]
             from datetime import date as _cdt
@@ -10488,6 +10531,27 @@ Do not use any planet names or astrological jargon — translate everything into
                     _resolver_verdict["_chapter_window_override"] = "legal"
                     print(f"[predict] legal-verdict override: band={_lv['band']} "
                           f"lean={_outc.get('lean')}")
+            elif _is_debt_q(request.question):
+                from antar_engine.debt import (analyze_debt as _da_fn,
+                                               debt_timing as _dt_fn,
+                                               debt_verdict as _dv_fn)
+                _da = _da_fn(chart_data)
+                if _da.get("available"):
+                    _dt = _dt_fn(chart_data, dashas_response, birth_date=_cbd)
+                    _dry = _chap_year(((_dt or {}).get("relief") or {}).get("best"))
+                    _dpy = _chap_year(((_dt or {}).get("pressure") or {}).get("best"))
+                    _dv = _dv_fn(_da["lean"], _dry, _dpy, _cl2)
+                    if _dv.get("available"):
+                        _resolver_verdict["verdict"] = _dv["band"]
+                        _resolver_verdict["verdict_line"] = _dv["line"]
+                        _resolver_verdict["the_move"] = _dv["the_move"]
+                        if _dry:
+                            _resolver_verdict["window"] = {"date_range": _dv["window_range"],
+                                                           "intraday_boundary": None}
+                            _resolver_verdict["timeframe"] = "chapter"
+                        _resolver_verdict["secondary_note"] = _dv["secondary_note"]
+                        _resolver_verdict["_chapter_window_override"] = "debt"
+                        print(f"[predict] debt-verdict override: band={_dv['band']} lean={_da['lean']}")
             elif _is_health_q(request.question):
                 from antar_engine.health import health_timing as _ht_fn
                 _ht = _ht_fn(chart_data, dashas_response, birth_date=_cbd)
@@ -27001,6 +27065,10 @@ def _is_gambling_q(question):
     ))
 
 
+from antar_engine.immigration import is_immigration_q as _is_immigration_q  # noqa: E402
+from antar_engine.debt import is_debt_q as _is_debt_q  # noqa: E402
+
+
 def _is_legal_q(question):
     """True for legal / disputes / litigation questions."""
     ql = (question or "").lower()
@@ -30748,6 +30816,92 @@ async def _ask_endpoint_impl(request: AskRequest):
             except Exception as _lee:
                 logger.warning(f"[ask] legal-engine skipped (non-fatal): {_lee}")
 
+            # [immigration engine 2026-10-12] visa / immigration / settle-abroad — STRUCTURE
+            # (long-term-abroad pull) + PHASE (releasing vs slow) + next window. Honest:
+            # never an approval prediction; the authorities decide; the lawyer does the case.
+            _ask_immigration_block = ""
+            try:
+                if _is_immigration_q(question):
+                    from antar_engine.immigration import (analyze_immigration, immigration_phase,
+                                                          immigration_timing)
+                    _ima = analyze_immigration(chart_data)
+                    if _ima.get("available"):
+                        _imdash = get_dashas_for_chart(chart_id)
+                        _imt = immigration_timing(chart_data, _imdash, birth_date=_ask_birth_date)
+                        _ims = _ima["structure"]
+                        _imph = immigration_phase(chart_data, _current_dasha_str(_imdash))
+                        _imp = ["IMMIGRATION QUESTION — answer from THIS deterministic reading. Never "
+                                "name a planet, house, or system — plain life-language only.",
+                                f"PULL TO BUILD A LIFE ABROAD: {_ims['level']}. CURRENT STRETCH: {_imph} "
+                                "(releasing = workable to push; slow = a delay, not a denial; mixed = prepare).",
+                                "HARD RULES: NEVER predict that a visa, petition, lottery selection or "
+                                "status will be approved or denied — the authorities and the rules decide "
+                                "that, not timing. Never cite specific current laws, caps, fees or "
+                                "processing times. Frame ONLY the pull, the phase and the window. "
+                                "Distinguish a DELAY from a DENIAL."]
+                        if _ims["level"] == "weak":
+                            _imp.append("Be honest that the chart does not show a strong long-term pull "
+                                        "to settle abroad: treat this as one route among several, and "
+                                        "invite weighing a path nearer home or another country — not as failure.")
+                        else:
+                            if _ims.get("plain"):
+                                _imp.append("WHY (plain, a tendency): " + "; ".join(_ims["plain"][:2]) + ".")
+                            if _ims.get("nature") == "settled":
+                                _imp.append("The pattern points to a long stay once settled, not a short stint.")
+                            elif _ims.get("nature") == "recurring":
+                                _imp.append("The pattern points to moving between places more than one fixed landing.")
+                        if _ima.get("delay"):
+                            _imp.append("Expect slow, repeated steps rather than a one-shot pass — "
+                                        "endurance and clean paperwork matter more than speed.")
+                        if _ima.get("hidden_obstacles"):
+                            _imp.append("Advise a line-by-line document check and a second professional "
+                                        "opinion — small mismatches are where surprises hide.")
+                        if _imt.get("best"):
+                            _imp.append("TIMING: " + _imt["summary"] + " Give it as the stretch to prepare "
+                                        "and push, in plain months-years.")
+                        _imp.append("Close with one concrete next step. This is not legal or immigration "
+                                    "advice — suggest an immigration attorney for the actual case.")
+                        _ask_immigration_block = "\n".join(_imp)
+            except Exception as _ime2:
+                logger.warning(f"[ask] immigration-engine skipped (non-fatal): {_ime2}")
+
+            # [debt engine 2026-10-12] debt / obligation pressure — pressure vs capacity to clear,
+            # the squeeze window and the relief window. A LEAN, never "you'll be debt-free".
+            _ask_debt_block = ""
+            try:
+                if _is_debt_q(question) and not _is_legal_q(question):
+                    from antar_engine.debt import analyze_debt, debt_timing
+                    _dba = analyze_debt(chart_data)
+                    if _dba.get("available"):
+                        _dbt = debt_timing(chart_data, get_dashas_for_chart(chart_id),
+                                           birth_date=_ask_birth_date)
+                        _dbp = ["DEBT QUESTION — answer from THIS deterministic reading. Never name a "
+                                "planet, house, or system — plain life-language only.",
+                                f"PRESSURE: {_dba['pressure']['level']}. CAPACITY TO CLEAR: "
+                                f"{_dba['recovery']['level']}. LEAN: {_dba['lean']}.",
+                                "HARD RULES: never promise they will be debt-free or by when; never "
+                                "give investment, tax or bankruptcy-filing advice; frame only as a LEAN "
+                                "that a clear plan and a qualified counsellor turn into a result. "
+                                "Never shame the person."]
+                        if _dba["recovery"].get("plain"):
+                            _dbp.append("WHAT HELPS (plain, a tendency): "
+                                        + "; ".join(_dba["recovery"]["plain"][:2]) + ".")
+                        if _dba["pressure"].get("plain"):
+                            _dbp.append("WHAT STRAINS (plain, a tendency): "
+                                        + "; ".join(_dba["pressure"]["plain"][:2]) + ".")
+                        if _dba["lean"] == "heavy":
+                            _dbp.append("Be honest the position is heavy: recommend negotiating terms "
+                                        "or restructuring EARLY, with a qualified counsellor.")
+                        if _dbt.get("available"):
+                            _dbp.append("TIMING: " + _dbt["summary"] + " Say it as when the squeeze "
+                                        "is sharpest (avoid new obligations then) and when relief is "
+                                        "most workable, in plain months-years.")
+                        _dbp.append("Close with ONE concrete step (list every obligation, rank by "
+                                    "interest and urgency). This is not financial or legal advice.")
+                        _ask_debt_block = "\n".join(_dbp)
+            except Exception as _dbe:
+                logger.warning(f"[ask] debt-engine skipped (non-fatal): {_dbe}")
+
             # [health engine] deterministic constitution + chronic/acute (D-1 & D-9)
             # + nature/body + vulnerable-window timing (varshphal-heavy + Sade Sati).
             # Supersedes the generic 'health' concern route.
@@ -32645,6 +32799,8 @@ async def _ask_endpoint_impl(request: AskRequest):
                     + f"\n\n{_ask_frame_block}"
                     + (f"\n\n{_ask_relationship_block}" if _ask_relationship_block else "")
                     + (f"\n\n{_ask_legal_block}" if _ask_legal_block else "")
+                    + (f"\n\n{_ask_immigration_block}" if _ask_immigration_block else "")
+                    + (f"\n\n{_ask_debt_block}" if _ask_debt_block else "")
                     + (f"\n\n{_ask_health_block}" if _ask_health_block else "")
                     + (f"\n\n{_ask_material_block}" if locals().get("_ask_material_block") else "")
                     + (f"\n\n{_ask_wealth_block}" if locals().get("_ask_wealth_block") else "")
@@ -32883,6 +33039,8 @@ async def _ask_endpoint_impl(request: AskRequest):
                     + f"\n\n{_ask_frame_block}"
                     + (f"\n\n{_ask_relationship_block}" if _ask_relationship_block else "")
                     + (f"\n\n{_ask_legal_block}" if _ask_legal_block else "")
+                    + (f"\n\n{_ask_immigration_block}" if _ask_immigration_block else "")
+                    + (f"\n\n{_ask_debt_block}" if _ask_debt_block else "")
                     + (f"\n\n{_ask_health_block}" if _ask_health_block else "")
                     + (f"\n\n{_ask_material_block}" if locals().get("_ask_material_block") else "")
                     + (f"\n\n{_ask_wealth_block}" if locals().get("_ask_wealth_block") else "")
