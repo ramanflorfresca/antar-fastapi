@@ -1,14 +1,21 @@
 # karakas.py
 from . import constants
 
+def _in_sign_degree(lon):
+    """Degree within the sign (0-30). Jaimini ranks karakas by THIS, not by
+    absolute longitude: sorting by 0-360 picked the wrong Atmakaraka in ~81% of
+    charts (tests/result_ak_d10_shadow.md)."""
+    return float(lon) % 30.0
+
+
 def get_atmakaraka(chart_data):
-    """Return the Atmakaraka (planet with highest longitude)."""
+    """Return the Atmakaraka (planet with the highest degree within its sign)."""
     planets = ['Sun', 'Moon', 'Mars', 'Mercury', 'Jupiter', 'Venus', 'Saturn']
     karakas = []
     for p in planets:
         lon = chart_data['planets'][p]['longitude']
         karakas.append((p, lon))
-    karakas.sort(key=lambda x: x[1], reverse=True)
+    karakas.sort(key=lambda x: _in_sign_degree(x[1]), reverse=True)
     if karakas:
         p, lon = karakas[0]
         return {
@@ -26,7 +33,7 @@ def get_all_karakas(chart_data):
     for p in planets:
         lon = chart_data['planets'][p]['longitude']
         karakas.append((p, lon, chart_data['planets'][p]['sign'], chart_data['planets'][p]['degree']))
-    karakas.sort(key=lambda x: x[1], reverse=True)
+    karakas.sort(key=lambda x: _in_sign_degree(x[1]), reverse=True)
     result = []
     for i, (p, lon, sign, deg) in enumerate(karakas):
         result.append({
