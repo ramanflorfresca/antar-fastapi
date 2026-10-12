@@ -474,6 +474,13 @@ def _drop_sentences(text, rx, keep_min: int = 1):
     return " ".join(kept), True
 
 
+# [partner-assumed 2026-10-12] A money/month question that never mentioned a partner got "you and your partner" and "a new partner" because the PREVIOUS turn was about one. The sentence is dropped unless
+# the question itself is about partners.
+_PARTNER_Q = re.compile(r"(?i)\b(partner|co-?founder|socio|s[oó]cio|parceir[oa]|saajhedaar|spouse|wife|husband|esposa|esposo|pareja|marriage|married)\b")
+_PARTNER_ASSUMED = re.compile(r"(?i)\byou and your (business )?partner\b|\b(a|the|any) new (business )?partner\b|\bbring(ing)? (in )?(a|the right|another) (business )?partner\b|"
+                              r"\byou y tu socio\b|\bun nuevo socio\b")
+
+
 # a caution against bold moves, or the opposite, in an answer whose verdict says otherwise
 _CAUTION_BOLD = re.compile(r"(?i)\bsteady,? grounded\b|\b(over|than|not|rather than) (bold|dramatic|big) (pivots?|bets?|moves?|decisions?)\b|"
                            r"\bbold (new )?(bets?|pivots?)\b|\bavoid (bold|big) (moves?|decisions?)\b|"
@@ -626,6 +633,12 @@ def polish_answer(payload: dict, language: str = "en", typed_question: str = "",
                 if _d:
                     print(f"[ask][polish] {_why} sentence dropped")
             # scarcity pressure + invented days are removed from the read and the move (see _URGENCY / _DAY_CLAIM)
+            if not _PARTNER_Q.search(typed_question or ""):
+                payload["read"], _pa = _drop_sentences(payload.get("read"), _PARTNER_ASSUMED, keep_min=2)
+                if _pa:
+                    print("[ask][polish] unasked partner sentence dropped")
+                if isinstance(payload.get("next"), str) and _PARTNER_ASSUMED.search(payload["next"]):
+                    payload["next"] = None
             payload["read"], _pr = strip_pressure(payload.get("read"))
             payload["read"], _ck = strip_clock_deadlines(payload.get("read"), typed_question)
             if _ck:
