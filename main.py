@@ -27145,6 +27145,24 @@ def _is_dasha_q(q):
     return any(m in ql for m in _ASK_PERIOD_MARKERS)
 
 
+# [dasha-event 2026-10-12] "Will I marry in this dasha or the next?" names a dasha but asks about an EVENT. The dasha
+# explainer ("You're in Rahu mahadasha… Scorpio, your 11th house…") answered it for every persona and never said whether
+# or when they would marry. An event outcome/timing question goes to the engine for that event; the explainer stays for
+# questions about the dasha itself ("which dasha am I in", "what does my Rahu dasha mean for my career").
+_DASHA_EVENT_Q_RX = re.compile(
+    r"(?i)\b(?:will|would|can|could|should|when|do|am\s+i\s+going\s+to|voy\s+a|vou|cu[aá]ndo|quando|kab)\b[^?]{0,45}?"
+    r"\b(?:marry|married|get\s+married|marriage|wedding|engaged|engagement|divorce|remarry|have\s+(?:a\s+)?(?:baby|child|kids?)|"
+    r"conceive|pregnan\w*|get\s+(?:a\s+)?(?:job|promotion|raise)|buy\s+(?:a\s+)?(?:house|home|property)|move\s+abroad|relocat\w*|"
+    r"casar\w*|casamento|boda|matrimonio|shaadi|vivah)\b")
+
+
+_DASHA_EVENT_FUTURE_RX = re.compile(r"(?i)\bme\s+casar[eé]\b|\bcasar[eé]\b|\bvou\s+(?:me\s+)?casar\b|\bshaadi\s+(?:hogi|kab)\b")
+
+
+def _is_dasha_event_q(q):
+    return bool(_DASHA_EVENT_Q_RX.search(q or "") or _DASHA_EVENT_FUTURE_RX.search(q or ""))
+
+
 _ASK_SIGNS = ("aries", "taurus", "gemini", "cancer", "leo", "virgo", "libra", "scorpio",
               "sagittarius", "capricorn", "aquarius", "pisces")
 
@@ -31458,7 +31476,7 @@ async def _ask_endpoint_impl(request: AskRequest):
 
             # [ask-direct 2026-10-10] a question about "my dasha / this period" gets the period
             # itself — named, dated, with the antardasha end date — not a generic chapter essay.
-            if (_is_dasha_q(question) and not _ask_crisis and isinstance(chart_data, dict)
+            if (_is_dasha_q(question) and not _is_dasha_event_q(question) and not _ask_crisis and isinstance(chart_data, dict)
                     and chart_data
                     and not any(w in question.lower() for w in (
                         "next ", "upcoming", "coming ", "new dasha", "after this", "after my"))):

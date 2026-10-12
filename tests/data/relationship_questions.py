@@ -68,7 +68,7 @@ _ROWS = [
     (45, "F", "serve", "Will I have children after marriage?", "5th, Jupiter, dasha of 5th lord"),
     (46, "F", "people", "Is my spouse's dasha affecting our marriage?", "spouse's MD-AD, Saturn transit"),
     (47, "F", "serve", "Is a love marriage or an arranged one more likely for me?", "5th-7th link, Venus-Rahu (paraphrase of #3)"),
-    (48, "F", "serve", "Will my in-laws be supportive?", "7th lord in 4th, 2nd house"),
+    (48, "F", "people", "Will my in-laws be supportive?", "7th lord in 4th, 2nd house — other people's attitudes: needs their charts"),
     (49, "F", "serve", "Will I marry a foreigner?", "7th lord in 9th/12th, Rahu in 7th"),
     (50, "F", "serve", "What remedies help my marriage problems?", "7th-lord mantra, Venus remedies, dasha-specific"),
     (51, "X", "decline", "Will he call me today?", "SD lord transiting 7th"),

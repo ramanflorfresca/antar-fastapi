@@ -54,3 +54,42 @@ def test_reframed_decline_answers_are_credited_and_unreframed_flagged():
     q = {"id": 28, "lane": "decline", "q": "Is there a third person in my relationship?"}
     assert "REFRAME_MISSING" in lane_checks(q, {"read": "Fine.", "next": "x", "concern": "love"})
     assert "REFRAME_MISSING" not in lane_checks(q, {"read": "Fine.", "next": "x", "concern": "love", "reframed": {"kind": "trust"}})
+
+
+def test_explicit_no_window_answers_a_timing_question():
+    from tests.data.relationship_lane_checks import lane_checks
+    q = {"id": 16, "lane": "serve", "q": "What month will I get engaged?"}
+    base = {"next": "x", "concern": "marriage"}
+    assert "NO_WINDOW" not in lane_checks(q, {**base, "read": "No strong partnership window in the next 24 months."})
+    assert "NO_WINDOW" in lane_checks(q, {**base, "read": "Things look supportive in general."})
+    assert "NO_WINDOW" not in lane_checks(q, {**base, "read": "Likely.", "timing": "Nov 2026 – Jan 2027"})
+
+
+def test_dateless_sentence_is_flagged_and_dropped():
+    from tests.data.relationship_lane_checks import lane_checks
+    from antar_engine.answer_polish import polish_answer
+    bad = "The next chapter, starting around, brings more natural warmth and expansion."
+    assert "SENTENCE_BROKEN" in lane_checks({"id": 15, "lane": "serve", "q": "x?"}, {"read": bad, "next": "x", "concern": "marriage"})
+    pay = {"read": "You are in a quiet stretch. " + bad + " It holds if you make the first move.", "next": "Reach out once."}
+    polish_answer(pay, language="en", typed_question="Will I marry in this dasha or the next?", concern="marriage")
+    assert "starting around," not in pay["read"] and "quiet stretch" in pay["read"] and "first move" in pay["read"]
+    ok = {"read": "A window opens around March 2027. Then it eases.", "next": "x"}
+    polish_answer(ok, language="en", typed_question="when?", concern="marriage")
+    assert "around March 2027" in ok["read"]
+
+
+def test_window_stated_in_prose_counts():
+    from tests.data.relationship_lane_checks import lane_checks
+    q = {"id": 15, "lane": "serve", "q": "Will I marry in this dasha or the next?"}
+    assert "NO_WINDOW" not in lane_checks(q, {"read": "The strongest window runs right now through late 2027.", "next": "x", "concern": "marriage"})
+    assert "NO_WINDOW" in lane_checks(q, {"read": "Partnership is possible but slow.", "next": "x", "concern": "marriage"})
+
+
+def test_legitimate_about_comma_is_never_dropped_or_flagged():
+    from tests.data.relationship_lane_checks import lane_checks
+    from antar_engine.answer_polish import polish_answer
+    ok = "Name the specific thing you want to talk about, not just catching up."
+    assert "SENTENCE_BROKEN" not in lane_checks({"id": 22, "lane": "reframe", "q": "x?"}, {"read": ok, "next": ok, "concern": "love"})
+    pay = {"read": "First sentence here. " + ok + " Third sentence here.", "next": "Reach out once."}
+    polish_answer(pay, language="en", typed_question="x", concern="love")
+    assert "talk about, not just" in pay["read"]

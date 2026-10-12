@@ -474,6 +474,12 @@ def _drop_sentences(text, rx, keep_min: int = 1):
     return " ".join(kept), True
 
 
+# [dateless 2026-10-12] A sentence whose date never arrived: "The next chapter, starting around, brings more warmth" (the narrator was told not
+# to cite a past start, then dropped the date it was meant to give). It reads as broken and promises a time it never names - drop it.
+_DATELESS = re.compile(
+    r"(?i)\b(?:starting|beginning|opening|arriving|kicking\s+off|empezando|comenzando|come[cç]ando|a\s+partir)\s+(?:around|about|in|from|by|at|de|em|en)?\s*[,.;]")
+
+
 # a caution against bold moves, or the opposite, in an answer whose verdict says otherwise
 _CAUTION_BOLD = re.compile(r"(?i)\bsteady,? grounded\b|\b(over|than|not|rather than) (bold|dramatic|big) (pivots?|bets?|moves?|decisions?)\b|"
                            r"\bbold (new )?(bets?|pivots?)\b|\bavoid (bold|big) (moves?|decisions?)\b|"
@@ -506,6 +512,9 @@ def polish_answer(payload: dict, language: str = "en", typed_question: str = "",
         for f in ("read", "next"):
             payload[f] = plain_words(payload.get(f), language)
         payload["read"] = scope_right_now(payload.get("read"), typed_question, language)
+        payload["read"], _dd = _drop_sentences(payload.get("read"), _DATELESS, keep_min=2)
+        if _dd:
+            print("[ask][polish] dateless-date sentence dropped")
         # R4 — spread chart: no "pick one venture / double down" (unless they asked to pick one)
         if chart_lean == "spread" and not _PICK_ONE.search(own):
             payload["read"], _ = _drop_sentences(payload.get("read"), _PICK_ONE, keep_min=2)

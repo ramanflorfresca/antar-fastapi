@@ -100,3 +100,13 @@ def test_two_window_lane_skips_questions_it_does_not_answer():
     for q in ("Will my marriage improve?", "Will we patch up?", "Should I wait for him or her, or move on?",
               "Is there any problem in my married life?"):
         assert not main._DU_NOFIT_RX.search(q), q
+
+
+def test_dasha_explainer_skips_event_questions():
+    import main
+    for q in ("Will I marry in this dasha or the next?", "When will I get married in this dasha?",
+              "Will I have a baby in this mahadasha?", "¿Me casaré en esta dasha?"):
+        assert main._is_dasha_q(q) and main._is_dasha_event_q(q), q
+    for q in ("Which dasha am I in?", "What does my Rahu mahadasha mean for my career?", "When does my current dasha end?",
+              "Tell me about my antardasha"):
+        assert main._is_dasha_q(q) and not main._is_dasha_event_q(q), q

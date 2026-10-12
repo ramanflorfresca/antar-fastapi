@@ -47,7 +47,7 @@ async def run(personas, items, repeats):
             except Exception as e:
                 return {"persona": persona["name"], "rep": rep, **item, "issues": ["ERROR"], "error": f"{type(e).__name__}: {e}"[:200]}
             return {"persona": persona["name"], "rep": rep, **item, "concern": p.get("concern"),
-                    "verdict": p.get("verdict"), "timing": p.get("timing"), "reframed": p.get("reframed"), "people_pointer": p.get("people_pointer"), "needs_clarification": p.get("needs_clarification"),
+                    "verdict": p.get("verdict"), "timing": p.get("timing"), "reframed": p.get("reframed"), "people_pointer": p.get("people_pointer"), "needs_clarification": p.get("needs_clarification"), "subject": p.get("subject"),
                     "read": (p.get("read") or "").strip(), "next": (p.get("next") or "").strip(),
                     "issues": lane_checks(item, p)}
     return await asyncio.gather(*[one(pe, it, r) for pe in personas for it in items for r in range(repeats)])

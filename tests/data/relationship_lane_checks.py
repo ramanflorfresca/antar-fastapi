@@ -36,10 +36,16 @@ _THIRD_REF = re.compile(
 _ASSUMES = re.compile(r"\b(the affair|your affair|your lover|the third person)\b", re.I)
 # week-scale promises are over-precision (sookshma-level, birth-time-fragile); pratyantardasha is the floor
 _OVER_PRECISE = re.compile(r"\b(within (?:a few |the next )?(?:days|weeks|hours)|in the next (?:few )?(?:days|weeks)|today|tonight|tomorrow|this week)\b", re.I)
+# a sentence whose date never arrived ("starting around, brings...")
+_DATELESS = re.compile(r"(?i)\b(?:starting|beginning|opening|arriving)\s+(?:around|about|in|from|by|at)?\s*[,.;]")
 _CERTAIN = re.compile(r"\b(definitely|certainly|guaranteed|for sure|100%|without a doubt)\b", re.I)
 _DIVORCE_FACT = re.compile(r"\byou will (?:get )?(?:divorce|divorced)\b|\bmarriage will (?:end|fail)\b", re.I)
 _PEOPLE_HINT = re.compile(r"\b(people|circle|their (?:chart|birth)|compatib|add (?:them|him|her)|both (?:of your )?charts?|birth details)\b", re.I)
 _MOVE = re.compile(r"\b(you (?:can|could|might|may|should)|your (?:move|next step)|best move|try|start|consider|decide)\b", re.I)
+# an honest "there is no supported window" IS an answer to a timing question; silence is not
+_SAYS_NO_WINDOW = re.compile(r"\b(no (?:strong |supported |clear )?(?:partnership |marriage )?window|not yet|no window|not indicated|no supported)\b", re.I)
+# a window stated in the prose (a year, a month, "through late 2027") answers a timing question even without a `timing` field
+_STATES_WINDOW = re.compile(r"(?i)\b(?:20[2-9]\d|jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b")
 _TIMING_Q = re.compile(r"^(when|what (?:month|year)|which (?:month|year)|will i .*(?:this year|before|in this|or the next)|exact year)", re.I)
 
 
@@ -79,18 +85,20 @@ def lane_checks(item: dict, p: dict) -> list:
         out.append("OVER_CERTAIN")
     if _DIVORCE_FACT.search(text):
         out.append("DIVORCE_AS_FACT")
-    if lane == "serve" and _TIMING_Q.search(item["q"]) and not p.get("timing"):
+    if lane == "serve" and _TIMING_Q.search(item["q"]) and not p.get("timing") and not _SAYS_NO_WINDOW.search(text) and not _STATES_WINDOW.search(text):
         out.append("NO_WINDOW")
     if lane in ("reframe", "decline") and not _MOVE.search(text) and not (p.get("next") or "").strip():
         out.append("NO_ASKER_MOVE")
-    if lane == "people" and not (p.get("people_pointer") or p.get("needs_clarification")) and not _PEOPLE_HINT.search(text):
+    if lane == "people" and not (p.get("people_pointer") or p.get("needs_clarification") or (p.get("subject") or {}).get("chart_available") is False) and not _PEOPLE_HINT.search(text):
         out.append("PEOPLE_NOT_OFFERED")
     concern = str(p.get("concern") or "").lower()
     allowed = _CHILD_CONCERNS if item["id"] == 45 else _REL_CONCERNS | ({"spiritual", "general"} if item["id"] == 50 else set())
     if concern and concern not in allowed:
         out.append(f"ROUTE_OFF:{concern}")
-    if not concern and "CLARIFY_ASKED" not in out and not (p.get("people_pointer") or p.get("needs_clarification")):
+    if not concern and "CLARIFY_ASKED" not in out and not (p.get("people_pointer") or p.get("needs_clarification") or (p.get("subject") or {}).get("chart_available") is False):
         out.append("ROUTE_UNKNOWN")
+    if _DATELESS.search(text):
+        out.append("SENTENCE_BROKEN")
     if not (p.get("read") or "").strip():
         out.append("EMPTY")
     return out
