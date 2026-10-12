@@ -34,6 +34,12 @@ OPEN_CLIENTS = frozenset({"SUPPORTED", "YES", "LIKELY"})
 
 _T = {
     "en": {
+        "why_later": "The pattern in your timing for now is a slow build, not quick payoffs.",
+        "why_open": "Open means possible, not safe: your gains tend to arrive in bursts and give some of it back.",
+        "why_no": "Your money grows more reliably through steady work, so put the effort there.",
+        "why_losses": "A bet placed now is more likely to cost you than to pay.",
+        "q_month": "So this month is for preparing, not for placing bets.",
+        "q_when": "Mark that window now and decide your cap before it opens, so you aren't deciding under pressure.",
         "losses": "The timing doesn't support speculation — it points to losses from speculative bets rather than gains. The honest answer is no.",
         "no": "The timing doesn't show gains from speculation, so the honest answer is no.",
         "open": "The timing supports gains from speculation, and the window for speculative gains is open now{w}.",
@@ -46,6 +52,12 @@ _T = {
         "next_later": "Until then, prepare rather than bet — and keep any speculative money small.",
     },
     "es": {
+        "why_later": "El patrón de tu momento por ahora es de construcción lenta, no de ganancias rápidas.",
+        "why_open": "Abierta significa posible, no segura: tus ganancias tienden a llegar en ráfagas y a devolver una parte.",
+        "why_no": "Tu dinero crece de forma más fiable con trabajo constante, así que pon el esfuerzo ahí.",
+        "why_losses": "Una apuesta hecha ahora tiene más probabilidad de costarte que de pagarte.",
+        "q_month": "Así que este mes es para prepararte, no para apostar.",
+        "q_when": "Marca esa ventana desde ahora y decide tu tope antes de que se abra, para no decidir bajo presión.",
         "losses": "El momento no respalda la especulación — apunta a pérdidas en apuestas especulativas más que a ganancias. La respuesta honesta es no.",
         "no": "El momento no muestra ganancias por especulación, así que la respuesta honesta es no.",
         "open": "El momento respalda ganancias por especulación, y la ventana de ingresos no ganados está abierta ahora{w}.",
@@ -58,6 +70,12 @@ _T = {
         "next_later": "Mientras tanto, prepárate en vez de apostar — y mantén pequeño cualquier dinero especulativo.",
     },
     "pt": {
+        "why_later": "O padrão do seu momento por enquanto é de construção lenta, não de ganhos rápidos.",
+        "why_open": "Aberta significa possível, não segura: seus ganhos tendem a vir em rajadas e devolver uma parte.",
+        "why_no": "Seu dinheiro cresce de forma mais confiável com trabalho constante, então coloque o esforço aí.",
+        "why_losses": "Uma aposta feita agora tem mais chance de custar do que de pagar.",
+        "q_month": "Então este mês é para se preparar, não para apostar.",
+        "q_when": "Marque essa janela agora e decida seu limite antes que ela abra, para não decidir sob pressão.",
         "losses": "O momento não apoia a especulação — aponta para perdas em apostas especulativas, não ganhos. A resposta honesta é não.",
         "no": "O momento não mostra ganhos com especulação, então a resposta honesta é não.",
         "open": "O momento apoia ganhos com especulação, e a janela de ganhos não trabalhados está aberta agora{w}.",
@@ -70,6 +88,12 @@ _T = {
         "next_later": "Até lá, prepare-se em vez de apostar — e mantenha pequeno qualquer dinheiro especulativo.",
     },
     "hinglish": {
+        "why_later": "Abhi aapki timing ka pattern dheere-dheere banne ka hai, jaldi faayde ka nahi.",
+        "why_open": "Khuli ka matlab mumkin hai, surakshit nahi: aapke faayde jhatke se aate hain aur kuch hissa wapas chala jaata hai.",
+        "why_no": "Aapka paisa steady mehnat se zyada bharose se badhta hai, isliye mehnat wahin lagayiye.",
+        "why_losses": "Abhi lagaya gaya daon kamane se zyada kharch karwane ki sambhavna rakhta hai.",
+        "q_month": "Isliye yeh mahina taiyari ka hai, daon lagane ka nahi.",
+        "q_when": "Us window ko abhi note kar lijiye aur khulne se pehle apni limit tay kar lijiye, taaki dabaav mein faisla na lena pade.",
         "losses": "Timing speculation ko support nahi karti — yeh speculative daon mein faayde se zyada nuksaan dikhati hai. Seedha jawab hai: nahi.",
         "no": "Timing speculation se faayda nahi dikhati, isliye seedha jawab hai: nahi.",
         "open": "Timing speculation se faayde ko support karti hai, aur bina-mehnat ki kamai ki window abhi khuli hai{w}.",
@@ -122,21 +146,36 @@ def state(natal: Optional[dict], client: str = "", ee_verdict: str = "", horizon
     return "later"
 
 
-def lead(st: str, window: str = "", gambling: bool = False, language: str = "en") -> dict:
-    """{'read': opening line(s), 'next': the practical step} in the reader's language."""
+_MONTH_Q = None
+_WHEN_Q = None
+
+
+def lead(st: str, window: str = "", gambling: bool = False, language: str = "en", question: str = "") -> dict:
+    """{'read': the answer, 'next': the practical step} in the reader's language. [thin-reads 2026-10-12] The read used to be one or two bare sentences, identical for 'tomorrow', 'this month' and
+    'when does the window open'. It now adds a line for the question's own scale and ONE plain why-sentence for the state."""
+    global _MONTH_Q, _WHEN_Q
+    if _MONTH_Q is None:
+        _MONTH_Q = _re.compile(r"(?i)\b(this month|next month|the month|month|mes|m[eê]s|mahine|mahina)\b")
+        _WHEN_Q = _re.compile(r"(?i)\b(when|next window|which window|cu[aá]ndo|quando|kab)\b")
     T = _T[_lang(language)]
     w = (window or "").strip()
+    qline = ""
     if st == "open":
         head = T["open"].format(w=T["through"].format(w=w) if w else "")
-        nxt = T["next_open"]
+        nxt, why = T["next_open"], T["why_open"]
     elif st == "later":
         head = T["later"].format(w=w) if w else T["later_nowin"]
-        nxt = T["next_later"]
+        nxt, why = T["next_later"], T["why_later"]
+        if _MONTH_Q.search(question or ""):
+            qline = T["q_month"]
+        elif _WHEN_Q.search(question or "") and w:
+            qline = T["q_when"]
     else:
         head, nxt = T[st], T["next_no"]
+        why = T["why_losses"] if st == "losses" else T["why_no"]
     if gambling:
         head = head + " " + T["gambling"]
-    return {"read": head, "next": nxt}
+    return {"read": " ".join(x for x in (head, qline, why) if x), "next": nxt}
 
 
 import re as _re
