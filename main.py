@@ -855,6 +855,16 @@ def _tz_hours_by_chart(chart_ids) -> dict:
     return out
 
 
+class _PendingPingsOff(Exception):
+    """Control flow only: the pending_pings insert is switched off."""
+
+
+def _pending_pings_enabled() -> bool:
+    """Kill switch for feeding the `pending_pings` table (the Today Check-in card's old source).
+    Default OFF; PENDING_PINGS_ENABLED=on|1|true|yes restores it."""
+    return os.getenv("PENDING_PINGS_ENABLED", "off").strip().lower() in ("on", "1", "true", "yes")
+
+
 async def _ping_checkin_job():
     """
     HOURLY cron. Finds predictions whose window_end is within the next 7 days (or just
@@ -907,7 +917,13 @@ async def _ping_checkin_job():
                 email = None
 
             # Insert into pending_pings (Supabase realtime → frontend can show badge)
+            # [pings-off 2026-10-12] These are chapter / sub-theme claims. The Today card showed the
+            # OLDEST unanswered one on every day view (72 unanswered, median 15 days old, none about
+            # today), so the table is no longer fed by default. The email below and the pinged_at
+            # mark are unchanged. PENDING_PINGS_ENABLED=on restores the insert.
             try:
+                if not _pending_pings_enabled():
+                    raise _PendingPingsOff()
                 supabase.table("pending_pings").insert({
                     "user_id":       user_id,
                     "prediction_id": pred_id,
@@ -916,6 +932,8 @@ async def _ping_checkin_job():
                     "created_at":    now.isoformat(),
                     "responded":     False,
                 }).execute()
+            except _PendingPingsOff:
+                pass
             except Exception as e:
                 print(f"[ping_cron] pending_pings insert error: {e}")
 
