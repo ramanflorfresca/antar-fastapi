@@ -19821,6 +19821,126 @@ def get_entitlements_endpoint(chart_id: str):
     return entitlement_summary(chart_id, supabase)
 
 
+class _LoopStepIn(BaseModel):
+    step: str                              # read | practice | ask
+    mantra_count: Optional[int] = None     # practice: repeats so far today (done at 11)
+    other_practice: bool = False           # practice: a non-mantra practice was completed
+    tz_offset: Optional[int] = 0           # minutes east of UTC, same as /streak
+
+
+@app.get("/api/v1/daily-loop/{chart_id}")
+def get_daily_loop(chart_id: str, language: Optional[str] = None, tz_offset: Optional[int] = 0):
+    """[daily-loop 2026-10-12] Today's 3-step loop for the Home card: which steps are done, the day's
+    mantra (target 11, full round 108), the day's question picked from what is active in the chart (same
+    ranking as "Questions for you", stable all day, no repeat inside 14 days), and the streak with its
+    lifetime totals. Read-only apart from storing the day's question. Never an error for storage trouble."""
+    from antar_engine import daily_loop as _dl, gamification as _gam, topic_copy as _tc
+    lang = _tc.serve_language(language)
+    today = _dl.local_date(tz_offset or 0)
+    sq = _suggested_questions_compute(chart_id, language, tz_offset, 5)
+    if sq is None:
+        raise HTTPException(status_code=404, detail="Chart not found")
+    q = _dl.ensure_question(supabase, chart_id, today, sq.get("questions") or [])
+    row = _dl.get_row(supabase, chart_id, today) or {}
+    steps = _dl._steps(row)
+    mantra = {}
+    try:
+        w = get_daily_wisdom(chart_id, lang) or {}
+        m = w.get("mantra") or {}
+        mantra = {"name": m.get("name"), "transliteration": m.get("transliteration"),
+                  "use": m.get("use"), "why": m.get("why")}
+    except Exception as e:
+        print(f"[daily-loop] mantra skipped: {e!r}")
+    labels = _tc.LABEL.get(lang) or _tc.LABEL["en"]
+    streak = _gam.state(supabase, chart_id, tz_offset or 0)
+    streak["totals"] = _dl.totals(supabase, chart_id)
+    streak["unlocks"] = _dl.unlock_list(streak.get("longest_streak"))
+    return {
+        "local_date": today.isoformat(),
+        "steps": steps,
+        "complete": all(steps.values()),
+        "practice": {**mantra, "target": _dl.MANTRA_TARGET, "full_round": _dl.MANTRA_FULL,
+                     "count": int(row.get("mantra_count") or 0)},
+        "question": ({"id": q.get("id"), "theme": labels.get(q.get("topic"), q.get("topic")),
+                      "topic": q.get("topic"), "text": q.get("text"), "why": q.get("reason"),
+                      "next_theme": labels.get(q.get("next_topic")) if q.get("next_topic") else None}
+                     if q else None),
+        "streak": streak,
+        "loop_streak": _ac_loop_on(),
+    }
+
+
+def _ac_loop_on() -> bool:
+    try:
+        from antar_engine import app_config as _ac
+        return _ac.get_bool(supabase, "loop_streak", False)
+    except Exception:
+        return False
+
+
+@app.post("/api/v1/daily-loop/{chart_id}/step")
+def post_daily_loop_step(chart_id: str, body: _LoopStepIn):
+    """[daily-loop 2026-10-12] Mark one step done for the user's local today. Idempotent. The first time all
+    three are done the streak day is counted and `awards` carries any milestone reward. `ask` is also set by
+    the Ask itself; `practice` is done at 11 mantra repeats or for a completed non-mantra practice."""
+    from antar_engine import daily_loop as _dl
+    step = (body.step or "").strip().lower()
+    if step not in _dl.STEPS:
+        raise HTTPException(status_code=400, detail="step must be read, practice or ask")
+    row = supabase.table("charts").select("user_id").eq("id", chart_id).execute()
+    if not row.data:
+        raise HTTPException(status_code=404, detail="Chart not found")
+    res = _dl.record_step(supabase, chart_id, step, body.tz_offset or 0, mantra_count=body.mantra_count,
+                          other_practice=body.other_practice, user_id=row.data[0].get("user_id"))
+    if res.get("just_completed"):
+        from antar_engine import gamification as _gam
+        res["streak"] = _gam.state(supabase, chart_id, body.tz_offset or 0)
+    return res
+
+
+@app.get("/api/v1/daily-loop/{chart_id}/unlock/{unlock_id}")
+async def get_daily_loop_unlock(chart_id: str, unlock_id: str, language: Optional[str] = None,
+                                tz_offset: Optional[int] = 0):
+    """[daily-loop 2026-10-12] The insight a streak milestone unlocks, as titled plain-language sections built
+    from the existing deterministic readings (nothing new is invented). Locked until the user's longest
+    streak reaches the milestone (`unlocked: false`, no sections)."""
+    from antar_engine import daily_loop as _dl, gamification as _gam
+    meta = next((u for u in _dl.unlock_list(0) if u["id"] == unlock_id), None)
+    if not meta:
+        raise HTTPException(status_code=404, detail="Unknown unlock")
+    st = await run_in_threadpool(_gam.state, supabase, chart_id, tz_offset or 0)
+    if int(st.get("longest_streak") or 0) < meta["at"]:
+        return {**meta, "unlocked": False, "sections": []}
+    lang = (language or "en").split("-")[0].lower()
+    sections = []
+    try:
+        if unlock_id == "hidden_strength":
+            ap = await get_aligned_path(chart_id, lang)
+            for k in ("edge", "trap"):
+                blk = ap.get(k) or {}
+                if blk.get("text"):
+                    sections.append({"title": blk.get("title") or k.title(), "text": blk["text"]})
+        elif unlock_id == "ninety_day":
+            feed = await run_in_threadpool(_windows_compute, chart_id, language, tz_offset, 3)
+            from antar_engine import topic_copy as _tc
+            labels = _tc.LABEL.get(_tc.serve_language(language)) or _tc.LABEL["en"]
+            for key, title in (("now", "Open now"), ("next", "Opening soon"), ("care", "Go gently")):
+                lines = [f"{labels.get(w.get('topic'), w.get('topic'))}: {w.get('start')} to {w.get('end')}"
+                         for w in ((feed or {}).get(key) or [])[:4] if w.get("start") and w.get("end")]
+                if lines:
+                    sections.append({"title": title, "text": "\n".join(lines)})
+        elif unlock_id == "chapter_deeper":
+            ident = await get_chart_identity(chart_id, lang)
+            if isinstance(ident, dict) and ident.get("reading"):
+                sections.append({"title": "Your chapter", "text": ident["reading"]})
+        elif unlock_id == "full_reading":
+            sections.append({"title": "Your full reading", "text": "Your complete chart reading is open.",
+                             "link": f"/chart/{chart_id}"})
+    except Exception as e:
+        print(f"[daily-loop] unlock {unlock_id} build skipped: {e!r}")
+    return {**meta, "unlocked": True, "sections": sections}
+
+
 @app.get("/api/v1/streak/{chart_id}")
 def get_streak_endpoint(chart_id: str, tz_offset: int = 0):
     """
@@ -29527,6 +29647,14 @@ async def ask_endpoint(request: AskRequest):
     _rf = _ASK_REFRAMED.get()
     if _rf and isinstance(_res, dict):
         _res["reframed"] = {"kind": _rf["kind"], "original": _rf["original"]}
+    # [daily-loop 2026-10-12] A successful Ask is the loop's third step. Off the event loop, never blocks the answer.
+    try:
+        if isinstance(_res, dict) and not _res.get("error") and (request.chart_id or "").strip():
+            from antar_engine import daily_loop as _dl
+            await run_in_threadpool(_dl.record_step, supabase, request.chart_id.strip(), "ask",
+                                    request.tz_offset or 0)
+    except Exception as _le:
+        print(f"[daily-loop] ask step skipped (non-blocking): {_le!r}")
     return _res
 
 
@@ -43100,6 +43228,8 @@ from antar_engine.verification_engine import generate_verification_queue, calcul
 class _PracticeCompleteReq(_PracticeBaseModel):
     practice_id: str
     user_note: str = None
+    mantra_count: Optional[int] = None      # [daily-loop] repeats so far (a mantra counts at 11)
+    tz_offset: Optional[int] = 0            # minutes east of UTC
 
 
 def _translate_instrument_symptom_es(symptom, status, area_name):
@@ -43780,6 +43910,13 @@ async def complete_practice_endpoint(chart_id: str, req: _PracticeCompleteReq):
                     if _new >= 3 else "Practice logged. Every day counts.")
         if _new == 21 and not _awards:
             _msg = "21-day cycle complete. Your energy pattern has shifted."
+        # [daily-loop 2026-10-12] The loop's practice step: a mantra counts at 11 repeats, any other practice on completion.
+        try:
+            from antar_engine import daily_loop as _dl
+            await run_in_threadpool(_dl.record_step, supabase, chart_id, "practice", req.tz_offset or 0,
+                                    mantra_count=req.mantra_count, other_practice=(_ptype != "mantra"))
+        except Exception as _le:
+            print(f"[daily-loop] practice step skipped (non-blocking): {_le!r}")
         return {"status": "ok", "streak_count": _new, "message": _msg,
                 "awards": _awards}
     except Exception as e:
@@ -48094,7 +48231,11 @@ async def get_home(
     _streak_state = None
     try:
         from antar_engine import gamification as _gam
-        _gam.touch(supabase, chart_id, tz_offset or 0, row.get("user_id"))
+        from antar_engine import app_config as _ac_loop
+        # [daily-loop 2026-10-12] With `loop_streak` on, a day is counted by finishing the 3-step loop
+        # (POST /daily-loop/{id}/step), not by opening the app. Off = the old behaviour, unchanged.
+        if not _ac_loop.get_bool(supabase, "loop_streak", False):
+            _gam.touch(supabase, chart_id, tz_offset or 0, row.get("user_id"))
         _streak_state = _gam.state(supabase, chart_id, tz_offset or 0)
     except Exception as _se:
         print(f"[gamification] home touch skipped (non-blocking): {_se}")
