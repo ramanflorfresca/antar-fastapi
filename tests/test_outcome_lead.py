@@ -63,6 +63,29 @@ def test_owner_phrasings_route_to_their_engine():
     assert not main._is_immigration_q("Should I go on a date this weekend?")
 
 
+def test_lives_abroad_handles_codes_names_and_unknown():
+    assert imm.lives_abroad("US", "IN") is True and imm.lives_abroad("United States", "India") is True
+    assert imm.lives_abroad("IN", "India") is False and imm.lives_abroad("co", "Colombia") is False
+    assert imm.lives_abroad("", "IN") is None and imm.lives_abroad("Narnia", "IN") is None
+    assert imm.lives_abroad(None, None) is None
+
+
+def test_weak_pull_line_never_tells_someone_abroad_to_go_home():
+    for lang in ("en", "es", "pt"):
+        ab = imm.immigration_lead_phrase("weak", "mixed", lang, abroad=True)
+        far = imm.immigration_lead_phrase("weak", "mixed", lang, abroad=False)
+        assert ab and ab != far and ab.endswith(".")
+        v = imm.immigration_verdict("weak", "mixed", False, None, lang, abroad=True)
+        assert v["band"] == "WEAK" and "weak_abroad" == v["key"]
+        assert not re.search(r"closer to home|nearer home|m[aá]s cerca de casa|mais perto de casa", ab, re.I)
+    assert "points-based" in imm.immigration_lead_phrase("weak", "mixed", "en", abroad=None)   # unknown: unchanged
+
+
+def test_windows_are_never_called_deadlines_in_the_prompts():
+    src = (Path(__file__).resolve().parent.parent / "main.py").read_text()
+    assert src.count("NEVER call it a deadline, cutoff or due date") == 3
+
+
 def test_wired_into_main():
     src = (Path(__file__).resolve().parent.parent / "main.py").read_text()
     for needle in ("_ask_immigration_lead = immigration_lead_phrase(", "_ask_debt_lead = debt_lead_phrase(",
