@@ -13934,6 +13934,17 @@ async def daily_practice(request: DailyPracticeRequest, authorization: Optional[
     return _ent_practice_view(resp, request.chart_id)
 
 
+def _loop_mark_practice(chart_id, tz_offset, mantra_count=None, other_practice=False) -> None:
+    """[daily-loop] The loop's practice step from the Rituals completions: "Mark today complete" counts on its own
+    (other_practice), and a finished mantra session counts its repeats (done at 11). Never raises; never blocks."""
+    try:
+        from antar_engine import daily_loop as _dl
+        _dl.record_step(supabase, str(chart_id), "practice", tz_offset or 0,
+                        mantra_count=mantra_count, other_practice=other_practice)
+    except Exception as _le:
+        print(f"[daily-loop] practice step skipped (non-blocking): {_le!r}")
+
+
 @app.post("/api/v1/predict/daily-practice/complete")
 def daily_practice_complete(request: DailyPracticeCompleteRequest,
                                   authorization: Optional[str] = Header(None)):
@@ -13959,6 +13970,8 @@ def daily_practice_complete(request: DailyPracticeCompleteRequest,
     except Exception as _e:
         print(f"[practice complete] {_e}")
         raise HTTPException(500, "Could not record completion")
+
+    _loop_mark_practice(request.chart_id, request.tz_offset, other_practice=True)
 
     # Bust this chart's cached practice (all languages / today).
     for k in [k for k in _PRACTICE_CACHE if k[1] == request.chart_id]:
@@ -14075,6 +14088,7 @@ def daily_practice_session_complete(request: PracticeSessionCompleteReq,
         # Bust cached daily-practice for this chart.
         for k in [k for k in _PRACTICE_CACHE if k[1] == chart_id]:
             _PRACTICE_CACHE.pop(k, None)
+        _loop_mark_practice(chart_id, request.tz_offset, mantra_count=request.final_count)
 
     rows = (supabase.table("practice_completions").select("local_date")
             .eq("chart_id", chart_id).eq("practice_planet", planet).execute()).data or []
@@ -19362,6 +19376,8 @@ def settings_charts_delete(chart_id: str, authorization: Optional[str] = Header(
 #   for t in <tables>: supabase.table(t).select("chart_id").limit(1)
 # anything that succeeds and is not below is a leak.
 _CHART_DERIVED_TABLES = (
+    # [daily-loop / people-heavy-day 2026-10-12] the daily loop (it stores the day's question), starred people, alert log
+    "daily_loop_log", "people_alert_stars", "people_alert_log",
     # natal / dasha / yoga
     "dasha_periods", "chart_yogas",
     # prediction stores
@@ -19601,6 +19617,11 @@ def _purge_people_subchart(sub_id: str) -> list:
             _delete_rows_by(_tbl, "chart_id", sub_id)
         except Exception as e:
             errs.append({"table": _tbl, "error": str(e)})
+    try:   # an owner's star on this person, and any alert log that names them
+        _delete_rows_by("people_alert_stars", "connection_chart_id", sub_id)
+        _delete_rows_by("people_alert_log", "connection_chart_id", sub_id)
+    except Exception as e:
+        errs.append({"table": "people_alert_stars", "error": str(e)})
     try:
         _purge_proxy_cache(sub_id)
     except Exception:
@@ -20045,6 +20066,9 @@ def get_daily_loop(chart_id: str, language: Optional[str] = None, tz_offset: Opt
     streak = _gam.state(supabase, chart_id, tz_offset or 0)
     streak["totals"] = _dl.totals(supabase, chart_id)
     streak["unlocks"] = _dl.unlock_list(streak.get("longest_streak"))
+    _nm = streak.get("next_milestone")
+    if isinstance(_nm, dict):     # the app reads `days` and `credits`; keep the original keys too
+        streak["next_milestone"] = {**_nm, "days": _nm.get("in_days"), "credits": _nm.get("ask")}
     return {
         "local_date": today.isoformat(),
         "steps": steps,
@@ -40384,6 +40408,11 @@ def remove_network_person(chart_id: str, connection_chart_id: str):
         # [people-privacy] drop the connection row(s) too, then purge the
         # sub-chart if nothing else references it.
         purged = False
+        try:   # [people-heavy-day] a removed person must stop triggering heads-up pushes
+            supabase.table("people_alert_stars").delete().eq("chart_id", chart_id) \
+                .eq("connection_chart_id", connection_chart_id).execute()
+        except Exception as _se:
+            print(f"[network] star cleanup skipped: {_se!r}")
         try:
             supabase.table("chart_connections").delete() \
                 .eq("chart_id_a", chart_id).eq("chart_id_b", connection_chart_id).execute()
