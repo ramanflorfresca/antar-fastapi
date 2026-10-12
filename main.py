@@ -30432,6 +30432,18 @@ async def _ask_endpoint_impl(request: AskRequest):
                             _rp.append("There is a friction signature around partnership "
                                        "(handle early differences with patience); mention it "
                                        "gently as something to be aware of, not a curse.")
+                        # [rel-foundation 2026-10-12] layer 2: what the bond is MADE of — the
+                        # sustaining house (2nd from the marriage point), the partner-significator's
+                        # state in the reader's field, the marriage chart as the lifetime verdict.
+                        # Stops the narrator timing a window over a broken foundation, and keeps every
+                        # claim to the partner's ROLE in the reader's life, never their inner state.
+                        try:
+                            from antar_engine.relationship_foundation import analyze_foundation
+                            _fd = analyze_foundation(chart_data)
+                            if _fd.get("available"):
+                                _rp.extend(_fd["facts"])
+                        except Exception as _fde:
+                            logger.warning(f"[ask] relationship-foundation skipped (non-fatal): {_fde}")
                         _rp.append("Close with ONE concrete, agency-oriented next step.")
                         _ask_relationship_block = "\n".join(_rp)
             except Exception as _ree:
