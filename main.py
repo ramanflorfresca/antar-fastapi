@@ -52169,6 +52169,29 @@ def _suggested_questions_compute(chart_id: str, language, tz_offset, limit: int)
                      topics=topics, long_rows=rows)
 
 
+@app.get("/api/v1/phase/{chart_id}")
+async def get_phase_view(chart_id: str, language: Optional[str] = None, tz_offset: Optional[int] = 0):
+    """[phase-view 2026-10-12] "Current phase": the running long chapter (main period) and shift (sub-period) in plain
+    words: dates, progress, how they combine, Work / Money / Love / Health, what comes next inside the chapter and the
+    turning points. Deterministic (the dasha rows + the approved meanings table + the Windows feed). Never an error for
+    missing data (`available: false`); 404 only for an unknown chart."""
+    from antar_engine import phase_view as _pv
+    row = await run_in_threadpool(lambda: supabase.table("charts").select("id").eq("id", chart_id).limit(1).execute())
+    if not row.data:
+        raise HTTPException(status_code=404, detail="Chart not found")
+    dashas = {}
+    try:
+        dashas = await run_in_threadpool(get_dashas_for_chart, chart_id) or {}
+    except Exception as e:
+        print(f"[phase-view] dashas skipped: {e!r}")
+    feed = None
+    try:
+        feed = await run_in_threadpool(_windows_compute, chart_id, language, tz_offset, 6)
+    except Exception as e:
+        print(f"[phase-view] windows skipped: {e!r}")
+    return _pv.build(dashas, feed, language or "en", _prac_local_date(tz_offset))
+
+
 @app.get("/api/v1/chart/{chart_id}/suggested-questions")
 async def get_chart_suggested_questions(chart_id: str, language: Optional[str] = None,
                                         tz_offset: Optional[int] = None, limit: int = 3):
