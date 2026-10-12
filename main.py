@@ -16715,6 +16715,14 @@ async def places_concern_endpoint(req: PlacesConcernReq):
             c["what_changes"] = _wc
         except Exception as _wce:
             c["what_changes"] = []
+        # [places-varga] relocated D-9 / D-10 confirmation line (descriptive only)
+        try:
+            from antar_engine.places_varga import relocation_varga_notes as _rvn
+            c["varga"] = [{"varga": _v["varga"], "polarity": _v["polarity"],
+                           "text": _places_strip(_v["text"], req.language)}
+                          for _v in _rvn(chart, s.get("_relocation", {}), req.concern, req.language)]
+        except Exception:
+            c["varga"] = []
         ranked.append(c)
 
     concern_lines = _pcn.filter_concern_lines(all_lines, req.concern)
@@ -17264,6 +17272,15 @@ def places_potential_endpoint(req: PlacesPotentialReq):
             card["what_changes"] = _wc
         except Exception:
             card["what_changes"] = []
+        # [places-varga] relocated D-9 / D-10 confirmation (descriptive; fail-open)
+        try:
+            from antar_engine.places_varga import relocation_varga_notes
+            card["varga"] = [{"varga": _v["varga"], "polarity": _v["polarity"],
+                              "text": _places_strip(_v["text"], lang)}
+                             for _v in relocation_varga_notes(
+                                 chart, s.get("_relocation", {}), dom, lang)]
+        except Exception:
+            card["varga"] = []
         try:
             _reasons = _pcn.compose_city_reasons(
                 chart, s.get("city", {}), dom, _dctx, _age,
@@ -17284,6 +17301,7 @@ def places_potential_endpoint(req: PlacesPotentialReq):
                  "why": why, "notes": notes,
                  # the classical relocation "what changes here" read (WHAT)
                  "what_changes": card.get("what_changes") or [],
+                 "varga": card.get("varga") or [],   # relocated D-9/D-10 line
                  "_thin": thin}
         if best_for:
             entry["best_for"] = best_for
@@ -17643,6 +17661,13 @@ def places_prescribe_endpoint(req: PlacesPrescribeReq):
                 _w["text"] = _places_strip(_w["text"], lang)
         except Exception:
             _wc = []
+        try:   # [places-varga] relocated D-9 / D-10 confirmation (descriptive)
+            from antar_engine.places_varga import relocation_varga_notes as _rvn
+            _vg = [{"varga": _v["varga"], "polarity": _v["polarity"],
+                    "text": _places_strip(_v["text"], lang)}
+                   for _v in _rvn(chart, s.get("_relocation", {}), cn, lang)]
+        except Exception:
+            _vg = []
         cy = s.get("city") or {}
         lift = int(round((s.get("score", 0) or 0) - home_by.get(cn, {}).get("score", 0)))
         # Method-B headline: which natal house rises here (the relocated ascendant's
@@ -17667,6 +17692,7 @@ def places_prescribe_endpoint(req: PlacesPrescribeReq):
             "distance_km": int(round(_dkm)) if _dkm is not None else None,
             "distance_mi": int(round(_dkm * 0.621371)) if _dkm is not None else None,
             "what_changes": _wc,
+            "varga": _vg,
         }
 
     prescription = None
