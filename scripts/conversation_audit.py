@@ -451,10 +451,11 @@ def report(convs: list, stamp: str) -> str:
         b = [t for t in mt if _cau.search(t["read"] + " " + t["next"])]
         if a and b:
             add("LAYER_CONFLICT", f"{c['persona']} · {c['chain']} · rep {c['rep']} · “{a[0]['q'][:40]}” backs bold moves, “{b[0]['q'][:40]}” warns against them")
+    # [audit 2026-10-12] "effort scatters" is about where effort goes, not where money sits: spread-the-money + focus-the-effort is consistent advice, so it is not a clash
     # conversation-level: a "spread your risk" answer followed by an answer that tells the same reader to
     # focus / narrow / commit to one direction ("unfocused, that same drive scatters", "pick your focus")
     _spr = re.compile(r"(?i)\bspread (your )?risk\b|\bspread the risk\b|\bdiversif|\brepart|\balag alag rakho|\bkeep a (slice|reserve|fixed)\b")
-    _foc = re.compile(r"(?i)\bscatter(s|ed|ing)?\b|\btoo many directions\b|\bpick your focus\b|\bcommit to (it|one|that)\b|"
+    _foc = re.compile(r"(?i)(?<!effort )(?<!energy )(?<!attention )\bscatter(s|ed|ing)?\b|\btoo many directions\b|\bpick your focus\b|\bcommit to (it|one|that)\b|"
                       r"\bunfocused\b|\bwithout focus\b|\bone clear (direction|lane|focus)\b|\bover three\b|\bdispersa|"
                       r"\bdemasiadas direcciones\b|\belige (el|la) (pr[oó]xim|siguiente)\w* (proyecto|negocio)\b|\bbikhar|\bek hi (kaam|direction)\b")
     for c in convs:
