@@ -19393,6 +19393,8 @@ _CHART_DERIVED_TABLES = (
     # 2026-10-02: the table was created with the Your-Pattern feature and was
     # leaking on delete (test_chart_delete_cascade caught it).
     "ventures",
+    # people hard-day heads-up (sql_people_heavy_day.sql): no FKs, both plain chart_id uuid
+    "people_alert_stars", "people_alert_log",
     # NOT here on purpose:
     #   lal_kitab_remedies   — a STATIC reference library keyed by planet/house
     #     (117 rows of remedy text shared by every chart). It has no chart_id;
