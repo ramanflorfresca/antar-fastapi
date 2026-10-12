@@ -163,3 +163,75 @@ def term_for_note(note: str, language: str = "en") -> Optional[dict]:
     lg = lang_of(language)
     t = TERMS[key]
     return {"term": t[lg], "plain": t["plain_" + lg]}
+
+
+# Pull: the classical lean of each planet. Glossary only, never on a reading card.
+PULL = {
+    "Sun": {"en": "spiritual and material", "es": "espiritual y material"},
+    "Moon": {"en": "the mind and body", "es": "la mente y el cuerpo"},
+    "Mars": {"en": "physical", "es": "físico"},
+    "Mercury": {"en": "material", "es": "material"},
+    "Jupiter": {"en": "spiritual and material", "es": "espiritual y material"},
+    "Venus": {"en": "material", "es": "material"},
+    "Saturn": {"en": "material through effort, then detachment", "es": "material a través del esfuerzo, luego desapego"},
+    "Rahu": {"en": "material", "es": "material"},
+    "Ketu": {"en": "spiritual", "es": "espiritual"},
+}
+
+PULL_INTRO = {
+    "en": "Pull is the classical lean of a planet: toward material life, physical experience, or spiritual release. Most planets carry more than one. It describes how the energy moves.",
+    "es": "La inclinación es la tendencia clásica de un planeta: hacia la vida material, la experiencia física o el desprendimiento espiritual. La mayoría de los planetas llevan más de una. Describe cómo se mueve la energía.",
+}
+
+INTRO = {
+    "en": "Astrology describes the quality of a time, not a fixed event. Some energies are supportive and some are testing. A testing energy is not a punishment; it shows where effort, care or patience is needed, and knowing that early is how you reduce the cost. The same planet feels different depending on the house it sits in, the sign it is in, and the chapter you are in.",
+    "es": "La astrología describe la calidad de un momento, no un hecho fijo. Algunas energías son de apoyo y otras son exigentes. Una energía exigente no es un castigo: muestra dónde hacen falta esfuerzo, cuidado o paciencia, y saberlo pronto es la forma de reducir el costo. El mismo planeta se siente distinto según la casa en que está, el signo y la etapa en que te encuentras.",
+}
+
+AIMS_NOTE = {
+    "en": "The 4th house sits in Moksha because it rules the inner home, the peace you return to. It is also the house of your mother, property and comfort, which is why it can look material at first glance. Schools group the houses slightly differently; Antar follows the standard Parashari model.",
+    "es": "La casa 4 está en Moksha porque rige el hogar interior, la paz a la que regresas. También es la casa de tu madre, la propiedad y el confort, por eso a primera vista puede parecer material. Las escuelas agrupan las casas de forma algo distinta; Antar sigue el modelo Parashari estándar.",
+}
+
+AIM_NAMES = {"dharma": {"en": "Dharma", "es": "Dharma"}, "artha": {"en": "Artha", "es": "Artha"},
+             "kama": {"en": "Kama", "es": "Kama"}, "moksha": {"en": "Moksha", "es": "Moksha"}}
+
+# words the app shows that need a plain explanation (the strength terms are in TERMS above)
+EXTRA_TERMS = {
+    "retrograde": {"en": "Retrograde (Vakri)", "es": "Retrógrado (Vakri)",
+                   "plain_en": "A planet appearing to move backward. Its energy turns inward and revisits: good for review, slower for launches.",
+                   "plain_es": "Un planeta que parece moverse hacia atrás. Su energía se vuelve hacia dentro y revisa: bueno para repasar, más lento para lanzar."},
+    "sub_period": {"en": "Sub-period (Antardasha)", "es": "Subperiodo (Antardasha)",
+                   "plain_en": "A shorter shift inside a longer chapter. The chapter sets the season; the sub-period sets the weeks and months.",
+                   "plain_es": "Un cambio más corto dentro de una etapa larga. La etapa marca la estación; el subperiodo marca las semanas y los meses."},
+    "house_lord": {"en": "House lord", "es": "Regente de una casa",
+                   "plain_en": "The planet that rules a house. Where it sits shows where that area of life finds its energy.",
+                   "plain_es": "El planeta que rige una casa. Dónde está muestra por dónde esa área de la vida encuentra su energía."},
+    "significator": {"en": "Main significator", "es": "Significador principal",
+                     "plain_en": "The planet most tied to the thing you asked about.",
+                     "plain_es": "El planeta más ligado a aquello que preguntaste."},
+}
+
+_TERM_ORDER = ("vargottama", "combust", "retrograde", "exalted", "debilitated", "own sign", "sub_period", "house_lord", "significator")
+
+
+def glossary(language: str = "en") -> dict:
+    """The whole glossary for one language, from the same table the Why sheet uses, so the wording is
+    identical everywhere. Planets and houses carry plain name, key verb or question, what the energy is
+    like, what to watch when it is pressured and what helps."""
+    lg = lang_of(language)
+    terms = []
+    for k in _TERM_ORDER:
+        t = TERMS.get(k) or EXTRA_TERMS.get(k)
+        if t:
+            terms.append({"id": k, "term": t[lg], "plain": t["plain_" + lg]})
+    return {
+        "language": lg,
+        "intro": INTRO[lg],
+        "aims_note": AIMS_NOTE[lg],
+        "aims": [{"id": k, "name": AIM_NAMES[k][lg], "meaning": v[lg], "houses": list(v["houses"])} for k, v in AIMS.items()],
+        "houses": [{**house(n, lg), "id": n} for n in sorted(HOUSES)],
+        "planets": [{**planet(k, lg), "id": k, "pull": PULL[k][lg]} for k in PLANETS],
+        "pull_intro": PULL_INTRO[lg],
+        "terms": terms,
+    }
