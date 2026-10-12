@@ -12,7 +12,7 @@ import argparse, asyncio, builtins, contextvars, datetime, json, os, re, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import conversation_audit as ca  # noqa: E402  (loads .env, imports main, defines ask/PERSONAS/turn_checks)
 from tests.data.relationship_questions import QUESTIONS  # noqa: E402
-from tests.data.relationship_lane_checks import lane_checks, template_reuse  # noqa: E402
+from tests.data.relationship_lane_checks import lane_checks, template_reuse, _LEAD_VERDICT  # noqa: E402
 
 main = ca.main
 _CUR = contextvars.ContextVar("relq_buf", default=None)
@@ -56,7 +56,7 @@ async def run(personas, items, repeats):
 def report(rows: list, stamp: str) -> str:
     for opening, ids in template_reuse(rows).items():
         for r in rows:
-            _body = re.sub(r"^\s*(?:likely|probable|possible|yes|no|not yet|unlikely)\s*[—-][^.\n]*\.\s*", "", r.get("read") or "", flags=re.I)
+            _body = _LEAD_VERDICT.sub("", r.get("read") or "")
             if r["id"] in ids and not (r.get("people_pointer") or r.get("needs_clarification")) and re.sub(r"\W+", " ", _body[:70].lower()).strip() == opening:
                 r["issues"] = r["issues"] + ["TEMPLATE_REUSE"]
     n = len(rows)

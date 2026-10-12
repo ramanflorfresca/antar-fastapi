@@ -11,7 +11,8 @@ claim about what the other person feels or will do (the chart shows the reader's
 or can't be saved. Deterministic; en / es / pt. The move comes separately (answer_polish -> ask_basis.existing_union_move: decide rebuild / closure / new start)."""
 from __future__ import annotations
 
-from datetime import date, datetime
+import re
+from datetime import date, datetime, timedelta
 from typing import Optional
 
 from antar_engine import decision_i18n as I18
@@ -25,6 +26,19 @@ _TX = {
         "now_n": "a window is open now, through {end}.", "soon_n": "the next supportive window is {start} – {end}; before it, build the ground rather than the commitment.",
         "no_n": "the timing shows no supported window in the next two years.",
         "close": "The timing shows what supports you; it cannot show what the other person will do.",
+        "k_lasts": "Because you're {status}, the question of whether your marriage lasts becomes whether the bond with {them} can be rebuilt.",
+        "k_patch": "This is about {them}, so here is the timing for that.",
+        "k_year": "Looking at the next twelve months:",
+        "k_year_in": "a window opens {start} – {end}, inside the next twelve months.",
+        "k_year_out": "nothing opens this year — the next supportive window is {start} – {end}.",
+        "k_year_none": "the timing shows no supported window in the next two years.",
+        "k_year_re": "Separately, rebuilding with {them}: ",
+        "k_wm": "You're deciding between waiting on {them} and building something new — here is what the timing supports for each.",
+        "d_wait": "Waiting has a reason only inside the rebuilding window above: make one clear attempt there, then decide.",
+        "d_move": "The timing supports moving forward more than waiting: put your effort into what you are building, not into a reply.",
+        "d_none": "Neither window opens in the next two years, so decide on what you want, not on a date.",
+        "d_both": "Both are possible and the earlier one is {first}; choose by what you want, not by the date.",
+        "sep_re": "Separately, a new partnership: ",
         "divorced": "divorced", "separated": "separated", "them_d": "your former spouse", "them_s": "your spouse",
     },
     "es": {
@@ -35,6 +49,19 @@ _TX = {
         "now_n": "hay una ventana abierta ahora, hasta {end}.", "soon_n": "la próxima ventana favorable es {start} – {end}; antes de ella, construye el terreno y no el compromiso.",
         "no_n": "los tiempos no muestran una ventana favorable en los próximos dos años.",
         "close": "Los tiempos muestran qué te respalda; no pueden mostrar lo que hará la otra persona.",
+        "k_lasts": "Como estás {status}, la pregunta de si tu matrimonio dura se convierte en si el vínculo con {them} puede reconstruirse.",
+        "k_patch": "Esto es sobre {them}, así que aquí está el momento para eso.",
+        "k_year": "Mirando los próximos doce meses:",
+        "k_year_in": "se abre una ventana {start} – {end}, dentro de los próximos doce meses.",
+        "k_year_out": "este año no se abre nada: la próxima ventana favorable es {start} – {end}.",
+        "k_year_none": "los tiempos no muestran una ventana favorable en los próximos dos años.",
+        "k_year_re": "Por separado, reconstruir el vínculo con {them}: ",
+        "k_wm": "Estás decidiendo entre esperar a {them} y construir algo nuevo: esto es lo que los tiempos respaldan en cada caso.",
+        "d_wait": "Esperar solo tiene sentido dentro de la ventana de reconstrucción de arriba: haz un intento claro ahí y luego decide.",
+        "d_move": "Los tiempos respaldan más avanzar que esperar: pon tu esfuerzo en lo que estás construyendo, no en una respuesta.",
+        "d_none": "Ninguna ventana se abre en los próximos dos años, así que decide por lo que quieres, no por una fecha.",
+        "d_both": "Ambas son posibles y la más cercana es {first}; elige por lo que quieres, no por la fecha.",
+        "sep_re": "Por separado, una nueva pareja: ",
         "divorced": "divorciado o divorciada", "separated": "separado o separada", "them_d": "tu ex pareja", "them_s": "tu pareja",
     },
     "pt": {
@@ -45,6 +72,19 @@ _TX = {
         "now_n": "há uma janela aberta agora, até {end}.", "soon_n": "a próxima janela favorável é {start} – {end}; antes dela, construa o terreno e não o compromisso.",
         "no_n": "o momento não mostra uma janela favorável nos próximos dois anos.",
         "close": "O momento mostra o que o sustenta; não pode mostrar o que a outra pessoa vai fazer.",
+        "k_lasts": "Como você está {status}, a pergunta de se o seu casamento dura vira a pergunta de se o vínculo com {them} pode ser reconstruído.",
+        "k_patch": "Isto é sobre {them}, então aqui está o momento para isso.",
+        "k_year": "Olhando os próximos doze meses:",
+        "k_year_in": "uma janela abre {start} – {end}, dentro dos próximos doze meses.",
+        "k_year_out": "nada abre este ano — a próxima janela favorável é {start} – {end}.",
+        "k_year_none": "o momento não mostra uma janela favorável nos próximos dois anos.",
+        "k_year_re": "Separadamente, reconstruir o vínculo com {them}: ",
+        "k_wm": "Você está decidindo entre esperar por {them} e construir algo novo — veja o que o momento sustenta em cada caso.",
+        "d_wait": "Esperar só faz sentido dentro da janela de reconstrução acima: faça uma tentativa clara ali e depois decida.",
+        "d_move": "O momento sustenta mais seguir em frente do que esperar: ponha seu esforço no que está construindo, não numa resposta.",
+        "d_none": "Nenhuma janela abre nos próximos dois anos, então decida pelo que você quer, não por uma data.",
+        "d_both": "Ambas são possíveis e a mais próxima é {first}; escolha pelo que quer, não pela data.",
+        "sep_re": "Separadamente, um novo relacionamento: ",
         "divorced": "divorciado ou divorciada", "separated": "separado ou separada", "them_d": "seu ex-cônjuge", "them_s": "seu cônjuge",
     },
 }
@@ -75,8 +115,29 @@ def _state(ee: Optional[dict], today: date) -> dict:
     return {"state": "none", "start": None, "end": None}
 
 
+_K_PATCH = re.compile(r"(?i)\b(patch\s+up|get\s+back\s+together|back\s+together|reconcil\w*|make\s+up|rebuild|reunit\w*|reunion|volver\s+con|volver\s+a\s+estar|reconcili\w*|voltar\s+com|voltar\s+a\s+ficar)\b")
+_K_WAIT = re.compile(r"(?i)\b(wait\s+(?:for|on)\b[^?]{0,30}\bor\b|or\s+move\s+on|move\s+on\s+or|should\s+i\s+(?:wait|move\s+on|let\s+go)|esperar[^?]{0,30}\bo\b[^?]{0,20}\bseguir|seguir\s+adelante\s+o|esperar[^?]{0,30}\bou\b[^?]{0,20}\bseguir)\b")
+_K_YEAR = re.compile(r"(?i)\b(this\s+year|within\s+(?:the\s+)?(?:next\s+)?(?:12|twelve)\s+months|este\s+a[ñn]o|este\s+ano|next\s+12\s+months)\b")
+_K_LASTS = re.compile(r"(?i)\b(last|survive|work\s+out|make\s+it|durar\w*|dura|funcionar\w*|sobreviv\w*)\b")
+
+
+def question_kind(question: str) -> str:
+    """'wait_or_move' | 'patch' | 'year' | 'lasts' | 'both' - which of the two questions a divorced / separated
+    reader is really asking, so the answer leads with it instead of returning the same block for all of them."""
+    q = question or ""
+    if _K_WAIT.search(q):
+        return "wait_or_move"
+    if _K_PATCH.search(q):
+        return "patch"
+    if _K_YEAR.search(q):
+        return "year"
+    if _K_LASTS.search(q):
+        return "lasts"
+    return "both"
+
+
 def compose(rebuild_ee: Optional[dict], new_ee: Optional[dict], marital_status: str, language: str = "en",
-            today: Optional[date] = None) -> Optional[dict]:
+            today: Optional[date] = None, question: str = "") -> Optional[dict]:
     """{read, timing, rebuild_state, new_state} or None (single / widowed reader, unknown language, no engine result at all)."""
     try:
         ms = (marital_status or "").lower().strip()
@@ -96,9 +157,47 @@ def compose(rebuild_ee: Optional[dict], new_ee: Optional[dict], marital_status: 
             return tx[none_k]
         a = line(r, "now", "soon", "no_re")
         b = line(n, "now_n", "soon_n", "no_n")
-        read = "\n".join([tx["open"].format(status=tx[ms]), tx["re_h"].format(them=them) + a, tx["new_h"] + b, tx["close"]])
+        kind = question_kind(question)
+        status = tx[ms]
+        rebuild_l = tx["re_h"].format(them=them) + a
+        new_l = tx["new_h"] + b
         pick = r if r["state"] != "none" else n
+        if kind == "patch":
+            parts = [tx["k_patch"].format(them=them), rebuild_l] + ([tx["sep_re"] + b] if n["state"] != "none" else []) + [tx["close"]]
+            pick = r if r["state"] != "none" else n
+        elif kind == "lasts":
+            parts = [tx["k_lasts"].format(status=status, them=them), rebuild_l, tx["close"]]
+            pick = r if r["state"] != "none" else n
+        elif kind == "year":
+            horizon = today + timedelta(days=365)
+            if n["state"] == "open_now":
+                yl = tx["now_n"].format(end=my(n["end"]))
+            elif n["state"] == "upcoming" and n["start"] <= horizon:
+                yl = tx["k_year_in"].format(start=my(n["start"]), end=my(n["end"]))
+            elif n["state"] == "upcoming":
+                yl = tx["k_year_out"].format(start=my(n["start"]), end=my(n["end"]))
+            else:
+                yl = tx["k_year_none"]
+            parts = [tx["k_year"], tx["new_h"] + yl] + ([tx["k_year_re"].format(them=them) + a] if r["state"] != "none" else []) + [tx["close"]]
+            pick = n if n["state"] != "none" else r
+        elif kind == "wait_or_move":
+            soon = lambda st: st["state"] == "open_now" or (st["state"] == "upcoming" and st["start"] <= today + timedelta(days=183))
+            if r["state"] != "none" and soon(r):
+                d = tx["d_wait"]
+            elif r["state"] == "none" and n["state"] != "none":
+                d = tx["d_move"]
+            elif r["state"] == "none" and n["state"] == "none":
+                d = tx["d_none"]
+            else:
+                first = min((x for x in (r, n) if x["state"] != "none"), key=lambda x: x["start"])
+                d = tx["d_both"].format(first=f"{my(first['start'])} – {my(first['end'])}")
+            parts = [tx["k_wm"].format(them=them), rebuild_l, new_l, d, tx["close"]]
+            live = [x for x in (r, n) if x["state"] != "none"]
+            pick = min(live, key=lambda x: x["start"]) if live else r
+        else:
+            parts = [tx["open"].format(status=status), rebuild_l, new_l, tx["close"]]
+        read = "\n".join(parts)
         timing = f"{my(pick['start'])} – {my(pick['end'])}" if pick["state"] != "none" else None
-        return {"read": read, "timing": timing, "rebuild_state": r["state"], "new_state": n["state"]}
+        return {"read": read, "timing": timing, "rebuild_state": r["state"], "new_state": n["state"], "kind": kind}
     except Exception:
         return None

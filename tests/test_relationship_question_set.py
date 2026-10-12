@@ -93,3 +93,24 @@ def test_legitimate_about_comma_is_never_dropped_or_flagged():
     pay = {"read": "First sentence here. " + ok + " Third sentence here.", "next": "Reach out once."}
     polish_answer(pay, language="en", typed_question="x", concern="love")
     assert "talk about, not just" in pay["read"]
+
+
+def test_decision_rule_and_own_move_wording_are_not_flagged():
+    from tests.data.relationship_lane_checks import lane_checks
+    q = {"id": 30, "lane": "reframe", "q": "Should I wait for him or her, or move on?"}
+    ok = {"read": "Here is what the timing supports for each.\nRebuilding with your former spouse: the window opens Mar 2028.",
+          "next": "Decide what you want and write it down this week.", "concern": "love"}
+    assert lane_checks(q, ok) == []
+    bad = {"read": "The timing actually does support a reunion right now.", "next": "x", "concern": "love"}
+    assert "REUNION_OUTCOME" in lane_checks(q, bad)
+    q2 = {"id": 23, "lane": "decline", "q": "When will he or she contact me?"}
+    assert "OVER_PRECISE_TIMING" in lane_checks(q2, {"read": "Expect contact within a few weeks.", "next": "x", "concern": "love"})
+
+
+def test_shared_lead_verdicts_are_not_template_reuse():
+    from tests.data.relationship_lane_checks import template_reuse
+    lead = "Likely within the year — the partnership window is Apr 2027 – Jun 2027. "
+    rows = [{"id": i, "read": lead + body} for i, body in ((1, "You are in a quiet stretch for love."), (2, "A mentor introduces someone."), (3, "Work on trust first."))]
+    assert not template_reuse(rows)
+    canned = [{"id": i, "read": lead + "The same canned paragraph repeated word for word here."} for i in (1, 2, 3)]
+    assert template_reuse(canned)

@@ -110,3 +110,75 @@ def test_dasha_explainer_skips_event_questions():
     for q in ("Which dasha am I in?", "What does my Rahu mahadasha mean for my career?", "When does my current dasha end?",
               "Tell me about my antardasha"):
         assert main._is_dasha_q(q) and not main._is_dasha_event_q(q), q
+
+
+# ── the block answers the question asked [divorced-rework 2026-10-12] ──
+REBUILD_SOON = _ee("NOT_YET", "2027-01-10", "2027-03-30")
+NEW_WITHIN_YEAR = _ee("LIKELY", "2027-02-01", "2027-05-01")
+NEW_FAR = _ee("NOT_YET", "2028-06-01", "2028-09-01")
+NONE_EE = _ee("NO", None, None)
+
+
+def _c(rb, nw, q, ms="divorced", lang="en"):
+    return DU.compose(rb, nw, ms, lang, TODAY, question=q)
+
+
+def test_question_kind():
+    for q, k in (("Will we patch up?", "patch"), ("Are we going to get back together?", "patch"),
+                 ("Should I wait for him or her, or move on?", "wait_or_move"), ("Should I wait or move on?", "wait_or_move"),
+                 ("Will my marriage happen this year?", "year"), ("Will my marriage last?", "lasts"),
+                 ("Will my marriage improve?", "both"), ("", "both")):
+        assert DU.question_kind(q) == k, q
+
+
+def test_each_question_gets_its_own_lead_not_the_same_block():
+    reads = {q: _c(REBUILD_OPEN, NEW_WITHIN_YEAR, q)["read"] for q in (
+        "Will we patch up?", "Will my marriage last?", "Will my marriage happen this year?",
+        "Should I wait for him or her, or move on?", "Will my marriage improve?")}
+    assert len({r.split("\n")[0] for r in reads.values()}) == 5          # five different openers
+    assert reads["Will we patch up?"].startswith("This is about your former spouse")
+    assert reads["Will my marriage last?"].startswith("Because you're divorced, the question of whether your marriage lasts")
+    assert reads["Will my marriage happen this year?"].startswith("Looking at the next twelve months:")
+    assert reads["Should I wait for him or her, or move on?"].startswith("You're deciding between waiting on your former spouse")
+
+
+def test_year_question_separates_this_year_from_later():
+    inside = _c(REBUILD_OPEN, NEW_WITHIN_YEAR, "Will my marriage happen this year?")
+    assert "inside the next twelve months" in inside["read"] and inside["timing"] == "Feb 2027 – May 2027"
+    later = _c(REBUILD_OPEN, NEW_FAR, "Will my marriage happen this year?")
+    assert "nothing opens this year" in later["read"]
+    none = _c(NONE_EE, NONE_EE, "Will my marriage happen this year?")
+    assert "no supported window in the next two years" in none["read"] and none["timing"] is None
+
+
+def test_wait_or_move_gives_a_decision_rule_from_the_two_windows():
+    assert "make one clear attempt there" in _c(REBUILD_OPEN, NEW_FAR, "Should I wait or move on?")["read"]
+    assert "supports moving forward more than waiting" in _c(NONE_EE, NEW_WITHIN_YEAR, "Should I wait or move on?")["read"]
+    assert "Neither window opens" in _c(NONE_EE, NONE_EE, "Should I wait or move on?")["read"]
+    both = _c(REBUILD_SOON, NEW_FAR, "Should I wait or move on?")
+    assert "make one clear attempt there" in both["read"]                   # rebuild window opens within six months
+    far_both = _c(_ee("NOT_YET", "2028-01-10", "2028-03-30"), NEW_FAR, "Should I wait or move on?")
+    assert "the earlier one is Jan 2028" in far_both["read"] and far_both["timing"] == "Jan 2028 – Mar 2028"
+
+
+def test_patch_up_is_about_the_former_spouse_and_only_mentions_a_new_window_if_there_is_one():
+    r = _c(REBUILD_OPEN, NONE_EE, "Will we patch up?")["read"]
+    assert "Separately" not in r and "Rebuilding with your former spouse: a window is open now" in r
+    assert "Separately, a new partnership" in _c(REBUILD_OPEN, NEW_FAR, "Will we patch up?")["read"]
+
+
+def test_every_kind_keeps_the_guardrails_in_every_language():
+    qs = ("Will we patch up?", "Will my marriage last?", "Will my marriage happen this year?", "Should I wait or move on?", "")
+    for lang in ("en", "es", "pt"):
+        for ms in ("divorced", "separated"):
+            for rb in (REBUILD_OPEN, NONE_EE):
+                for nw in (NEW_WITHIN_YEAR, NEW_FAR, NONE_EE):
+                    for q in qs:
+                        t = _c(rb, nw, q, ms, lang)["read"].lower()
+                        assert not any(w in t for w in ("over for good", "it's over", "no hope", "will come back", "loves you", "still loves", "wants you")), (lang, q)
+                        assert "{" not in t and "}" not in t, (lang, q)
+    # no English leaks in the new Spanish / Portuguese kinds
+    for lang, banned in (("es", ("Looking at", "Separately", "deciding between")), ("pt", ("Looking at", "Separately", "deciding between"))):
+        for q in qs[:4]:
+            t = _c(REBUILD_OPEN, NEW_WITHIN_YEAR, q, "divorced", lang)["read"]
+            assert not any(b in t for b in banned), (lang, q, t)

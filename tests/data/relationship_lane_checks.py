@@ -24,7 +24,7 @@ _THIRD_READ = re.compile(
 # a verdict on whether the reunion happens (an outcome that depends on the other person)
 _REUNION_OUTCOME = re.compile(
     r"\b(reconcil\w+|reconnect\w*|reunion|come back|return|patch up)\b[^.?!]{0,50}?\b(is|are|looks|seems|likely|possible|supported|probable|will)\b|"
-    r"\b(timing (?:actually )?(?:does )?support\w*)\b", re.I)
+    r"\btiming (?:actually )?(?:does )?support\w*[^.?!]{0,25}\b(?:reconcil\w*|reconnect\w*|reunion|return|come back|patch up)\b", re.I)
 _ACK_OPENER = re.compile(
     r"^\s*(?:\w+,\s+)?(?:this (?:question |one )?(?:clearly )?matters|that question (?:carries|deserves)|i understand|i hear (?:you|how)|i can see|"
     r"the uncertainty you(?:'re| are) carrying)", re.I)
@@ -71,7 +71,7 @@ def lane_checks(item: dict, p: dict) -> list:
         out.append("CLARIFY_ASKED")
     if not reframed and lane in ("reframe", "decline", "people") and item["q"].lower().split()[0] in ("when", "will", "is", "does") \
             and any(k in item["q"].lower() for k in ("he ", "she ", "contact", "call", "meet", "come back", "love me", "patch up")) \
-            and _OVER_PRECISE.search(text):
+            and _OVER_PRECISE.search(str(p.get("read") or "") + " " + str(p.get("why") or "")):   # the reader's own move ("write it down this week") is not a promise about the other person
         out.append("OVER_PRECISE_TIMING")
     if _THIRD_READ.search(text):
         out.append("THIRD_PARTY_CHARACTER")
@@ -104,12 +104,17 @@ def lane_checks(item: dict, p: dict) -> list:
     return out
 
 
+_LEAD_VERDICT = re.compile(
+    r"^\s*(?:(?:likely|probable|possible|yes|no|not yet|unlikely)(?:\s+within\s+the\s+(?:year|month|quarter))?\s*[—-][^.\n]*\.|"
+    r"no strong [^.\n]*\.|not (?:strongly )?indicated[^.\n]*\.)\s*", re.I)
+
+
 def template_reuse(rows: list, min_ids: int = 3, n: int = 70) -> dict:
     """{opening-text: [ids]} for answers that open identically across >= min_ids DIFFERENT questions —
     a canned branch answering whatever it was asked (e.g. the 'You're divorced...' block)."""
     seen = {}
     for r in rows:
-        body = re.sub(r"^\s*(?:likely|probable|possible|yes|no|not yet|unlikely)\s*[—-][^.\n]*\.\s*", "", r.get("read") or "", flags=re.I)
+        body = _LEAD_VERDICT.sub("", r.get("read") or "")
         if r.get("people_pointer") or r.get("needs_clarification"):
             continue          # the pointer is one deliberate, deterministic answer per state
         key = re.sub(r"\W+", " ", body[:n].lower()).strip()

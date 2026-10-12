@@ -33911,13 +33911,13 @@ async def _ask_endpoint_impl(request: AskRequest):
                     def _du_run():
                         return _du_ree(*_du_args, "reconciliation"), _du_ree(*_du_args, "marriage")
                     _du_r, _du_n = await run_in_threadpool(_du_run)
-                    _du = _DU.compose(_du_r, _du_n, _du_ms, language)
+                    _du = _DU.compose(_du_r, _du_n, _du_ms, language, question=(locals().get("_ask_typed_q") or question))
                     if _du:
                         payload["read"] = _du["read"]
                         _du_final_read = _du["read"]          # re-applied at the very end, after the later filters (see "divorced-final")
                         if _du.get("timing"):
                             payload["timing"] = _du["timing"]
-                        print(f"[ask][divorced-union] two-window answer ({_du_ms}) rebuild={_du['rebuild_state']} new={_du['new_state']}")
+                        print(f"[ask][divorced-union] {_du.get('kind')} answer ({_du_ms}) rebuild={_du['rebuild_state']} new={_du['new_state']}")
             except Exception as _due:
                 print(f"[ask][divorced-union] skipped (non-fatal): {_due}")
             # [audit 2026-10-04] one final deterministic pass, every Ask answer:
