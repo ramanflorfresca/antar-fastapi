@@ -39,10 +39,20 @@ from __future__ import annotations
 from datetime import date, datetime, timedelta
 from typing import Optional
 
+import swisseph as swe
+
 from antar_engine.antar_ephemeris import (
-    SIGNS, calculate_lagna, julian_day, lahiri_ayanamsa, planet_longitude,
-    NAKSHATRA_LORDS, DASHA_YEARS, DASHA_ORDER,
+    SIGNS, julian_day, NAKSHATRA_LORDS, DASHA_YEARS, DASHA_ORDER,
 )
+
+# Positions come from swisseph (Lahiri, true node, swisseph ascendant) because
+# that is what the stored production charts use. antar_ephemeris's own
+# VSOP/Meeus routines differ from it by 1-2.5 degrees on the Moon and ~0.5 on the
+# ascendant — enough to move dasha boundaries by years — so they must not be
+# mixed in here. Verified against charts.chart_data (see tests).
+_SWE_BODY = {"Sun": swe.SUN, "Moon": swe.MOON, "Mars": swe.MARS, "Mercury": swe.MERCURY,
+             "Jupiter": swe.JUPITER, "Venus": swe.VENUS, "Saturn": swe.SATURN,
+             "Rahu": swe.TRUE_NODE}
 
 # ── Inputs ────────────────────────────────────────────────────────────────────
 
@@ -173,17 +183,22 @@ def normalise_events(events: list[dict]) -> dict:
 
 # ── Chart pieces at one candidate minute ──────────────────────────────────────
 
-def _sid(trop: float, jd: float) -> float:
-    return (trop - lahiri_ayanamsa(jd)) % 360.0
+def _planet_sid(name: str, jd: float) -> float:
+    swe.set_sid_mode(swe.SIDM_LAHIRI)
+    return swe.calc_ut(jd, _SWE_BODY[name], swe.FLG_SIDEREAL)[0][0] % 360.0
+
+
+def _lagna_sid(jd: float, lat: float, lng: float) -> float:
+    swe.set_sid_mode(swe.SIDM_LAHIRI)
+    return swe.houses_ex(jd, lat, lng, b"W", swe.FLG_SIDEREAL)[1][0] % 360.0
 
 
 def _lagna_sign_idx(jd: float, lat: float, lng: float) -> int:
-    trop, _ = calculate_lagna(jd, lat, lng)
-    return int(_sid(trop, jd) // 30) % 12
+    return int(_lagna_sid(jd, lat, lng) // 30) % 12
 
 
 def _moon_sid(jd: float) -> float:
-    return _sid(planet_longitude("Moon", jd), jd)
+    return _planet_sid("Moon", jd)
 
 
 def _vimshottari_at(moon_lon: float, birth_jd: float, event_jd: float) -> tuple[str, str]:
@@ -338,8 +353,8 @@ def phase_a(birth: dict, events: list[dict], *, step_min: int = 1,
     # Slow planets move < 0.1 degree inside a +-60 min window: compute once at the
     # recorded moment. Only the Moon (and the lagna) are recomputed per minute.
     jd0 = julian_day(base.year, base.month, base.day, base.hour + base.minute / 60.0 - tz)
-    slow_sid = {p: _sid(planet_longitude(p, jd0), jd0) for p in _KARAKA_PLANETS if p != "Moon"}
-    rahu0 = _sid(planet_longitude("Rahu", jd0), jd0)
+    slow_sid = {p: _planet_sid(p, jd0) for p in _KARAKA_PLANETS if p != "Moon"}
+    rahu0 = _planet_sid("Rahu", jd0)
     slow_sign = {p: int(v // 30) % 12 for p, v in slow_sid.items()}
     slow_sign["Rahu"], slow_sign["Ketu"] = int(rahu0 // 30) % 12, int(((rahu0 + 180) % 360) // 30) % 12
 

@@ -46,10 +46,10 @@ def test_unsupported_event_type_is_reported_not_guessed():
 
 
 def test_conflict_is_reported_never_averaged():
-    res = rw.phase_a(BIRTH, HARD3, half_window_min=60)  # strict mode: c1 unexplainable here
+    res = rw.phase_a(BIRTH, HARD3, half_window_min=60)  # strict mode: c2 unexplainable here
     assert res["status"] == "conflict"
     assert res["window"] is None
-    assert "c1" in res["unexplainable_alone"]
+    assert res["unexplainable_alone"] == ["c2"]
 
 
 def test_band_never_below_floor():
@@ -84,3 +84,30 @@ def test_connected_mode_is_superset_of_strict():
     strict = rw._significators(rule, 9, karakas)
     conn = rw._significators(rule, 9, karakas, sign_of, rw.CONNECTION_CONNECTED)
     assert strict <= conn
+
+
+# Pinned from production (charts.chart_data / dasha_periods, checked 2026-10-12).
+# The first Phase A run used antar_ephemeris's own Moon, which is 1-2.5 degrees
+# off the stored charts; these guard against that regression.
+PROD_FIXTURES = [
+    # (date, local time, tz, stored Moon longitude, [(event date, MD, AD)])
+    ("1974-11-26", "11:59", 5.5, 358.6554, [((1998, 1, 15), "Venus", "Saturn"),
+                                            ((2003, 10, 13), "Sun", "Sun"),
+                                            ((2026, 10, 12), "Rahu", "Rahu")]),
+    ("1975-01-08", "15:45", 3.0, 219.7327, [((1985, 3, 15), "Mercury", "Mercury"),
+                                            ((2001, 11, 8), "Mercury", "Saturn"),
+                                            ((2003, 10, 13), "Ketu", "Sun")]),
+    ("1970-11-02", "06:02", 5.5, 228.6981, [((2000, 1, 1), "Venus", "Rahu"),
+                                            ((2026, 10, 12), "Moon", "Venus")]),
+]
+
+
+@pytest.mark.parametrize("bdate,btime,tz,stored_moon,checks", PROD_FIXTURES)
+def test_moon_and_dasha_match_stored_production_charts(bdate, btime, tz, stored_moon, checks):
+    y, m, d = map(int, bdate.split("-"))
+    hh, mm = map(int, btime.split(":"))
+    jd = julian_day(y, m, d, hh + mm / 60 - tz)
+    moon = rw._moon_sid(jd)
+    assert abs(moon - stored_moon) < 0.01
+    for ymd, md, ad in checks:
+        assert rw._vimshottari_at(moon, jd, julian_day(*ymd, 12.0)) == (md, ad), ymd
