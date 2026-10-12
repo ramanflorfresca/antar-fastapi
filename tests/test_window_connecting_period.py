@@ -26,3 +26,22 @@ def test_no_connecting_pd_left_falls_back_to_ad():
     b["vimshottari"]["pd"]["upcoming"] = [{"lord": "Sun", "start": "2026-12-19", "end": "2027-02-01", "connects_event": False}]
     w = _select_window("supported", b)
     assert w["start"] == "2026-07-26"
+
+
+def test_primary_house_period_is_preferred_over_a_shared_secondary_one():
+    b = _board(True)
+    b["vimshottari"]["pd"]["connects_primary"] = False           # current PD touches only a shared secondary house
+    b["vimshottari"]["pd"]["upcoming"] = [
+        {"lord": "Sun", "start": "2026-12-19", "end": "2027-02-01", "connects_event": True, "connects_primary": True},
+        {"lord": "Mars", "start": "2027-04-15", "end": "2027-06-05", "connects_event": True, "connects_primary": False}]
+    w = _select_window("supported", b)
+    assert w["start"] == "2026-12-19"                              # the concern's own primary-house period wins
+
+
+def test_promised_event_uses_the_primary_house_forming_window_first():
+    b = {"vimshottari": {}, "double_transit": {
+        "forming_windows": [{"start": "2026-11-01", "end": "2027-01-31"}],
+        "forming_windows_primary": [{"start": "2027-07-01", "end": "2027-10-31"}]}}
+    assert _select_window("promised_building", b)["start"] == "2027-07-01"
+    b["double_transit"]["forming_windows_primary"] = []
+    assert _select_window("promised_building", b)["start"] == "2026-11-01"      # falls back to the broad set

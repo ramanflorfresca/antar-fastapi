@@ -275,12 +275,21 @@ def _select_window(verdict: str, board: dict) -> Optional[dict]:
         # [window-connecting 2026-10-11] The window must be a sub-period that actually touches THIS concern's houses. The current PD was used
         # even when it did not (the verdict came from the AD), so every concern shared one window (Andres: marriage = career = funding).
         # If the current PD does not connect, take the next connecting PD that still falls inside the running AD.
-        if pd and pd.get("connects_event") is False:
+        # [window-primary 2026-10-11] Prefer a PD that touches the concern's PRIMARY house; fall back to any connecting PD (as above). Concerns that
+        # share secondary houses (career / funding / property) now land on different windows when their primary houses differ.
+        if pd:
             ad_end = ((vim.get("ad") or {}).get("end") or "")[:10]
-            for up in (pd.get("upcoming") or []):
-                if up.get("connects_event") and up.get("start") and (not ad_end or str(up["start"])[:10] <= ad_end):
-                    pd = up
-                    break
+            _in_ad = lambda up: up.get("start") and (not ad_end or str(up["start"])[:10] <= ad_end)
+            if pd.get("connects_primary") is False and any("connects_primary" in u for u in (pd.get("upcoming") or [])):
+                for up in (pd.get("upcoming") or []):
+                    if up.get("connects_primary") and _in_ad(up):
+                        pd = up
+                        break
+            if pd.get("connects_event") is False and not pd.get("connects_primary"):
+                for up in (pd.get("upcoming") or []):
+                    if up.get("connects_event") and _in_ad(up):
+                        pd = up
+                        break
         if pd and pd.get("start") and pd.get("end"):
             lbl = _fmt_window(_clamp_start_today(pd["start"]), pd["end"])
             if lbl:
@@ -295,7 +304,7 @@ def _select_window(verdict: str, board: dict) -> Optional[dict]:
 
     if verdict == "promised_building":
         # next time the Double Transit FORMS on the targets
-        fw = dtb.get("forming_windows") or []
+        fw = dtb.get("forming_windows_primary") or dtb.get("forming_windows") or []      # [window-primary 2026-10-11] the concern's own primary house first
         if fw:
             w = fw[0]
             lbl = _fmt_window(w.get("start"), w.get("end"))

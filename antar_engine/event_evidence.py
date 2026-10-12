@@ -354,6 +354,14 @@ def _vimshottari_block(dashas, chart_data, lagna_idx, event_houses, today) -> di
             how.append(f"{p} occupies house {(planets.get(p) or {}).get('house')}")
         return how
 
+    def _connects_primary(p: str) -> bool:
+        """[window-primary 2026-10-11] does this lord touch the concern's PRIMARY house (the first listed)? Secondary houses are shared by many concerns
+        (career/funding/property all lean on 2/6/11), which made every concern pick the same window."""
+        if not p or not event_houses:
+            return False
+        h = event_houses[0]
+        return SIGN_LORDS[SIGNS[(lagna_idx + h - 1) % 12]] == p or (planets.get(p) or {}).get("house") == h
+
     birth_jd = (chart_data or {}).get("birth_jd")
     tree = None
     if birth_jd is None:
@@ -388,8 +396,9 @@ def _vimshottari_block(dashas, chart_data, lagna_idx, event_houses, today) -> di
     if tree.get("pd"):
         block["pd"] = _period_out(tree["pd"])
         block["pd"]["connects_event"] = bool(_connects(tree["pd"]["lord"]))
+        block["pd"]["connects_primary"] = _connects_primary(tree["pd"]["lord"])
         block["pd"]["upcoming"] = [
-            {**_period_out(p), "connects_event": bool(_connects(p["lord"]))}
+            {**_period_out(p), "connects_event": bool(_connects(p["lord"])), "connects_primary": _connects_primary(p["lord"])}
             for p in tree.get("upcoming_pds", [])
         ]
     block["sd"] = _period_out(tree.get("sd"))
@@ -675,6 +684,13 @@ def build_whole_board(chart_data: dict, jaimini_data, dashas: dict,
             moon_targets = dt_out["frames"]["moon"]["targets"]
             dt_out["forming_windows"] = dt.dt_forming_windows(
                 moon_targets, today, months=dt_horizon_months)
+            # [window-primary 2026-10-11] the same scan on the concern's PRIMARY house alone: the broad target set (secondary houses, karakas, the running
+            # lords) is shared by many concerns, which gave career / partnership / property the same "forms Nov-Jan" window.
+            try:
+                dt_out["forming_windows_primary"] = dt.dt_forming_windows(
+                    [{"sign_index": (lagna_idx + event_houses[0] - 1) % 12}], today, months=dt_horizon_months)
+            except Exception:
+                dt_out["forming_windows_primary"] = []
             if dt_out.get("classical_verdict") in ("fires", "likely"):
                 dt_out["mars_narrowing_windows"] = dt.mars_trigger_windows(
                     moon_targets, today, months=12)
