@@ -6332,6 +6332,27 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
                 return
         # a bare digit picks from the last numbered list
         question = body
+        # [positioning-wa 2026-10-12] the interview asked "what best describes your work?" / "what is it?": this message is the ANSWER. Save it, then re-run the original question.
+        try:
+            _wpend = ctx.pop("work_pending", None) or {}
+            if _wpend.get("q") and _time.time() - float(_wpend.get("at") or 0) < 1800:
+                from antar_engine import work_profile as _WPW
+                _ans, _bt0 = None, body.strip()
+                if _wpend.get("key") == "role":
+                    _opts = _wpend.get("opts") or []
+                    if re.fullmatch(r"\d", _bt0) and 1 <= int(_bt0) <= len(_opts):
+                        _ans = _opts[int(_bt0) - 1]
+                    else:
+                        _low = _bt0.lower()
+                        _ans = next((o for o in _opts if o.replace("_", " ") in _low or o.split("_")[0] in _low), None)
+                elif _wpend.get("key") == "what" and len(_bt0) >= 3 and not _bt0.endswith("?"):
+                    _ans = _bt0
+                if _ans:
+                    await asyncio.to_thread(_WPW.save, sb, link.get("chart_id"), link.get("user_id"), {_wpend["key"]: _ans})
+                    question = _wpend["q"]
+                    lang = _wpend.get("lang") or lang
+        except Exception as _wpe:
+            print(f"[whatsapp][work-answer] skipped: {_wpe!r}")
         # [whatsapp-prashna] waiting for the KP number (1-249)? A bare number now
         # is the horary number — not a follow-up pick; "skip" reads the moment.
         _kp_number = None
@@ -6585,6 +6606,25 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
                     payload["suggested_followups"] = _rich
         except Exception:
             pass
+        # [positioning-wa 2026-10-12] positioning goes out as a run of short texts (each <= 5 lines), not one long block; an interview question is remembered so the next message answers it
+        if isinstance(payload, dict) and payload.get("answer_kind") == "positioning" and payload.get("messages"):
+            _pm = [str(m).strip() for m in payload["messages"] if str(m).strip()]
+            _ab = payload.get("ask_back") if isinstance(payload.get("ask_back"), dict) else None
+            for _m in _pm:
+                send(_m)
+            if _ab:
+                if _ab.get("options"):
+                    send("\n".join(f"{i}  {o['label']}" for i, o in enumerate(_ab["options"], 1)))
+                ctx["work_pending"] = {"q": question, "key": _ab.get("key"), "opts": [o["value"] for o in (_ab.get("options") or [])], "lang": lang, "at": int(_time.time())}
+                _save({k: v for k, v in ctx.items() if k != "options"})
+                return
+            if payload.get("next"):
+                send("→ " + str(payload["next"]))
+            _pf = [f for f in (payload.get("suggested_followups") or []) if isinstance(f, dict) and f.get("q")]
+            if _pf:
+                send_choices("…", "btn_next", _q_items([f["q"] for f in _pf], {f["q"]: f.get("title") for f in _pf}))
+            _save(_msg.remember_options(ctx, "ask", [f["q"] for f in _pf]) if _pf else {k: v for k, v in ctx.items() if k != "options"})
+            return
         text, fus = _msg.format_ask_whatsapp_v2(payload, lang, header=header, asked=question,
                                                 compact=not _wa_full_depth(), include_practice=_show_pc)
         full, _fus_all = _msg.format_ask_whatsapp_v2(payload, lang, header=header, asked=question,
@@ -33851,12 +33891,61 @@ async def _ask_endpoint_impl(request: AskRequest):
                         print(f"[ask][staff-decision] lean={_sd2['lean']} handling={_sd2.get('handling')} person={_nm2 or '-'}")
             except Exception as _sde:
                 print(f"[ask][staff-decision] skipped (non-fatal): {_sde}")
+            # [positioning-final 2026-10-12] "How should I position / pitch / brand my <work>?" is answered as a short run of chat messages (`messages`, each <= 5 lines) from the work profile +
+            # the lane fit + the season; with no work profile yet, the reply is the interview question (`ask_back`). `read` carries the same text joined, for clients that don't render messages yet.
+            _pos_done = False
+            try:
+                from antar_engine import positioning as _POS
+                if isinstance(payload, dict) and language in ("en", "es") and _POS.is_positioning_q(question):
+                    from antar_engine import work_profile as _WPP, work_fit as _WFP, d10_career as _D10P, partner_roles as _PRP
+                    _wpp = await asyncio.to_thread(_WPP.get, supabase, chart_id)
+                    _pr = _POS.interview(_wpp, language)
+                    if not _pr:
+                        _rk = (_D10P.analyze_career(chart_data) or {})
+                        _fit = _WFP.fit(_rk.get("careers") or [], _wpp.get("what"), language)
+                        _md, _ad = _PRP.running_lords(locals().get("_ask_dashas") or {})
+                        _until = ""
+                        try:
+                            from antar_engine.chart_identity import _running_chapter as _rc
+                            _ae = (_rc((locals().get("_ask_dashas") or {}).get("vimsottari"), date.today()) or {}).get("antar_ends")
+                            _until = datetime.strptime(_ae, "%Y-%m-%d").strftime("%b %Y") if _ae else ""
+                        except Exception:
+                            _until = ""
+                        _win = ""
+                        try:
+                            _eec = run_event_engine(chart_data, locals().get("_ask_jd"), locals().get("_ask_dashas"), locals().get("_ask_bdate"), "career")
+                            _win = (_eec or {}).get("timing_label") or ""
+                        except Exception:
+                            _win = ""
+                        _vs = await asyncio.to_thread(_read_ventures, chart_id)
+                        _past = []
+                        try:
+                            for _v in _vs:
+                                if _WFP.bucket_of(_v.get("label")) in ("food_hosp", "retail_inv", "ops_heavy") and (_v.get("outcome") or "") not in ("still going", "ongoing", "active"):
+                                    _past.append(_WPP.short_name(_v.get("label"), "running_business", language))
+                        except Exception:
+                            _past = []
+                        _pr = _POS.compose(chart_data, _fit, _wpp, md=_md, until=_until, window=_win, leadership=_rk.get("leadership_level") or "",
+                                           past_hands_on=[x for x in _past if x != ("your business" if language == "en" else "tu negocio")], lang=language)
+                    if _pr:
+                        payload["messages"] = _pr["messages"]
+                        payload["read"] = "\n\n".join(_pr["messages"])
+                        payload["next"] = _pr.get("next")
+                        payload["ask_back"] = _pr.get("ask_back")
+                        payload["verdict"], payload["timing"] = None, None
+                        payload["basis"] = ""
+                        payload["suggested_followups"] = _pr.get("chips") or []
+                        payload["answer_kind"] = "positioning"
+                        _pos_done = True
+                        print(f"[ask][positioning] {'interview ' + _pr['ask_back']['key'] if _pr.get('ask_back') else 'answer'} messages={len(_pr['messages'])}")
+            except Exception as _pose:
+                print(f"[ask][positioning] skipped (non-fatal): {_pose!r}")
             _ask_attach_disclaimer(payload, locals().get("_ask_concern"), language, question)
             try:   # [ask-direct 2026-10-10] the named chart facts behind the answer (see ask_basis.py)
                 from antar_engine.ask_basis import build_basis as _bb
                 _basis = _bb(locals().get("_ask_concern"), chart_data, locals().get("_ask_dashas"),
                              _ask_norm_lang(language)) if isinstance(payload, dict) else ""
-                if _basis:
+                if _basis and not _pos_done:
                     payload["basis"] = _basis
                 if _sd_basis and isinstance(payload, dict):
                     payload["basis"] = ((payload.get("basis") or "") + " " + _sd_basis).strip()
