@@ -27821,7 +27821,7 @@ async def _ask_subject_gate(question: str, chart_id: str, language: str, tz_offs
                                         pcd, pdash, acd, intent)
         if not facts.get("available"):
             return _asp.unreadable_payload(name, language), False
-        system = (SYSTEM_PROMPT + "\n\n" + _asp.narrator_block(name, res.get("relation"), language))
+        system = (SYSTEM_PROMPT + "\n\n" + _asp.narrator_block(name, res.get("relation"), language, trait=facts.get("trait")))
         prompt = (f"QUESTION: {question}\n\nREADING OF {name.upper()}'S CHART "
                   f"(the only astrology you may use):\n{facts['facts']}\n\n"
                   f"Answer about {name}.")

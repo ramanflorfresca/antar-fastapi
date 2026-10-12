@@ -234,6 +234,12 @@ def _find_relations(text: str):
         w = m.group(0).strip("'-")
         grp = _REL_WORDS.get(w)
         if not grp:
+            # the possessive form: "my spouse's profession", "my sons' school" [person-traits 2026-10-12]
+            w2 = re.sub(r"('s|s')$", "", w)
+            grp = _REL_WORDS.get(w2) if w2 != w else None
+            if grp:
+                w = w2
+        if not grp:
             continue
         # a bare relation word must be possessed ("my son", "mi hijo", "mera beta")
         pre = _tokens(text[:m.start()])
@@ -414,7 +420,7 @@ def resolve_subject(question: str, asker_chart_id: str = "",
 
 
 def _hit_word(text: str, rel_hits) -> Optional[str]:
-    words = {text[s:e].strip("'-") for _g, s, e in rel_hits}
+    words = {re.sub(r"('s|s')$", "", text[s:e].strip("'-")) for _g, s, e in rel_hits}
     return next(iter(words)) if len(words) == 1 else None
 
 

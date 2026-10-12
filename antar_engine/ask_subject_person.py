@@ -121,6 +121,85 @@ _ASKER_LENS = {"child": (5, "children"), "partner": (7, "partnership"),
                "advisor": (9, "mentors"), "family": (4, "family")}
 
 
+# ── what the person IS like: money pattern, kind of work, temperament ─────────
+_MONEY_Q = re.compile(
+    r"\b(rich|wealth\w*|money|income|salary|earn\w*|afford\w*|financ\w*|poor|broke|dinero|rico|rica|riqueza|ingresos|sueldo|dinheiro|"
+    r"renda|sal[aá]rio|paisa|ameer|kamai\w*)\b")
+_WORK_Q = re.compile(r"\b(profession|occupation|job|career|line\s+of\s+work|profesi[oó]n|trabajo|carreira|emprego|naukri|vyavsay)\b")
+_TEMPER_Q = re.compile(
+    r"\b(dominat\w*|controlling|bossy|calm|temper|angry|anger|kind|gentle|aggressive|stubborn|nature|personality|character|temperament|"
+    r"what(?:\s+is|\s+are|'s)\s+\w+(?:\s+\w+)?\s+like|dominante|car[aá]cter|temperamento|genio|mand[oó]n|swabhav|gussa)\b")
+
+
+def trait_kind(question: str) -> Optional[str]:
+    """'money' | 'work' | 'temperament' | None — a question about what this person is like, not about an event or a window."""
+    q = _fold(question)
+    if _MONEY_Q.search(q):
+        return "money"
+    if _WORK_Q.search(q):
+        return "work"
+    if _TEMPER_Q.search(q):
+        return "temperament"
+    return None
+
+
+_HARD = {"Mars", "Sun", "Saturn", "Rahu"}
+
+
+def _temperament_lines(name: str, cd: dict, lagna: str) -> list:
+    """Tendencies of temperament from the rising sign, the Moon sign and the hard planets on the self-house. Descriptive only."""
+    from antar_engine.relationships import SIGN_TRAITS, _dig
+    planets = cd.get("planets") or {}
+    out = [f"{name}'s rising sign ({lagna}) tends to read as: {SIGN_TRAITS.get(lagna, 'not described')}"]
+    msign = (planets.get("Moon") or {}).get("sign")
+    if msign:
+        out.append(f"{name}'s emotional nature (Moon in {msign}) tends to read as: {SIGN_TRAITS.get(msign, 'not described')}")
+    score, why = 0.0, []
+    on_self = [p for p, v in planets.items() if isinstance(v, dict) and v.get("house") == 1]
+    for p in on_self:
+        if p in _HARD:
+            score += 1.0; why.append(f"{p} sits on the self-house")
+        elif p in ("Jupiter", "Venus"):
+            score -= 0.5; why.append(f"{p} softens the self-house")
+    if lagna in ("Aries", "Leo", "Scorpio", "Capricorn"):
+        score += 1.0; why.append("a firm rising sign")
+    for p in ("Mars", "Sun"):
+        d, lab = _dig(p, (planets.get(p) or {}).get("sign"))
+        if d > 0:
+            score += 0.5; why.append(f"{p} is {lab}")
+    if msign in ("Taurus", "Cancer", "Pisces", "Libra"):
+        score -= 0.5; why.append("a soft Moon sign")
+    label = ("firm and strong-willed" if score >= 2.0 else "fairly firm" if score >= 1.0 else
+             "gentle and accommodating" if score <= -0.5 else "balanced")
+    out.append(f"Overall TENDENCY of assertiveness: {label}" + (f" ({'; '.join(why[:4])})" if why else ""))
+    return out
+
+
+def _work_lines(name: str, cd: dict) -> list:
+    from antar_engine.d10_career import analyze_career
+    a = analyze_career(cd)
+    if not a.get("available"):
+        return []
+    fields = [c["field"] for c in (a.get("careers") or [])[:3] if c.get("field")]
+    out = []
+    if fields:
+        out.append(f"The kinds of work {name}'s chart pulls toward (a tendency, in order): " + "; ".join(fields))
+    if a.get("leadership_frame"):
+        out.append(f"{name}'s drive toward leading: {a['leadership_frame']}")
+    out.append(a.get("frame") or "This maps what the chart pulls toward, not a verdict on fit or success.")
+    return out
+
+
+_TRAIT_RULES = {
+    "money": ("Describe how money tends to come to {name} from the reading (steady pay, business, windfalls, saving or spending habits). "
+              "NEVER state a wealth level or net worth and never promise {name} will be rich or poor."),
+    "work": ("Describe the kind of work the reading pulls {name} toward as a TENDENCY. It is not a verdict on fit or success: never name one "
+             "job as fact."),
+    "temperament": ("Describe {name}'s temperament as a TENDENCY shown in the chart, never as a verdict on {name}'s behaviour or intent "
+                    "(say 'tends to', not 'is'). End with one line on what this means for the reader: how to work with it."),
+}
+
+
 def person_concern(concern: str, question: str = "") -> Optional[str]:
     """Map the router's concern word to a concern_engines key; None => descriptive digest."""
     c = (concern or "").lower()
@@ -128,6 +207,10 @@ def person_concern(concern: str, question: str = "") -> Optional[str]:
     if c in ("health", "illness", "disease") or re.search(
             r"\b(health|sick|ill|surgery|salud|saude|sehat|bimar)\b", q):
         return "health"
+    # [person-traits 2026-10-12] "Will my spouse be rich?" was filed under marriage ("spouse") before the money word was looked at, so the
+    # model got the 'is a significant person entering her life' facts and answered a different question. A money word wins.
+    if _MONEY_Q.search(q):
+        return "income"
     if c in ("divorce", "separation"):
         return "separation"
     if c in ("marriage", "love", "relationship") or re.search(
@@ -182,7 +265,10 @@ def build_person_facts(name: str, relation: Optional[str], question: str, concer
         planets = cd.get("planets") or {}
         if not lagna or not planets:
             return {"available": False}
+        trait = trait_kind(question)
         key = person_concern(concern, question)
+        if trait in ("work", "temperament"):
+            key = None                         # these have their own sheet; the event readers (entry window, health...) would answer another question
         lines = [f"SUBJECT: {name}" + (f" ({relation} of the reader)" if relation else "")]
         lines.append(f"{name}'s rising sign: {lagna}")
         moon = planets.get("Moon") or {}
@@ -198,6 +284,10 @@ def build_person_facts(name: str, relation: Optional[str], question: str, concer
                 lines.append(f"READING OF {name}'s CHART for {r.get('subject')} "
                              f"(verdict: {r.get('verdict')}); 'you/your' below means {name}:\n"
                              f"{r.get('narration_facts')}")
+        elif trait == "temperament":
+            lines.extend(_temperament_lines(name, cd, lagna))
+        elif trait == "work":
+            lines.extend(_work_lines(name, cd) or [_house_line(cd, lagna, 10, f"{name}'s work/standing")])
         else:
             for h, lab in ((1, "body/self"), (6, "daily strain"), (10, "work/standing"),
                            (7, "partnership")):
@@ -210,15 +300,16 @@ def build_person_facts(name: str, relation: Optional[str], question: str, concer
             lines.append("BOND CONTEXT (the reader's side, background only — never describe it as "
                          f"{name}'s): " + _house_line(acd, acd["lagna"]["sign"], al[0],
                                                        f"reader's house of {al[1]}"))
-        return {"available": True, "facts": "\n".join(lines), "concern_key": key}
+        return {"available": True, "facts": "\n".join(lines), "concern_key": key, "trait": trait}
     except Exception as e:
         return {"available": False, "error": str(e)[:120]}
 
 
-def narrator_block(name: str, relation: Optional[str], language: str = "en") -> str:
+def narrator_block(name: str, relation: Optional[str], language: str = "en", trait: Optional[str] = None) -> str:
     """Prompt block for subject=person. Applies to every language."""
     lg = _lang(language)
     rel = relation_label(relation, "en") or "person"
+    extra = (" " + _TRAIT_RULES[trait].format(name=name)) if trait in _TRAIT_RULES else ""
     return (
         f"SUBJECT OF THIS QUESTION — This question is about {name} ({rel}). "
         f"Use ONLY the supplied reading of {name}'s chart. Do not describe the reader's own "
@@ -228,7 +319,7 @@ def narrator_block(name: str, relation: Optional[str], language: str = "en") -> 
         f"and where the reading says 'you/your' it means {name}. You may add one line on what "
         f"the reader can do to support {name}. Plain everyday words — no planet, house or Sanskrit "
         f"terms. Answer in {_LANG_NAME[lg]}. Give a real answer first; hedge honestly, never "
-        f"promise or predict a death, a diagnosis or a certain outcome. 3-5 sentences.")
+        f"promise or predict a death, a diagnosis or a certain outcome. 3-5 sentences." + extra)
 
 
 _OWN_CLAIM = re.compile(
@@ -239,7 +330,17 @@ _META_TALK = re.compile(
     r"\b(the question asks|you(?:'re| are) asking about|the (?:chart )?reading (?:provided|given|above)|the (?:facts|data|information) (?:provided|given)|"
     r"this reading (?:is|covers|only)|i (?:don'?t|do not) have (?:the )?(?:facts|data|information) (?:on|about)|"
     r"i can only work with what the (?:reading|chart|facts) (?:actually )?contains?|based on what(?:'s| is) (?:here|provided|given)|"
-    r"what the (?:reading|chart) (?:actually )?(?:contains|covers|includes))\b", re.I)
+    r"what the (?:reading|chart) (?:actually )?(?:contains|covers|includes)|\bverdict\s*:|\bsupported,\s+conditionally)\b", re.I)
+
+
+# the narrator is told to use plain life-language, but a person read still lets "Venus sits in its own sign" / "Capricorn rising" through.
+# The generic jargon strip would turn a planet into "your love and partnership energy" - wrong subject for a read about someone else - so a
+# sentence that still names a planet, a rising sign or a house is DROPPED, as long as two clean sentences remain.
+_SIGNS_RX = "Aries|Taurus|Gemini|Cancer|Leo|Virgo|Libra|Scorpio|Sagittarius|Capricorn|Aquarius|Pisces"
+_PERSON_JARGON = re.compile(
+    r"\b(?:Sun|Moon|Mars|Mercury|Jupiter|Venus|Saturn|Rahu|Ketu)\b|"
+    rf"\b(?:{_SIGNS_RX})\s+(?:rising|ascendant|lagna|Moon|sun|placement)\b|\bMoon\s+in\s+(?:{_SIGNS_RX})\b|"
+    r"\b\d{1,2}(?:st|nd|rd|th)\s+house\b|\bhouse\s+of\b|\bascendant\b|\bnakshatra\b|\bdasha\b|\bnavamsa\b|\bsignificator\b")
 
 
 def guard_read(text: str, name: str) -> str:
@@ -248,12 +349,18 @@ def guard_read(text: str, name: str) -> str:
     Returns '' when nothing safe is left (caller falls back)."""
     try:
         parts = re.split(r"(?<=[.!?¿¡])\s+", (text or "").strip())
-        out = " ".join(s for s in parts if not _OWN_CLAIM.search(s) and not _META_TALK.search(s)).strip()
+        kept = [s for s in parts if not _OWN_CLAIM.search(s) and not _META_TALK.search(s)]
+        clean = [s for s in kept if not _PERSON_JARGON.search(s)]
+        out = " ".join(clean if len(clean) >= 2 else kept).strip()
         if not out:
             return ""
         out = re.sub(r"\*\*(.+?)\*\*", r"\1", out)          # the app renders plain text: no **bold** from the model
         out = re.sub(r"(?<![\w*])\*(?!\s)([^*\n]+?)\*(?![\w*])", r"\1", out)
         first = (name or "").split(" ")[0]
+        # a first sentence that starts with a bare pronoun has lost its antecedent (the sentence that named the person was dropped)
+        _pm = re.match(r"^(Her|His|Their|She|He|They)\b", out)
+        if first and _pm:
+            out = (f"{first}'s" if _pm.group(1) in ("Her", "His", "Their") else first) + out[_pm.end():]
         if first and _fold(first) not in _fold(out):
             out = f"{first}: " + out
         return out

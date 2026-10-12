@@ -73,7 +73,7 @@ def lane_checks(item: dict, p: dict) -> list:
             and any(k in item["q"].lower() for k in ("he ", "she ", "contact", "call", "meet", "come back", "love me", "patch up")) \
             and _OVER_PRECISE.search(str(p.get("read") or "") + " " + str(p.get("why") or "")):   # the reader's own move ("write it down this week") is not a promise about the other person
         out.append("OVER_PRECISE_TIMING")
-    if _THIRD_READ.search(text):
+    if _THIRD_READ.search(text) and not (p.get("subject") or {}).get("chart_available"):    # a saved person's read describes them by design
         out.append("THIRD_PARTY_CHARACTER")
     if item["id"] in (21, 22, 25, 26, 30) and _REUNION_OUTCOME.search(text):
         out.append("REUNION_OUTCOME")
