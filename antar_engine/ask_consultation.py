@@ -384,7 +384,9 @@ def _vimshottari_lock(dashas, chart_data, houses, lords, today, horizon):
         if best:
             break
     if best:
-        return {"active": True, "start": best[1], "end": best[2], "why": best[3], "planet": best[0]}
+        return {"active": True, "start": best[1], "end": best[2], "why": best[3], "planet": best[0],
+                "kind": "shift" if " sub-chapter " in best[3] else "chapter",
+                "role": "rules" if " rules a target" in best[3] else "occupies"}
     return {"active": False, "start": None, "end": None, "why": "no period lord touches the target areas in the horizon", "planet": ""}
 
 
@@ -460,7 +462,9 @@ def _yogini_lock(dashas, chart_data, houses, lords, today, horizon):
         if best:
             break
     if best:
-        return {"active": True, "start": best[1], "end": best[2], "why": best[3], "planet": best[0]}
+        return {"active": True, "start": best[1], "end": best[2], "why": best[3], "planet": best[0],
+                "kind": "shift" if " sub-period " in best[3] else "chapter",
+                "role": "rules" if " rules a target" in best[3] else "occupies"}
     return {"active": False, "start": None, "end": None,
             "why": "no Yogini period touches the target areas in the horizon", "planet": ""}
 
@@ -502,7 +506,9 @@ def _chara_lock(dashas, lagna_idx, houses, lords, today, horizon):
             break
     if best:
         return {"active": True, "start": best[1], "end": best[2], "why": best[3],
-                "planet": SIGN_LORDS.get(best[0], "")}
+                "planet": SIGN_LORDS.get(best[0], ""), "sign": best[0],
+                "role": "sign" if " sits in target house " in best[3] else "ruler",
+                "kind": "shift" if " sub-period " in best[3] else "chapter"}
     return {"active": False, "start": None, "end": None, "why": "no sign period activates the target areas in the horizon", "planet": ""}
 
 
@@ -539,7 +545,7 @@ def _varshphal_lock(chart_data, birth_date, houses, lords, karakas, today):
     if hits:
         return {"active": True, "start": last_bday, "end": next_bday,
                 "why": "; ".join(hits[:3]) + f", valid {_fmt_window(last_bday, next_bday)}",
-                "planet": hit_planets[0]}
+                "planet": hit_planets[0], "planets": list(dict.fromkeys(hit_planets))[:3]}
     return {"active": False, "start": last_bday, "end": next_bday,
             "why": "this year's chart does not move relevant planets into the target areas",
             "planet": ""}
@@ -878,7 +884,12 @@ def build_convergence_timing(concern, chart_data, dashas, birth_date,
         "concern": concern,
         "houses": houses,
         "locks": {k: {"active": v["active"], "why": v["why"],
-                      "window": _fmt_window(v["start"], v["end"])}
+                      "window": _fmt_window(v["start"], v["end"]),
+                      # structured, so the Why sheet can word each method in plain language without parsing prose
+                      "planet": v.get("planet", ""), "kind": v.get("kind"), "role": v.get("role"),
+                      "sign": v.get("sign"), "planets": v.get("planets"),
+                      "start": v["start"].isoformat() if v.get("start") else None,
+                      "end": v["end"].isoformat() if v.get("end") else None}
                   for k, v in locks.items()},
         "varga_confirm": _varga,
         "lock_count": lock_count,
