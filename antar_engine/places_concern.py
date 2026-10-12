@@ -335,9 +335,20 @@ def _dasha_mode() -> str:
     return "blend" if os.getenv("PLACES_DASHA_MODE", "multiplier").strip().lower() == "blend" else "multiplier"
 
 
+_DASHA_MULT_MIN = 0.5     # a badly placed running dasha lord halves the place (the gate)
+_DASHA_MULT_MAX = 1.15    # a well placed one only nudges it up, so FLOW stays rare
+
+
 def _dasha_multiplier(dasha_score01: float) -> float:
-    """Dasha fit in [0,1] (0.5 neutral) -> multiplier in [0.5, 1.5] (1.0 neutral)."""
-    return 0.5 + max(0.0, min(1.0, dasha_score01))
+    """Dasha fit in [0,1] (0.5 neutral) -> multiplier in [0.5, 1.15] (1.0 neutral).
+
+    Asymmetric on purpose. The first persona run showed a symmetric 0.5-1.5 range
+    pushed top scores to the 100 cap and made FLOW ~29% of cities; the dasha is a
+    GATE (it can veto a place) far more than a booster."""
+    d = max(0.0, min(1.0, dasha_score01))
+    if d <= 0.5:
+        return _DASHA_MULT_MIN + (1.0 - _DASHA_MULT_MIN) * (d / 0.5)
+    return 1.0 + (_DASHA_MULT_MAX - 1.0) * ((d - 0.5) / 0.5)
 
 
 def _dasha_relocation_score(chart: dict, relocation: dict, conditions: dict,
@@ -647,7 +658,7 @@ def score_city_for_concern(
         # [places-dasha-multiplier 2026-10-12] Owner decision (field-tested with
         # practising astrologers): the running dasha GATES the place, it is not
         # one ingredient. A dasha lord that relocates badly (score01 -> 0) halves
-        # the place; one that relocates well (-> 1) lifts it by up to half. 0.5
+        # the place; one that relocates well (-> 1) lifts it by at most 15%. 0.5
         # (neutral) leaves the static score untouched.
         combined = (base_combined * _dasha_multiplier(dasha_score)
                     - _NEG_SCREEN_W * neg_score)
