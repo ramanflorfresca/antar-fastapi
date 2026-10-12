@@ -108,3 +108,43 @@ def test_common_word_name_needs_capital():
 def test_garbage_never_raises():
     for q in (None, "", "   ", "'''", "¿?"):
         assert resolve_subject(q, "me", [None, {}, {"name_b": "x"}])["subject"] == "self"
+
+
+# ── spouse words mean a romantic partner [spouse-words 2026-10-12] ──
+from antar_engine import ask_subject as _AS
+
+
+def _p(name, cid, ctype, **kw):
+    return {"name_b": name, "chart_id_b": cid, "compat_type": ctype, **kw}
+
+
+def test_my_spouse_does_not_offer_business_partners_as_candidates():
+    people = [_p("Sudha", "c1", "spouse", relation_detail="wife"), _p("Rakesh", "c2", "business"), _p("Saransh", "c3", "cofounder")]
+    r = _AS.resolve_subject("How is my spouse doing?", "me", people)
+    assert r["subject"] == "person" and r["person"]["name"] == "Sudha"
+
+
+def test_bare_partner_word_still_offers_both_kinds():
+    people = [_p("Sudha", "c1", "spouse"), _p("Rakesh", "c2", "business")]
+    r = _AS.resolve_subject("How is my partner doing?", "me", people)
+    assert r["subject"] == "ambiguous" and {c["name"] for c in r["candidates"]} == {"Sudha", "Rakesh"}
+
+
+def test_two_romantic_people_still_ask_which_one():
+    people = [_p("Dana", "c1", "romantic"), _p("Sam", "c2", "relationship"), _p("Biz", "c3", "business")]
+    r = _AS.resolve_subject("How is my girlfriend doing?", "me", people)
+    assert r["subject"] == "ambiguous" and {c["name"] for c in r["candidates"]} == {"Dana", "Sam"}
+
+
+def test_no_romantic_person_leaves_the_candidates_alone():
+    people = [_p("Rakesh", "c2", "business"), _p("Saransh", "c3", "cofounder")]
+    r = _AS.resolve_subject("How is my wife doing?", "me", people)
+    assert r["subject"] == "ambiguous" and len(r["candidates"]) == 2
+
+
+def test_future_partner_trait_question():
+    for q in ("Will my spouse be rich?", "Will my spouse be dominating?", "Will my husband be older than me?",
+              "What will my spouse's profession be?", "¿Será mi esposo rico?"):
+        assert _AS.is_future_partner_trait_q(q), q
+    for q in ("How is my spouse doing?", "Will my spouse get the job?", "Is my wife happy?", "Will Dana be rich?"):
+        assert not _AS.is_future_partner_trait_q(q), q

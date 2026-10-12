@@ -95,7 +95,7 @@ def lane_checks(item: dict, p: dict) -> list:
     allowed = _CHILD_CONCERNS if item["id"] == 45 else _REL_CONCERNS | ({"spiritual", "general"} if item["id"] == 50 else set())
     if concern and concern not in allowed:
         out.append(f"ROUTE_OFF:{concern}")
-    if not concern and "CLARIFY_ASKED" not in out and not (p.get("people_pointer") or p.get("needs_clarification") or (p.get("subject") or {}).get("chart_available") is False):
+    if not concern and "CLARIFY_ASKED" not in out and not (p.get("people_pointer") or p.get("needs_clarification") or p.get("subject")):
         out.append("ROUTE_UNKNOWN")
     if _DATELESS.search(text):
         out.append("SENTENCE_BROKEN")

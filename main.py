@@ -27764,7 +27764,7 @@ def _ask_subject_ambiguous_partners(cands: list, language: str) -> dict:
     return _asp.ambiguous_payload(res, language)
 
 
-async def _ask_subject_gate(question: str, chart_id: str, language: str, tz_offset):
+async def _ask_subject_gate(question: str, chart_id: str, language: str, tz_offset, marital_status: str = ""):
     """[ask-subject 2026-10-06] Who is this question ABOUT? Returns (None) for the
     asker themself (the normal pipeline continues untouched) or a finished payload
     when it is about a saved Person / needs a which-one clarify / the person's chart
@@ -27785,6 +27785,14 @@ async def _ask_subject_gate(question: str, chart_id: str, language: str, tz_offs
         people = await asyncio.to_thread(_ask_load_people_sync, chart_id)
         res = _as.resolve_subject(question, chart_id, people)
         if res.get("subject") == "self":
+            return None
+        # [spouse-future 2026-10-12] "Will my spouse be rich?" from a divorced / single / widowed reader is about the partner to come,
+        # not a saved person: no which-one chips, no reading of a business partner's chart. The relationship engine answers it as the
+        # kind of partner their chart points to (same as "will my spouse be older or younger").
+        if (res.get("subject") != "self" and res.get("relation") == "partner"
+                and str(marital_status or "").strip().lower() in _as.UNPARTNERED_STATUSES
+                and _as.is_future_partner_trait_q(question)):
+            print(f"[ask][subject] future-partner question from a {marital_status} reader - answered as the asker's own pattern")
             return None
         print(f"[ask][subject] {res.get('subject')} relation={res.get('relation')} "
               f"person={(res.get('person') or {}).get('name')} "
@@ -29851,7 +29859,8 @@ async def _ask_endpoint_impl(request: AskRequest):
     # Crisis wins (care-first path). Kill switch: ASK_SUBJECT_RESOLVER=off.
     if ((os.getenv("ASK_SUBJECT_RESOLVER") or "on").strip().lower() not in ("0", "off", "false", "no")
             and not _ask_detect_crisis(question)):
-        _subj = await _ask_subject_gate(question, chart_id, language, request.tz_offset)
+        _subj = await _ask_subject_gate(question, chart_id, language, request.tz_offset,
+                                        marital_status=str((locals().get("_lrow_ask") or {}).get("marital_status") or ""))
         if _subj:
             _subj_payload, _subj_counts = _subj
             if (_subj_counts and _ask_tier not in _PAID_TIERS and not _ask_bypass_cap):

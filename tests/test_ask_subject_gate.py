@@ -141,3 +141,48 @@ def test_gate_fails_open_to_self_on_error():
     ns, _ = _build([KID])
     ns["supabase"] = None            # every load raises
     assert _run(ns, "when will my son get married") is None
+
+
+def test_guard_read_drops_the_models_process_talk():
+    t = ("The question asks about Katherine's wealth potential, but the chart reading provided is specifically about partnership. "
+         "Katherine's chart shows steady earning through her own work. Her partnership sector is quiet right now.")
+    out = asp.guard_read(t, "Katherine")
+    assert "question asks" not in out and "reading provided" not in out and "steady earning" in out
+
+
+def _run_ms(ns, q, ms, lang="en"):
+    return asyncio.run(ns["_ask_subject_gate"](q, "me", lang, 0, marital_status=ms))
+
+
+WIFE = {"chart_id_b": "kid", "name_b": "Sudha", "compat_type": "spouse", "relation_detail": "wife"}
+BIZ = {"chart_id_b": "biz", "name_b": "Rakesh", "compat_type": "business"}
+BIZ2 = {"chart_id_b": "biz2", "name_b": "Saransh", "compat_type": "cofounder"}
+
+
+def test_divorced_reader_future_spouse_question_skips_the_gate():
+    # three saved business people used to produce "which partner do you mean?" chips
+    ns, calls = _build([BIZ, BIZ2, {"chart_id_b": "x", "name_b": "Person B", "compat_type": "romantic"}])
+    for ms in ("divorced", "single", "widowed"):
+        assert _run_ms(ns, "Will my spouse be rich?", ms) is None, ms
+        assert _run_ms(ns, "Will my spouse be dominating?", ms) is None, ms
+    assert calls["llm"] == []
+
+
+def test_married_reader_keeps_the_person_read_and_business_partners_are_not_offered():
+    ns, calls = _build([WIFE, BIZ, BIZ2])
+    payload, counts = _run_ms(ns, "How is my spouse doing?", "married")
+    assert counts is True and payload["subject"]["name"] == "Sudha"
+
+
+def test_divorced_reader_still_gets_the_gate_for_a_named_or_non_trait_question():
+    ns, _ = _build([WIFE])
+    payload, _c = _run_ms(ns, "How is my wife doing?", "divorced")
+    assert payload["subject"]["name"] == "Sudha"          # not a future-partner trait question: unchanged
+
+
+def test_guard_read_strips_markdown_and_more_process_talk():
+    t = ("I can only work with what the reading actually contains, so I'll give you an honest answer based on what's here. "
+         "**Sudha's chart shows a steady foundation.** She carries a self-assured presence.")
+    out = asp.guard_read(t, "Sudha")
+    assert "*" not in out and "reading actually contains" not in out and "based on what" not in out.lower()
+    assert "Sudha's chart shows a steady foundation." in out and "self-assured presence" in out

@@ -233,6 +233,13 @@ def narrator_block(name: str, relation: Optional[str], language: str = "en") -> 
 
 _OWN_CLAIM = re.compile(
     r"\b(your own|your) (health|marriage|chart|career|body|finances|money)\b", re.I)
+# the model explaining the mismatch instead of answering ("The question asks about Katherine's wealth potential, but the chart
+# reading provided is specifically about...") - process talk, never an answer
+_META_TALK = re.compile(
+    r"\b(the question asks|you(?:'re| are) asking about|the (?:chart )?reading (?:provided|given|above)|the (?:facts|data|information) (?:provided|given)|"
+    r"this reading (?:is|covers|only)|i (?:don'?t|do not) have (?:the )?(?:facts|data|information) (?:on|about)|"
+    r"i can only work with what the (?:reading|chart|facts) (?:actually )?contains?|based on what(?:'s| is) (?:here|provided|given)|"
+    r"what the (?:reading|chart) (?:actually )?(?:contains|covers|includes))\b", re.I)
 
 
 def guard_read(text: str, name: str) -> str:
@@ -241,9 +248,11 @@ def guard_read(text: str, name: str) -> str:
     Returns '' when nothing safe is left (caller falls back)."""
     try:
         parts = re.split(r"(?<=[.!?¿¡])\s+", (text or "").strip())
-        out = " ".join(s for s in parts if not _OWN_CLAIM.search(s)).strip()
+        out = " ".join(s for s in parts if not _OWN_CLAIM.search(s) and not _META_TALK.search(s)).strip()
         if not out:
             return ""
+        out = re.sub(r"\*\*(.+?)\*\*", r"\1", out)          # the app renders plain text: no **bold** from the model
+        out = re.sub(r"(?<![\w*])\*(?!\s)([^*\n]+?)\*(?![\w*])", r"\1", out)
         first = (name or "").split(" ")[0]
         if first and _fold(first) not in _fold(out):
             out = f"{first}: " + out

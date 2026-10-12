@@ -323,6 +323,38 @@ def _narrow_by_word_gender(cands: List[Dict[str, Any]], word: Optional[str]):
     return keep or cands
 
 
+# [spouse-words 2026-10-12] "my spouse / husband / wife / girlfriend" means a ROMANTIC partner. The relation group "partner" also holds
+# business partners and co-founders (the word "partner" is said of both), so "Will my spouse be rich?" offered a business partner as
+# a candidate: Shashi saw his wife next to his business partner, a divorced reader saw three business people. A romantic-only word
+# narrows to romantic people when it can.
+_ROMANTIC_WORDS = {"spouse", "husband", "wife", "girlfriend", "boyfriend", "fiance", "fiancee", "fiancé", "fiancée",
+                   "esposa", "esposo", "marido", "mujer", "novia", "novio", "namorada", "namorado",
+                   "patni", "pati", "biwi", "bivi", "shohar", "jeevansathi"}
+_ROMANTIC_TYPES = {"romantic", "relationship", "love", "marriage", "spouse", "girlfriend", "boyfriend", "husband", "wife",
+                   "fiance", "fiancee"}
+UNPARTNERED_STATUSES = {"divorced", "single", "widowed", "never married", "never_married"}
+# "Will my spouse be rich / older / dominating?" - a question about the kind of partner to come (or the one a reader no longer has),
+# not about a saved person. No name in it; the subject is the relation word itself.
+_FUTURE_PARTNER_TRAIT = re.compile(
+    r"(?i)\b(?:will|would)\s+my\s+(?:future\s+)?(?:spouse|husband|wife|partner|girlfriend|boyfriend|fianc[eé]e?)\s+be\b|"
+    r"\bwhat\s+will\s+my\s+(?:future\s+)?(?:spouse|husband|wife|partner)(?:'s)?\s+(?:be|look|profession|job|age|name)\b|"
+    r"\b(?:ser[aá]|va\s+a\s+ser|vai\s+ser)\s+(?:mi|meu|minha)\s+(?:esposo|esposa|pareja|marido|parceir[oa])\b|"
+    r"\b(?:mi|mi\s+futur[oa])\s+(?:esposo|esposa|pareja)\s+(?:ser[aá]|va\s+a\s+ser)\b")
+
+
+def is_future_partner_trait_q(question: str) -> bool:
+    return bool(_FUTURE_PARTNER_TRAIT.search(question or ""))
+
+
+def _narrow_to_romantic(cands: List[Dict[str, Any]], word: Optional[str]):
+    """A romantic-only word ('my spouse', 'my wife') with 2+ candidates: keep the romantic people. If none is romantic, leave as is."""
+    if (word or "").lower() not in _ROMANTIC_WORDS or len(cands) < 2:
+        return cands
+    keep = [p for p in cands if (set(p.get("compat_types") or ()) & _ROMANTIC_TYPES)
+            or (set(p.get("details") or ()) & {"wife", "husband", "girlfriend", "boyfriend", "spouse"})]
+    return keep or cands
+
+
 def resolve_subject(question: str, asker_chart_id: str = "",
                     people: Optional[list] = None) -> Dict[str, Any]:
     """-> {subject: 'self'|'person'|'ambiguous', relation, person, candidates,
@@ -366,6 +398,7 @@ def resolve_subject(question: str, asker_chart_id: str = "",
                 g = groups[0]
                 cands = [p for p in plist if g in p["relations"]]
                 cands = _narrow_by_word_gender(cands, _hit_word(text, rel_hits))
+                cands = _narrow_to_romantic(cands, _hit_word(text, rel_hits))
                 if len(cands) == 1:
                     p = cands[0]
                     return {"subject": "person", "relation": g,
