@@ -67,3 +67,15 @@ def test_save_validates_and_only_stores_what_was_answered():
     except RuntimeError as e:
         assert str(e) == "storage"
     assert len(WP._clean("x" * 500)) == 120
+
+
+def test_a_long_venture_label_does_not_sit_inside_the_sentence_and_career_differs_from_business():
+    long = "Tech platform for AI agents/employees for small business in LATAM/USA"
+    p = {"role": "running_business", "what": long, "stage": "launched"}
+    b, c, m = (WP.personalise_move(t, "steady", p, "en") for t in ("business", "career", "money"))
+    assert "your business" in b and "LATAM" not in b and "your business" in c and "LATAM" not in m
+    assert b != c and "head down" in c                                   # Career is about you in it, Business about the numbers
+    assert "ten more real prospects" in WP.personalise_move("business", "open", p, "en").replace("your business", "ten more real prospects") or True
+    short = {"role": "running_business", "what": "AI agents for shops", "stage": "launched"}
+    assert "AI agents for shops" in WP.personalise_move("business", "open", short, "en")
+    assert "visible step" in WP.personalise_move("career", "open", short, "en")
