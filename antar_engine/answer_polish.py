@@ -341,6 +341,22 @@ _FALLBACK_NEXT = {
                "pt": "Escolha um hábito diário desta resposta e mantenha-o pelos próximos sete dias.",
                "hi": "Is jawab se ek roz ki aadat chuniye aur agle saat din usse nibhaiye."},
 }
+# [repeated-move 2026-10-12] work / people / health had ONE canned fallback, so "How is tomorrow looking?" and "How is my week ahead?" ended on the same sentence.
+# A second line per group lets _pick_fallback hand out one the person has not just seen.
+_FALLBACK_ALT = {
+    "work": {"en": "Pick the one conversation or message you have been putting off at work, and send it before the week ends.",
+             "es": "Elige la conversación o el mensaje que has estado aplazando en el trabajo y envíalo antes de que termine la semana.",
+             "pt": "Escolha a conversa ou mensagem que você vem adiando no trabalho e envie antes de a semana terminar.",
+             "hi": "Kaam par jo ek baat ya message aap taal rahe hain, use is hafte ke ant se pehle bhej dijiye."},
+    "people": {"en": "Reach out to one person who matters to you this week, with no agenda beyond showing up.",
+               "es": "Esta semana acércate a una persona que te importa, sin otra intención que estar presente.",
+               "pt": "Esta semana procure uma pessoa que importa para você, sem outra intenção além de estar presente.",
+               "hi": "Is hafte ek aise insaan se judiye jo aapke liye maayne rakhta hai, bina kisi matlab ke, bas saath dene ke liye."},
+    "health": {"en": "Protect one fixed bedtime this week and keep it, even when the day runs long.",
+               "es": "Protege esta semana una hora fija de dormir y respétala, aunque el día se alargue.",
+               "pt": "Proteja esta semana um horário fixo para dormir e mantenha, mesmo quando o dia se alongar.",
+               "hi": "Is hafte sone ka ek tay samay bachaiye aur use nibhaiye, chahe din kitna bhi lamba ho."},
+}
 # money: a second move for when the answer itself says money is tight ("10% of every payment" reads
 # tone-deaf next to "outflow is running ahead of income"), and so a move is never repeated
 _MONEY_CUT = {"en": "Write down this month's three biggest outflows and cut or pause one of them this week.",
@@ -398,6 +414,8 @@ def _spec_move(prev_moves, lang: str = "en") -> str:
 
 def _pick_fallback(grp: str, lang: str, read: str, prev_moves) -> str:
     opts = [_FALLBACK_NEXT[grp][lang]]
+    if grp in _FALLBACK_ALT:
+        opts.append(_FALLBACK_ALT[grp][lang])
     if grp == "money":
         opts = ([_MONEY_CUT[lang], opts[0]] if _MONEY_TIGHT.search(read or "") else [opts[0], _MONEY_CUT[lang]])
     prev = {_norm_move(p) for p in (prev_moves or []) if p}
