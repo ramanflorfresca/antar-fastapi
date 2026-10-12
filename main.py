@@ -29412,6 +29412,20 @@ async def _ask_endpoint_impl(request: AskRequest):
         except Exception:
             pass
 
+    # [ask-speed 2026-10-11] the Haiku route classifier used to start only after the
+    # NLU wait (~3-4s serial). Start it now, alongside the NLU read; awaited below.
+    _ask_intent_task = None
+    try:
+        if mode == "yesno":
+            raise RuntimeError("explore-only")
+        from antar_engine.ask_intent import classify_intent as _ci_pre
+        _ask_intent_task = asyncio.create_task(_ci_pre(
+            question, language, chart_id=chart_id, supabase=supabase, surface="explore"))
+        _WA_TASKS.add(_ask_intent_task)
+        _ask_intent_task.add_done_callback(_WA_TASKS.discard)
+    except Exception:
+        _ask_intent_task = None
+
     # [crisis-safety 2026-09-07] A question carrying genuine distress must NEVER be
     # answered with a binary horary verdict ("no — the timing is against you") — that
     # is exactly the wrong reply to "is there any point?". Force such questions into
@@ -30930,10 +30944,11 @@ async def _ask_endpoint_impl(request: AskRequest):
             _ask_intent = None
             try:
                 from antar_engine.ask_intent import classify_intent, intent_concern
-                _ask_intent = await classify_intent(
+                _pre = locals().get("_ask_intent_task")
+                _ask_intent = await (_pre if _pre is not None else classify_intent(
                     question, language, chart_id=chart_id,
                     supabase=supabase, surface="explore",
-                )
+                ))
                 if _ask_intent.get("active_source") == "haiku":
                     _ask_concern = intent_concern(_ask_intent.get("domain")) or _ask_concern
             except Exception as _ice:

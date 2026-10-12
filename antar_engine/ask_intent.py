@@ -289,7 +289,7 @@ async def classify_intent(question: str, language: str = "en",
         cached = False
         hk, reason = None, None
         if supabase is not None and chart_id:
-            hk = _cache_lookup(supabase, chart_id, q_norm)
+            hk = await asyncio.to_thread(_cache_lookup, supabase, chart_id, q_norm)
             cached = hk is not None
         if hk is None:
             out = await _haiku_classify(question, language)
@@ -332,7 +332,7 @@ async def classify_intent(question: str, language: str = "en",
             })
         result.update({"agree": agree, "fallback_reason": reason, "haiku": hk})
         if supabase is not None:
-            _log_row(supabase, _build_log(
+            await asyncio.to_thread(_log_row, supabase, _build_log(
                 chart_id, surface, question, q_norm, language, kw, hk, agree,
                 result["active_source"], reason, cached))
         return result
