@@ -33977,7 +33977,12 @@ async def _ask_endpoint_impl(request: AskRequest):
                 _basis = _bb(locals().get("_ask_concern"), chart_data, locals().get("_ask_dashas"),
                              _ask_norm_lang(language)) if isinstance(payload, dict) else ""
                 if _basis and not _pos_done:
-                    payload["basis"] = _basis
+                    # [basis-plain 2026-10-12] the line people read is plain words; the technical wording stays as basis_facts
+                    from antar_engine import basis_plain as _BPL
+                    _plain = _BPL.build(locals().get("_ask_concern"), chart_data, locals().get("_ask_dashas"), _ask_norm_lang(language))
+                    payload["basis"] = _plain or _basis
+                    if _plain:
+                        payload["basis_facts"] = _basis
                 if _sd_basis and isinstance(payload, dict):
                     payload["basis"] = ((payload.get("basis") or "") + " " + _sd_basis).strip()
             except Exception as _bse:
