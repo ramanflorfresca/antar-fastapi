@@ -22,3 +22,14 @@ def test_longer_windows_and_missing_daily_are_left_alone():
     today = _row("money", "open_now", True)
     assert TE.reconcile_with_daily([today], None, "en")[0]["tag_kind"] == "open_now"
     assert TE.reconcile_with_daily([today], "garbage", "en")[0]["tag_kind"] == "open_now"      # never raises
+
+
+def test_fallback_topics_are_all_visible_on_home():
+    rows = TE.fallback_topics("en")
+    assert len(rows) == 7 and all(r["home_visible"] is True for r in rows)
+
+
+def test_home_visible_hides_only_the_quiet_rows_and_never_leaves_fewer_than_three():
+    import inspect
+    src = inspect.getsource(TE.rank_topics)
+    assert '"home_visible": kind != "quiet"' in src and "for r in out[:3]:" in src and 'r["home_visible"] = True' in src

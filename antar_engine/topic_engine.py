@@ -310,7 +310,7 @@ def fallback_topics(language: str = "en") -> List[dict]:
              "tag": C.TAG[lang]["quiet"], "tag_kind": "quiet", "tone": "steady", "rank": i + 1,
              "window_start": None, "window_end": None,
              "headline": C.pick(C.TILE_QUIET, lang), "verdict": C.pick(C.TILE_VERDICT, lang)["quiet"],
-             "ends_today": False}
+             "ends_today": False, "home_visible": True}      # nothing is known: hiding rows would hide everything
             for i, k in enumerate(TOPIC_KEYS)]
 
 
@@ -498,9 +498,15 @@ def rank_topics(ctx: TopicContext, today: date, language: str = "en") -> List[di
                                  "window_end": pw[2].isoformat() if pw else None,
                                  "headline": _tile_headline(lang, k, tone, kind),
                                  "verdict": C.pick(C.TILE_VERDICT, lang)[kind],
-                                 "ends_today": bool(pw and pw[2] == today and kind in ("open_now", "care_now"))}))
+                                 "ends_today": bool(pw and pw[2] == today and kind in ("open_now", "care_now")),
+                                 "home_visible": kind != "quiet"}))
         rows.sort(key=lambda r: r[0])
-        return [dict(r[1], rank=n + 1) for n, r in enumerate(rows)]
+        out = [dict(r[1], rank=n + 1) for n, r in enumerate(rows)]
+        # [home-visible 2026-10-12] Home lists only the areas that say something (open / opens / care now / care from); the quiet ones ("Nothing sharp is pulling on…") sit behind one link.
+        # Never fewer than 3 rows on screen, so a chart with one active area still shows some breadth.
+        for r in out[:3]:
+            r["home_visible"] = True
+        return out
     except Exception:
         logger.exception("[topics] ranking failed → steady fallback")
         return fallback_topics(lang)
