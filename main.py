@@ -10442,10 +10442,15 @@ Do not use any planet names or astrological jargon — translate everything into
                     _iy = int(_iy) if int(_iy) >= _imd.today().year else None
                 except (TypeError, ValueError):
                     _iy = None
+                from antar_engine.immigration import immigration_status_risk as _isr_fn
+                _ids = _current_dasha_str(dashas_response)
                 _iv = _iv_fn(_ia["structure"]["level"],
-                             _ip_fn(chart_data, _current_dasha_str(dashas_response)),
+                             _ip_fn(chart_data, _ids),
                              bool(_ia.get("hidden_obstacles")), _iy,
-                             getattr(request, 'language', 'en') or 'en')
+                             getattr(request, 'language', 'en') or 'en',
+                             status_risk=_isr_fn(chart_data, _ids, _ia),
+                             caution=_caution_text(chart_data, dashas_response,
+                                                   getattr(request, 'language', 'en') or 'en'))
                 if _iv.get("available"):
                     _resolver_verdict["verdict"] = _iv["band"]
                     _resolver_verdict["verdict_line"] = _iv["line"]
@@ -10517,8 +10522,11 @@ Do not use any planet names or astrological jargon — translate everything into
                 _lt = _lt_fn(chart_data, dashas_response, birth_date=_cbd)
                 _lyr = _chap_year((_lt or {}).get("best") if isinstance(_lt, dict) else None)
                 _outc = (_la.get("outcome") or {}) if _la.get("available") else {}
+                from antar_engine.arishta_gate import gate_level as _gl_fn
                 _lv = _lv_fn(_outc.get("lean") or "contested",
-                             bool(_outc.get("jupiter_protection")), _lyr, _cl2)
+                             bool(_outc.get("jupiter_protection")), _lyr, _cl2,
+                             gate=_gl_fn(chart_data, _current_dasha_str(dashas_response)),
+                             caution=_caution_text(chart_data, dashas_response, _cl2))
                 if _lv.get("available"):
                     _resolver_verdict["verdict"] = _lv["band"]
                     _resolver_verdict["verdict_line"] = _lv["line"]
@@ -10540,7 +10548,13 @@ Do not use any planet names or astrological jargon — translate everything into
                     _dt = _dt_fn(chart_data, dashas_response, birth_date=_cbd)
                     _dry = _chap_year(((_dt or {}).get("relief") or {}).get("best"))
                     _dpy = _chap_year(((_dt or {}).get("pressure") or {}).get("best"))
-                    _dv = _dv_fn(_da["lean"], _dry, _dpy, _cl2)
+                    from antar_engine.arishta_gate import gate_level as _gl_fn2
+                    from antar_engine.debt import debt_severity as _dsev_fn
+                    _dds = _current_dasha_str(dashas_response)
+                    _dv = _dv_fn(_da["lean"], _dry, _dpy, _cl2,
+                                 gate=_gl_fn2(chart_data, _dds),
+                                 severe=_dsev_fn(chart_data, _dds, _da),
+                                 caution=_caution_text(chart_data, dashas_response, _cl2))
                     if _dv.get("available"):
                         _resolver_verdict["verdict"] = _dv["band"]
                         _resolver_verdict["verdict_line"] = _dv["line"]
@@ -27069,6 +27083,18 @@ from antar_engine.immigration import is_immigration_q as _is_immigration_q  # no
 from antar_engine.debt import is_debt_q as _is_debt_q  # noqa: E402
 
 
+def _caution_text(chart_data, dashas, language="en") -> str:
+    """[proactive-caution 2026-10-12] The 'tell them BEFORE it matters' heads-up for legal /
+    status / money-obligation topics. '' unless the running dasha chain (to pratyantar/
+    sookshma) links to a natal-pressured trouble house. A caution to prepare, never a
+    forecast; never names jail/detention/deportation. Fail-open ''."""
+    try:
+        from antar_engine.arishta_gate import legal_caution, caution_note
+        return caution_note(legal_caution(chart_data, dashas), language)
+    except Exception:
+        return ""
+
+
 def _is_legal_q(question):
     """True for legal / disputes / litigation questions."""
     ql = (question or "").lower()
@@ -30809,6 +30835,20 @@ async def _ask_endpoint_impl(request: AskRequest):
                             _lp.append("TIMING: " + _lt["summary"] + " Give this as when the "
                                        "matter is most active / needs attention, in plain "
                                        "months-years.")
+                        from antar_engine.arishta_gate import gate_level as _lgl, legal_caution
+                        _cau = legal_caution(chart_data, get_dashas_for_chart(chart_id))
+                        if _cau.get("tier") in ("caution", "high"):
+                            _lp.append("PROACTIVE CAUTION (give it as a calm heads-up, near the end): the "
+                                      "present stretch calls for care around legal and official matters"
+                                      + (" — especially the next few weeks" if _cau.get("imminent") else "")
+                                      + ". Advise: keep everything above-board, keep copies of what they "
+                                      "sign, meet every deadline, bring in qualified counsel EARLY. Say it "
+                                      "is a caution to prepare, NOT a forecast. NEVER mention jail, arrest, "
+                                      "prison, detention or deportation, and never say anything WILL happen.")
+                        if _lgl(chart_data, _current_dasha_str(get_dashas_for_chart(chart_id))) == "none":
+                            _lp.append("CURRENT STRETCH: nothing in the present period is pressing on "
+                                       "legal matters — say plainly it reads more as worry than an active "
+                                       "cycle, WITHOUT claiming a matter cannot arise later.")
                         _lp.append("Close with one concrete, practical next step. This is not "
                                    "legal advice — suggest they consult a qualified lawyer for "
                                    "the actual case.")
@@ -30859,6 +30899,22 @@ async def _ask_endpoint_impl(request: AskRequest):
                         if _imt.get("best"):
                             _imp.append("TIMING: " + _imt["summary"] + " Give it as the stretch to prepare "
                                         "and push, in plain months-years.")
+                        from antar_engine.immigration import immigration_status_risk as _isr2
+                        from antar_engine.arishta_gate import legal_caution
+                        _cau = legal_caution(chart_data, get_dashas_for_chart(chart_id))
+                        if _cau.get("tier") in ("caution", "high"):
+                            _imp.append("PROACTIVE CAUTION (give it as a calm heads-up, near the end): the "
+                                      "present stretch calls for care around legal and official matters"
+                                      + (" — especially the next few weeks" if _cau.get("imminent") else "")
+                                      + ". Advise: keep everything above-board, keep copies of what they "
+                                      "sign, meet every deadline, bring in qualified counsel EARLY. Say it "
+                                      "is a caution to prepare, NOT a forecast. NEVER mention jail, arrest, "
+                                      "prison, detention or deportation, and never say anything WILL happen.")
+                        if _isr2(chart_data, _current_dasha_str(_imdash), _ima):
+                            _imp.append("STATUS CAUTION: advise keeping status spotless (never overstay or "
+                                        "work outside what it allows) and retaining counsel before any "
+                                        "deadline, interview or hearing. This is a caution, NEVER a "
+                                        "prediction of deportation, denial or detention.")
                         _imp.append("Close with one concrete next step. This is not legal or immigration "
                                     "advice — suggest an immigration attorney for the actual case.")
                         _ask_immigration_block = "\n".join(_imp)
@@ -30896,6 +30952,27 @@ async def _ask_endpoint_impl(request: AskRequest):
                             _dbp.append("TIMING: " + _dbt["summary"] + " Say it as when the squeeze "
                                         "is sharpest (avoid new obligations then) and when relief is "
                                         "most workable, in plain months-years.")
+                        from antar_engine.arishta_gate import gate_level as _dgl, legal_caution
+                        _cau = legal_caution(chart_data, get_dashas_for_chart(chart_id))
+                        if _cau.get("tier") in ("caution", "high"):
+                            _dbp.append("PROACTIVE CAUTION (give it as a calm heads-up, near the end): the "
+                                      "present stretch calls for care around legal and official matters"
+                                      + (" — especially the next few weeks" if _cau.get("imminent") else "")
+                                      + ". Advise: keep everything above-board, keep copies of what they "
+                                      "sign, meet every deadline, bring in qualified counsel EARLY. Say it "
+                                      "is a caution to prepare, NOT a forecast. NEVER mention jail, arrest, "
+                                      "prison, detention or deportation, and never say anything WILL happen.")
+                        from antar_engine.debt import debt_severity as _dsev
+                        _dds2 = _current_dasha_str(get_dashas_for_chart(chart_id))
+                        if _dsev(chart_data, _dds2, _dba):
+                            _dbp.append("SEVERITY: several pressure points are stacked in the current "
+                                        "stretch. Be honest it is a hard stretch (not a verdict on them) and "
+                                        "make restructuring or negotiating terms EARLY, with a qualified "
+                                        "counsellor, the first move. Never use the word bankruptcy as a prediction.")
+                        elif _dgl(chart_data, _dds2) == "none":
+                            _dbp.append("CURRENT STRETCH: nothing in the present period is pressing on "
+                                        "money obligations — say plainly it reads more as worry than an "
+                                        "active squeeze, WITHOUT claiming pressure cannot come later.")
                         _dbp.append("Close with ONE concrete step (list every obligation, rank by "
                                     "interest and urgency). This is not financial or legal advice.")
                         _ask_debt_block = "\n".join(_dbp)

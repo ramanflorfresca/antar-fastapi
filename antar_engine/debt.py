@@ -149,6 +149,19 @@ def analyze_debt(chart_data: dict) -> dict:
         return {"available": False, "error": str(e)[:160]}
 
 
+def debt_severity(chart_data: dict, dasha_str: Optional[str], analysis: Optional[dict]) -> bool:
+    """True when the RUNNING Mahadasha AND Antardasha lords both connect to the trouble
+    houses through at least two different houses (a stacked chain) and the natal
+    pressure is not low. Drives a 'restructure early' tier — never a bankruptcy forecast."""
+    try:
+        from antar_engine.arishta_gate import dasha_stack
+        st = dasha_stack(chart_data, dasha_str)
+        lvl = (((analysis or {}).get("pressure") or {}).get("level"))
+        return bool(st["level"] == "stack" and len(st["houses_hit"]) >= 2 and lvl in ("some", "high"))
+    except Exception:
+        return False
+
+
 def debt_timing(chart_data: dict, dashas: dict, birth_date: Optional[str] = None,
                 today: Optional[str] = None) -> dict:
     """Next pressure window AND next relief window. Returns
@@ -192,6 +205,11 @@ _DEBT_LINE = {
         "pt": "A pressão aqui é pesada e a margem é fina — trate reestruturar ou negociar condições cedo como a jogada inteligente, não como último recurso.",
     },
 }
+_DEBT_SEVERE = {
+    "en": "Several pressure points are stacked in the current stretch — treat restructuring or negotiating terms early, with a qualified counsellor, as the first move rather than a last resort. This is a hard stretch, not a verdict on you.",
+    "es": "Varios puntos de presión se acumulan en la etapa actual — trata reestructurar o negociar condiciones pronto, con un asesor calificado, como la primera jugada y no como último recurso. Es una etapa dura, no un veredicto sobre ti.",
+    "pt": "Vários pontos de pressão se acumulam na fase atual — trate reestruturar ou negociar condições cedo, com um consultor qualificado, como o primeiro passo e não como último recurso. É uma fase dura, não um veredito sobre você.",
+}
 _DEBT_MOVE = {
     "en": "List every obligation, rank by interest and urgency, and talk to a qualified financial counsellor — relief is most workable {win}.",
     "es": "Lista cada obligación, ordénalas por interés y urgencia, y habla con un asesor financiero calificado — el alivio es más viable {win}.",
@@ -221,15 +239,24 @@ def _when(L: str, yr) -> str:
     return {"en": f"around {yr}", "es": f"alrededor de {yr}", "pt": f"por volta de {yr}"}[L]
 
 
-def debt_verdict(lean: str, relief_year, peak_year=None, language: str = "en") -> dict:
+def debt_verdict(lean: str, relief_year, peak_year=None, language: str = "en",
+                 gate: Optional[str] = None, severe: bool = False, caution: str = "") -> dict:
     """CHAPTER-level debt verdict for the Ask /predict override. Never raises:
     {available, band, line, the_move, secondary_note, window_range}."""
     try:
         L = _debt_lang(language)
         lean = lean if lean in _DEBT_LINE else "contested"
-        band = "WEAK" if lean == "heavy" else "MIXED"
+        band = "WEAK" if (lean == "heavy" or severe) else "MIXED"
         rel, peak = _when(L, relief_year), _when(L, peak_year)
-        line = _DEBT_LINE[lean][L] + (_DEBT_PEAK[L].format(peak=peak) if peak else "")
+        base = _DEBT_SEVERE[L] if severe else _DEBT_LINE[lean][L]
+        line = base + (_DEBT_PEAK[L].format(peak=peak) if peak else "")
+        # fear-or-reality gate: the running stretch is not pressing on money obligations
+        from antar_engine.arishta_gate import gate_note
+        _gn = gate_note(gate, "debt", L)
+        if _gn and not severe:
+            line = _gn + " " + line
+        if caution:
+            line += " " + caution
         move = _DEBT_MOVE[L].format(win=rel) if rel else _DEBT_MOVE_NOWIN[L]
         return {"available": True, "band": band, "line": line, "the_move": move,
                 "secondary_note": _DEBT_DISCLAIM[L],
