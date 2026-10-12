@@ -29049,6 +29049,9 @@ _ASK_ADMIN_BYPASS = _cv_ask.ContextVar("ask_admin_bypass", default=False)
 # [conversation-layer] when /ask rewrote a follow-up ("How about tomorrow") into a
 # standalone question for the engines, history still records what was TYPED.
 _ASK_TYPED_Q = _cv_ask.ContextVar("ask_typed_question", default=None)
+# [other-person 2026-10-12] set when a question about another person's feelings, or a forecast of
+# illness, was rewritten into the asker's decision: {"kind", "original", "question"}.
+_ASK_REFRAMED = _cv_ask.ContextVar("ask_reframed", default=None)
 # [outcome-loop] which surface asked (app | whatsapp) — recorded on each claim.
 _ASK_CHANNEL = _cv_ask.ContextVar("ask_channel", default="app")
 
@@ -29507,7 +29510,12 @@ async def _ask_hindi_finalize(result, request):
 @app.post("/api/v1/ask")
 async def ask_endpoint(request: AskRequest):
     """Unified ASK endpoint — see _ask_endpoint_impl. Wraps it with the Hindi language guard."""
-    return await _ask_hindi_finalize(await _ask_endpoint_impl(request), request)
+    _ASK_REFRAMED.set(None)
+    _res = await _ask_hindi_finalize(await _ask_endpoint_impl(request), request)
+    _rf = _ASK_REFRAMED.get()
+    if _rf and isinstance(_res, dict):
+        _res["reframed"] = {"kind": _rf["kind"], "original": _rf["original"]}
+    return _res
 
 
 async def _ask_endpoint_impl(request: AskRequest):
@@ -29626,6 +29634,28 @@ async def _ask_endpoint_impl(request: AskRequest):
             mode = "explore"
     except Exception:
         pass
+
+    # [other-person 2026-10-12] Antar answers what the asker should DO and WHEN, never what
+    # another person feels or whether a body will fail. "Will my ex come back?" / "Does he
+    # love me?" / "Will I have a health scare?" are rewritten into the asker's decision and
+    # answered on the normal Explore path, so there is no Yes/No verdict on a third party.
+    # History keeps what was typed; the claim keeps what was answered. Kill switch:
+    # ASK_OTHER_PERSON_REFRAME=off.
+    if (os.getenv("ASK_OTHER_PERSON_REFRAME") or "on").strip().lower() not in ("0", "off", "false", "no"):
+        try:
+            from antar_engine import other_person as _op
+            _op_kind = _op.classify(question)
+            if _op_kind:
+                _op_q = _op.reframe(_op_kind, language)
+                if _op_q:
+                    print(f"[ask][other-person] {_op_kind}: {question!r} -> {_op_q!r}")
+                    if not _ASK_TYPED_Q.get():
+                        _ASK_TYPED_Q.set(question)
+                    _ASK_REFRAMED.set({"kind": _op_kind, "original": question, "question": _op_q})
+                    question = _op_q
+                    mode = "explore"
+        except Exception as _ope:
+            print(f"[ask][other-person] skipped (non-fatal): {_ope}")
 
     # [life-gate] resolve the reader's known facts once — appended to the
     # narrator's system prompt below so Ask never tells a business owner about
@@ -33972,7 +34002,7 @@ async def _ask_endpoint_impl(request: AskRequest):
             try:   # [outcome-loop] a checkable claim → prediction_claims
                 from antar_engine.outcomes import build_claim as _oc_build, record_claim as _oc_rec
                 from antar_engine import outcomes as _oc
-                _oc_claim = _oc_build(chart_id, _ASK_TYPED_Q.get() or question, payload,
+                _oc_claim = _oc_build(chart_id, (_ASK_REFRAMED.get() or {}).get("question") or _ASK_TYPED_Q.get() or question, payload,
                                       mode="explore", topic=locals().get("_ask_concern") or "general",
                                       language=language, channel=_ASK_CHANNEL.get(),
                                       engines=locals().get("_ask_engine_snap") or {})
