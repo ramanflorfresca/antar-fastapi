@@ -194,6 +194,16 @@ def _compose(cell: dict, with_move: bool) -> str:
     return line
 
 
+# Day-map area -> the topic key the topic tabs use (money|career|love|health|business|peace|family).
+# Lets the client open "your day, {topic} first" by key instead of matching label text. Travel has
+# no topic tab, so it carries None.
+AREA_TOPIC: Dict[str, Optional[str]] = {
+    "work": "career", "authority": "career", "money": "money", "speculation": "business",
+    "home": "family", "family": "family", "relationship": "love", "health": "health",
+    "spiritual": "peace", "travel": None,
+}
+
+
 def _row(dom: dict, key: str, with_move: bool, stage: Optional[str] = None) -> dict:
     band = _band(dom)
     cell = _cell_for(key, band, stage)
@@ -205,6 +215,7 @@ def _row(dom: dict, key: str, with_move: bool, stage: Optional[str] = None) -> d
             else (dom.get("polarity") or "neutral"))
     return {
         "key":   key,
+        "topic": AREA_TOPIC.get(key),
         "label": FRIENDLY_LABEL.get(key, (dom.get("label") or key).title()),
         "line":  _compose(cell, with_move=with_move),
         "tone":  tone,

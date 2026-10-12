@@ -1605,6 +1605,11 @@ def _clip_claim(text: str, limit: int) -> str:
         t = apply_user_facing_strips(t, "en") or t
     except Exception:
         pass
+    try:
+        from antar_engine.prediction_tracker import _plain_claim
+        t = _plain_claim(t)      # "your discipline and structure energy is" -> "…structure are"
+    except Exception:
+        pass
     if len(t) <= limit:
         return t
     m = _re_clip.match(r"(.+?[.!?])(\s|$)", t)
@@ -37362,17 +37367,21 @@ def submit_prediction_feedback(request: dict):
 
 @app.get("/api/v1/predictions/pending-feedback/{chart_id}")
 def get_pending_feedback_endpoint(chart_id: str, language: str = "en",
-                                  concern: Optional[str] = None):
+                                  concern: Optional[str] = None,
+                                  surface: Optional[str] = None):
     """Return predictions ready for user verification (max 3).
 
     Each item carries a `feedback_ui` hint (prompt + button labels) so the FE
     renders Won/Lost for speculation cards and the standard truth framing
     otherwise; posted status values (yes/no/partial) are unchanged.
 
-    `?concern=yesno` returns only Yes/No check-backs (the Ask follow-up card)."""
+    `?concern=yesno` returns only Yes/No check-backs (the Ask follow-up card).
+    `?surface=today` returns only today's own day-character claim (the Today screen), never a
+    chapter / Ask claim."""
     from antar_engine.prediction_tracker import get_pending_feedback
     _c = (concern or "").strip().lower() or None
-    items = get_pending_feedback(chart_id, supabase, language=language, concern=_c)
+    _s = (surface or "").strip().lower() or None
+    items = get_pending_feedback(chart_id, supabase, language=language, concern=_c, surface=_s)
     return {"pending": items, "count": len(items)}
 
 
