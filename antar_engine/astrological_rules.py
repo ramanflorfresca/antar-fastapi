@@ -683,6 +683,17 @@ def detect_concern(question: str) -> str:
     if any(_fre.search(m, q) for m in _fame_markers):
         return "fame"
 
+    # ── Visa / immigration / green card → foreign (2026-10-12) ──────────
+    # "what will happen on my immigration date?" read "date" as DATING and routed to love;
+    # "will I get my green card?" fell to general. An immigration question reads the
+    # foreign houses (9/12/4), whatever other words it carries.
+    try:
+        from antar_engine.immigration import is_immigration_q as _is_imm
+        if _is_imm(question):
+            return "foreign"
+    except Exception:
+        pass
+
     # ── Residence / local move → property (keyword bridge 2026-06-05) ──
     # Home, rent, and local-relocation questions must reach the 4th-house
     # domain ("property" — already wired in CONCERN_HOUSES, CONCERN_KARAKAS

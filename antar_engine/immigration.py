@@ -312,3 +312,22 @@ def immigration_verdict(level: str, phase: str, hidden_obstacles: bool, best_yea
                 "key": key}
     except Exception as e:
         return {"available": False, "error": str(e)[:160]}
+
+
+def _first_sentence(text: str) -> str:
+    """Up to and including the first sentence-ending full stop (the lead phrase)."""
+    t = (text or "").strip()
+    i = t.find(". ")
+    return t[: i + 1] if i != -1 else t
+
+
+# [outcome-lead 2026-10-12] The Ask lead for an immigration question is a LEAN on the pull and the
+# stretch — never "Likely —" / "No —" (which reads as a visa-approval forecast: live test, "Will my
+# H-1B get approved?" got "NO — No strong foreign move window"). Pairs with a suppressed verdict chip.
+def immigration_lead_phrase(level: str, phase: str, language: str = "en") -> str:
+    try:
+        L = _imm_lang(language)
+        key = "weak" if level == "weak" else (phase if phase in ("slow", "releasing") else "mixed")
+        return _first_sentence(_IMM_LINE[key][L])
+    except Exception:
+        return ""

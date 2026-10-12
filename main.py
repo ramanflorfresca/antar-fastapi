@@ -27129,7 +27129,27 @@ def _is_legal_q(question):
         "being sued", "suing", "sue them", "take them to court", "in court",
         "trial", "hearing", "settlement", "judge", "verdict", "dispute with",
         "legal fight", "arbitration", "custody", "restraining order",
-    ))
+    )) or any(w in ql for w in _LEGAL_I18N)
+
+
+# [legal-i18n 2026-10-12] Spanish / Portuguese / Hinglish legal phrases. Deliberately specific:
+# bare "demanda" is also "demand", "juicio" also "good judgement", "processo" also "process".
+_LEGAL_I18N = (
+    # es
+    "mi demanda", "la demanda judicial", "demanda legal", "ganar la demanda", "ganar mi demanda",
+    "me demandan", "me van a demandar", "demandarme", "demandar a", "demandado", "demandante",
+    "ganar el juicio", "ganar mi juicio", "perder el juicio", "juicio legal", "juicio civil",
+    "juicio penal", "mi juicio", "mi caso legal", "caso judicial", "mi caso en", "el tribunal",
+    "un tribunal", "ante el juez", "el juzgado", "audiencia judicial", "custodia de", "orden de alejamiento",
+    "pleito", "litigio", "acuerdo extrajudicial",
+    # pt
+    "processo judicial", "ganhar o processo", "ganhar meu processo", "perder o processo",
+    "ação judicial", "acao judicial", "me processar", "vão me processar", "meu processo na justiça",
+    "o tribunal", "um tribunal", "julgamento", "audiência", "audiencia de", "guarda dos filhos",
+    "litígio", "ação na justiça",
+    # hinglish
+    "mukadma", "mukadme", "mukaddama", "adalat", "kanooni case", "court mein", "case jeet", "case haar",
+)
 
 
 def _ask_legal_lead_phrase(lean, jup, lang="en"):
@@ -30812,6 +30832,8 @@ async def _ask_endpoint_impl(request: AskRequest):
             _ask_legal_block = ""
             _ask_legal_lean = None
             _ask_legal_jup = False
+            _ask_immigration_lead = ""
+            _ask_debt_lead = ""
             try:
                 if _is_legal_q(question):
                     from antar_engine.legal import analyze_legal, legal_timing
@@ -30894,6 +30916,8 @@ async def _ask_endpoint_impl(request: AskRequest):
                         _imt = immigration_timing(chart_data, _imdash, birth_date=_ask_birth_date)
                         _ims = _ima["structure"]
                         _imph = immigration_phase(chart_data, _current_dasha_str(_imdash))
+                        from antar_engine.immigration import immigration_lead_phrase
+                        _ask_immigration_lead = immigration_lead_phrase(_ims["level"], _imph, language)
                         _imp = ["IMMIGRATION QUESTION — answer from THIS deterministic reading. Never "
                                 "name a planet, house, or system — plain life-language only.",
                                 f"PULL TO BUILD A LIFE ABROAD: {_ims['level']}. CURRENT STRETCH: {_imph} "
@@ -30955,6 +30979,11 @@ async def _ask_endpoint_impl(request: AskRequest):
                     if _dba.get("available"):
                         _dbt = debt_timing(chart_data, get_dashas_for_chart(chart_id),
                                            birth_date=_ask_birth_date)
+                        from antar_engine.debt import debt_lead_phrase, debt_severity as _dsev0
+                        _ask_debt_lead = debt_lead_phrase(
+                            _dba["lean"],
+                            _dsev0(chart_data, _current_dasha_str(get_dashas_for_chart(chart_id)), _dba),
+                            language)
                         _dbp = ["DEBT QUESTION — answer from THIS deterministic reading. Never name a "
                                 "planet, house, or system — plain life-language only.",
                                 f"PRESSURE: {_dba['pressure']['level']}. CAPACITY TO CLEAR: "
@@ -33285,6 +33314,13 @@ async def _ask_endpoint_impl(request: AskRequest):
                     _ask_legal_lean, _ask_legal_jup, language)
                 _ask_conv["suppress_verdict"] = False
                 print(f"[ask][legal-framing] verdict lean-override: {_ask_legal_lean}")
+            # [outcome-lead 2026-10-12] immigration / debt: a LEAN lead, never "Likely —"/"No —".
+            if _ask_conv and _ask_immigration_lead and _is_immigration_q(question):
+                _ask_conv["verdict_phrase"] = _ask_immigration_lead
+                print(f"[ask][outcome-lead] immigration lean lead for {chart_id[:8]}")
+            elif _ask_conv and _ask_debt_lead and _is_debt_q(question) and not _is_legal_q(question):
+                _ask_conv["verdict_phrase"] = _ask_debt_lead
+                print(f"[ask][outcome-lead] debt lean lead for {chart_id[:8]}")
 
             # [domain-fit-veto 2026-09-30] A misaligned APPROACH must not wear an
             # affirmative chip or a "Yes —" lead: that green-lights the very approach
@@ -33368,6 +33404,18 @@ async def _ask_endpoint_impl(request: AskRequest):
                     print(f"[ask][health-soften] verdict chip + lead phrase suppressed for {chart_id[:8]}")
             except Exception as _hse:
                 print(f"[ask][health-soften] skipped: {_hse}")
+            # [outcome-lead 2026-10-12] Legal / immigration / debt outcomes are never ours to chip as
+            # "Likely"/"Yes"/"No" (live test: "Will I win my lawsuit?" → LIKELY; "Will my H-1B get
+            # approved?" → NO; "Will I ever get out of debt?" → "Likely within the year"). The lean
+            # lead phrase stays; the binary chip goes. Kill switch: ASK_OUTCOME_CHIP=on.
+            try:
+                if (_ask_conv and os.getenv("ASK_OUTCOME_CHIP", "off").lower() != "on"
+                        and (_is_legal_q(question) or _is_immigration_q(question)
+                             or _is_debt_q(question))):
+                    _ask_conv["suppress_verdict"] = True
+                    print(f"[ask][outcome-lead] verdict chip suppressed for {chart_id[:8]}")
+            except Exception as _ole:
+                print(f"[ask][outcome-lead] skipped: {_ole}")
 
             if _ask_decision and _ask_conv:
                 _verdict_phrase = (_ask_conv.get("verdict_phrase") or "").strip()

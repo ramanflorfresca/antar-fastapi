@@ -55,7 +55,9 @@ _DEBT_RE = re.compile(
     r"credit card (balance|debt|bill)|mortgage arrears|behind on (my )?(payments|rent|mortgage)|"
     r"deudas?\b|endeudad|acreedor|bancarrota|\bquiebra\b|"
     r"d[ií]vidas?\b|endividad|credor|fal[eê]ncia|"
-    r"\bkarz[a]?\b|\bqarz\b|\budh?aar\b")
+    r"loan off|off (my|the|this|a) loan|clear(ing)? (my|the|this|a) (loans?|debts?|dues)|\brepay|"
+    r"pay(ing)? (it |them )?back|loan (clear|payoff|pay off|closure)|close (my|the|this) loan|"
+    r"\bkarz[a]?\b|\bqarz\b|\budh?aar\b|loan (chuk|utar|band)")
 
 
 def is_debt_q(question) -> bool:
@@ -264,3 +266,21 @@ def debt_verdict(lean: str, relief_year, peak_year=None, language: str = "en",
                                         "pt": "no período à frente"}[L]}
     except Exception as e:
         return {"available": False, "error": str(e)[:160]}
+
+
+def _first_sentence(text: str) -> str:
+    t = (text or "").strip()
+    i = t.find(". ")
+    return t[: i + 1] if i != -1 else t
+
+
+# [outcome-lead 2026-10-12] The Ask lead for a debt question is a LEAN (recoverable / mixed /
+# heavy) — never "Likely within the year —" (live test), which promises a clearance date.
+# Pairs with a suppressed verdict chip.
+def debt_lead_phrase(lean: str, severe: bool = False, language: str = "en") -> str:
+    try:
+        L = _debt_lang(language)
+        lean = lean if lean in _DEBT_LINE else "contested"
+        return _first_sentence(_DEBT_SEVERE[L] if severe else _DEBT_LINE[lean][L])
+    except Exception:
+        return ""
