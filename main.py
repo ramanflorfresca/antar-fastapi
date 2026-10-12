@@ -51518,7 +51518,7 @@ async def _topic_read_full(chart_id: str, topic: str, scale: str, language, tz_o
     if out is None:
         return None
     lang, today = out.get("language") or "en", _prac_local_date(tz_offset)
-    ck = ("topic-read", "v15-volatile-balanced", chart_id, topic, scale, lang, today.isoformat())
+    ck = ("topic-read", "v16-hedge", chart_id, topic, scale, lang, today.isoformat())
     hit = _te.cache_get(ck)
     if hit is not None:
         return hit
@@ -51576,6 +51576,9 @@ async def get_chart_topic_read(chart_id: str, topic: str, scale: str = "month",
             if _mv:
                 out["your_move_generic"] = out.get("your_move")
                 out["your_move"] = _mv
+                _hg = out.get("move_hedge")   # the headline's caution hedge survives a personalised move, once
+                if _hg and _hg not in _mv and not re.search(r"\b(bet|bets|apuesta|aposta|daav)\b", _mv, re.I):
+                    out["your_move"] = f"{_mv.rstrip()} {_hg}"
             out["work_profile"] = _wp or None
             out["ask_work"] = _qs or None
             if topic in ("business", "career"):   # which kinds of work run WITH / AGAINST this chart (and the tier for THEIR work once known)

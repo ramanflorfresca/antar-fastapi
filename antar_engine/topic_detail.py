@@ -144,6 +144,7 @@ def balanced(out: dict, lang: str, note: Optional[str], tail: str = "", swing: b
         lead=C.pick(C.SPAN_LEAD, lang)[scale], good=good, care=care, tail=tail)
     if out.get("your_move"):
         add = C.pick(C.KEEP_SMALL, lang) if kind == "risk" and topic in _MONEY_TOPICS else C.pick(C.BAL_MOVE, lang).format(care=care)
+        out["move_hedge"] = add   # lets a later personalised Your move keep the same hedge
         if add not in out["your_move"] and not (kind == "risk" and topic in _MONEY_TOPICS and re.search(r"\b(bet|bets|apuesta|aposta|daav)\b", out["your_move"], re.I)):
             out["your_move"] = f"{out['your_move'].rstrip()} {add}"
     return out

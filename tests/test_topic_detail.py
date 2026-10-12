@@ -440,7 +440,7 @@ def test_route_attaches_detail_and_reconciles(client, monkeypatch):
     assert calls == ["daily"]
     c.get("/api/v1/chart/c/topic-read?topic=money&scale=today&tz_offset=-240")
     assert calls == ["daily"]                                                     # second hit is served from the cache
-    assert any(k[:2] == ("topic-read", "v15-volatile-balanced") for k in te._CACHE)           # version-salted key
+    assert any(k[:2] == ("topic-read", "v16-hedge") for k in te._CACHE)           # version-salted key
 
 
 @pytest.mark.parametrize("scale,need", [("month", "month"), ("year", "year"), ("season", "arc"), ("chapter", "arc")])
@@ -746,3 +746,10 @@ def test_volatile_core_is_native_in_every_language_and_jargon_free():
         assert "{area}" in C.TODAY_VOLATILE_CORE[lang] and not _JARGON.search(C.TODAY_VOLATILE_CORE[lang])
     o = D.reconcile(_love("steady", "es"), _VDAILY, "es")
     assert o["claim"] == "Hoy, espera altibajos en las relaciones cercanas."
+
+
+def test_balanced_exposes_the_move_hedge_for_a_later_personalised_move():
+    out = D.reconcile(_open_today(), DAILY, "en")
+    assert out["move_hedge"] == C.KEEP_SMALL["en"] and out["your_move"].endswith(out["move_hedge"])
+    care = D.reconcile(_open_today(tone="care"), DAILY, "en")
+    assert "move_hedge" not in care
