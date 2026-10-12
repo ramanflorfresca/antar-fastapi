@@ -35,6 +35,14 @@ async def run(personas, items, repeats):
     oc.record_claim = lambda *a, **k: None
     builtins.print = _print
     sem = asyncio.Semaphore(4)
+    from antar_engine.people_pointer import is_partnered
+    married = {}
+    for pe in personas:
+        try:
+            ms = (main.supabase.table("charts").select("marital_status").eq("id", pe["chart"]).limit(1).execute().data or [{}])[0].get("marital_status")
+        except Exception:
+            ms = None
+        married[pe["name"]] = is_partnered(ms)
 
     async def one(persona, item, rep):
         async with sem:
@@ -47,7 +55,7 @@ async def run(personas, items, repeats):
             except Exception as e:
                 return {"persona": persona["name"], "rep": rep, **item, "issues": ["ERROR"], "error": f"{type(e).__name__}: {e}"[:200]}
             return {"persona": persona["name"], "rep": rep, **item, "concern": p.get("concern"),
-                    "verdict": p.get("verdict"), "timing": p.get("timing"), "reframed": p.get("reframed"), "people_pointer": p.get("people_pointer"), "needs_clarification": p.get("needs_clarification"), "subject": p.get("subject"),
+                    "verdict": p.get("verdict"), "timing": p.get("timing"), "reframed": p.get("reframed"), "people_pointer": p.get("people_pointer"), "partnered": married.get(persona["name"], False), "needs_clarification": p.get("needs_clarification"), "subject": p.get("subject"),
                     "read": (p.get("read") or "").strip(), "next": (p.get("next") or "").strip(),
                     "issues": lane_checks(item, p)}
     return await asyncio.gather(*[one(pe, it, r) for pe in personas for it in items for r in range(repeats)])

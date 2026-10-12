@@ -155,3 +155,35 @@ def test_past_window_and_window_conflict_are_flagged():
                 "read": "The window is Nov 2026 – Apr 2027. A bigger window runs now through September 2028. Make one move."}
     assert "WINDOW_CONFLICT" in lane_checks(q, conflict)
     assert "WINDOW_CONFLICT" not in lane_checks(q, {**conflict, "read": "The window is Nov 2026 – Apr 2027. Make one move. Be honest."})
+
+
+def test_a_verdict_on_a_partnered_readers_own_marriage_is_flagged():
+    from tests.data.relationship_lane_checks import lane_checks
+    q = {"id": 5, "lane": "serve", "q": "Will my marriage last?"}
+    base = {"next": "x", "concern": "marriage", "partnered": True}
+    for bad in ("The foundation under this bond looks thin.", "Honestly the lasting support is fragile.", "It may be time to stop waiting on this.",
+                "Plan for closure.", "Your partner is pulling away."):
+        assert "PARTNERED_VERDICT" in lane_checks(q, {**base, "read": bad + " Make one move."}), bad
+    ok = "This bond asks for more deliberate care than most. Pick one moment this week to say what you need."
+    assert "PARTNERED_VERDICT" not in lane_checks(q, {**base, "read": ok})
+    assert "PARTNERED_VERDICT" not in lane_checks(q, {**base, "partnered": False, "read": "The foundation looks thin. Make one move."})
+
+
+def test_every_shape_of_the_divorced_two_window_answer_is_exempt_from_window_conflict():
+    from tests.data.relationship_lane_checks import lane_checks
+    q = {"id": 17, "lane": "serve", "q": "Will my marriage happen this year?"}
+    base = {"next": "x", "concern": "marriage", "timing": "Nov 2026 – Jan 2027"}
+    for read in ("Looking at the next twelve months:\nA new partnership: a window opens Nov 2026 – Jan 2027.\nSeparately, rebuilding with your former spouse: the supportive window opens Mar 2028 – May 2028.",
+                 "This is about your former spouse.\nRebuilding with your former spouse: the supportive window opens Mar 2028 – May 2028.\nSeparately, a new partnership: the next supportive window is Nov 2026 – Jan 2027."):
+        assert "WINDOW_CONFLICT" not in lane_checks(q, {**base, "read": read})
+
+
+def test_a_negated_harsh_word_is_the_soft_wording_working():
+    from tests.data.relationship_lane_checks import partnered_verdict
+    for ok in ("Your marriage needs care right now — not because it's failing, but because closeness takes effort.",
+               "A silence doesn't mean the relationship is failing.", "Treat that as clearing the air, not a reunion move.",
+               "This bond asks for more deliberate care than most."):
+        assert not partnered_verdict(ok), ok
+    for bad in ("The foundation under this bond looks thin.", "Honestly this marriage is failing.", "It may be time to stop waiting.",
+                "Your partner is pulling away. It is not easy."):
+        assert partnered_verdict(bad), bad

@@ -38,6 +38,10 @@ _ASSUMES = re.compile(r"\b(the affair|your affair|your lover|the third person)\b
 _OVER_PRECISE = re.compile(r"\b(within (?:a few |the next )?(?:days|weeks|hours)|in the next (?:few )?(?:days|weeks)|today|tonight|tomorrow|this week)\b", re.I)
 # a sentence whose date never arrived ("starting around, brings...")
 _DATELESS = re.compile(r"(?i)\b(?:starting|beginning|opening|arriving)\s+(?:around|about|in|from|by|at)?\s*[,.;]|(?:^|(?<=[.!?])\s+)(?:around|by|until|from)\s*[,.]\s|[.!?],\s+[a-z]")
+# a verdict on the reader's OWN marriage from an unvalidated heuristic: thin / fragile / failing / ending / stop waiting / reunion / closure
+_PARTNERED_VERDICT = re.compile(
+    r"(?i)\b(?:foundation|support|bond|marriage|relationship|connection)\b[^.!?]{0,60}\b(?:thin|fragile|weak|failing|failed|dying|ending)\b|"
+    r"\bstop\s+waiting\b|\b(?:reunion|closure|clean\s+break|walk\s+away|give\s+up)\b|\bpulling\s+away\b|\b(?:thin|fragile)\s+(?:foundation|support)\b")
 _CERTAIN = re.compile(r"\b(definitely|certainly|guaranteed|for sure|100%|without a doubt)\b", re.I)
 _DIVORCE_FACT = re.compile(r"\byou will (?:get )?(?:divorce|divorced)\b|\bmarriage will (?:end|fail)\b", re.I)
 _PEOPLE_HINT = re.compile(r"\b(people|circle|their (?:chart|birth)|compatib|add (?:them|him|her)|both (?:of your )?charts?|birth details)\b", re.I)
@@ -47,6 +51,19 @@ _SAYS_NO_WINDOW = re.compile(r"\b(no (?:strong |supported |clear |solid |real )?
 # a window stated in the prose (a year, a month, "through late 2027") answers a timing question even without a `timing` field
 _STATES_WINDOW = re.compile(r"(?i)\b(?:20[2-9]\d|jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b")
 _TIMING_Q = re.compile(r"^(when|what (?:month|year)|which (?:month|year)|will i .*(?:this year|before|in this|or the next)|exact year)", re.I)
+
+
+_NEGATION = re.compile(r"(?i)\b(?:not|never|no|nor|without|isn'?t|doesn'?t|don'?t|won'?t|aren'?t|wasn'?t|can'?t|cannot)\b")
+
+
+def partnered_verdict(text: str) -> bool:
+    """A harsh verdict on the reader's own marriage. 'not because it's failing' / 'doesn't mean it is failing' / 'not a reunion move' are the
+    soft wording working, so a harsh word that is being negated earlier in its sentence does not count."""
+    for m in _PARTNERED_VERDICT.finditer(text or ""):
+        sent_start = max((text.rfind(ch, 0, m.start()) for ch in ".!?\n"), default=-1) + 1
+        if not _NEGATION.search(text[sent_start:m.start()] + " " + text[m.start():m.end()]):
+            return True
+    return False
 
 
 def lane_checks(item: dict, p: dict) -> list:
@@ -97,6 +114,8 @@ def lane_checks(item: dict, p: dict) -> list:
         out.append(f"ROUTE_OFF:{concern}")
     if not concern and "CLARIFY_ASKED" not in out and not (p.get("people_pointer") or p.get("needs_clarification") or p.get("subject")):
         out.append("ROUTE_UNKNOWN")
+    if p.get("partnered") and partnered_verdict(str(p.get("read") or "")):
+        out.append("PARTNERED_VERDICT")
     if _DATELESS.search(text):
         out.append("SENTENCE_BROKEN")
     # [one-window 2026-10-12] a window that starts in the past, or a 'window' sentence that does not sit with the answer's headline window
@@ -105,7 +124,7 @@ def lane_checks(item: dict, p: dict) -> list:
         _body = str(p.get("read") or "")
         if _wg.clip_forward(_body) != _body:
             out.append("PAST_WINDOW")
-        two_window = bool(re.search(r"Rebuilding with .*\n.*A new partnership:|A new partnership:.*\n.*Rebuilding with", _body, re.S))
+        two_window = bool(re.search(r"(?is)rebuilding with.*new partnership|new partnership.*rebuilding with", _body))     # the divorced block names both on purpose
         if p.get("timing") and not two_window and _wg.drop_conflicting_window_sentences(_body, str(p.get("timing"))) != _body:
             out.append("WINDOW_CONFLICT")
     except Exception:

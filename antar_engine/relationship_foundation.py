@@ -160,7 +160,7 @@ def _d9_verdict(cd: dict) -> dict:
     return {"level": level, "score": round(score, 2), "flags": flags, "relief": relief}
 
 
-def analyze_foundation(chart_data: dict) -> dict:
+def analyze_foundation(chart_data: dict, partnered: bool = False) -> dict:
     """{available, sustenance{}, spouse_indicator{}, d9{}, foundation{band, score, unsound}, facts[]}.
     Never raises."""
     try:
@@ -180,13 +180,19 @@ def analyze_foundation(chart_data: dict) -> dict:
         band = "fragile" if unsound or total <= -3.0 else "sound" if total >= 2.0 and sus["level"] != "fragile" else "mixed"
         return {"available": True, "sustenance": sus, "spouse_indicator": dki, "d9": d9,
                 "foundation": {"band": band, "score": round(total, 2), "unsound": unsound},
-                "facts": foundation_facts(band, sus, dki, d9, unsound)}
+                "facts": foundation_facts(band, sus, dki, d9, unsound, partnered)}
     except Exception as e:
         return {"available": False, "error": str(e)[:160]}
 
 
-def foundation_facts(band, sus, dki, d9, unsound) -> list:
-    """Plain-language narrator lines (no planet/house/Upapada/Darakaraka/navamsa names)."""
+def foundation_facts(band, sus, dki, d9, unsound, partnered: bool = False) -> list:
+    """Plain-language narrator lines (no planet/house/Upapada/Darakaraka/navamsa names).
+
+    partnered=True (the reader is MARRIED / in the relationship being asked about): the same signals are worded as tendencies to tend -
+    where the bond is most easily strained and what protects it - never as 'thin', 'pulling away', 'no window' or 'ending'. The band is a
+    v1 heuristic, unvalidated against outcomes: it must not tell someone their own marriage is weak."""
+    if partnered:
+        return _foundation_facts_partnered(band, dki)
     L = [f"WHAT THE BOND IS MADE OF: foundation is {band}. "
          f"The part that lets a partnership survive pressure {sus['level']}; "
          f"the marriage chart as a whole {d9['level']} it."]
@@ -212,4 +218,30 @@ def foundation_facts(band, sus, dki, d9, unsound) -> list:
     else:
         L.append("MIXED FOUNDATION: the bond can hold but only with deliberate care — frame any window as "
                  "conditional on the reader's own steadiness, not as an outcome.")
+    return L
+
+
+_PARTNERED_SIDE = {
+    "fragile": "This bond is one that asks for more deliberate care than most: it has points that strain easily under pressure.",
+    "mixed": "This bond holds well when both people stay deliberate; it is tested most when pressure and distance pile up.",
+    "sound": "This bond has what it takes to hold under pressure.",
+}
+_PARTNERED_ROLE = {
+    "invested": "In the reader's life, the partner's role reads as engaged and invested.",
+    "mixed": "In the reader's life, the partner's role reads as engaged in some ways and in need of attention in others.",
+    "detached": "In the reader's life, the partner's role reads as stretched — closeness is likely to need deliberate attention.",
+    "burdened": "In the reader's life, the partner's role reads as carrying a load that can crowd out closeness — worth easing together.",
+}
+
+
+def _foundation_facts_partnered(band, dki) -> list:
+    L = ["WHAT THE BOND IS MADE OF (the reader is IN this relationship): " + _PARTNERED_SIDE.get(band, _PARTNERED_SIDE["mixed"])]
+    if dki.get("state") in _PARTNERED_ROLE:
+        L.append(_PARTNERED_ROLE[dki["state"]])
+    L.append("EPISTEMICS — HARD RULE: this describes the partner's ROLE in the reader's life and how the bond feels FROM THE READER'S SIDE. "
+             "It is NOT the partner's inner state or intentions: never say what he or she feels, wants or will do.")
+    L.append("THIS READER IS PARTNERED - SPEAK TO PROTECTING THE BOND, NEVER JUDGE IT: do not call the marriage weak, thin, fragile, failing or "
+             "ending, and do not mention a reunion, a closure or 'stop waiting'. These are tendencies from a heuristic that is not yet "
+             "validated against real outcomes. Name where the bond is most easily strained (pace, communication, closeness under "
+             "pressure) and give ONE concrete thing that protects it, then say the reader and their partner can act on it together.")
     return L

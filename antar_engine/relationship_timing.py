@@ -201,6 +201,15 @@ _SEASON_TXT = {
 }
 
 
+_SEASON_TXT_PARTNERED = {
+    "ending": ("THE RUNNING PERIODS ARE A HEAVY, TESTING STRETCH FOR THE SHARED LIFE. This reader is PARTNERED: this is a season to protect the "
+               "relationship through, NOT an ending and NOT a prediction about the marriage. Never say it is ending, never mention closure or a "
+               "reunion. Name the pressure plainly and give one protective step the two of them can take."),
+    "friction": ("THE RUNNING PERIODS DESCRIBE FRICTION INSIDE A LIVE BOND. This reader is PARTNERED: frame it as a hard stretch to work "
+                 "through together with a direct, calm conversation - not a break."),
+}
+
+
 def _my(d: date) -> str:
     return d.strftime("%b %Y")
 
@@ -210,7 +219,7 @@ def _dm(d: date) -> str:
 
 
 def analyze_season(chart_data: dict, dashas: Optional[dict] = None, today: Optional[date] = None,
-                   now: Optional[datetime] = None, sign_fn=None, with_transits: bool = True) -> dict:
+                   now: Optional[datetime] = None, sign_fn=None, with_transits: bool = True, partnered: bool = False) -> dict:
     """{available, season, reasons, stack, next_stretch, transits, facts[]}. Never raises."""
     try:
         cd = chart_data if isinstance(chart_data, dict) else {}
@@ -223,7 +232,7 @@ def analyze_season(chart_data: dict, dashas: Optional[dict] = None, today: Optio
         today = today or date.today()
         s = classify_season(planets, lagna, running)
         nxt = next_supported_stretch(planets, lagna, dashas or {}, today)
-        facts = [_SEASON_TXT[s["season"]]]
+        facts = [(_SEASON_TXT_PARTNERED.get(s["season"]) if partnered else None) or _SEASON_TXT[s["season"]]]
         ad, pd = nxt.get("ad"), nxt.get("pd")
         if ad:
             facts.append(f"The next sub-period genuinely tied to partnership runs {_my(ad['start'])} – {_my(ad['end'])}"

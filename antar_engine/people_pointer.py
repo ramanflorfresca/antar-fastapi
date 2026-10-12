@@ -168,6 +168,9 @@ def partner_activation(partner_chart: dict, partner_dashas: dict) -> dict:
 # ── the answer ────────────────────────────────────────────────────────────────
 _T = {
     "en": {
+        "side_care": "This bond asks for more deliberate care than most — it has points that strain easily under pressure.",
+        "verdict_care": "Both sides ask for deliberate care this season: a direct, calm conversation about what each of you needs is worth having — and you don't have to carry it alone.",
+        "next_care": "Pick one moment this week to say what you need, plainly and without blame — then listen for what they need.",
         "cant_state": "A chart can't tell me what {name} feels. What it can show is where {name}'s season is and how the bond holds from your side.",
         "cant": "A chart can't tell me what someone else feels, or whether they're \"the one\" — and I won't guess that from yours.",
         "pointer": "Add them in People (name, birth date, time and place) and I can compare your two charts and check whether their current chapter has partnership in it.",
@@ -188,6 +191,9 @@ _T = {
         "full": "Open {name} in People for the full compatibility read.",
     },
     "es": {
+        "side_care": "Este vínculo pide más cuidado deliberado que la mayoría: tiene puntos que se tensan con facilidad bajo presión.",
+        "verdict_care": "Los dos lados piden cuidado deliberado en esta temporada: vale la pena una conversación directa y tranquila sobre lo que cada uno necesita, y no tienes que cargarla solo.",
+        "next_care": "Elige un momento esta semana para decir lo que necesitas, con claridad y sin culpar; luego escucha lo que necesita la otra persona.",
         "cant_state": "Una carta no puede decirme lo que siente {name}. Lo que sí puede mostrar es en qué temporada está {name} y cómo se sostiene el vínculo desde tu lado.",
         "cant": "Una carta no puede decirme lo que siente otra persona, ni si es \"la indicada\" — y no voy a adivinarlo con la tuya.",
         "pointer": "Agrégala en Personas (nombre, fecha, hora y lugar de nacimiento) y podré comparar las dos cartas y ver si su etapa actual tiene la pareja en el centro.",
@@ -208,6 +214,9 @@ _T = {
         "full": "Abre a {name} en Personas para la lectura de compatibilidad completa.",
     },
     "pt": {
+        "side_care": "Este vínculo pede mais cuidado deliberado que a maioria: tem pontos que se tensionam com facilidade sob pressão.",
+        "verdict_care": "Os dois lados pedem cuidado deliberado nesta temporada: vale uma conversa direta e tranquila sobre o que cada um precisa, e você não precisa carregá-la sozinho.",
+        "next_care": "Escolha um momento esta semana para dizer o que precisa, com clareza e sem culpar; depois ouça o que a outra pessoa precisa.",
         "cant_state": "Um mapa não consegue me dizer o que {name} sente. O que ele mostra é em que temporada {name} está e como o vínculo se sustenta do seu lado.",
         "cant": "Um mapa não consegue me dizer o que outra pessoa sente, nem se ela é \"a pessoa certa\" — e não vou adivinhar isso com o seu.",
         "pointer": "Adicione em Pessoas (nome, data, hora e local de nascimento) e posso comparar os dois mapas e ver se a fase atual dela tem o relacionamento no centro.",
@@ -228,6 +237,9 @@ _T = {
         "full": "Abra {name} em Pessoas para a leitura de compatibilidade completa.",
     },
     "hinglish": {
+        "side_care": "Is bond ko zyada soch-samajh ke dhyan ki zaroorat hai — kuch jagah dabav mein jaldi khinchav aa jaata hai.",
+        "verdict_care": "Dono taraf is mausam mein dhyan maangti hain: ek seedhi, shaant baat — ki aap dono ko kya chahiye — karna sahi rahega, aur ise akele dhona zaroori nahi.",
+        "next_care": "Is hafte ek pal chuno aur bina dosh diye saaf kaho ki aapko kya chahiye — phir suno ki unhe kya chahiye.",
         "cant_state": "Ek chart yeh nahi bata sakta ki {name} kya mehsoos karte hain. Woh yeh dikha sakta hai ki {name} ka mausam kahan hai aur aapki taraf se bond kaise tik raha hai.",
         "cant": "Ek chart yeh nahi bata sakta ki doosra insaan kya mehsoos karta hai ya woh \"the one\" hai ya nahi — aur main yeh aapke chart se andaza nahi lagaunga.",
         "pointer": "Unhe People mein add karo (naam, janam tithi, samay aur jagah) — phir main dono charts compare karke dekh sakta hoon ki unka abhi ka daur partnership ka hai ya nahi.",
@@ -264,10 +276,11 @@ def _side_band(asker_chart: Optional[dict]) -> Optional[str]:
         return None
 
 
-def missing_payload(language: str, asker_chart: Optional[dict] = None, kind: str = "compat") -> dict:
+def missing_payload(language: str, asker_chart: Optional[dict] = None, kind: str = "compat", partnered: bool = False) -> dict:
     t = _T[_lg(language)]
     band = _side_band(asker_chart)
-    read = " ".join(x for x in (t["cant"], t["side"].get(band) if band else "", t["pointer"]) if x)
+    side = (t["side_care"] if (partnered and band == "fragile") else t["side"].get(band)) if band else ""
+    read = " ".join(x for x in (t["cant"], side, t["pointer"]) if x)
     return {"mode": "explore", "read": read, "next": t["next_missing"], "locked": False,
             "subject": {"relation": "partner", "chart_available": False},
             "people_pointer": {"kind": kind, "state": "missing"}}
@@ -279,8 +292,17 @@ def unreadable_payload(name: str, language: str, kind: str = "compat") -> dict:
             "people_pointer": {"kind": kind, "state": "unreadable"}}
 
 
+def is_partnered(marital_status: Optional[str], partner: Optional[dict] = None) -> bool:
+    """The reader is IN the relationship being asked about: married / partnered, or the saved person is their spouse."""
+    ms = str(marital_status or "").strip().lower().replace("-", "_").replace(" ", "_")
+    if ms in ("married", "partnered", "engaged", "in_relationship", "in_a_relationship", "domestic_partnership"):
+        return True
+    p = partner or {}
+    return str(p.get("compat_type") or "").lower() in ("spouse", "husband", "wife") or str(p.get("relation") or "").lower() in ("spouse", "husband", "wife")
+
+
 def partner_payload(name: str, language: str, asker_chart: dict, partner_chart: dict, partner_dashas: dict,
-                    kind: str = "compat") -> dict:
+                    kind: str = "compat", partnered: bool = False) -> dict:
     """The answer when exactly one romantic person with a readable chart is saved."""
     t = _T[_lg(language)]
     act = partner_activation(partner_chart, partner_dashas)
@@ -288,7 +310,10 @@ def partner_payload(name: str, language: str, asker_chart: dict, partner_chart: 
         return unreadable_payload(name, language, kind)
     band = _side_band(asker_chart)
     state = act["state"]
-    if band == "fragile" and state in ("quiet", "touching"):
+    if partnered and band == "fragile":
+        # never "stop waiting on it" to someone about their own spouse, from a heuristic that is not yet validated
+        verdict, nxt = t["verdict_care"], t["next_care"]
+    elif band == "fragile" and state in ("quiet", "touching"):
         verdict, nxt = t["verdict_stop"], t["next_stop"]
     elif band in ("sound", "mixed") and state == "active":
         verdict, nxt = t["verdict_go"], t["next_go"]
@@ -296,7 +321,7 @@ def partner_payload(name: str, language: str, asker_chart: dict, partner_chart: 
         verdict, nxt = t["verdict_mix"], t["next_mix"]
     parts = ([t["cant_state"].format(name=name)] if kind == "state" else []) + [t["theirs"][state].format(name=name)]
     if band:
-        parts.append(t["side"][band])
+        parts.append(t["side_care"] if (partnered and band == "fragile") else t["side"][band])
     parts += [verdict, t["full"].format(name=name)]
     return {"mode": "explore", "read": " ".join(parts), "next": nxt, "locked": False,
             "subject": {"name": name, "relation": "partner", "chart_available": True},

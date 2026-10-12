@@ -81,3 +81,9 @@ def test_ordinary_first_sentences_with_similar_words_are_untouched():
               "This is a hard stretch for money, and the window opens in March. Build the ground first."):
         out, changed = strip_ack_opener(t)
         assert not changed and out == t, t
+
+
+def test_that_fear_is_real_keeps_the_answer_after_the_dash():
+    t = "Andres, that fear is real — and the timing gives you a steady answer: yes, this marriage has the bones to last. The stretch is testing."
+    out, changed = strip_ack_opener(t)
+    assert changed and out.startswith("The timing gives you a steady answer") and "fear is real" not in out and "testing" in out

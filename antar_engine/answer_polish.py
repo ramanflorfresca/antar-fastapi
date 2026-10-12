@@ -513,7 +513,7 @@ _NAME = r"(?:[A-ZÀ-ÿ][\w'’-]{1,20},\s+)?"
 _ACK_FIRST = re.compile(
     r"(?i)^\s*" + _NAME + r"(?:"
     r"i\s+(?:hear|understand|can\s+see|know|take|get)\b|"
-    r"(?:this|that|the|your)\s+(?:question|one|weight|uncertainty|doubt|worry|feeling|situation|wait)\b[^.!?:—]{0,70}?"
+    r"(?:this|that|the|your)\s+(?:question|one|weight|uncertainty|doubt|worry|fear|fears|concern|feeling|situation|wait)\b[^.!?:—]{0,70}?"
     r"\b(?:matters?|carries|deserves|is\s+real|are\s+real|means\s+a\s+lot|weighs|is\s+heavy|isn'?t\s+small|makes\s+sense)\b|"
     r"(?:this|that|it)\s+is\s+weighing\b[^.!?:—]{0,50}|"
     r"(?:sitting|carrying|holding|living|staying)\s+with\b[^.!?:—]{0,60}|"

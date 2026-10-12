@@ -29687,6 +29687,8 @@ async def _ask_endpoint_impl(request: AskRequest):
             if _pp_kind:
                 _pp_people = await asyncio.to_thread(_ask_load_people_sync, chart_id)
                 _pp_cands = _pp.partner_candidates(_pp_people)
+                _pp_ms = await asyncio.to_thread(
+                    lambda: ((supabase.table("charts").select("marital_status").eq("id", chart_id).limit(1).execute().data or [{}])[0]).get("marital_status"))
                 if len(_pp_cands) == 1:
                     _pp_who = _pp_cands[0]
                     _pp_name = (_pp_who.get("name_b") or _pp_who.get("name") or "").strip() or "them"
@@ -29698,7 +29700,8 @@ async def _ask_endpoint_impl(request: AskRequest):
                         if _pcd and not (_pdash or {}).get("vimsottari"):
                             _pdash = {"vimsottari": _normalise_dashas(
                                 vimsottari.calculate_vimsottari_from_chart(_pcd, _pcd.get("birth_jd")))}
-                        _pp_payload = _pp.partner_payload(_pp_name, language, _acd or {}, _pcd or {}, _pdash or {}, _pp_kind)
+                            _pp_payload = _pp.partner_payload(_pp_name, language, _acd or {}, _pcd or {}, _pdash or {}, _pp_kind,
+                                                          partnered=_pp.is_partnered(_pp_ms, _pp_who))
                     except Exception as _ppl:
                         print(f"[ask][people-pointer] partner chart unreadable: {str(_ppl)[:140]}")
                         _pp_payload = _pp.unreadable_payload(_pp_name, language, _pp_kind)
@@ -29707,7 +29710,8 @@ async def _ask_endpoint_impl(request: AskRequest):
                 else:
                     _pp_arow = await asyncio.to_thread(
                         lambda: (supabase.table("charts").select("chart_data").eq("id", chart_id).limit(1).execute().data or [{}])[0])
-                    _pp_payload = _pp.missing_payload(language, _safe_jsonb(_pp_arow.get("chart_data")), _pp_kind)
+                    _pp_payload = _pp.missing_payload(language, _safe_jsonb(_pp_arow.get("chart_data")), _pp_kind,
+                                                      partnered=_pp.is_partnered(_pp_ms))
                 print(f"[ask][people-pointer] {_pp_kind}: partners={len(_pp_cands)} -> {(_pp_payload.get('people_pointer') or {}).get('state') or 'which-one'}")
                 try:
                     await _ask_persist(supabase, chart_id, question, _pp_payload, language, "explore", None)
@@ -30558,7 +30562,7 @@ async def _ask_endpoint_impl(request: AskRequest):
                         # claim to the partner's ROLE in the reader's life, never their inner state.
                         try:
                             from antar_engine.relationship_foundation import analyze_foundation
-                            _fd = analyze_foundation(chart_data)
+                            _fd = analyze_foundation(chart_data, partnered=(_partnered is True))
                             if _fd.get("available"):
                                 _rp.extend(_fd["facts"])
                         except Exception as _fde:
@@ -30569,11 +30573,11 @@ async def _ask_endpoint_impl(request: AskRequest):
                         # (a few hundred ephemeris calls).
                         try:
                             from antar_engine.relationship_timing import analyze_season as _analyze_season
-                            _sn = await run_in_threadpool(_analyze_season, chart_data, _rel_dashas)
+                            _sn = await run_in_threadpool(lambda: _analyze_season(chart_data, _rel_dashas, partnered=(_partnered is True)))
                             if _sn.get("available"):
                                 _rp.extend(_sn["facts"])
                                 _fband = (((locals().get("_fd") or {}).get("foundation")) or {}).get("band")
-                                if _sn["season"] == "ending" and _fband == "fragile":
+                                if _sn["season"] == "ending" and _fband == "fragile" and _partnered is not True:
                                     _rp.append("BOTH THE RUNNING PERIODS AND THE FOUNDATION POINT TO AN ENDING: say it kindly and plainly, offer "
                                                "closure steps and what the reader wants next, and do NOT offer a reunion date or a string of soft maybes.")
                         except Exception as _sne:
