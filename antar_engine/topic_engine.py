@@ -506,6 +506,32 @@ def rank_topics(ctx: TopicContext, today: date, language: str = "en") -> List[di
         return fallback_topics(lang)
 
 
+# [today-agree 2026-10-11] Today's call, the Rituals "Today" line and the daily domain strip all come from the daily engine. A topic card whose
+# window is TODAY-ONLY used to say "Good time" while that engine said "care" for the same area (Home: Money "Good time · Today only" next to
+# "Money needs care"). For today-only windows the daily vote wins; longer windows are left alone.
+_DAILY_DOMAIN = {"money": "money", "career": "work", "health": "body"}
+
+
+def reconcile_with_daily(rows: List[dict], daily_domains, lang: str = "en") -> List[dict]:
+    """rows: rank_topics() output; daily_domains: the daily-signal `domains` list ([{key, state}]). Pure; never raises; returns the same rows."""
+    try:
+        state = {d.get("key"): d.get("state") for d in (daily_domains or []) if isinstance(d, dict)}
+        for r in rows:
+            dk = _DAILY_DOMAIN.get(r.get("key"))
+            if not dk or state.get(dk) != "caution":
+                continue
+            if r.get("ends_today") and r.get("tag_kind") == "open_now":
+                r["tag"] = C.TAG[lang]["care_now"]
+                r["tag_kind"] = "care_now"
+                r["tone"] = "care"
+                r["verdict"] = C.pick(C.TILE_VERDICT, lang)["care_now"]
+                r["headline"] = _tile_headline(lang, r["key"], "care", "care_now")
+        return rows
+    except Exception:
+        logger.exception("[topics] daily reconcile skipped")
+        return rows
+
+
 # ── windows ──────────────────────────────────────────────────────────────────
 def clamp_window(start: date, end: date, today: date) -> Optional[Tuple[date, date]]:
     """No window or deadline may ever be dated before today."""

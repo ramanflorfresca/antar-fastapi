@@ -51297,6 +51297,12 @@ def _topics_compute(chart_id: str, language, tz_offset):
     if hit is not None:
         return hit
     out = _te.rank_topics(ctx, today, lang)
+    try:  # [today-agree 2026-10-11] a today-only "Good time" never contradicts the daily vote for the same area
+        _dc = _daily_surface_get(chart_id, "daily-signal", lang, today.isoformat())
+        if isinstance(_dc, dict):
+            out = _te.reconcile_with_daily(out, _dc.get("domains"), lang)
+    except Exception:
+        pass
     _topic_log_fingerprint("topics", chart_id, ctx, out)
     # a partial result (transit feed or a scale read failed) must not be pinned for hours
     _te.cache_put(ck, out, _TOPIC_DEGRADED_TTL if ctx.degraded else _TOPIC_LIST_TTL)

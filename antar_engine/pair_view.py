@@ -38,6 +38,11 @@ _TX = {
         "flows": "Working together", "care": "Tend these", "open": "Who decides", "friction_low": "Little friction between you", "friction_high": "Friction to manage",
         "open_n": "{n} areas have no owner yet", "open_1": "1 area has no owner yet", "open_0": "Every area has an owner",
         "care_none": "Nothing flagged",
+        "st_FLOW": "Strong", "st_MIXED": "Mixed", "st_STRAIN": "Needs care",
+        "fl_FLOW": "Works well together", "fl_MIXED": "Works with some effort", "fl_STRAIN": "Needs care to work well",
+        "who_advisor": "You decide; they advise", "who_employee": "You set the direction", "who_boss": "They set the direction",
+        "out_h": "You and {b} are in different seasons ({when}). Expect different rhythms then.",
+        "mixed_h": "Your rhythms differ in {n} of the 3 periods marked Out.",
         "sync": "Your seasons line up: you can move at the same pace.",
         "out_a": "You are moving outward and {b} inward ({when}). Agree who sets the pace then.",
         "out_b": "{b} is moving outward and you inward ({when}). Agree who sets the pace then.",
@@ -48,6 +53,11 @@ _TX = {
         "flows": "Trabajar juntos", "care": "Para cuidar", "open": "Quién decide", "friction_low": "Poca fricción entre ustedes", "friction_high": "Fricción por manejar",
         "open_n": "{n} áreas sin dueño todavía", "open_1": "1 área sin dueño todavía", "open_0": "Cada área tiene dueño",
         "care_none": "Nada señalado",
+        "st_FLOW": "Fuerte", "st_MIXED": "Mixta", "st_STRAIN": "Necesita cuidado",
+        "fl_FLOW": "Funcionan bien juntos", "fl_MIXED": "Funciona con algo de esfuerzo", "fl_STRAIN": "Necesita cuidado para funcionar bien",
+        "who_advisor": "Tú decides; esa persona aconseja", "who_employee": "Tú marcas la dirección", "who_boss": "Esa persona marca la dirección",
+        "out_h": "Tú y {b} están en temporadas distintas ({when}). Esperen ritmos distintos entonces.",
+        "mixed_h": "Sus ritmos difieren en {n} de los 3 periodos marcados Out.",
         "sync": "Sus temporadas coinciden: pueden avanzar al mismo ritmo.",
         "out_a": "Tú vas hacia afuera y {b} hacia adentro ({when}). Acuerden quién marca el ritmo entonces.",
         "out_b": "{b} va hacia afuera y tú hacia adentro ({when}). Acuerden quién marca el ritmo entonces.",
@@ -109,8 +119,18 @@ def build(session_out: dict, dashas_a: dict, dashas_b: dict, language: str = "en
         layers = [l for l in (session_out.get("layers") or []) if isinstance(l, dict)]
         by = {l.get("layer_key"): l for l in layers}
         fr = by.get("friction")
-        flows = {"state": "flows" if (fr and (fr.get("score") or 0) >= 60) else "care",
-                 "label": tx["flows"], "text": tx["friction_low"] if (fr and (fr.get("score") or 0) >= 60) else tx["friction_high"]}
+        badge = str(session_out.get("badge") or "").upper()
+        if badge in ("FLOW", "MIXED", "STRAIN"):
+            # [one-verdict 2026-10-11] the chip and this tile used different measures (overall score vs the friction layer): a red "Friction" chip
+            # sat over a green "Little friction between you". Both now say the OVERALL verdict.
+            flows = {"state": "flows" if badge == "FLOW" else "care", "label": tx["flows"], "text": tx["fl_" + badge]}
+            status = {"badge": badge, "label": tx["st_" + badge], "tone": {"FLOW": "flows", "MIXED": "mixed", "STRAIN": "care"}[badge]}
+        else:
+            flows = {"state": "flows" if (fr and (fr.get("score") or 0) >= 60) else "care",
+                     "label": tx["flows"], "text": tx["friction_low"] if (fr and (fr.get("score") or 0) >= 60) else tx["friction_high"]}
+            status = None
+        ctype = str(session_out.get("compat_type") or "").lower()
+        hier = bool(roles and roles.get("kind") == "hierarchy") or ctype in ("advisor", "employee", "boss")
         low = [k for k, l in sorted(((k, l) for k, l in by.items() if k != "friction"), key=lambda kv: kv[1].get("score") or 0) if (l.get("score") or 0) < 55][:3]
         care = {"label": tx["care"], "areas": low, "text": ", ".join(_CARE[lang][k] for k in low[:2]) if low else tx["care_none"]}
         lanes, open_n = [], 0
@@ -123,6 +143,8 @@ def build(session_out: dict, dashas_a: dict, dashas_b: dict, language: str = "en
                 lanes.append({"lane": lane, "label": nm[lane], "owner": owner})
             open_n = sum(1 for l in lanes if l["owner"] == "open")
         open_t = {"label": tx["open"], "n": open_n, "text": tx["open_0"] if open_n == 0 else tx["open_1"] if open_n == 1 else tx["open_n"].format(n=open_n)}
+        if hier and ("who_" + ctype) in tx:
+            open_t = {"label": tx["open"], "n": 0, "text": tx["who_" + ctype]}
         a, b = seasons_for(dashas_a, today, lang), seasons_for(dashas_b, today, lang)
         seasons = None
         name_b = (session_out.get("name_b") or "").strip().split(" ")[0] if session_out.get("name_b") else ""
@@ -130,6 +152,11 @@ def build(session_out: dict, dashas_a: dict, dashas_b: dict, language: str = "en
             sync = [x["group"] == y["group"] for x, y in zip(a, b)]
             if all(sync):
                 summary = tx["sync"]
+            elif hier and sum(1 for ok in sync if not ok) >= 2:
+                summary = tx["mixed_h"].format(n=sum(1 for ok in sync if not ok))
+            elif hier:
+                first = next(i for i, ok in enumerate(sync) if not ok)
+                summary = tx["out_h"].format(b=name_b or ("la otra persona" if lang == "es" else "the other person"), when=PERIOD_LABELS[lang][first].lower())
             elif any(sync) and sum(1 for ok in sync if not ok) >= 2:
                 summary = tx["mixed"].format(n=sum(1 for ok in sync if not ok))
             else:
@@ -140,7 +167,7 @@ def build(session_out: dict, dashas_a: dict, dashas_b: dict, language: str = "en
         else:
             who = tx["you"] if not a else (name_b or "the other person")
             seasons = {"periods": list(PERIODS), "period_labels": PERIOD_LABELS[lang], "you": a, "other": b, "in_sync": None, "summary": tx["no_data"].format(who=who)}
-        return {"version": "pair-view-1", "language": lang, "tiles": {"flows": flows, "care": care, "open": open_t}, "lanes": lanes, "seasons": seasons}
+        return {"version": "pair-view-1", "language": lang, "tiles": {"flows": flows, "care": care, "open": open_t}, "status": status, "lanes": lanes, "seasons": seasons}
     except Exception as e:
         print(f"[pair-view] failed: {type(e).__name__}: {e}")
         return None
