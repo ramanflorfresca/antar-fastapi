@@ -27955,6 +27955,55 @@ def _ask_needs_career_clarify(question: str, chart_record: dict, thread: list) -
     return not _ask_known_current_role(chart_record, question, thread)
 
 
+async def _positioning_answer(chart_id, chart_data, dashas, jd, bdate, question, language):
+    """[positioning 2026-10-12] {messages, next, chips, ask_back} for "how should I position / pitch / brand my <work>?" — or None when the question isn't that (or the language isn't en/es).
+    Deterministic (work profile + lane fit + season + next career window); no LLM. Shared by the EARLY return (right after the chart loads: ~1 s instead of ~8 s) and the late safety block."""
+    from antar_engine import positioning as _POS
+    if language not in ("en", "es") or not _POS.is_positioning_q(question):
+        return None
+    from antar_engine import work_profile as _WPP, work_fit as _WFP, d10_career as _D10P, partner_roles as _PRP
+    _wpp = await asyncio.to_thread(_WPP.get, supabase, chart_id)
+    _pr = _POS.interview(_wpp, language)
+    if _pr:
+        return _pr
+    _rk = (_D10P.analyze_career(chart_data) or {})
+    _fit = _WFP.fit(_rk.get("careers") or [], _wpp.get("what"), language)
+    _md, _ad = _PRP.running_lords(dashas or {})
+    _until = ""
+    try:
+        from antar_engine.chart_identity import _running_chapter as _rc
+        _ae = (_rc((dashas or {}).get("vimsottari"), date.today()) or {}).get("antar_ends")
+        _until = datetime.strptime(_ae, "%Y-%m-%d").strftime("%b %Y") if _ae else ""
+    except Exception:
+        _until = ""
+    _win = ""
+    try:   # the next career window (explicit import: this can run on a path where the event engine was never imported)
+        from antar_engine.event_narrator import run_event_engine as _ree_pos
+        _eec = await asyncio.to_thread(_ree_pos, chart_data, jd, dashas, bdate, "career")
+        _win = (_eec or {}).get("timing_label") or ""
+        if not _win:
+            print(f"[ask][positioning] no career window: verdict={((_eec or {}).get('verdict') or {}).get('verdict')}")
+    except Exception as _wine:
+        print(f"[ask][positioning] career window failed: {_wine!r}")
+    _vs = await asyncio.to_thread(_read_ventures, chart_id)
+    _past = []
+    try:
+        _generic = "your business" if language == "en" else "tu negocio"
+        for _v in _vs:
+            if _WFP.bucket_of(_v.get("label")) in ("food_hosp", "retail_inv", "ops_heavy") and (_v.get("outcome") or "") not in ("still going", "ongoing", "active"):
+                _n = _WPP.short_name(_v.get("label"), "running_business", language)
+                if _n != _generic:
+                    _past.append(_n)
+    except Exception:
+        _past = []
+    return _POS.compose(chart_data, _fit, _wpp, md=_md, until=_until, window=_win, leadership=_rk.get("leadership_level") or "", past_hands_on=_past, lang=language)
+
+
+def _positioning_payload(_pr: dict) -> dict:
+    return {"mode": "explore", "locked": False, "messages": _pr["messages"], "read": "\n\n".join(_pr["messages"]), "next": _pr.get("next"), "ask_back": _pr.get("ask_back"),
+            "verdict": None, "timing": None, "basis": "", "suggested_followups": _pr.get("chips") or [], "answer_kind": "positioning"}
+
+
 def _ask_career_clarify_payload(language: str = "en") -> dict:
     _lang = (language or "en").lower()
     if _lang.startswith("es"):
@@ -29759,6 +29808,22 @@ async def _ask_endpoint_impl(request: AskRequest):
             _ask_jd    = _safe_jsonb(chart_row.data.get("jaimini_data"))
             _ask_lk    = _safe_jsonb(chart_row.data.get("lal_kitab_data"))
             _ask_bdate = str(chart_row.data.get("birth_date") or "")[:10]
+
+            # [positioning-early 2026-10-12] "How should I position my <work>?" needs no language model: answer it right here (~1 s) instead of running the whole pipeline first (~8 s).
+            if not _ask_crisis and language in ("en", "es"):
+                try:
+                    _pe = await _positioning_answer(chart_id, chart_data, await asyncio.to_thread(get_dashas_for_chart, chart_id) or {},
+                                                    _safe_jsonb(chart_row.data.get("jaimini_data")) or None, _ask_bdate, question, language)
+                    if _pe:
+                        _pe_payload = _positioning_payload(_pe)
+                        print(f"[ask][positioning] early {'interview ' + _pe['ask_back']['key'] if _pe.get('ask_back') else 'answer'} messages={len(_pe['messages'])}")
+                        try:
+                            await _ask_persist(supabase, chart_id, question, _pe_payload, language, "explore", None)
+                        except Exception as _pe_p:
+                            print(f"[ask][positioning] persist non-fatal: {_pe_p}")
+                        return _pe_payload
+                except Exception as _pe_e:
+                    print(f"[ask][positioning] early path skipped (falls through to the normal pipeline): {_pe_e!r}")
 
             # [career-clarify 2026-09-24] Before a GENERIC career-fit read, ask what
             # the reader does today if we don't already know — the same chart reads
@@ -33968,53 +34033,12 @@ async def _ask_endpoint_impl(request: AskRequest):
             # the lane fit + the season; with no work profile yet, the reply is the interview question (`ask_back`). `read` carries the same text joined, for clients that don't render messages yet.
             _pos_done = False
             try:
-                from antar_engine import positioning as _POS
-                if isinstance(payload, dict) and language in ("en", "es") and _POS.is_positioning_q(question):
-                    from antar_engine import work_profile as _WPP, work_fit as _WFP, d10_career as _D10P, partner_roles as _PRP
-                    _wpp = await asyncio.to_thread(_WPP.get, supabase, chart_id)
-                    _pr = _POS.interview(_wpp, language)
-                    if not _pr:
-                        _rk = (_D10P.analyze_career(chart_data) or {})
-                        _fit = _WFP.fit(_rk.get("careers") or [], _wpp.get("what"), language)
-                        _md, _ad = _PRP.running_lords(locals().get("_ask_dashas") or {})
-                        _until = ""
-                        try:
-                            from antar_engine.chart_identity import _running_chapter as _rc
-                            _ae = (_rc((locals().get("_ask_dashas") or {}).get("vimsottari"), date.today()) or {}).get("antar_ends")
-                            _until = datetime.strptime(_ae, "%Y-%m-%d").strftime("%b %Y") if _ae else ""
-                        except Exception:
-                            _until = ""
-                        _win = ""
-                        try:   # the next career window (explicit import: this block can run on a path where the event engine was never imported)
-                            from antar_engine.event_narrator import run_event_engine as _ree_pos
-                            _eec = _ree_pos(chart_data, locals().get("_ask_jd"), locals().get("_ask_dashas"), locals().get("_ask_bdate"), "career")
-                            _win = (_eec or {}).get("timing_label") or ""
-                            if not _win:
-                                print(f"[ask][positioning] no career window: verdict={((_eec or {}).get('verdict') or {}).get('verdict')}")
-                        except Exception as _wine:
-                            print(f"[ask][positioning] career window failed: {_wine!r}")
-                            _win = ""
-                        _vs = await asyncio.to_thread(_read_ventures, chart_id)
-                        _past = []
-                        try:
-                            for _v in _vs:
-                                if _WFP.bucket_of(_v.get("label")) in ("food_hosp", "retail_inv", "ops_heavy") and (_v.get("outcome") or "") not in ("still going", "ongoing", "active"):
-                                    _past.append(_WPP.short_name(_v.get("label"), "running_business", language))
-                        except Exception:
-                            _past = []
-                        _pr = _POS.compose(chart_data, _fit, _wpp, md=_md, until=_until, window=_win, leadership=_rk.get("leadership_level") or "",
-                                           past_hands_on=[x for x in _past if x != ("your business" if language == "en" else "tu negocio")], lang=language)
+                if isinstance(payload, dict):
+                    _pr = await _positioning_answer(chart_id, chart_data, locals().get("_ask_dashas") or {}, locals().get("_ask_jd"), locals().get("_ask_bdate"), question, language)
                     if _pr:
-                        payload["messages"] = _pr["messages"]
-                        payload["read"] = "\n\n".join(_pr["messages"])
-                        payload["next"] = _pr.get("next")
-                        payload["ask_back"] = _pr.get("ask_back")
-                        payload["verdict"], payload["timing"] = None, None
-                        payload["basis"] = ""
-                        payload["suggested_followups"] = _pr.get("chips") or []
-                        payload["answer_kind"] = "positioning"
+                        payload.update(_positioning_payload(_pr))
                         _pos_done = True
-                        print(f"[ask][positioning] {'interview ' + _pr['ask_back']['key'] if _pr.get('ask_back') else 'answer'} messages={len(_pr['messages'])}")
+                        print(f"[ask][positioning] late {'interview ' + _pr['ask_back']['key'] if _pr.get('ask_back') else 'answer'} messages={len(_pr['messages'])}")
             except Exception as _pose:
                 print(f"[ask][positioning] skipped (non-fatal): {_pose!r}")
             _ask_attach_disclaimer(payload, locals().get("_ask_concern"), language, question)
