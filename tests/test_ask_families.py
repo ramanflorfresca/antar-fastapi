@@ -136,3 +136,4 @@ def test_polish_removes_window_talk_and_falls_back_to_the_decisions_own_move():
                "next": "Have that record ready before Nov.", "verdict": None, "timing": None}
     AP.polish_answer(payload, language="en", typed_question="Should I fire someone on my team?", concern="business")
     assert "Nov" not in payload["read"] and "Nov" not in (payload.get("next") or "") and payload["next"]
+
