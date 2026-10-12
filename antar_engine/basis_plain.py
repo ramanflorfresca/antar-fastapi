@@ -75,7 +75,7 @@ def build(concern: str, chart_data: Any, dashas: Any, language: str = "en") -> s
                 if st:
                     word_en = {"strong": "strong", "weak": "under strain", "mixed": "mixed"}[st]
                     word_es = {"strong": "fuerte", "weak": "bajo tensión", "mixed": "con altibajos"}[st]
-                    bits.append(f"The part of your chart that carries {topic} is {word_en}." if lang == "en" else f"La parte de tu carta que lleva {topic} está {word_es}.")
+                    bits.append(f"The main support for {topic} is {word_en}." if lang == "en" else f"El principal apoyo de {topic} está {word_es}.")
         return " ".join(bits).strip()
     except Exception:
         return ""

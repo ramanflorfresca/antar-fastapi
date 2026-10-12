@@ -61,10 +61,10 @@ _BREAKS = {
 }
 # group -> (holds when the ruler is fine, holds when weakened, what the weakness means)
 _HOLDS = {
-    "career": ("Se sostiene si canalizas el esfuerzo a través de {ch}, donde esta área de tu carta realmente rinde",
+    "career": ("Se sostiene si canalizas el esfuerzo a través de {ch}, donde esta área realmente rinde para ti",
                "Se sostiene si lo construyes a través de {ch} y dejas que los resultados se acumulen",
                "el reconocimiento va por detrás del esfuerzo; el trabajo constante y visible vale más que esperar{until}"),
-    "money": ("Se sostiene si haces crecer los ingresos a través de {ch}, donde tu carta realmente rinde",
+    "money": ("Se sostiene si haces crecer los ingresos a través de {ch}, donde realmente rinde para ti",
               "Se sostiene si haces crecer los ingresos a través de {ch} y dejas que se acumulen",
               "los rendimientos van por detrás del esfuerzo; acumular vale más que perseguir{until}"),
     "property": ("Funciona si fijas primero tu tope y lo imprescindible y avanzas a través de {ch}",
@@ -182,7 +182,7 @@ def conditions(concern, chart_data, dashas) -> str:
                     + tail + f". Se rompe si {_BREAKS[concern]}.")
         if grp == "speculation":
             tail = (f"El regente de tu {_ord(h)} está debilitado, así que las ganancias tienden a llegar a golpes y a escaparse{until_p}"
-                    if weak else "Tu carta favorece las posiciones medidas y planeadas sobre las impulsivas")
+                    if weak else "Te va mejor con posiciones medidas y planeadas que con las impulsivas")
             return ("Se sostiene si limitas lo que arriesgas a una cantidad que puedes permitirte perder. "
                     + tail + f". Se rompe si {_BREAKS[concern]}.")
         fine, weak_t, meaning = _HOLDS[grp]

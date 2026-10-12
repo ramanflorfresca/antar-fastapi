@@ -35,13 +35,13 @@ _ES_FIELD = {"technology & innovation": "tecnología e innovación", "science & 
              "law & diplomacy": "derecho y diplomacia", "communication & media": "comunicación y medios", "arts & design": "arte y diseño"}
 _TX = {
     "en": {"strong": "Strong fit", "workable": "Workable", "against": "Against the grain", "unknown": "",
-           "why_strong": "{what} sits in a lane your chart favours most.", "why_workable": "{what} is workable, but it isn't where your chart stands out.",
-           "why_against": "{what} runs against your chart's grain: it is {mode}. It can still work with will, but expect it to under-return the effort you put in.",
+           "why_strong": "{what} sits in a lane that favours you most.", "why_workable": "{what} is workable, but it isn't where you stand out.",
+           "why_against": "{what} runs against your grain: it is {mode}. It can still work with will, but expect it to under-return the effort you put in.",
            "mode_hands": "a hands-on, operations-heavy kind of work", "caveat": "This is a fit read, not a guarantee: strong fit still needs execution, and a low-fit line can work with will.",
            "best_h": "Strongest lanes for you", "uphill_h": "Uphill for you"},
     "es": {"strong": "Buen encaje", "workable": "Viable", "against": "A contracorriente", "unknown": "",
-           "why_strong": "{what} está en una de las áreas que más favorece tu carta.", "why_workable": "{what} es viable, pero no es donde tu carta destaca.",
-           "why_against": "{what} va a contracorriente de tu carta: es {mode}. Aun así puede funcionar con voluntad, pero espera que rinda menos que el esfuerzo que le pones.",
+           "why_strong": "{what} está en una de las áreas que más te favorecen.", "why_workable": "{what} es viable, pero no es donde destacas.",
+           "why_against": "{what} va en contra de tu forma natural de trabajar: es {mode}. Aun así puede funcionar con voluntad, pero espera que rinda menos que el esfuerzo que le pones.",
            "mode_hands": "un trabajo práctico y con mucha operación", "caveat": "Es una lectura de encaje, no una garantía: un buen encaje aún necesita ejecución, y una línea de bajo encaje puede funcionar con voluntad.",
            "best_h": "Tus áreas más fuertes", "uphill_h": "Cuesta arriba para ti"},
 }

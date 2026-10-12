@@ -37,7 +37,7 @@ def test_conditions_are_question_specific_but_keep_the_chart_clause():
     assert price.startswith("It works if you test the new price on one new client") and "the price rises without the value they can see" in price
     assert "an investor can verify" in fund and "the terms are understood" in fund
     assert len({debt, price, fund}) == 3 and all("It breaks if" in c for c in (debt, price, fund))
-    assert "In your chart it also helps if" in debt and "It holds if" not in debt       # the chart clause is still there, without a second lead-in
+    assert "It also helps if" in debt and "It holds if" not in debt       # the chart clause is still there, without a second lead-in
     generic = conditions("wealth", chart, dashas, "en", "What is going on with money?")
     assert not generic.startswith("It works if") and "It breaks if spending and commitments rise as fast as income does" in generic
 

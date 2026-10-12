@@ -56,7 +56,7 @@ def test_handling_changes_the_process_not_the_lean():
 
 def test_basis_names_the_chart_fact_and_the_persons_read():
     r = SD.compose(_built(["Saturn"]), HIER("weak", "own"), "Dev", "en")
-    assert r["basis"].startswith("Your 6th house (staff and service) is ruled by Mercury, in house") and "Dev's read: a stretch for the role, wants a defined area to own." in r["basis"]
+    assert r["basis"].startswith("How you handle staff conflict at work: something to handle with care.") and "Dev's read: a stretch for the role, wants a defined area to own." in r["basis"]
     assert "read:" not in SD.compose(_chart(), None, "", "en")["basis"]
 
 

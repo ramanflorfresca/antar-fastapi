@@ -37,13 +37,13 @@ def test_a_full_answer_is_short_messages_from_the_chart_with_no_planet_talk(monk
     assert 5 <= len(m) <= 9 and all(len(x.splitlines()) <= 5 for x in m)                      # a run of short messages, never one essay
     text = "\n".join(m)
     assert m[0] == "Straight answer on positioning AI agents for small businesses: lead with what it actually does, and put your own judgment behind it."
-    assert "technology & innovation, then science & research" in text and "8th house" in text                       # the D-10 Rahu fact, stated without naming the planet
+    assert "technology & innovation, then science & research" in text and "That matches where your career path leans: systems, other people's money and AI." in text      # the D-10 Rahu fact, stated without naming the planet or the house
     assert "Lead with:" in text and "expert voice" in text and "paying customer" in text
     assert "Avoid:" in text and "Selling it to everyone" in text and "daily logistics" in text and "like your Tech platform for flower delivery" in text and "Quick bets" in text
     assert "reach, scale and being seen as the authority" in text and "to Apr 2029" in text and "Nov 2026 – Jan 2027" in text
     assert "small shops in the US and LATAM" in text and r["next"] and "ten more real prospects" in r["next"]
     assert not any(j in text for j in JARGON)
-    assert [c["title"] for c in r["chips"]] == ["Who to partner with", "Does this fit my chart?"]               # market already named
+    assert [c["title"] for c in r["chips"]] == ["Who to partner with", "Does this fit me?"]               # market already named
 
 
 def test_a_specialist_chart_gets_a_different_answer(monkeypatch):
