@@ -28571,7 +28571,7 @@ def _ask_window_started(label: str, today=None) -> bool:
 
 
 def _ask_followups_rich(concern: str, question: str, language: str = "en",
-                        answered_when: bool = False, avoid_extra: tuple = ()) -> list:
+                        answered_when: bool = False, avoid_extra: tuple = (), exclude_questions: tuple = ()) -> list:
     """[{q, lane, title}] — next questions chosen by intent lane (antar_engine.ask_followups):
     skip the lane just asked, agency-first under distress, then one bridge to the
     neighbouring life area."""
@@ -28588,7 +28588,7 @@ def _ask_followups_rich(concern: str, question: str, language: str = "en",
         avoid = tuple(w for w in ("tomorrow", "week", "mañana", "semana", "amanhã", "amanha", "kal", "hafte")
                       if w in _ql)
     return _af.pick(bucket, question, language, answered_when=answered_when,
-                    avoid_words=tuple(avoid) + tuple(avoid_extra))
+                    avoid_words=tuple(avoid) + tuple(avoid_extra), exclude_questions=tuple(exclude_questions))
 
 
 # [no-raise-chips 2026-10-04] words of a "raise money" follow-up, all languages
@@ -33945,7 +33945,8 @@ async def _ask_endpoint_impl(request: AskRequest):
                     print(f"[ask][followups] raise probe non-fatal: {_fpe}")
                 _fur = _ask_followups_rich(_fu_concern, question, language,
                                            answered_when=bool(payload.get("timing")),
-                                           avoid_extra=_fu_avoid)
+                                           avoid_extra=_fu_avoid,
+                                           exclude_questions=(_ASK_TYPED_Q.get(None) or "",))   # the typed / tapped question, when `question` is its rewrite
                 if _fur and not payload.get("needs_clarification"):
                     payload["suggested_questions"] = [f["q"] for f in _fur]
                     payload["suggested_followups"] = _fur   # {q, lane, title}: lane-labelled rows

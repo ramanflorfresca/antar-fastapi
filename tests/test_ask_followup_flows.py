@@ -145,3 +145,24 @@ def test_tapped_scale_chips_keep_their_topic_and_day_questions_are_untouched():
     assert af.bucket_of("Which week this month is best for my health?") == "health"
     assert [o["lane"] for o in af.pick("day", "How is my day today?", "en")] != ["when", "wide"]
     assert af.pick("money", "How is my money this month?", "en")[0]["q"] != af.pick("money", "How is my money?", "en")[0]["q"]
+
+
+def test_a_followup_never_repeats_the_typed_question_even_when_the_question_was_rewritten():
+    """Audit 2026-10-12: tapping the money chip in a business / career thread rewrites it into that thread's topic; the follow-ups were built from the REWRITE, so the tapped money question
+    came back as the 'bridge' row ('↔ Money | How does this month look for my money?'). Excluding the typed wording replaces that row; nothing is emptied out."""
+    from antar_engine import ask_followups as AF
+    typed = "How does this month look for my money?"
+    for bucket, resolved in (("business", "How does October look for my venture?"), ("career", "How does October look for my work?")):
+        before = AF.pick(bucket, resolved, "en")
+        assert any(AF._norm(r["q"]) == AF._norm(typed) for r in before)                               # the bug, reproduced
+        after = AF.pick(bucket, resolved, "en", exclude_questions=(typed,))
+        assert len(after) == 3 and all(AF._norm(r["q"]) != AF._norm(typed) for r in after)
+        assert [r["q"] for r in after[:2]] == [r["q"] for r in before[:2]]                           # only the repeated row changed
+    assert AF.pick("business", "How does October look for my venture?", "en", exclude_questions=("", None)) == AF.pick("business", "How does October look for my venture?", "en")
+
+
+def test_the_ask_handler_passes_the_typed_question_to_the_follow_up_picker():
+    import main
+    src = open(main.__file__, encoding="utf-8").read()
+    i = src.index("_fur = _ask_followups_rich(_fu_concern, question, language,")
+    assert "exclude_questions=(_ASK_TYPED_Q.get(None) or \"\",)" in src[i:i + 500]
