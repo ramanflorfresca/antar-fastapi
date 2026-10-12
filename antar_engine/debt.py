@@ -60,6 +60,17 @@ _DEBT_RE = re.compile(
     r"\bkarz[a]?\b|\bqarz\b|\budh?aar\b|loan (chuk|utar|band)")
 
 
+_CREDITOR_RE = re.compile(
+    r"creditors?|collections? (agency|agent|call|calls|notice)|debt collector|collector|lender|"
+    r"acreedor|cobrador|cobranza|credor|cobran[cç]a")
+
+
+def is_creditor_q(question) -> bool:
+    """True when the question is about a creditor / collector / lender — the OTHER SIDE of a debt."""
+    ql = (question or "").lower()
+    return bool(ql and _CREDITOR_RE.search(ql))
+
+
 def is_debt_q(question) -> bool:
     """True for debt / loan-burden / bankruptcy questions (en/es/pt/hinglish).
     A 'raise funding / get a loan for my business' question is NOT a debt-pressure one."""
@@ -242,7 +253,8 @@ def _when(L: str, yr) -> str:
 
 
 def debt_verdict(lean: str, relief_year, peak_year=None, language: str = "en",
-                 gate: Optional[str] = None, severe: bool = False, caution: str = "") -> dict:
+                 gate: Optional[str] = None, severe: bool = False, caution: str = "",
+                 lead_override: str = "") -> dict:
     """CHAPTER-level debt verdict for the Ask /predict override. Never raises:
     {available, band, line, the_move, secondary_note, window_range}."""
     try:
@@ -250,7 +262,7 @@ def debt_verdict(lean: str, relief_year, peak_year=None, language: str = "en",
         lean = lean if lean in _DEBT_LINE else "contested"
         band = "WEAK" if (lean == "heavy" or severe) else "MIXED"
         rel, peak = _when(L, relief_year), _when(L, peak_year)
-        base = _DEBT_SEVERE[L] if severe else _DEBT_LINE[lean][L]
+        base = lead_override or (_DEBT_SEVERE[L] if severe else _DEBT_LINE[lean][L])
         line = base + (_DEBT_PEAK[L].format(peak=peak) if peak else "")
         # fear-or-reality gate: the running stretch is not pressing on money obligations
         from antar_engine.arishta_gate import gate_note
@@ -282,5 +294,90 @@ def debt_lead_phrase(lean: str, severe: bool = False, language: str = "en") -> s
         L = _debt_lang(language)
         lean = lean if lean in _DEBT_LINE else "contested"
         return _first_sentence(_DEBT_SEVERE[L] if severe else _DEBT_LINE[lean][L])
+    except Exception:
+        return ""
+
+
+# ── CREDITOR POSTURE — user vs the other side of a debt dispute ──────────────
+# legal.py counts the 6th lord as the USER's strength (natal "victory over adversaries"). In a
+# creditor / collections matter the 6th is the OTHER side, so a strong 6th lord can favour the
+# creditor. This is the debt-specific read: the user (lagna lord, Jupiter's grace, benefics on the
+# self, a sound 11th lord) against the creditor (6th lord's strength, pressing placement, hard
+# planets on the 6th, a 6th lord aspecting the self). A POSTURE for negotiating — never an outcome.
+def analyze_creditor(chart_data: dict) -> dict:
+    """Return {available, posture, user_score, creditor_score}. posture ∈ user_ahead |
+    creditor_ahead | evenly_matched | both_quiet. Never raises."""
+    try:
+        cd = chart_data if isinstance(chart_data, dict) else {}
+        d1 = cd.get("planets") or {}
+        lagna = ((cd.get("lagna") or {}).get("sign"))
+        if not d1 or not lagna:
+            return {"available": False}
+        l1, l6, l11 = (SIGN_LORD.get(_sign_n_from(lagna, h)) for h in (1, 6, 11))
+
+        def _dg(p):
+            return _dig(p, (d1.get(p) or {}).get("sign"))[0]
+
+        u = _dg(l1)
+        jh = _house_of("Jupiter", d1)
+        if jh and any(jh == h or _aspects(jh, h, "Jupiter") for h in (1, 11)):
+            u += 0.8
+        if _benefics_on(d1, 1):
+            u += 0.6
+        if _dg(l11) >= 0 and _house_of(l11, d1) not in (6, 8, 12):
+            u += 0.5
+
+        c = _dg(l6)
+        if _house_of(l6, d1) in (1, 7, 10):
+            c += 0.7
+        c += min(0.5 * len([p for p in ("Mars", "Saturn", "Rahu") if _house_of(p, d1) == 6]), 1.0)
+        if _aspects(_house_of(l6, d1), 1, l6):
+            c += 0.5
+
+        d = u - c
+        if u >= 1.5 and c >= 1.5:
+            posture = "evenly_matched"
+        elif d >= 1.0:
+            posture = "user_ahead"
+        elif d <= -1.0:
+            posture = "creditor_ahead"
+        elif u <= 0.3 and c <= 0.3:
+            posture = "both_quiet"
+        else:
+            posture = "evenly_matched"
+        return {"available": True, "posture": posture,
+                "user_score": round(u, 2), "creditor_score": round(c, 2)}
+    except Exception as e:
+        return {"available": False, "error": str(e)[:160]}
+
+
+_CREDITOR = {
+    "user_ahead": {
+        "en": "You hold the stronger hand with this creditor — negotiate from it: put proposed terms in writing rather than waiting to be pushed.",
+        "es": "Tienes la mano más fuerte con este acreedor — negocia desde ahí: propón condiciones por escrito en lugar de esperar a que te presionen.",
+        "pt": "Você tem a mão mais forte com este credor — negocie a partir dela: proponha condições por escrito em vez de esperar ser pressionado.",
+    },
+    "creditor_ahead": {
+        "en": "The other side holds the stronger hand here — settling or restructuring early is the smart play, not a defeat.",
+        "es": "La otra parte tiene la mano más fuerte aquí — llegar a un acuerdo o reestructurar pronto es la jugada inteligente, no una derrota.",
+        "pt": "A outra parte tem a mão mais forte aqui — fechar acordo ou reestruturar cedo é a jogada inteligente, não uma derrota.",
+    },
+    "evenly_matched": {
+        "en": "This reads as evenly matched and likely to run long — mediation or structured terms beat a drawn-out fight.",
+        "es": "Esto se lee parejo y probablemente largo — la mediación o las condiciones estructuradas superan a una pelea prolongada.",
+        "pt": "Isto se lê equilibrado e provavelmente longo — mediação ou condições estruturadas superam uma briga prolongada.",
+    },
+    "both_quiet": {
+        "en": "Neither side is pressing hard right now — don't count on it fading; act on your own terms while it's quiet.",
+        "es": "Ninguna de las partes presiona fuerte ahora — no cuentes con que se desvanezca; actúa en tus propios términos mientras está tranquilo.",
+        "pt": "Nenhum dos lados está pressionando forte agora — não conte que isso suma; aja nos seus termos enquanto está calmo.",
+    },
+}
+
+
+def creditor_posture_phrase(posture: str, language: str = "en") -> str:
+    """One-sentence posture for a creditor/collections question; '' for an unknown posture."""
+    try:
+        return _CREDITOR[posture][_debt_lang(language)]
     except Exception:
         return ""

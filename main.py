@@ -10528,7 +10528,8 @@ Do not use any planet names or astrological jargon — translate everything into
                 _lv = _lv_fn(_outc.get("lean") or "contested",
                              bool(_outc.get("jupiter_protection")), _lyr, _cl2,
                              gate=_gl_fn(chart_data, _current_dasha_str(dashas_response)),
-                             caution=_caution_text(chart_data, dashas_response, _cl2))
+                             caution=_caution_text(chart_data, dashas_response, _cl2),
+                             lead_override=_creditor_lead(chart_data, request.question, _cl2))
                 if _lv.get("available"):
                     _resolver_verdict["verdict"] = _lv["band"]
                     _resolver_verdict["verdict_line"] = _lv["line"]
@@ -10556,7 +10557,8 @@ Do not use any planet names or astrological jargon — translate everything into
                     _dv = _dv_fn(_da["lean"], _dry, _dpy, _cl2,
                                  gate=_gl_fn2(chart_data, _dds),
                                  severe=_dsev_fn(chart_data, _dds, _da),
-                                 caution=_caution_text(chart_data, dashas_response, _cl2))
+                                 caution=_caution_text(chart_data, dashas_response, _cl2),
+                                 lead_override=_creditor_lead(chart_data, request.question, _cl2))
                     if _dv.get("available"):
                         _resolver_verdict["verdict"] = _dv["band"]
                         _resolver_verdict["verdict_line"] = _dv["line"]
@@ -27132,6 +27134,22 @@ from antar_engine.immigration import lives_abroad as _lives_abroad  # noqa: E402
 from antar_engine.loan import is_loan_q as _is_loan_q_raw  # noqa: E402
 
 
+from antar_engine.debt import is_creditor_q as _is_creditor_q  # noqa: E402
+
+
+def _creditor_lead(chart_data, question, language="en") -> str:
+    """[creditor-posture 2026-10-12] A creditor / collector matter reads USER vs the other side
+    (not legal.py's natal lean, which counts the 6th lord as the user's strength). '' otherwise."""
+    try:
+        if not _is_creditor_q(question):
+            return ""
+        from antar_engine.debt import analyze_creditor, creditor_posture_phrase
+        a = analyze_creditor(chart_data)
+        return creditor_posture_phrase(a.get("posture"), language) if a.get("available") else ""
+    except Exception:
+        return ""
+
+
 def _is_loan_q(question):
     """Loan-APPROVAL lane. Debt payoff and legal take precedence; business funding is excluded."""
     return bool(_is_loan_q_raw(question) and not _is_debt_q(question) and not _is_legal_q(question))
@@ -31016,7 +31034,7 @@ async def _ask_endpoint_impl(request: AskRequest):
             # the squeeze window and the relief window. A LEAN, never "you'll be debt-free".
             _ask_debt_block = ""
             try:
-                if _is_debt_q(question) and not _is_legal_q(question):
+                if _is_debt_q(question) and (not _is_legal_q(question) or _is_creditor_q(question)):
                     from antar_engine.debt import analyze_debt, debt_timing
                     _dba = analyze_debt(chart_data)
                     if _dba.get("available"):
@@ -31069,6 +31087,11 @@ async def _ask_endpoint_impl(request: AskRequest):
                             _dbp.append("CURRENT STRETCH: nothing in the present period is pressing on "
                                         "money obligations — say plainly it reads more as worry than an "
                                         "active squeeze, WITHOUT claiming pressure cannot come later.")
+                        _cpl = _creditor_lead(chart_data, question, language)
+                        if _cpl:
+                            _dbp.append("CREDITOR MATTER — the posture against the other side is: " + _cpl
+                                        + " Say it as a negotiating posture, never as who will win. Advise "
+                                        "negotiating in good faith, never hiding, and a qualified professional.")
                         _dbp.append("Close with ONE concrete step (list every obligation, rank by "
                                     "interest and urgency). This is not financial or legal advice.")
                         _ask_debt_block = "\n".join(_dbp)
@@ -33401,6 +33424,10 @@ async def _ask_endpoint_impl(request: AskRequest):
             elif _ask_conv and _ask_loan_lead and _is_loan_q(question):
                 _ask_conv["verdict_phrase"] = _ask_loan_lead
                 print(f"[ask][outcome-lead] loan lean lead for {chart_id[:8]}")
+            _cred_lead = _creditor_lead(chart_data, question, language) if _ask_conv else ""
+            if _cred_lead:
+                _ask_conv["verdict_phrase"] = _cred_lead
+                print(f"[ask][outcome-lead] creditor posture lead for {chart_id[:8]}")
 
             # [domain-fit-veto 2026-09-30] A misaligned APPROACH must not wear an
             # affirmative chip or a "Yes —" lead: that green-lights the very approach
@@ -33491,7 +33518,8 @@ async def _ask_endpoint_impl(request: AskRequest):
             try:
                 if (_ask_conv and os.getenv("ASK_OUTCOME_CHIP", "off").lower() != "on"
                         and (_is_legal_q(question) or _is_immigration_q(question)
-                             or _is_debt_q(question) or _is_loan_q(question))):
+                             or _is_debt_q(question) or _is_loan_q(question)
+                             or _is_creditor_q(question))):
                     _ask_conv["suppress_verdict"] = True
                     print(f"[ask][outcome-lead] verdict chip suppressed for {chart_id[:8]}")
             except Exception as _ole:
