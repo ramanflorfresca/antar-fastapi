@@ -56,6 +56,7 @@ _LAYER_NAME = {
     "dasha": "your current chapter",
     "lal_kitab": "your chart's own pattern",
     "season": "your longer season",
+    "double_transit": "the slow planets",   # display only — folded into the Moon axis, never its own vote
 }
 
 
@@ -94,7 +95,10 @@ def daily_convergence(day_signals: list, season_register: str,
                   else -1 if committed_direction == "adverse" else 0)
 
         layers = []       # (key, polarity)
-        _moon_pols = []   # nakshatra + moon_house — the SAME transiting Moon, one axis
+        _tara_pols = []   # nakshatra (tara)
+        _house_pols = []  # moon_house (lagna count) + chandra (Moon count)
+        _dt_pols = []     # slow-planet double transit on the lit house
+        _moon_pols = []   # kept for the layers-read check below
         for row in (day_signals or []):
             if not isinstance(row, dict):
                 continue
@@ -108,6 +112,16 @@ def daily_convergence(day_signals: list, season_register: str,
                 continue
             if k in ("nakshatra", "moon_house"):
                 _moon_pols.append(pol)   # collect, don't vote twice
+                if k == "nakshatra":
+                    _tara_pols.append(pol)
+                else:
+                    _house_pols.append(pol)
+                    _c = _POL.get(row.get("chandra_direction"))
+                    if _c is not None:
+                        _house_pols.append(_c)
+                    _d = _POL.get(row.get("dt_direction"))
+                    if _d is not None:
+                        _dt_pols.append(_d)
                 continue
             layers.append((k, pol))
 
@@ -117,8 +131,17 @@ def daily_convergence(day_signals: list, season_register: str,
         # built from two correlated Moon votes. Both point the same way → one vote
         # that way; they split → they cancel to neutral. The Moon still counts as a
         # layer read (so layers_read stays honest) even when it nets neutral.
+        # [chandra 2026-10-12] The two house counts (from lagna, from the natal
+        # Moon) are one sub-axis: if they point opposite ways the day is MIXED
+        # there (neutral), otherwise their shared sign. The slow-planet double
+        # transit sits on the Moon's own house today, so it joins this axis too
+        # — it never adds an independent vote.
         if _moon_pols:
-            _ms = sum(_moon_pols)
+            if _house_pols and max(_house_pols) > 0 and min(_house_pols) < 0:
+                _hp = 0
+            else:
+                _hp = (1 if sum(_house_pols) > 0 else -1 if sum(_house_pols) < 0 else 0)
+            _ms = sum(_tara_pols) + _hp + sum(_dt_pols)
             layers.append(("moon", 1 if _ms > 0 else -1 if _ms < 0 else 0))
 
         sp = _SEASON_POL.get(season_register)
@@ -153,6 +176,13 @@ def daily_convergence(day_signals: list, season_register: str,
 
         aligned = [_LAYER_NAME.get(k, k) for k in agree_keys]
         tension = [_LAYER_NAME.get(k, k) for k in oppose_keys]
+        # Double transit is named for the reader but NOT counted (n_agree /
+        # n_oppose come from the keys above), so it cannot move the level.
+        _dtp = sum(_dt_pols)
+        if _dtp and (_dtp > 0) == (target > 0):
+            aligned.append(_LAYER_NAME["double_transit"])
+        elif _dtp:
+            tension.append(_LAYER_NAME["double_transit"])
 
         # Levels: HIGH needs a real stack agreeing with no opposition; LOW is a
         # genuine split (or a lone voice); MODERATE is the majority-with-a-caveat

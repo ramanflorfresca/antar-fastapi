@@ -2710,7 +2710,20 @@ async def generate_weekly_signals(
                     natal_lagna_sign=daily_context.get("lagna_sign", ""),
                     today_moon_nak=nakshatra,
                     today_moon_sign=moon_sign,
+                    natal_moon_sign=daily_context.get("natal_moon_sign", ""),
+                    weekday_index=target_date.weekday(),
+                    dasha_ad=daily_context.get("ad", ""),
+                    dasha_pd=daily_context.get("pd", ""),
                 )
+                # [double-transit 2026-10-12] confidence input, fail-open.
+                try:
+                    from antar_engine.daily_double_transit import attach_to_precision
+                    attach_to_precision(
+                        _precision, daily_context.get("chart_data") or {},
+                        [daily_context.get("ad", ""), daily_context.get("pd", "")],
+                        target_date)
+                except Exception as _dt_e:
+                    logger.warning(f"[daily-week] double-transit skipped for {date_str}: {_dt_e}")
         except Exception as _prec_e:
             logger.warning(f"[daily-week] precision compute failed for {date_str}: {_prec_e}")
             _precision = None
