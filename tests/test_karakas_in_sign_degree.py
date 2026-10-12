@@ -10,7 +10,7 @@ def _chart(lons):
 
 
 LONS = {"Sun": 29.5, "Moon": 40.0, "Mars": 70.0, "Mercury": 100.0,
-        "Jupiter": 130.0, "Venus": 160.0, "Saturn": 350.0}
+        "Jupiter": 130.0, "Venus": 155.0, "Saturn": 350.0}
 
 
 def test_atmakaraka_is_highest_in_sign_degree():
@@ -23,6 +23,6 @@ def test_all_karakas_order_and_darakaraka():
     assert [k["planet"] for k in ks][0] == "Sun"
     assert ks[0]["name"] == "Atmakaraka" and ks[1]["name"] == "Amatyakaraka"
     assert ks[1]["planet"] == "Saturn"          # 20 deg
-    assert ks[-1]["planet"] == "Moon"           # 10 deg (lowest, ties broken stably)
+    assert ks[-1]["planet"] == "Venus"          # 5 deg, the lowest -> Darakaraka
     degs = [k["degree"] for k in ks]
     assert degs == sorted(degs, reverse=True)
