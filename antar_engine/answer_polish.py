@@ -480,6 +480,66 @@ _DATELESS = re.compile(
     r"(?i)\b(?:starting|beginning|opening|arriving|kicking\s+off|empezando|comenzando|come[cç]ando|a\s+partir)\s+(?:around|about|in|from|by|at|de|em|en)?\s*[,.;]")
 
 
+# [ack-opener 2026-10-12] An answer that opens by acknowledging the question ("Raman, I hear how much weight this question
+# carries.", "...sitting with this uncertainty takes real steadiness", "this question deserves a straight answer: ...") spends its
+# first sentence on the reader's feelings instead of the answer. The conversation audit graded these worse every time (verdict
+# first wins) and the 'filler opener' filter only knew a handful of phrasings. Only the FIRST sentence is ever touched; when a
+# real answer follows a colon ("...deserves a straight answer: nothing in your timing points to an affair") the answer is kept.
+_NAME = r"(?:[A-ZÀ-ÿ][\w'’-]{1,20},\s+)?"
+_ACK_FIRST = re.compile(
+    r"(?i)^\s*" + _NAME + r"(?:"
+    r"i\s+(?:hear|understand|can\s+see|know|take|get)\b|"
+    r"(?:this|that|the|your)\s+(?:question|one|weight|uncertainty|doubt|worry|feeling|situation|wait)\b[^.!?:—]{0,70}?"
+    r"\b(?:matters?|carries|deserves|is\s+real|are\s+real|means\s+a\s+lot|weighs|is\s+heavy|isn'?t\s+small|makes\s+sense)\b|"
+    r"(?:this|that|it)\s+is\s+weighing\b[^.!?:—]{0,50}|"
+    r"(?:sitting|carrying|holding|living|staying)\s+with\b[^.!?:—]{0,60}|"
+    r"carrying\s+(?:this|that|it|something|a\s+lot|so\s+much|doubt|worry|uncertainty)\b[^.!?:—]{0,60}|"
+    r"you(?:'re|\s+are)\s+carrying\b[^.!?:—]{0,60}|"
+    r"it(?:'s|\s+is)\s+(?:completely\s+|totally\s+)?(?:understandable|natural|okay|ok|normal)\b|"
+    r"it\s+makes\s+sense\b[^.!?:—]{0,60}|"
+    r"(?:this|that|it)\b[^.!?:—]{0,60}\bto\s+carry\b|"
+    r"this\s+is\s+(?:a\s+)?(?:hard|difficult|real|serious|big|tough)\s+(?:place|time|moment|question|one|situation|spot|thing|call)\b[^.!?:—]{0,50}|"
+    # ES / PT / Hinglish
+    r"(?:entiendo|te\s+escucho|s[eé]\s+lo\s+que\s+pesa|esta\s+pregunta\s+(?:importa|pesa)|entendo|eu\s+entendo|essa\s+pergunta\s+(?:importa|pesa)|"
+    r"main\s+samajh|yeh\s+sawal\s+(?:zaroori|maayne)|samajh\s+sakta)\b"
+    r")")
+# what is left after the dash / colon when it is more reassurance, not an answer
+_ACK_TAIL = re.compile(
+    r"(?i)\b(you\s+deserve|deserves?|that\s+matters|matters|makes\s+sense|is\s+real|are\s+real|clarity|clear\s+answer|straight\s+answer|"
+    r"sees\s+it\s+clearly|sees\s+you|steadiness|you\s+have\s+it|not\s+stuck|stay\s+stuck|stuck\s+forever|ready\s+to\s+move|you(?:'re|\s+are)\s+not\s+alone|"
+    r"wearing\s+you\s+down|exhausting|heavy|weighs?|weighing|understand\s+it|want\s+to\s+understand)\b")
+_SENT_END = re.compile(r"(?<=[.!?])\s+")
+
+
+def _ack_tail(first: str):
+    """The substantive remainder of an acknowledging sentence after a colon or em-dash, else None."""
+    parts = re.split(r"\s*(?::|—)\s*", first, maxsplit=1)
+    if len(parts) < 2:
+        return None
+    tail = re.sub(r"^(?:and|but|so|y|e|aur)\s+", "", parts[1].strip(), flags=re.I)
+    if len(tail.split()) >= 5 and not _ACK_TAIL.search(tail):
+        return tail[0].upper() + tail[1:]
+    return None
+
+
+def strip_ack_opener(text):
+    """Drop (or trim to its substantive tail) a leading sentence that only acknowledges the question. Returns (text, changed).
+    Never empties an answer: with fewer than two sentences it leaves the text alone unless a real answer follows the dash/colon."""
+    if not isinstance(text, str) or not text.strip():
+        return text, False
+    t = text.strip()
+    parts = _SENT_END.split(t, maxsplit=1)
+    first, rest = parts[0], (parts[1] if len(parts) > 1 else "")
+    if not _ACK_FIRST.search(first):
+        return text, False
+    tail = _ack_tail(first)
+    if tail:                                             # "...deserves a straight answer: <the answer>" / "...heavy — and the timing shows <the answer>"
+        return (tail + (" " + rest if rest.strip() else "")).strip(), True
+    if not rest.strip():
+        return text, False
+    return rest.strip(), True
+
+
 # a caution against bold moves, or the opposite, in an answer whose verdict says otherwise
 _CAUTION_BOLD = re.compile(r"(?i)\bsteady,? grounded\b|\b(over|than|not|rather than) (bold|dramatic|big) (pivots?|bets?|moves?|decisions?)\b|"
                            r"\bbold (new )?(bets?|pivots?)\b|\bavoid (bold|big) (moves?|decisions?)\b|"
@@ -512,6 +572,9 @@ def polish_answer(payload: dict, language: str = "en", typed_question: str = "",
         for f in ("read", "next"):
             payload[f] = plain_words(payload.get(f), language)
         payload["read"] = scope_right_now(payload.get("read"), typed_question, language)
+        payload["read"], _ack = strip_ack_opener(payload.get("read"))
+        if _ack:
+            print("[ask][polish] acknowledging opener dropped")
         payload["read"], _dd = _drop_sentences(payload.get("read"), _DATELESS, keep_min=2)
         if _dd:
             print("[ask][polish] dateless-date sentence dropped")
