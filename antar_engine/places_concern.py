@@ -74,6 +74,46 @@ VALID_CONCERNS = list(CONCERN_MAP.keys())
 
 MALEFICS = {"Saturn", "Mars", "Rahu", "Ketu", "Sun"}
 
+# [places-lords 2026-10-12] Personal karakas. The fixed `karakas` list is the
+# same for every chart; the lords of the concern's primary houses (by NATAL
+# lagna) are the planets that actually carry that life area for THIS person.
+# Natal on purpose: the house a planet rules at birth says what kind of
+# experience its line brings; the relocated houses are scored separately.
+_SIGN_LORD = ["Mars", "Venus", "Mercury", "Moon", "Sun", "Mercury",
+              "Venus", "Mars", "Jupiter", "Saturn", "Saturn", "Jupiter"]
+_CONCERN_LORD_HOUSES = {
+    "career": [10], "love": [7], "money": [2, 11], "business": [7, 11],
+    "health": [1], "peace": [4], "family": [4],
+}
+
+
+def chart_lords_for_concern(chart: dict, concern: str) -> list:
+    """Planets ruling the concern's primary houses from the natal lagna.
+    [] when the lagna is unknown (callers fall back to the generic karakas)."""
+    try:
+        from antar_engine.places_relocation import _natal_lagna_index
+        lagna = _natal_lagna_index(chart)
+    except Exception:
+        lagna = None
+    if lagna is None:
+        return []
+    out = []
+    for h in _CONCERN_LORD_HOUSES.get(concern, []):
+        lord = _SIGN_LORD[(lagna + h - 1) % 12]
+        if lord not in out:
+            out.append(lord)
+    return out
+
+
+def effective_karakas(chart: dict, concern: str) -> list:
+    """The user's own house lords first, then the generic karakas, de-duplicated."""
+    merged = list(chart_lords_for_concern(chart, concern))
+    for k in CONCERN_MAP[concern]["karakas"]:
+        if k not in merged:
+            merged.append(k)
+    return merged
+
+
 # Karaka rank weights (1st karaka matters most).
 _KARAKA_RANK_W = [1.0, 0.75, 0.55]
 # [places-calibration 2026-07-12] Light rank taper for the best-line karaka
@@ -278,7 +318,7 @@ def score_city_for_concern(
         raise ValueError(f"unknown concern {concern!r}")
 
     cfg = CONCERN_MAP[concern]
-    karakas = cfg["karakas"]
+    karakas = effective_karakas(chart, concern)  # [places-lords] personal lords first
     angles = set(cfg["angles"])
     concern_houses = set(cfg["houses"])
     neg_houses = set(cfg.get("neg_houses", []))  # [places-domain-screen]
@@ -671,7 +711,7 @@ def compose_city_reasons(
     # ── NATAL ───────────────────────────────────────────────────────────────
     # Strongest karaka for the concern, or strongest planet overall (no concern).
     if has_concern:
-        pool = [(k, conditions.get(k, {})) for k in CONCERN_MAP[concern]["karakas"] if k in conditions]
+        pool = [(k, conditions.get(k, {})) for k in effective_karakas(chart, concern) if k in conditions]
         concern_houses = set(CONCERN_MAP[concern]["houses"])
     else:
         pool = list(conditions.items())
