@@ -166,7 +166,8 @@ def compose_watch_outs(concern: str, watch_list: list[dict], lang: str, limit: i
         elif kind == "friction_line":
             tkey = "friction_line"
         elif kind in ("lord_drain", "lord_strain", "lord_stalled", "karaka_broken",
-                      "dasha_dusthana", "dc_malefic"):
+                      "dasha_dusthana", "dc_malefic", "lagna_stalled",
+                      "eighth_lord_angle", "node_angle", "dc_weak_karaka"):
             tkey = kind
         else:
             continue

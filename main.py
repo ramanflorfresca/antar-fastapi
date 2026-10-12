@@ -16723,6 +16723,17 @@ async def places_concern_endpoint(req: PlacesConcernReq):
                           for _v in _rvn(chart, s.get("_relocation", {}), req.concern, req.language)]
         except Exception:
             c["varga"] = []
+        # [places-feel] nakshatra flavour + drishti onto the concern's relocated house
+        try:
+            from antar_engine.places_feel import relocated_feel as _rfeel, relocation_drishti as _rdr
+            _rl = s.get("_relocation", {})
+            _ft = _rfeel(_rl, req.language)
+            c["feel"] = _places_strip(_ft["text"], req.language) if _ft else None
+            _dr = _rdr(chart, _rl, req.concern, req.language)
+            c["drishti"] = ({"polarity": _dr["polarity"], "text": _places_strip(_dr["text"], req.language)}
+                            if _dr else None)
+        except Exception:
+            c["feel"], c["drishti"] = None, None
         ranked.append(c)
 
     concern_lines = _pcn.filter_concern_lines(all_lines, req.concern)
@@ -17281,6 +17292,16 @@ def places_potential_endpoint(req: PlacesPotentialReq):
                                  chart, s.get("_relocation", {}), dom, lang)]
         except Exception:
             card["varga"] = []
+        try:   # [places-feel] nakshatra flavour + drishti (descriptive; fail-open)
+            from antar_engine.places_feel import relocated_feel, relocation_drishti
+            _rl = s.get("_relocation", {})
+            _ft = relocated_feel(_rl, lang)
+            card["feel"] = _places_strip(_ft["text"], lang) if _ft else None
+            _dr = relocation_drishti(chart, _rl, dom, lang)
+            card["drishti"] = ({"polarity": _dr["polarity"], "text": _places_strip(_dr["text"], lang)}
+                               if _dr else None)
+        except Exception:
+            card["feel"], card["drishti"] = None, None
         try:
             _reasons = _pcn.compose_city_reasons(
                 chart, s.get("city", {}), dom, _dctx, _age,
@@ -17302,6 +17323,7 @@ def places_potential_endpoint(req: PlacesPotentialReq):
                  # the classical relocation "what changes here" read (WHAT)
                  "what_changes": card.get("what_changes") or [],
                  "varga": card.get("varga") or [],   # relocated D-9/D-10 line
+                 "feel": card.get("feel"), "drishti": card.get("drishti"),
                  "_thin": thin}
         if best_for:
             entry["best_for"] = best_for
@@ -17668,6 +17690,16 @@ def places_prescribe_endpoint(req: PlacesPrescribeReq):
                    for _v in _rvn(chart, s.get("_relocation", {}), cn, lang)]
         except Exception:
             _vg = []
+        try:   # [places-feel] nakshatra flavour + drishti (descriptive)
+            from antar_engine.places_feel import relocated_feel as _rfeel, relocation_drishti as _rdr
+            _rl2 = s.get("_relocation", {})
+            _ft = _rfeel(_rl2, lang)
+            _feel = _places_strip(_ft["text"], lang) if _ft else None
+            _dr = _rdr(chart, _rl2, cn, lang)
+            _drs = ({"polarity": _dr["polarity"], "text": _places_strip(_dr["text"], lang)}
+                    if _dr else None)
+        except Exception:
+            _feel, _drs = None, None
         cy = s.get("city") or {}
         lift = int(round((s.get("score", 0) or 0) - home_by.get(cn, {}).get("score", 0)))
         # Method-B headline: which natal house rises here (the relocated ascendant's
@@ -17693,6 +17725,8 @@ def places_prescribe_endpoint(req: PlacesPrescribeReq):
             "distance_mi": int(round(_dkm * 0.621371)) if _dkm is not None else None,
             "what_changes": _wc,
             "varga": _vg,
+            "feel": _feel,
+            "drishti": _drs,
         }
 
     prescription = None

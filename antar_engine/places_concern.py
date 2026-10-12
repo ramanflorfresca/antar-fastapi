@@ -191,6 +191,43 @@ def relocation_veto_watch(chart: dict, concern: str, relocation: dict, condition
             if distance_city_to_line(lat, lon, ln["polyline"]) < _STRONG_KM:
                 out.append({"kind": "dc_malefic", "planet": ln["planet"], "angle": "DC"})
                 break
+
+    # [places-veto-2] extra classical "avoid" signals from the expert review
+    try:
+        from antar_engine.places_relocation import _natal_lagna_index
+        nl = _natal_lagna_index(chart)
+    except Exception:
+        nl = None
+    flagged = {w["planet"] for w in out if w["kind"] == "lord_stalled"}
+    if nl is not None:
+        lagna_lord = _SIGN_LORD[nl]
+        lh = house_of(lagna_lord)
+        if lh in (8, 12) and lagna_lord not in flagged:      # general vitality drain
+            out.append({"kind": "lagna_stalled", "planet": lagna_lord, "house": lh})
+        eighth = _SIGN_LORD[(nl + 7) % 12]
+    else:
+        eighth = None
+    close = {}                      # planet -> angles whose line is within the strong band
+    for ln in all_lines:
+        pl = ln["planet"]
+        if pl not in ("Rahu", "Ketu") and pl != eighth and not (concern == "love" and pl in ("Venus", "Jupiter")):
+            continue
+        if distance_city_to_line(lat, lon, ln["polyline"]) < _STRONG_KM:
+            close.setdefault(pl, set()).add(ln["angle"])
+    if eighth and close.get(eighth):
+        out.append({"kind": "eighth_lord_angle", "planet": eighth, "angle": sorted(close[eighth])[0]})
+    for node in ("Rahu", "Ketu"):
+        hit = close.get(node, set()) & {"AC", "MC"}
+        if hit:
+            out.append({"kind": "node_angle", "planet": node, "angle": sorted(hit)[0]})
+            break
+    if concern == "love":
+        for pl in ("Venus", "Jupiter"):
+            cnd = conditions.get(pl) or {}
+            if ("DC" in close.get(pl, set()) and cnd.get("condition") == "debilitated"
+                    and not cnd.get("cancelled")):
+                out.append({"kind": "dc_weak_karaka", "planet": pl, "angle": "DC"})
+                break
     return out
 
 
