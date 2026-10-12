@@ -123,6 +123,54 @@ def houses_ruled(chart: dict, planet: str) -> list:
 _SOFT_CONCERNS = {"love", "family", "peace"}
 
 
+_DC_MALEFICS = ("Saturn", "Mars", "Rahu", "Ketu")
+
+
+def relocation_veto_watch(chart: dict, concern: str, relocation: dict, conditions: dict,
+                          all_lines: list, lat: float, lon: float, dasha_lords=None) -> list:
+    """Hard-flag watch-outs: combinations that read badly whatever the average
+    score says. Kinds (all judged on the RELOCATED chart, so they differ by city):
+      * lord_stalled   - the concern's own house lord falls in the relocated 8th/12th;
+      * karaka_broken  - the lead karaka is debilitated AND in a relocated 6/8/12;
+      * dasha_dusthana - the running mahadasha lord falls in the relocated 8th/12th;
+      * dc_malefic     - love only: a hard malefic's descendant line runs close.
+    Descriptive only: never changes the score or tier."""
+    cfg = CONCERN_MAP.get(concern)
+    reloc_idx = (relocation or {}).get("relocated_lagna_index")
+    if not cfg or reloc_idx is None:
+        return []
+
+    def house_of(planet):
+        rec = (chart.get("planets") or {}).get(planet) or {}
+        psi = rec.get("sign_index")
+        if psi is None and rec.get("longitude") is not None:
+            psi = int((float(rec["longitude"]) % 360.0) // 30.0)
+        return None if psi is None else ((int(psi) - int(reloc_idx)) % 12) + 1
+
+    out = []
+    for lord in chart_lords_for_concern(chart, concern)[:1]:      # the concern's own lord
+        h = house_of(lord)
+        if h in (8, 12):
+            out.append({"kind": "lord_stalled", "planet": lord, "house": h})
+    lead = cfg["karakas"][0]
+    kh = house_of(lead)
+    if kh in (6, 8, 12) and (conditions.get(lead) or {}).get("condition") == "debilitated":
+        out.append({"kind": "karaka_broken", "planet": lead, "house": kh})
+    if dasha_lords:
+        md = dasha_lords[0][0]
+        dh = house_of(md)
+        if dh in (8, 12):
+            out.append({"kind": "dasha_dusthana", "planet": md, "house": dh})
+    if concern == "love":
+        for ln in all_lines:
+            if ln["angle"] != "DC" or ln["planet"] not in _DC_MALEFICS:
+                continue
+            if distance_city_to_line(lat, lon, ln["polyline"]) < _STRONG_KM:
+                out.append({"kind": "dc_malefic", "planet": ln["planet"], "angle": "DC"})
+                break
+    return out
+
+
 def lord_trap_watch(chart: dict, concern: str, all_lines: list, lat: float, lon: float) -> list:
     """Watch-outs for lines whose planet's NATAL rulership works against the
     concern. Judged by which house the planet rules for THIS concern, never by
@@ -569,6 +617,10 @@ def score_city_for_concern(
             })
 
     watch.extend(lord_trap_watch(chart, concern, all_lines, lat, lon))  # [places-lords] trap lines
+    # [places-veto] hard flags lead the watch list so they are never buried
+    vetoes = relocation_veto_watch(chart, concern, relocation, conditions,
+                                   all_lines, lat, lon, dasha_lords)
+    watch = vetoes + watch
 
     signals.sort(key=lambda s: -s["strength"])
 
@@ -586,6 +638,7 @@ def score_city_for_concern(
         "_signals": signals,
         "_house_hits": house_hits,
         "_watch": watch,
+        "_vetoes": vetoes,
         "_relocation": relocation,
         "_subscores": {
             "karaka": round(karaka_score, 3),
