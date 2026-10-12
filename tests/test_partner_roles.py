@@ -137,7 +137,7 @@ def test_a_strong_seventh_with_a_weak_darakaraka_is_conditional_and_says_the_sys
     c = P.partnership_capacity(_seventh_strong(), dk_weak_here)
     assert c["level"] == "conditional" and c["contested"] is True and c["jaimini_level"] == "solo"
     r = P.compare(_seventh_strong(), _dashas(), _seventh_strong(), _dashas(), "Asha", "en", TODAY, _DK_STRONG, dk_weak_here)
-    assert "Asha can partner, but the two systems point different ways" in r["text"] and "run things alone" not in r["text"]
+    assert "Asha can partner, but the signs point different ways" in r["text"] and "run things alone" not in r["text"]
 
 
 def test_a_lane_where_the_systems_pick_different_leaders_is_contested_not_assigned(monkeypatch):
@@ -155,7 +155,7 @@ def test_a_lane_where_the_systems_pick_different_leaders_is_contested_not_assign
     b = {"planets": {"Sun": {}}, "who": "b"}
     r = P.compare(a, {}, b, {}, "B", "en", TODAY)
     assert "ops" in r["contested"] and "ops" not in r["you"]["leads"] + r["other"]["leads"]
-    assert "tech" in r["you"]["leads"] and "The two systems split on operations & execution" in r["text"]
+    assert "tech" in r["you"]["leads"] and "On operations & execution, our two ways of reading the charts disagree" in r["text"]
     assert "Both systems agree" not in r["text"]
 
 
@@ -184,9 +184,9 @@ def test_a_running_chara_period_is_named_in_the_right_now_line_in_en_and_es():
     """Regression: the 'chara' template key was missing for English, so ANY person with a Chara period running made compare() return None."""
     d = {**_dashas(), "jaimini": [{"level": "mahadasha", "lord_or_sign": "Taurus", "start_date": "2023-11-26", "end_date": "2029-11-25"}]}
     en = P.compare(_built(["Mercury", "Rahu"]), d, _built(["Saturn", "Mars"]), d, "Gerardo", "en", TODAY)
-    assert en is not None and "(and the Taurus Chara period)" in en["text"] and en["you"]["chara_ad"] == "Taurus"
+    assert en is not None and "Taurus Chara" not in en["text"] and "Chara" not in en["text"] and any("Taurus Chara" in f for f in en["basis_facts"]) and en["you"]["chara_ad"] == "Taurus"
     es = P.compare(_built(["Mercury", "Rahu"]), d, _built(["Saturn", "Mars"]), d, "Gerardo", "es", TODAY)
-    assert es is not None and "(y el periodo Chara de Tauro)" in es["text"]
+    assert es is not None and "Chara" not in es["text"] and "una temporada que favorece" in es["text"]
 
 
 def test_every_template_key_the_code_reads_exists_in_every_language():
@@ -221,3 +221,12 @@ def test_relative_strength_still_assigns_where_profiles_differ(monkeypatch):
     monkeypatch.setattr(P, "partnership_capacity", lambda *a_, **k: {"level": "capable", "score": 0.7, "contested": False})
     r = P.compare({"planets": {"Sun": {}}}, {}, {"planets": {"Sun": {}}}, {}, "Sam", "en", TODAY)
     assert "tech" in r["you"]["leads"] and "ops" in r["other"]["leads"]
+
+
+def test_the_read_uses_no_chart_vocabulary_and_no_capital_you_mid_sentence():
+    r = P.compare(_built(["Mercury", "Rahu"]), _dashas("Rahu", "Rahu"), _seventh_strong(), _dashas("Rahu", "Saturn"), "Sam", "en", TODAY, None, _DK_STRONG)
+    t = r["text"]
+    for w in ("Parashari", "Jaimini", "Darakaraka", "Chara", "Vimshottari", "7th", "house", "Rahu", "Saturn", "karaka"):
+        assert w not in t
+    assert "Right now You" not in t and "Right now you are in a season that favours" in t
+    assert r["basis_facts"]                                         # the placements are still available as structured facts
