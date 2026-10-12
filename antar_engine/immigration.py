@@ -74,6 +74,7 @@ def analyze_immigration(chart_data: dict) -> dict:
             return SIGN_LORD.get(_sign_n_from(lagna, h))
 
         l4, l9, l12, l8, l6 = _lord(4), _lord(9), _lord(12), _lord(8), _lord(6)
+        l10 = _lord(10)
         h_l4, h_l9, h_l12 = _house_of(l4, d1), _house_of(l9, d1), _house_of(l12, d1)
         s_l4 = (d1.get(l4) or {}).get("sign")
 
@@ -137,6 +138,10 @@ def analyze_immigration(chart_data: dict) -> dict:
         # hidden obstacles — the 8th house: paperwork, status mismatches, surprises
         hidden = bool(_malefics_on(d1, 8) or _house_of(l8, d1) in (6, 8, 12))
 
+        # status-risk (natal): the permission lord (9th) or the authority lord (10th) sent into
+        # the 6/8/12 trouble houses — a reason to keep status spotless, never a forecast.
+        status_natal = bool(_house_of(l9, d1) in (6, 8, 12) or _house_of(l10, d1) in (6, 8, 12))
+
         summary = (f"Pull to settle abroad is {level}"
                    + (f" ({nature} pattern)" if nature else "")
                    + ("; expect slow, repeated steps rather than one clean pass" if delay else "")
@@ -144,8 +149,8 @@ def analyze_immigration(chart_data: dict) -> dict:
         return {"available": True,
                 "structure": {"level": level, "score": score, "flags": flags,
                               "plain": plain[:3], "nature": nature},
-                "delay": delay, "hidden_obstacles": hidden,
-                "lords": {"l4": l4, "l9": l9, "l12": l12, "l6": l6, "l8": l8},
+                "delay": delay, "hidden_obstacles": hidden, "status_risk_natal": status_natal,
+                "lords": {"l4": l4, "l9": l9, "l12": l12, "l6": l6, "l8": l8, "l10": l10},
                 "summary": summary}
     except Exception as e:
         return {"available": False, "error": str(e)[:160]}
@@ -185,6 +190,22 @@ def _tone_of(lords: list, chart_data: dict) -> str:
 def immigration_phase(chart_data: dict, dasha_str: Optional[str]) -> str:
     """Tone of the RUNNING chapter. dasha_str like 'Rahu-Jupiter' (MD-AD)."""
     return _tone_of(_split_label(dasha_str or ""), chart_data)
+
+
+def immigration_status_risk(chart_data: dict, dasha_str: Optional[str], analysis: Optional[dict]) -> bool:
+    """True when the natal permission/authority lords sit in the trouble houses, OR the
+    running Antardasha is the 6th/8th lord (and not also a supportive 9th/12th lord).
+    Drives a 'keep status spotless, retain counsel' line — never a deportation forecast."""
+    try:
+        if (analysis or {}).get("status_risk_natal"):
+            return True
+        lords = (analysis or {}).get("lords") or {}
+        parts = _split_label(dasha_str or "")
+        ad = parts[1].title() if len(parts) > 1 else None
+        support = {lords.get("l9"), lords.get("l12"), "Jupiter"}
+        return bool(ad and ad in {lords.get("l6"), lords.get("l8")} and ad not in support)
+    except Exception:
+        return False
 
 
 def immigration_timing(chart_data: dict, dashas: dict, birth_date: Optional[str] = None,
@@ -253,6 +274,11 @@ _IMM_CHECK = {
     "es": " Revisa cada documento línea por línea — las pequeñas discrepancias son donde se esconden las sorpresas.",
     "pt": " Confira cada documento linha por linha — pequenas divergências são onde as surpresas se escondem.",
 }
+_IMM_STATUS = {
+    "en": " Keep your status spotless — never overstay or work outside what it allows — and retain counsel before any deadline, interview or hearing.",
+    "es": " Mantén tu estatus impecable — nunca te excedas del plazo ni trabajes fuera de lo que permite — y consulta a un abogado antes de cualquier plazo, entrevista o audiencia.",
+    "pt": " Mantenha seu status impecável — nunca ultrapasse o prazo nem trabalhe fora do que ele permite — e consulte um advogado antes de qualquer prazo, entrevista ou audiência.",
+}
 _IMM_DISCLAIM = {
     "en": "This is not legal or immigration advice — rules, caps and lotteries are set by the authorities, and an immigration attorney should handle the actual case.",
     "es": "Esto no es asesoría legal ni migratoria — las reglas, cupos y sorteos los fijan las autoridades, y un abogado de inmigración debe llevar el caso real.",
@@ -261,7 +287,7 @@ _IMM_DISCLAIM = {
 
 
 def immigration_verdict(level: str, phase: str, hidden_obstacles: bool, best_year,
-                        language: str = "en") -> dict:
+                        language: str = "en", status_risk: bool = False, caution: str = "") -> dict:
     """CHAPTER-level immigration verdict for the Ask /predict override. Never raises:
     {available, band, line, the_move, secondary_note, window_range, key}."""
     try:
@@ -274,6 +300,10 @@ def immigration_verdict(level: str, phase: str, hidden_obstacles: bool, best_yea
         yr = str(best_year).strip() if best_year else ""
         win = {"en": f"around {yr}", "es": f"alrededor de {yr}", "pt": f"por volta de {yr}"}[L] if yr else ""
         line = _IMM_LINE[key][L] + (_IMM_CHECK[L] if hidden_obstacles and key != "weak" else "")
+        if status_risk:
+            line += _IMM_STATUS[L]
+        if caution:
+            line += " " + caution
         move = _IMM_MOVE[L].format(win=win) if win else _IMM_MOVE_NOWIN[L]
         return {"available": True, "band": band, "line": line, "the_move": move,
                 "secondary_note": _IMM_DISCLAIM[L],

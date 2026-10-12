@@ -246,7 +246,8 @@ _LEG_DISCLAIM = {
 }
 
 
-def legal_verdict(lean: str, jupiter_protection: bool, best_year, language: str = "en") -> dict:
+def legal_verdict(lean: str, jupiter_protection: bool, best_year, language: str = "en",
+                  gate: Optional[str] = None, caution: str = "") -> dict:
     """CHAPTER-level legal verdict for the Ask /predict override. Returns
     (never raises): {available, band, line, the_move, secondary_note, window_range}."""
     try:
@@ -259,6 +260,13 @@ def legal_verdict(lean: str, jupiter_protection: bool, best_year, language: str 
         else:
             win = {"en": "in the period ahead", "es": "en el periodo que viene", "pt": "no período à frente"}[L]
         line = _LEG_LINE[lean][L] + (_LEG_JUP[L] if jupiter_protection else "")
+        # fear-or-reality gate: the running stretch is not pressing on legal matters
+        from antar_engine.arishta_gate import gate_note
+        _gn = gate_note(gate, "legal", L)
+        if _gn:
+            line = _gn + " " + line
+        if caution:
+            line += " " + caution
         return {"available": True, "band": band, "line": line,
                 "the_move": _LEG_MOVE[L].format(win=win),
                 "secondary_note": _LEG_DISCLAIM[L], "window_range": win}
