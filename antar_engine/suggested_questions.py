@@ -1,7 +1,20 @@
 """Questions for you: up to three timing questions worth asking right now, taken from the
 Windows feed (the topic engine's own scans) and the person's recent Ask history.
 
-Order: (1) a window open now that closes soonest, (2) the next window opening within ~90 days,
+SMART RANKING (2026-10-12, owner: "a smart astrologer asking the top things on their mind"). When the
+caller passes `ranks` and/or `affinity`, the candidates are scored instead of taken slot by slot:
+  kind        an open window, a careful stretch and a window about to open each carry a base weight,
+              plus urgency (closing in 3 days, starting within 14 days / 7 days for care)
+  activation  the topic's rank from the Home topic list (`rank_topics`: dasha + transits, already
+              reconciled with the day's Moon vote). ONE signal, not three: dasha, transit and Moon
+              all feed that rank, so counting them separately would inflate it (signal independence).
+  affinity    the share of this person's own recent Ask questions (last 60 days, half-life 21 days)
+              that were about the topic. Capped, and only with at least 3 asks, so a habit tilts the
+              list but never takes it over.
+At most one careful stretch in three, one question per topic, nothing already asked. Without `ranks`
+and `affinity` the original slot-by-slot order below is unchanged.
+
+Original order: (1) a window open now that closes soonest, (2) the next window opening within ~90 days,
 (3) a care window within ~45 days, then a follow-up to a recent Ask question, then an evergreen
 timing question. One question per topic, never one already in the last 20 Ask rows. Every
 question is about TIMING ("Is November a good time to ...?"), never about an outcome. Each text
@@ -23,6 +36,16 @@ KINDS = ("open_now", "opening_soon", "care", "followup")
 SOON_DAYS = 90
 CARE_DAYS = 45
 HISTORY_ROWS = 20
+AFFINITY_ROWS = 200         # rows read so the 60-day affinity window is covered
+AFFINITY_DAYS = 60          # how far back "what they ask about" looks
+AFFINITY_HALF_LIFE = 21.0   # days; a question this old counts half
+AFFINITY_MIN_ASKS = 3       # fewer than this is noise, not a habit
+AFFINITY_CAP = 0.5          # a topic can claim at most half the weight
+W_KIND = {"open_now": 3.0, "care": 2.6, "opening_soon": 2.2}
+W_ACTIVATION = 1.2          # topic rank 1 of 7; rank 7 gets 1/7 of this
+W_AFFINITY = 2.0            # times the capped share
+W_URGENT = 0.4
+MAX_CARE = 1                # of the picked questions
 FOLLOWUP_DAYS = 14
 MAX_LIMIT = 5
 TOPIC_ORDER = ("money", "career", "love", "health", "business", "peace", "family")
@@ -284,7 +307,9 @@ def window_candidates(feed: Optional[dict], chart_id: str, today: date, lang: st
             if w.get("kind") == "open":
                 text = NOW_FRAME[lang].format(do=_do(lang, t, 0, life))
                 why = REASON[lang]["open_now"].format(area=_area(lang, t), end=_fmt(e, lang, today))
-                out["open_now"].append(_mk(chart_id, today, t, "open_now", text, why))
+                q = _mk(chart_id, today, t, "open_now", text, why)
+                q["_end"] = e.isoformat()
+                out["open_now"].append(q)
             elif w.get("kind") == "care":
                 out["care"].append(_care(chart_id, today, lang, t, date.fromisoformat(w["start"]), e,
                                          sort=(0, e.isoformat()), life=life))
@@ -297,7 +322,9 @@ def window_candidates(feed: Optional[dict], chart_id: str, today: date, lang: st
                 text = SOON_FRAME[lang].format(month=C.pick(C.FULL_MONTHS, lang)[s.month - 1],
                                                do=_do(lang, t, 1, life))
                 why = REASON[lang]["opening_soon"].format(area=_area(lang, t), start=_fmt(s, lang, today))
-                out["opening_soon"].append(_mk(chart_id, today, t, "opening_soon", text, why))
+                q = _mk(chart_id, today, t, "opening_soon", text, why)
+                q["_start"] = s.isoformat()
+                out["opening_soon"].append(q)
         for w in sorted(feed.get("care") or [], key=lambda x: x.get("start") or ""):
             t = w.get("topic")
             if t not in DO[lang]:
@@ -319,6 +346,7 @@ def _care(chart_id, today, lang, topic, s, e, sort, life=None) -> dict:
             REASON[lang]["care"].format(area=_area(lang, topic), start=_fmt(s, lang, today),
                                         end=_fmt(e, lang, today)))
     q["_sort"] = sort
+    q["_start"] = s.isoformat()
     return q
 
 
@@ -360,6 +388,104 @@ def evergreen_candidates(chart_id: str, today: date, lang: str, order=TOPIC_ORDE
                 REASON[lang]["evergreen"].format(area=_area(lang, t))) for t in order]
 
 
+# ── smart ranking inputs ─────────────────────────────────────────────────────
+def affinity(rows: List[dict], today: date) -> Dict[str, float]:
+    """{topic: share 0..1} of the person's own recent Ask questions, newest weighted most.
+    Empty when there are fewer than AFFINITY_MIN_ASKS dated questions in the window."""
+    weights: Dict[str, float] = {}
+    n = 0
+    for r in rows or []:
+        try:
+            age = (today - date.fromisoformat(str(r.get("created_at") or "")[:10])).days
+        except ValueError:
+            continue
+        if not 0 <= age <= AFFINITY_DAYS:
+            continue
+        q = str(r.get("question") or "").strip()
+        t = C.topic_for_concern(r.get("domain")) or C.topic_for_question(q)
+        if not t or t not in TOPIC_ORDER:
+            continue
+        n += 1
+        weights[t] = weights.get(t, 0.0) + 0.5 ** (age / AFFINITY_HALF_LIFE)
+    if n < AFFINITY_MIN_ASKS:
+        return {}
+    total = sum(weights.values()) or 1.0
+    return {t: min(w / total, AFFINITY_CAP) for t, w in weights.items()}
+
+
+def activation(topics) -> Dict[str, float]:
+    """{topic: 0..1} from the Home topic list (key, status, rank). Only topics that are active or
+    about to be count; a steady or quiet topic adds nothing."""
+    out: Dict[str, float] = {}
+    try:
+        rows = [t for t in (topics or []) if isinstance(t, dict) and t.get("key") in TOPIC_ORDER]
+        n = max(len(rows), 1)
+        for t in rows:
+            if t.get("status") not in ("active", "upcoming"):
+                continue
+            rank = int(t.get("rank") or n)
+            out[t["key"]] = max(0.0, (n + 1 - rank) / n)
+    except Exception:
+        return {}
+    return out
+
+
+def _urgent(c: dict, today: date) -> bool:
+    """A window that closes within 3 days, or opens within 14 (care within 7)."""
+    try:
+        if c["kind"] == "open_now":
+            return (date.fromisoformat(c["_end"]) - today).days <= 3
+        if c["kind"] == "opening_soon":
+            return (date.fromisoformat(c["_start"]) - today).days <= 14
+        if c["kind"] == "care":
+            return (date.fromisoformat(c["_start"]) - today).days <= 7
+    except (KeyError, ValueError):
+        pass
+    return False
+
+
+def score(c: dict, today: date, act: Dict[str, float], aff: Dict[str, float]) -> float:
+    base = W_KIND.get(c["kind"], 1.0)
+    return (base + (W_URGENT if _urgent(c, today) else 0.0)
+            + W_ACTIVATION * act.get(c["topic"], 0.0) + W_AFFINITY * aff.get(c["topic"], 0.0))
+
+
+def order_topics(act: Dict[str, float], aff: Dict[str, float]) -> List[str]:
+    """TOPIC_ORDER re-sorted by what is active and what they ask about (stable on ties)."""
+    return sorted(TOPIC_ORDER, key=lambda t: -(act.get(t, 0.0) * W_ACTIVATION + aff.get(t, 0.0) * W_AFFINITY))
+
+
+def select_smart(cands: Dict[str, List[dict]], follow: List[dict], evergreen: List[dict],
+                 history_texts, today: date, act: Dict[str, float], aff: Dict[str, float],
+                 limit: int = 3) -> List[dict]:
+    """Score every window candidate, take the best per topic, at most MAX_CARE careful stretches,
+    then fill from follow-ups (their topic's score decides the order) and evergreen."""
+    seen = {_norm(t) for t in history_texts or []}
+    used, picked, care = set(), [], 0
+
+    def take(c) -> bool:
+        nonlocal care
+        if c["topic"] in used or _norm(c["text"]) in seen or len(picked) >= limit:
+            return False
+        if c["kind"] == "care" and care >= MAX_CARE:
+            return False
+        if c["kind"] == "care":
+            care += 1
+        used.add(c["topic"])
+        picked.append({k: v for k, v in c.items() if not k.startswith("_")})
+        return True
+
+    windows = [c for kind in ("open_now", "opening_soon", "care") for c in cands.get(kind, [])]
+    for c in sorted(windows, key=lambda c: -score(c, today, act, aff)):
+        take(c)
+    rank_of = lambda c: -(act.get(c["topic"], 0.0) * W_ACTIVATION + aff.get(c["topic"], 0.0) * W_AFFINITY)
+    for c in sorted(follow, key=rank_of):
+        take(c)
+    for c in evergreen:
+        take(c)
+    return picked
+
+
 # ── selection ────────────────────────────────────────────────────────────────
 def select(cands: Dict[str, List[dict]], follow: List[dict], evergreen: List[dict],
            history_texts, limit: int = 3) -> List[dict]:
@@ -388,14 +514,24 @@ def select(cands: Dict[str, List[dict]], follow: List[dict], evergreen: List[dic
 
 def build(feed: Optional[dict], history_rows: List[dict], chart_id: str, today: date,
           language: str = "en", limit: int = 3, cands: Optional[Dict[str, List[dict]]] = None,
-          life: Optional[dict] = None) -> dict:
+          life: Optional[dict] = None, topics: Optional[List[dict]] = None,
+          long_rows: Optional[List[dict]] = None) -> dict:
     """The response body. `feed` None (engine trouble) still gives evergreen questions; `cands`
-    is the already-built window part (the caller caches it per chart, language and day)."""
+    is the already-built window part (the caller caches it per chart, language and day).
+    `topics` (Home topic list) and `long_rows` (the last AFFINITY_DAYS of Ask rows) switch on the
+    smart ranking; with neither, the original slot order is used."""
     lang = C.serve_language(language)
     limit = max(1, min(MAX_LIMIT, int(limit or 3)))
     rows = list(history_rows or [])[:HISTORY_ROWS]
-    qs = select(cands if cands is not None else window_candidates(feed, chart_id, today, lang, life),
-                followup_candidates(rows, chart_id, today, lang),
-                evergreen_candidates(chart_id, today, lang, life=life),
-                [r.get("question") for r in rows], limit)
+    wc = cands if cands is not None else window_candidates(feed, chart_id, today, lang, life)
+    act = activation(topics)
+    aff = affinity(long_rows if long_rows is not None else rows, today) if (topics or long_rows) else {}
+    if act or aff:
+        qs = select_smart(wc, followup_candidates(rows, chart_id, today, lang),
+                          evergreen_candidates(chart_id, today, lang, order=order_topics(act, aff), life=life),
+                          [r.get("question") for r in rows], today, act, aff, limit)
+    else:
+        qs = select(wc, followup_candidates(rows, chart_id, today, lang),
+                    evergreen_candidates(chart_id, today, lang, life=life),
+                    [r.get("question") for r in rows], limit)
     return {"questions": qs, "count": len(qs)}

@@ -51941,13 +51941,19 @@ def _suggested_questions_compute(chart_id: str, language, tz_offset, limit: int)
             cands = _sq.window_candidates(feed, chart_id, today, lang, life)
             _te.cache_put(ck, cands, _TOPIC_READ_TTL)
     rows = []
-    try:
+    try:   # the long window feeds "what they ask about"; the first rows are the "never repeat" list
         rows = (supabase.table("chat_messages").select("question, domain, created_at")
                 .eq("chart_id", chart_id).order("created_at", desc=True)
-                .limit(_sq.HISTORY_ROWS).execute().data) or []
+                .limit(_sq.AFFINITY_ROWS).execute().data) or []
     except Exception as e:
         print(f"[suggested-questions] history skipped: {e!r}")
-    return _sq.build(feed, rows, chart_id, today, lang, limit, cands=cands, life=life)
+    topics = None
+    try:   # [smart 2026-10-12] what is active now: the Home topic rank (dasha + transits + the day's Moon vote)
+        topics = _topics_compute(chart_id, language, tz_offset)
+    except Exception as e:
+        print(f"[suggested-questions] topic rank skipped: {e!r}")
+    return _sq.build(feed, rows[:_sq.HISTORY_ROWS], chart_id, today, lang, limit, cands=cands, life=life,
+                     topics=topics, long_rows=rows)
 
 
 @app.get("/api/v1/chart/{chart_id}/suggested-questions")

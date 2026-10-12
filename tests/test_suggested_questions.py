@@ -364,3 +364,85 @@ def test_upcoming_care_window_says_when_it_starts():
     running = {"now": [_w("money", "care", -2, 10)], "next": [], "care": []}
     r = [x for x in build(running, limit=5)["questions"] if x["kind"] == "care"][0]["text"]
     assert " from " not in r, r
+
+
+# ── smart ranking: what is active now, and what this person keeps asking about ─────────────
+def _ask(days_ago, domain, q="x"):
+    return {"question": f"{q} {days_ago} {domain}", "domain": domain,
+            "created_at": (TODAY - timedelta(days=days_ago)).isoformat() + "T09:00:00Z"}
+
+
+def _topics(active_order, upcoming=()):
+    out = []
+    for i, k in enumerate(active_order, 1):
+        out.append({"key": k, "status": "active", "rank": i})
+    rest = [k for k in TOPICS if k not in active_order]
+    for j, k in enumerate(rest, len(active_order) + 1):
+        out.append({"key": k, "status": "upcoming" if k in upcoming else "steady", "rank": j})
+    return out
+
+
+def test_affinity_needs_three_asks_decays_and_is_capped():
+    assert SQ.affinity([_ask(1, "money"), _ask(2, "money")], TODAY) == {}
+    rows = [_ask(1, "money"), _ask(2, "money"), _ask(3, "money"), _ask(50, "love"), _ask(0, "career")]
+    aff = SQ.affinity(rows, TODAY)
+    assert aff["money"] == SQ.AFFINITY_CAP                     # a habit never claims more than half
+    assert aff["love"] < aff["career"]                         # an old ask counts less than today's
+    assert SQ.affinity([_ask(90, "money")] * 5, TODAY) == {}    # outside the 60-day window
+
+
+def test_activation_counts_only_active_or_upcoming_topics_by_rank():
+    act = SQ.activation(_topics(["love", "money"], upcoming=("career",)))
+    assert act["love"] > act["money"] > act["career"] > 0
+    assert "health" not in act                                  # steady adds nothing
+    assert SQ.activation(None) == {} and SQ.activation([{"nope": 1}]) == {}
+
+
+def test_what_is_active_and_asked_about_leads_over_the_soonest_closing_window():
+    f = {"now": [_w("career", "open", -3, 4), _w("money", "open", -1, 20)], "next": [], "care": []}
+    plain = build(f)["questions"]
+    assert plain[0]["topic"] == "career"                        # original order: soonest closing first
+    rows = [_ask(1, "money"), _ask(2, "money"), _ask(4, "money"), _ask(6, "money")]
+    smart = SQ.build(f, rows, CHART, TODAY, "en", 3, topics=_topics(["money", "love"]), long_rows=rows)
+    assert smart["questions"][0]["topic"] == "money"
+    assert smart["questions"][0]["kind"] == "open_now"
+
+
+def test_at_most_one_careful_stretch_in_the_list():
+    f = {"now": [_w("peace", "care", -1, 5)], "next": [],
+         "care": [_w("family", "care", 3, 9), _w("business", "care", 4, 10), _w("health", "care", 5, 11)]}
+    out = SQ.build(f, [], CHART, TODAY, "en", 3, topics=_topics(["peace", "family", "business"]))
+    assert [q["kind"] for q in out["questions"]].count("care") == 1
+    assert out["count"] == 3
+
+
+def test_a_habit_tilts_the_list_but_cannot_take_it_over():
+    f = {"now": [_w("money", "open", 0, 9), _w("career", "open", 0, 9), _w("love", "open", 0, 9)],
+         "next": [], "care": []}
+    rows = [_ask(i, "money") for i in range(1, 9)]
+    out = SQ.build(f, rows, CHART, TODAY, "en", 3, topics=_topics(["money"]), long_rows=rows)
+    topics = [q["topic"] for q in out["questions"]]
+    assert topics[0] == "money" and len(set(topics)) == 3       # one per topic, others still shown
+
+
+def test_with_no_windows_the_evergreen_order_follows_what_is_active():
+    out = SQ.build({"now": [], "next": [], "care": []}, [], CHART, TODAY, "en", 3,
+                   topics=_topics(["love", "health", "peace"]))
+    assert [q["topic"] for q in out["questions"]] == ["love", "health", "peace"]
+
+
+def test_smart_ranking_never_repeats_a_question_already_asked():
+    f = {"now": [_w("money", "open", 0, 9), _w("career", "open", 0, 9)], "next": [], "care": []}
+    asked = SQ.build(f, [], CHART, TODAY, "en", 3)["questions"][0]["text"]
+    rows = [{"question": asked, "domain": "money", "created_at": TODAY.isoformat() + "T08:00:00Z"}]
+    out = SQ.build(f, rows, CHART, TODAY, "en", 3, topics=_topics(["money", "career"]), long_rows=rows)
+    assert asked.lower() not in [q["text"].lower() for q in out["questions"]]
+
+
+def test_smart_questions_keep_the_same_shape_and_stay_clean():
+    rows = [_ask(1, "love"), _ask(2, "love"), _ask(3, "money")]
+    for lang in LANGS:
+        out = SQ.build(feed(), rows, CHART, TODAY, lang, 5, topics=_topics(["love"]), long_rows=rows)
+        for q in out["questions"]:
+            assert set(q) == {"id", "topic", "text", "reason", "kind"}
+            assert not SQ.OUTCOME_WORDS.search(q["text"]) and not _JARGON.search(q["text"])
