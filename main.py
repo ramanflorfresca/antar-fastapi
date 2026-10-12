@@ -1057,6 +1057,113 @@ async def _yesno_checkback_job():
           f"(push_configured={push_ok}, email={'on' if email_on else 'off'})")
 
 
+async def _people_heavy_day_job():
+    """[people-heavy-day 2026-10-12] HOURLY. In a chart's local morning (8-10), if a person the user STARRED has a
+    tender day (the People-tab day band is `friction`), send ONE push for that chart that day. Capped at one per chart
+    per local day (people_alert_log unique), skipped when the user turned the setting off, never counted toward the
+    streak. A cold glance triggers the existing prewarm so a later hour in the window can see it. Fail-open per chart;
+    sync supabase calls run off the event loop. Fails open (no-op) until sql_people_heavy_day.sql has been run."""
+    from antar_engine import push_sender
+    from antar_engine import people_heavy_day as phd
+    import asyncio as _aio_ph
+    now = datetime.now(timezone.utc)
+
+    def _q(fn):
+        return _aio_ph.to_thread(lambda: fn().data or [])
+
+    try:
+        stars = await _q(lambda: supabase.table("people_alert_stars")
+                         .select("chart_id,connection_chart_id,created_at").limit(2000).execute())
+    except Exception as e:
+        print(f"[people_heavy_day] stars read skipped: {e!r}")
+        return
+    if not stars:
+        return
+    by_chart: dict = {}
+    for r in stars:
+        by_chart.setdefault(r["chart_id"], []).append(r)
+    cids = sorted(by_chart)
+    try:
+        charts = {c["id"]: c for c in await _q(lambda: supabase.table("charts")
+                  .select("id,user_id,current_country,birth_country,language_preference,language")
+                  .in_("id", cids).execute())}
+        toks: dict = {}
+        for t in await _q(lambda: supabase.table("device_tokens")
+                          .select("token,chart_id,platform").in_("chart_id", cids).execute()):
+            if t.get("token"):
+                toks.setdefault(t["chart_id"], []).append({"token": t["token"], "platform": t.get("platform")})
+    except Exception as e:
+        print(f"[people_heavy_day] charts/tokens skipped: {e!r}")
+        return
+    stats = {"charts": 0, "in_window": 0, "sent": 0, "no_friction": 0, "cold": 0, "off": 0, "unreachable": 0}
+    push_ok = push_sender.is_configured()
+    for cid, rows in by_chart.items():
+        c = charts.get(cid)
+        if not c:
+            continue
+        stats["charts"] += 1
+        try:
+            _cc = (c.get("current_country") or c.get("birth_country") or "").upper()
+            _tzh = float(_COUNTRY_TZ_OFFSETS.get(_cc, _COUNTRY_TZ_OFFSETS.get("DEFAULT", 0)))
+            if not phd.in_window(now, _tzh):
+                continue
+            stats["in_window"] += 1
+            local_day = (now + timedelta(hours=_tzh)).date().isoformat()
+            done = await _q(lambda: supabase.table("people_alert_log").select("id")
+                            .eq("chart_id", cid).eq("local_date", local_day).limit(1).execute())
+            if done:
+                continue
+            if c.get("user_id"):
+                prof = await _q(lambda: supabase.table("profiles").select("notifications")
+                                .eq("user_id", c["user_id"]).limit(1).execute())
+                if prof and not phd.pref_on(_safe_jsonb(prof[0].get("notifications"))):
+                    stats["off"] += 1
+                    continue
+            cands = []
+            for r in rows:
+                g = await _aio_ph.to_thread(_network_today_glance, r["connection_chart_id"], "en")
+                if not g.get("available"):
+                    stats["cold"] += 1
+                    if r["connection_chart_id"] not in _NETWORK_PREWARM_INFLIGHT:
+                        _NETWORK_PREWARM_INFLIGHT.add(r["connection_chart_id"])
+                        _spawn_bg(_network_prewarm(r["connection_chart_id"]), "network-prewarm")
+                    continue
+                cands.append({"connection_chart_id": r["connection_chart_id"], "band": g.get("band"),
+                              "starred_at": r.get("created_at")})
+            hit = phd.pick(cands)
+            if not hit:
+                stats["no_friction"] += 1
+                continue
+            nm = await _q(lambda: supabase.table("charts").select("name,first_name")
+                          .eq("id", hit["connection_chart_id"]).limit(1).execute())
+            name = ((nm[0].get("first_name") or nm[0].get("name") or "") if nm else "").split(" ")[0]
+            lang = phd.norm_lang(c.get("language_preference"), c.get("language"))
+            title, body = phd.build_message(name, lang)
+            if not (push_ok and toks.get(cid)):
+                stats["unreachable"] += 1
+                continue
+            # Claim the day FIRST (the unique (chart_id, local_date) index is the cap, and a send can never repeat
+            # because a log write failed afterwards); release the claim only if nothing was delivered.
+            try:
+                await _aio_ph.to_thread(lambda: supabase.table("people_alert_log").insert(
+                    {"chart_id": cid, "local_date": local_day,
+                     "connection_chart_id": hit["connection_chart_id"], "channel": "push"}).execute())
+            except Exception:
+                continue                      # already claimed (a racing worker) or the table is not there: no send
+            s = await push_sender.send_to_tokens(supabase, toks[cid], title=title, body=body,
+                                                 data={"type": "people_heavy_day", "route": phd.ROUTE,
+                                                       "connection_chart_id": hit["connection_chart_id"]})
+            if s.get("sent"):
+                stats["sent"] += 1
+            else:
+                stats["unreachable"] += 1
+                await _aio_ph.to_thread(lambda: supabase.table("people_alert_log").delete()
+                                        .eq("chart_id", cid).eq("local_date", local_day).execute())
+        except Exception as e:
+            print(f"[people_heavy_day] chart {str(cid)[:8]} non-fatal: {e!r}")
+    print(f"[people_heavy_day] @{now.hour:02d}:xx UTC - {stats} (push_configured={push_ok})")
+
+
 async def _window_open_job():
     """[saved-decisions 2026-10-05] HOURLY. A decision the user SAVED, whose
     window has now opened, gets ONE nudge — WhatsApp if they wrote in the last
@@ -2088,6 +2195,8 @@ scheduler.add_job(_yesno_checkback_job, "cron", minute=13,
                   id="yesno_checkback", replace_existing=True)  # hourly; Yes/No "did it happen?" at local ~8 AM
 scheduler.add_job(_wa_alert_job, "cron", minute=25, id="wa_alerts", replace_existing=True)
 scheduler.add_job(_demo_reset_job, "cron", hour=4, minute=10, id="demo_reset", replace_existing=True)
+scheduler.add_job(_people_heavy_day_job, "cron", minute=31,
+                  id="people_heavy_day", replace_existing=True)  # hourly; starred person's tender day, local 8-10 AM, one per day
 scheduler.add_job(_window_open_job, "cron", minute=25,
                   id="window_open", replace_existing=True)  # hourly; saved decisions whose window just opened
 scheduler.add_job(_daily_check_job, "cron", minute=22,
@@ -18242,6 +18351,7 @@ _SETTINGS_DEFAULT_NOTIFS = {
     "preferences": {
         "daily_reading": True, "transit_alerts": True,
         "prescription_nudge": True, "yesno_unlocked": True, "weekly_outlook": True,
+        "people_heavy_day": True,
     },
 }
 _SETTINGS_NOTIF_LABELS = {
@@ -18250,6 +18360,7 @@ _SETTINGS_NOTIF_LABELS = {
     "prescription_nudge": "Practice reminders",
     "yesno_unlocked": "Yes/No unlocked",
     "weekly_outlook": "Weekly outlook",
+    "people_heavy_day": "Tell me when someone's day looks hard",
     "push": "Push notifications",
     "email": "Email",
 }
@@ -19673,10 +19784,11 @@ def _st_notif_shape(notifs):
             for k in ("push", "email")
         ],
         "preferences": [
-            {"key": k, "enabled": bool(prefs.get(k, False)),
+            # [people-heavy-day] a switch never saved reads ON (its default); every other key keeps its old default
+            {"key": k, "enabled": bool(prefs.get(k, k == "people_heavy_day")),
              "label": _SETTINGS_NOTIF_LABELS.get(k, k)}
             for k in ("daily_reading", "transit_alerts", "prescription_nudge",
-                      "yesno_unlocked", "weekly_outlook")
+                      "yesno_unlocked", "weekly_outlook", "people_heavy_day")
         ],
     }
 
@@ -39815,6 +39927,16 @@ def get_network(chart_id: str, language: str = "en"):
         p["today"] = _network_today_glance(cid_b, lang)
         people.append(p)
 
+    # [people-heavy-day 2026-10-12] which people the user starred for the hard-day heads-up
+    try:
+        _stars = {r["connection_chart_id"] for r in (supabase.table("people_alert_stars")
+                  .select("connection_chart_id").eq("chart_id", chart_id).execute().data or [])}
+    except Exception as _se:
+        _stars = set()
+        print(f"[network] stars read skipped: {_se!r}")
+    for p in people:
+        p["starred"] = p["connection_chart_id"] in _stars
+
     # [conn-note 2026-10-02] attach each person's permanent note in one query.
     _notes = _connection_notes_bulk(chart_id, [p["connection_chart_id"] for p in people])
     for p in people:
@@ -39839,6 +39961,42 @@ def get_network(chart_id: str, language: str = "en"):
         print(f"[network] prewarm scheduling skipped: {_e}")
 
     return {"available": True, "people": people, "count": len(people)}
+
+
+class _StarIn(BaseModel):
+    on: bool = True
+
+
+@app.put("/api/v1/network/{chart_id}/person/{connection_chart_id}/star")
+def star_network_person(chart_id: str, connection_chart_id: str, body: _StarIn):
+    """[people-heavy-day 2026-10-12] Star (or un-star) a person for the hard-day heads-up. At most 3 per chart;
+    starring a 4th is a 409 {error: "star_limit", max: 3}. Idempotent. The person must already be in the user's
+    People (a saved session), so a chart id cannot be starred by guessing."""
+    from antar_engine import people_heavy_day as _phd
+    try:
+        mine = (supabase.table("compatibility_sessions").select("id").eq("chart_id_a", chart_id)
+                .eq("chart_id_b", connection_chart_id).limit(1).execute().data)
+        if not mine:
+            raise HTTPException(status_code=404, detail="Person not found")
+        cur = (supabase.table("people_alert_stars").select("connection_chart_id")
+               .eq("chart_id", chart_id).execute().data) or []
+        have = {r["connection_chart_id"] for r in cur}
+        if body.on:
+            if not _phd.can_star(len(have), connection_chart_id in have):
+                raise HTTPException(status_code=409, detail={"error": "star_limit", "max": _phd.MAX_STARS})
+            if connection_chart_id not in have:
+                supabase.table("people_alert_stars").insert(
+                    {"chart_id": chart_id, "connection_chart_id": connection_chart_id}).execute()
+        else:
+            supabase.table("people_alert_stars").delete().eq("chart_id", chart_id) \
+                .eq("connection_chart_id", connection_chart_id).execute()
+        n = len(have | {connection_chart_id}) if body.on else len(have - {connection_chart_id})
+        return {"starred": bool(body.on), "count": n, "max": _phd.MAX_STARS}
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[people-heavy-day] star failed cid={str(chart_id)[:8]}: {e!r}")
+        raise HTTPException(status_code=503, detail="stars_unavailable")
 
 
 @app.delete("/api/v1/network/{chart_id}/person/{connection_chart_id}")
