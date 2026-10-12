@@ -2190,6 +2190,11 @@ _ANTAR_CORS_ORIGIN_REGEX = (
 from antar_engine.demo_mode import DemoGuardMiddleware as _DemoGuardMiddleware
 app.add_middleware(_DemoGuardMiddleware, get_supabase=lambda: supabase)
 
+# [deadlines 2026-10-12] GETs that exceed their per-route budget return a clear 504 {"error":"timeout","retry":true} instead of hanging the client on a
+# spinner. Added BEFORE CORS so CORS wraps it (the 504 is readable from the browser). See antar_engine/request_deadline.py.
+from antar_engine.request_deadline import DeadlineMiddleware as _DeadlineMiddleware
+app.add_middleware(_DeadlineMiddleware)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origin_regex=_ANTAR_CORS_ORIGIN_REGEX,
