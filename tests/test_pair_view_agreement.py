@@ -28,21 +28,21 @@ SESSION = {"name_b": "saransh Kumar", "compat_type": "cofounder", "roles": ROLES
 # ---- pair view
 def test_a_season_is_a_character_of_the_period_not_an_event():
     s = PV.seasons_for(_dashas("Rahu", "Rahu", "Saturn"), TODAY, "en")
-    assert [x["label"] for x in s] == ["Push forward", "Push forward", "Build structure"] and [x["group"] for x in s] == ["out", "out", "in"]
+    assert [x["label"] for x in s] == ["Reach and experiment", "Reach and experiment", "Build structure"] and [x["group"] for x in s] == ["out", "out", "in"]
     es = PV.seasons_for(_dashas("Saturn", "Jupiter", "Ketu"), TODAY, "es")
-    assert [x["label"] for x in es] == ["Construir estructura", "Crecer y enseñar", "Soltar y afinar"]
+    assert [x["label"] for x in es] == ["Construir estructura", "Crecer y enseñar", "Simplificar y afinar"]
     assert PV.seasons_for({}, TODAY) is None                                                          # no timing on file -> no seasons
-    assert [x["label"] for x in PV.seasons_for(_dashas("Rahu", "Rahu"), TODAY)][2] == "Push forward"    # a missing sub-period falls back to the main period's lord
+    assert [x["label"] for x in PV.seasons_for(_dashas("Rahu", "Rahu"), TODAY)][2] == "Reach and experiment"    # a missing sub-period falls back to the main period's lord
 
 
 def test_sync_is_outward_versus_inward_and_the_summary_says_who_sets_the_pace():
     r = PV.build(SESSION, _dashas("Rahu", "Rahu", "Rahu"), _dashas("Saturn", "Saturn", "Rahu"), "en", TODAY)
     assert r["seasons"]["in_sync"] == [False, False, True]
-    assert r["seasons"]["summary"] == "Your seasons differ at times. Name who sets the pace when they do."
+    assert r["seasons"]["summary"] == "You are out of step in 2 of the 3 periods marked Out. Agree who sets the pace in those."
     allout = PV.build(SESSION, _dashas("Rahu", "Rahu", "Rahu"), _dashas("Saturn", "Saturn", "Saturn"), "en", TODAY)
-    assert allout["seasons"]["summary"] == "You are in a more outward season while saransh is in a more inward one. Decide early who sets the pace."
+    assert allout["seasons"]["summary"] == "You are moving outward and saransh inward (next 6 months). Agree who sets the pace then."
     flip = PV.build(SESSION, _dashas("Saturn", "Saturn", "Saturn"), _dashas("Rahu", "Rahu", "Rahu"), "en", TODAY)
-    assert flip["seasons"]["summary"] == "saransh is in a more outward season while you are in a more inward one. Decide early who sets the pace."
+    assert flip["seasons"]["summary"] == "saransh is moving outward and you inward (next 6 months). Agree who sets the pace then."
     same = PV.build(SESSION, _dashas("Rahu", "Mars", "Sun"), _dashas("Rahu", "Mars", "Sun"), "en", TODAY)
     assert same["seasons"]["in_sync"] == [True, True, True] and "line up" in same["seasons"]["summary"]
 
@@ -54,8 +54,8 @@ def test_missing_timing_is_said_plainly_never_guessed():
 
 def test_tiles_and_lanes_come_from_the_reading():
     r = PV.build(SESSION, _dashas("Rahu", "Rahu", "Rahu"), _dashas("Saturn", "Saturn", "Rahu"), "en", TODAY)
-    assert r["tiles"]["flows"] == {"state": "flows", "text": "Friction is low"} and r["tiles"]["open"] == {"n": 2, "text": "2 areas to decide"}
-    assert r["tiles"]["care"]["areas"] == ["communication", "chemistry", "public"] and "communication and trust" in r["tiles"]["care"]["text"]
+    assert r["tiles"]["flows"] == {"state": "flows", "label": "Working together", "text": "Little friction between you"} and r["tiles"]["open"] == {"label": "Who decides", "n": 2, "text": "2 areas have no owner yet"}
+    assert r["tiles"]["care"]["areas"] == ["communication", "chemistry", "public"] and "communication and trust" in r["tiles"]["care"]["text"] and r["tiles"]["care"]["label"] == "Tend these" and "public" not in r["tiles"]["care"]["text"] and "how you show up" not in r["tiles"]["care"]["text"]
     owners = {l["lane"]: l["owner"] for l in r["lanes"]}
     assert owners == {"tech": "you", "ops": "open", "sales": "you", "vision": "open", "finance": "shared", "creative": "other"}
     hier = PV.build({**SESSION, "roles": {"kind": "hierarchy", "you": {}, "other": {}}}, _dashas("Rahu", "Rahu", "Rahu"), _dashas("Saturn", "Saturn", "Rahu"), "en", TODAY)
