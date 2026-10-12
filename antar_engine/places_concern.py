@@ -105,6 +105,70 @@ def chart_lords_for_concern(chart: dict, concern: str) -> list:
     return out
 
 
+def houses_ruled(chart: dict, planet: str) -> list:
+    """Natal houses (1-12) the planet rules from the birth lagna; [] if unknown."""
+    try:
+        from antar_engine.places_relocation import _natal_lagna_index
+        lagna = _natal_lagna_index(chart)
+    except Exception:
+        lagna = None
+    if lagna is None:
+        return []
+    return [h for h in range(1, 13) if _SIGN_LORD[(lagna + h - 1) % 12] == planet]
+
+
+# Concerns where a malefic ruling the primary house is a caution on its angle
+# (relating / belonging / inner peace). For career, business, money and health a
+# malefic lord on an angle is upachaya-style strength, so it is never flagged.
+_SOFT_CONCERNS = {"love", "family", "peace"}
+
+
+def lord_trap_watch(chart: dict, concern: str, all_lines: list, lat: float, lon: float) -> list:
+    """Watch-outs for lines whose planet's NATAL rulership works against the
+    concern. Judged by which house the planet rules for THIS concern, never by
+    the planet's nature alone:
+      * lord_drain  - rules one of the concern's negative houses (6/8/12-type)
+                      and none of its primary houses, close to a concern angle
+                      line (a "6th lord rising" style trap);
+      * lord_strain - a malefic that rules the concern's primary house, close
+                      to a concern angle line, for love / family / peace only.
+    Scans the lines itself because drain planets are not in the karaka list.
+    Descriptive only: never changes the score."""
+    cfg = CONCERN_MAP.get(concern)
+    if not cfg:
+        return []
+    primary = set(_CONCERN_LORD_HOUSES.get(concern, []))
+    neg = set(cfg.get("neg_houses", []))
+    angles = set(cfg["angles"])
+    kinds: dict = {}
+    for planet in PLANETS:
+        rules = set(houses_ruled(chart, planet))
+        if not rules:
+            continue
+        if rules & primary:
+            kind = "lord_strain" if (concern in _SOFT_CONCERNS and planet in MALEFICS) else None
+        else:
+            # A planet that also rules one of the concern's supportive houses is
+            # mixed, not a trap (e.g. Mars rules both 1st and 8th for Aries).
+            kind = "lord_drain" if (rules & neg and not rules & set(cfg["houses"])) else None
+        if kind:
+            kinds[planet] = (kind, sorted(rules))
+    out = []
+    for ln in all_lines:
+        planet = ln["planet"]
+        if planet not in kinds or ln["angle"] not in angles:
+            continue
+        d = distance_city_to_line(lat, lon, ln["polyline"])
+        if _band(d) == "ignored":
+            continue
+        kind, rules = kinds[planet]
+        if any(w["planet"] == planet for w in out):
+            continue
+        out.append({"kind": kind, "planet": planet, "angle": ln["angle"],
+                    "distance_km": round(d, 1), "ruled_houses": rules})
+    return out
+
+
 def effective_karakas(chart: dict, concern: str) -> list:
     """The user's own house lords first, then the generic karakas, de-duplicated."""
     merged = list(chart_lords_for_concern(chart, concern))
@@ -503,6 +567,8 @@ def score_city_for_concern(
                 "planet": hit["planet"], "house": hit["house"],
                 "condition": hit["condition"],
             })
+
+    watch.extend(lord_trap_watch(chart, concern, all_lines, lat, lon))  # [places-lords] trap lines
 
     signals.sort(key=lambda s: -s["strength"])
 

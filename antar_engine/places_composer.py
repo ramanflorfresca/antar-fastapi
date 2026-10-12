@@ -165,6 +165,8 @@ def compose_watch_outs(concern: str, watch_list: list[dict], lang: str, limit: i
             tkey = "endings_house" if w.get("house") == 8 else "hidden_cost_house"
         elif kind == "friction_line":
             tkey = "friction_line"
+        elif kind in ("lord_drain", "lord_strain"):
+            tkey = kind
         else:
             continue
         dedup = (tkey, w.get("planet"))

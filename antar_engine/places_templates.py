@@ -140,11 +140,15 @@ _WATCH_FRAMES = {
         "friction_line": "{planet} runs close here while under strain for you — expect {domain} to ask for more patience than usual.",
         "hidden_cost_house": "{planet} settles into the hidden-cost ground of this place — energy can drain into things you don't see coming. Build slack into your timelines.",
         "endings_house": "{planet} falls into the endings-and-release ground here — cycles close faster than elsewhere; keep what matters portable.",
+        "lord_drain": "Your line of {planet} runs close here, and in your chart it belongs to the side of life that pulls energy away from {domain} — a line that looks helpful can come with more friction than it promises.",
+        "lord_strain": "Your line of {planet} runs close here, and in your chart it carries {domain} with a heavier hand — expect this place to ask for patience and slow, honest pacing.",
     },
     "es": {
         "friction_line": "{planet} pasa cerca aquí mientras está bajo tensión para ti — {domain} pedirá más paciencia de lo habitual.",
         "hidden_cost_house": "{planet} se asienta en el terreno de los costos ocultos de este lugar — la energía puede escaparse en lo que no ves venir. Deja margen en tus plazos.",
         "endings_house": "{planet} cae en el terreno de los cierres aquí — los ciclos terminan más rápido que en otros sitios; mantén lo importante portátil.",
+        "lord_drain": "Tu línea de {planet} pasa cerca aquí y, en tu carta, pertenece al lado de la vida que le quita energía a {domain} — una línea que parece favorable puede traer más fricción de la que promete.",
+        "lord_strain": "Tu línea de {planet} pasa cerca aquí y, en tu carta, lleva {domain} con mano más pesada — este lugar pedirá paciencia y un ritmo lento y honesto.",
     },
 }
 
