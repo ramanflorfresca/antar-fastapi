@@ -43,6 +43,8 @@ _TX = {
         "who_advisor": "You decide; they advise", "who_employee": "You set the direction", "who_boss": "They set the direction",
         "out_h": "You and {b} are in different seasons ({when}). Expect different rhythms then.",
         "mixed_h": "Your rhythms differ in {n} of the 3 periods marked Out.",
+        "why_h": "Why this reading", "w_flows": "Flows", "w_mixed": "Mixed", "w_care": "Needs care", "c_most": "Counts most", "c_some": "Counts some", "c_little": "Counts a little",
+        "why_sum": "{n} of {m} areas flow; {k} {need}.", "why_sum_none": "No area stands out as strong yet; {k} {need}.", "need1": "needs care", "needN": "need care",
         "sync": "Your seasons line up: you can move at the same pace.",
         "out_a": "You are moving outward and {b} inward ({when}). Agree who sets the pace then.",
         "out_b": "{b} is moving outward and you inward ({when}). Agree who sets the pace then.",
@@ -58,6 +60,8 @@ _TX = {
         "who_advisor": "Tú decides; esa persona aconseja", "who_employee": "Tú marcas la dirección", "who_boss": "Esa persona marca la dirección",
         "out_h": "Tú y {b} están en temporadas distintas ({when}). Esperen ritmos distintos entonces.",
         "mixed_h": "Sus ritmos difieren en {n} de los 3 periodos marcados Out.",
+        "why_h": "Por qué esta lectura", "w_flows": "Fluye", "w_mixed": "Mixto", "w_care": "Necesita cuidado", "c_most": "Cuenta más", "c_some": "Cuenta algo", "c_little": "Cuenta poco",
+        "why_sum": "{n} de {m} áreas fluyen; {k} {need}.", "why_sum_none": "Ninguna área destaca todavía; {k} {need}.", "need1": "necesita cuidado", "needN": "necesitan cuidado",
         "sync": "Sus temporadas coinciden: pueden avanzar al mismo ritmo.",
         "out_a": "Tú vas hacia afuera y {b} hacia adentro ({when}). Acuerden quién marca el ritmo entonces.",
         "out_b": "{b} va hacia afuera y tú hacia adentro ({when}). Acuerden quién marca el ritmo entonces.",
@@ -107,6 +111,38 @@ def seasons_for(dashas: dict, today: Optional[date] = None, lang: str = "en") ->
             return None
         out.append({"key": s[0], "group": s[1], "label": s[3] if lang == "es" else s[2]})
     return out
+
+
+def why_block(session_out: dict, lang: str = "en") -> Optional[dict]:
+    """[why-consistent 2026-10-11] ONE shape for 'Why this reading', for every relationship type: the layers that count for THIS type (label in plain words, a state, a one-line reason,
+    how much it counts), then — only for work relationships — the 'how to work with them' text as paragraphs. No flow/friction columns (the card already carries them)."""
+    try:
+        tx = _TX[lang if lang in _TX else "en"]
+        lang = lang if lang in _TX else "en"
+        cap = lambda t: (t[:1].upper() + t[1:]) if t else t
+        layers = [l for l in (session_out.get("layers") or []) if isinstance(l, dict) and l.get("layer_key") in _CARE[lang]]
+        used = [l for l in layers if l.get("applicable") is not False and (l.get("weight_in_this_reason") or 0) > 0] or layers
+        rows = []
+        for l in sorted(used, key=lambda x: -(x.get("weight_in_this_reason") or 0)):
+            sc = l.get("score") or 0
+            state = "flows" if sc >= 75 else "care" if sc < 50 else "mixed"
+            w = l.get("weight_in_this_reason") or 0
+            reason = str(l.get("detail") or l.get("headline") or "").strip()
+            rows.append({"key": l["layer_key"], "label": cap(_CARE[lang][l["layer_key"]]), "state": state, "state_label": tx["w_" + state], "reason": reason,
+                         "counts": "most" if w >= 25 else "some" if w >= 10 else "little", "counts_label": tx["c_most" if w >= 25 else "c_some" if w >= 10 else "c_little"]})
+        n, k = sum(1 for r in rows if r["state"] == "flows"), sum(1 for r in rows if r["state"] == "care")
+        need = tx["need1"] if k == 1 else tx["needN"]
+        summary = tx["why_sum"].format(n=n, m=len(rows), k=k, need=need) if n else tx["why_sum_none"].format(k=k, need=need)
+        for_type = None
+        txt = ((session_out.get("roles") or {}).get("text") or "").strip()
+        if txt:
+            lines = [ln.strip() for ln in txt.split("\n")]
+            title, body = (lines[0], [ln for ln in lines[1:] if ln]) if lines else ("", [])
+            for_type = {"title": title, "paragraphs": body}
+        return {"title": tx["why_h"], "summary": summary, "layers": rows, "for_type": for_type}
+    except Exception as e:
+        print(f"[pair-view][why] failed: {type(e).__name__}: {e}")
+        return None
 
 
 def build(session_out: dict, dashas_a: dict, dashas_b: dict, language: str = "en", today: Optional[date] = None) -> Optional[dict]:
@@ -167,7 +203,8 @@ def build(session_out: dict, dashas_a: dict, dashas_b: dict, language: str = "en
         else:
             who = tx["you"] if not a else (name_b or "the other person")
             seasons = {"periods": list(PERIODS), "period_labels": PERIOD_LABELS[lang], "you": a, "other": b, "in_sync": None, "summary": tx["no_data"].format(who=who)}
-        return {"version": "pair-view-1", "language": lang, "tiles": {"flows": flows, "care": care, "open": open_t}, "status": status, "lanes": lanes, "seasons": seasons}
+        return {"version": "pair-view-1", "language": lang, "tiles": {"flows": flows, "care": care, "open": open_t}, "status": status, "lanes": lanes, "seasons": seasons,
+                "why": why_block(session_out, lang)}
     except Exception as e:
         print(f"[pair-view] failed: {type(e).__name__}: {e}")
         return None

@@ -288,3 +288,27 @@ def test_advisor_reading_has_no_cofounder_wording():
     assert "sets the pace" not in r["seasons"]["summary"] and "Agree who" not in r["seasons"]["summary"]
     one = PV.build(adv, _dashas("Rahu", "Rahu", "Rahu"), _dashas("Saturn", "Rahu", "Rahu"), "en", TODAY)
     assert "different seasons" in one["seasons"]["summary"] and "next 6 months" in one["seasons"]["summary"]
+
+
+def _layer(key, score, w, detail="d", applicable=True):
+    return {"layer_key": key, "score": score, "weight_in_this_reason": w, "detail": detail, "applicable": applicable}
+
+
+def test_why_has_one_shape_for_every_relationship_type():
+    sib = {"compat_type": "sibling", "badge": "MIXED", "layers": [_layer("soul", 80, 25, "You share priorities."), _layer("public", 45, 20), _layer("communication", 40, 30), _layer("friction", 30, 25)]}
+    work = {**sib, "compat_type": "cofounder", "roles": {**ROLES, "text": "How to work with Sam\n\nCan partner.\nShare tech."}}
+    for sess in (sib, work):
+        w = PV.build(sess, _dashas("Rahu"), _dashas("Saturn"), "en", TODAY)["why"]
+        assert set(w) == {"title", "summary", "layers", "for_type"} and w["title"] == "Why this reading"
+        assert w["layers"][0]["key"] == "communication"                                                                   # heaviest first
+        assert all(set(r) >= {"label", "state", "state_label", "reason", "counts", "counts_label"} for r in w["layers"])
+    s = PV.build(sib, _dashas("Rahu"), _dashas("Saturn"), "en", TODAY)["why"]
+    assert s["for_type"] is None and "1 of 4 areas flow; 3 need care." == s["summary"]               # no strengths claim contradicting a 'Flows' row
+    t = PV.build(work, _dashas("Rahu"), _dashas("Saturn"), "en", TODAY)["why"]["for_type"]
+    assert t == {"title": "How to work with Sam", "paragraphs": ["Can partner.", "Share tech."]}
+
+
+def test_why_hides_layers_that_do_not_count_for_the_type_and_has_no_empty_strength_line():
+    adv = {"compat_type": "advisor", "layers": [_layer("chemistry", 90, 0, applicable=False), _layer("soul", 60, 20), _layer("friction", 30, 20)]}
+    w = PV.build(adv, _dashas("Rahu"), _dashas("Saturn"), "en", TODAY)["why"]
+    assert [r["key"] for r in w["layers"]] == ["soul", "friction"] and w["summary"] == "No area stands out as strong yet; 1 needs care."
