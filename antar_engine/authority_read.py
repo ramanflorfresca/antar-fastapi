@@ -55,7 +55,7 @@ _TX = {
         "dep": "Keep the relationship advisory: they are not built to carry execution for you.",
         "contested": "The two systems point to different strongest lanes for them, so treat their strongest area as open.",
         "now": "Right now {b} is switched on for {lanes}.",
-        "close": "This is the chart's read of fit and style; confirm roles and expectations in writing.",
+        "close": "This is a read of fit and style; confirm roles and expectations in writing.",
     },
     "es": {
         "t_employee": "Cómo dirigir a {b}", "t_boss": "Cómo trabajar con {b}", "t_advisor": "Cómo aprovechar a {b}",
@@ -72,7 +72,7 @@ _TX = {
         "dep": "Mantengan la relación como asesoría: no están hechos para cargar la ejecución por ti.",
         "contested": "Los dos sistemas señalan áreas más fuertes distintas para esa persona, así que trata su área más fuerte como abierta.",
         "now": "Ahora mismo {b} está activado para {lanes}.",
-        "close": "Es la lectura de la carta sobre encaje y estilo; confirmen los roles y expectativas por escrito.",
+        "close": "Es una lectura de encaje y estilo; confirmen los roles y expectativas por escrito.",
     },
 }
 ROLE_ES = {"sales": "ventas", "marketing": "marketing", "social": "redes sociales", "operations": "operaciones", "finance": "finanzas",

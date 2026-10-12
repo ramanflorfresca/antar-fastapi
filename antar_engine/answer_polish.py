@@ -262,9 +262,9 @@ def strip_clock_deadlines(text, question: str = "", allow_empty: bool = False):
 
 _RELATIONSHIP_CONCERNS = {"reconciliation", "marriage", "love", "divorce", "family", "children"}
 _FINALITY_REPLACEMENT = {
-    "en": "Whether this can be rebuilt rests with both people, so the chart can't promise it \u2014 what it does show is where your own timing stands and when it opens.",
-    "es": "Que esto pueda reconstruirse depende de ambas personas, as\u00ed que la carta no puede prometerlo \u2014 lo que s\u00ed muestra es d\u00f3nde est\u00e1 tu propio momento y cu\u00e1ndo se abre.",
-    "pt": "Se isto pode ser reconstru\u00eddo depende das duas pessoas, ent\u00e3o o mapa n\u00e3o pode prometer isso \u2014 o que ele mostra \u00e9 onde est\u00e1 o seu momento e quando ele se abre.",
+    "en": "Whether this can be rebuilt rests with both people, so nothing can promise it \u2014 what it does show is where your own timing stands and when it opens.",
+    "es": "Que esto pueda reconstruirse depende de ambas personas, as\u00ed que nada puede prometerlo \u2014 lo que s\u00ed muestra es d\u00f3nde est\u00e1 tu propio momento y cu\u00e1ndo se abre.",
+    "pt": "Se isto pode ser reconstru\u00eddo depende das duas pessoas, ent\u00e3o nada pode prometer isso \u2014 o que ele mostra \u00e9 onde est\u00e1 o seu momento e quando ele se abre.",
 }
 
 

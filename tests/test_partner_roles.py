@@ -155,7 +155,7 @@ def test_a_lane_where_the_systems_pick_different_leaders_is_contested_not_assign
     b = {"planets": {"Sun": {}}, "who": "b"}
     r = P.compare(a, {}, b, {}, "B", "en", TODAY)
     assert "ops" in r["contested"] and "ops" not in r["you"]["leads"] + r["other"]["leads"]
-    assert "tech" in r["you"]["leads"] and "On operations & execution, our two ways of reading the charts disagree" in r["text"]
+    assert "tech" in r["you"]["leads"] and "On operations & execution, the two ways we look at this disagree" in r["text"]
     assert "Both systems agree" not in r["text"]
 
 

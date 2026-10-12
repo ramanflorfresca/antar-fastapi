@@ -162,7 +162,7 @@ def test_conditions_say_what_makes_it_true_and_what_breaks_it():
     chart, dashas = _chart()
     c = conditions("career", chart, dashas)
     assert c.startswith("It holds if you build it through your network and gains")
-    assert "in your chart" in c and "weakened" not in c and "It breaks if" in c and "recognition lags effort" in c
+    assert "for you," in c and "weakened" not in c and "It breaks if" in c and "recognition lags effort" in c
     h = conditions("health", chart, dashas)
     assert "recognition" not in h and "Risk stays small" in h
     assert "recognition" not in conditions("property", chart, dashas)
@@ -382,7 +382,7 @@ def test_marriage_move_is_stable_across_languages_and_never_invents_a_recipient(
     wait_es = mv("NOT_YET", chart, dashas, "es", "nov 2026 – ene 2027", "marriage")
     wait_pt = mv("NOT_YET", chart, dashas, "pt", "nov 2026 – jan 2027", "marriage")
     assert wait_en.startswith("Don't force a timeline. Use the time until your window (Nov 2026 – Jan 2027) to widen where you meet people")
-    assert "this area of your chart opens through your own initiative and communication" in wait_en
+    assert "this area opens through your own initiative and communication" in wait_en
     assert wait_es.startswith("No fuerces los tiempos.") and "a través de tu iniciativa y tu comunicación" in wait_es
     assert wait_pt.startswith("Não force os prazos.") and "por este canal: a sua iniciativa e a sua comunicação" in wait_pt
     go_en = mv("YES", chart, dashas, "en", "Nov 2026 – Jan 2027", "marriage")
@@ -409,7 +409,7 @@ def test_marriage_move_is_stable_across_languages_and_never_invents_a_recipient(
 
 def test_finality_sentences_are_replaced_with_an_honest_neutral_one_in_every_language():
     from antar_engine.answer_polish import soften_finality, polish_answer
-    en_rep = "Whether this can be rebuilt rests with both people, so the chart can't promise it — what it does show is where your own timing stands and when it opens."
+    en_rep = "Whether this can be rebuilt rests with both people, so nothing can promise it — what it does show is where your own timing stands and when it opens."
     cases = [
         ("Your marriage ended — the timing doesn't show a path to restore it. The closeness area is quiet.", "en"),
         ("The timing shows this chapter has closed — it's not coming back. Keep your focus on work.", "en"),
@@ -729,7 +729,7 @@ def test_weak_ruler_is_said_once_in_plain_words_not_in_every_move():
         mv = chart_move("business", chart, dashas, "en", q)
         assert "ruler" not in mv and "weakened" not in mv and "sub-period" not in mv
         cond = conditions("business", chart, dashas, "en", q)
-        assert "ruler of your" not in cond and "sub-period" not in cond and "in your chart" in cond
+        assert "ruler of your" not in cond and "sub-period" not in cond and "for you," in cond
 
 
 def test_second_weakness_sentence_is_plain():

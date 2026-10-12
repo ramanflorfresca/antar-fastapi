@@ -39,7 +39,8 @@ _TX = {
         "next_coach": "Write three specific things they must change, with a date, and review it in two weeks.",
         "next_reassign": "Write down the work they are strongest at ({lanes}) and offer that seat for a trial period.",
         "next_exit": "Write the record: what was expected, what happened, and on which dates. Take advice, then decide.",
-        "basis6": "Your 6th house (staff and service) is ruled by {lord}, in house {h}{notes}.",
+        "basis6": "How you handle staff conflict at work: {lvl}.",
+        "lvl_clean": "a strength of yours", "lvl_careful": "something to handle with care", "lvl_messy": "where things tend to turn messy",
         "basis_fit": "{who}'s read: {fit}{dir}.",
         "fit_strong": "a strong fit for the role", "fit_ok": "a workable fit for the role", "fit_weak": "a stretch for the role", "fit_none": "role not specified",
         "fit_dir": ", {dir}",
@@ -61,7 +62,8 @@ _TX = {
         "next_coach": "Escribe tres cosas concretas que debe cambiar, con una fecha, y revísenlo en dos semanas.",
         "next_reassign": "Anota el trabajo en el que es más fuerte ({lanes}) y ofrece ese puesto en periodo de prueba.",
         "next_exit": "Escribe el registro: qué se esperaba, qué pasó y en qué fechas. Pide asesoría y luego decide.",
-        "basis6": "Tu casa 6 (personal y servicio) la rige {lord}, en la casa {h}{notes}.",
+        "basis6": "Cómo manejas los conflictos con el personal en el trabajo: {lvl}.",
+        "lvl_clean": "una fortaleza tuya", "lvl_careful": "algo que conviene manejar con cuidado", "lvl_messy": "donde las cosas tienden a complicarse",
         "basis_fit": "Lectura de {who}: {fit}{dir}.",
         "fit_strong": "un encaje fuerte para el puesto", "fit_ok": "un encaje aceptable para el puesto", "fit_weak": "un reto para el puesto", "fit_none": "puesto sin especificar",
         "fit_dir": ", {dir}",
@@ -147,9 +149,7 @@ def compose(chart: dict, er: Optional[dict], name: str = "", language: str = "en
         parts += [tx["works"].format(w=w), tx["breaks"].format(b=b)]
         basis = []
         if h:
-            pn = h["lord"] if lang == "en" else _PLANET_ES.get(h["lord"], h["lord"])
-            notes = (", " + ", ".join(h["notes"])) if h["notes"] and lang == "en" else ""
-            basis.append(tx["basis6"].format(lord=pn, h=h["house"], notes=notes))
+            basis.append(tx["basis6"].format(lvl=tx["lvl_" + h["level"]]))      # plain: no house number, no planet name
         if er and lean != "document":
             fit_t = tx["fit_" + (fit if fit in ("strong", "ok", "weak") else "none")]
             dir_t = tx["fit_dir"].format(dir=tx["dir_" + d]) if d in ("easy", "scope", "own") else ""

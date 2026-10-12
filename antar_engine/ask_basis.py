@@ -225,10 +225,10 @@ _BREAKS = {
 
 # per-topic wording: (holds when the ruler is fine, holds when it is weakened, what the weakness means)
 _HOLDS = {
-    "career":   ("It holds if you route the effort through {ch}, where this area of your chart actually delivers",
+    "career":   ("It holds if you route the effort through {ch}, where this area actually delivers for you",
                  "It holds if you build it through {ch} and let results compound",
                  "recognition lags effort; steady visible work beats waiting{until}"),
-    "money":    ("It holds if you grow income through {ch}, where your chart actually pays",
+    "money":    ("It holds if you grow income through {ch}, where it actually pays for you",
                  "It holds if you grow income through {ch} and let it compound",
                  "returns lag effort; compounding beats chasing{until}"),
     "speculation": ("It holds if you cap what you commit at what you can afford to lose",
@@ -282,17 +282,17 @@ def conditions(concern, chart_data, dashas, language="en", question="") -> str:
         grp = _GROUP[concern]
         if grp == "health":
             holds = ("Risk stays small if you act early and protect sleep and recovery time. "
-                     + ("In your chart recovery runs slower than the effort you put in"
+                     + ("For you, recovery runs slower than the effort you put in"
                         if weak else "Your health house is well supported, so small habits go a long way"))
             return holds + ". It breaks if strain is pushed through without recovery time."
         if grp == "speculation":
             # [spec-plain 2026-10-11] plain words only: no "ruler of your 5th house", no sub-period date
             if weak:
-                body = ("Keep it capped: only an amount you can afford to lose. Your chart's gains tend to come in "
+                body = ("Keep it capped: only an amount you can afford to lose. Your gains tend to come in "
                         "bursts and give some of it back, so take what you set out to take and stop. ")
             else:
-                body = ("Keep it capped: only an amount you can afford to lose. Your chart supports measured, "
-                        "planned positions over impulsive ones. ")
+                body = ("Keep it capped: only an amount you can afford to lose. You do better with measured, "
+                        "planned positions than with impulsive ones. ")
             return body + "The risk is position size growing past what you can afford to lose."
         # [ask-families 2026-10-11] the condition that is true of THIS decision first (debt / price / funding / hire …), then the chart clause
         from antar_engine.ask_families import family as _fam
@@ -300,18 +300,18 @@ def conditions(concern, chart_data, dashas, language="en", question="") -> str:
         fine, weak_t, meaning = _HOLDS[grp]
         until = f" (the current sub-period runs to {end})" if end else ""
         if weak:
-            holds = (weak_t.format(ch=ch) + " — in your chart "
+            holds = (weak_t.format(ch=ch) + " — for you, "
                      + meaning.format(until=""))
         else:
             holds = fine.format(ch=ch)
         if _f and holds.startswith("It holds if "):
-            holds = "In your chart it also helps if " + holds[len("It holds if "):]        # two lead-ins ("It works if… It holds if…") read as a stutter
+            holds = "It also helps if " + holds[len("It holds if "):]        # two lead-ins ("It works if… It holds if…") read as a stutter
         out = (f"It works if {_f[1]}. " if _f else "") + holds + ". "
         for k in (CONCERN_KARAKAS.get(concern) or [])[:1]:
             kp = planets.get(k) or {}
             if k != lord and kp.get("sign") and any(
                     n == "debilitated" or n.startswith("combust") for n in _dignity(k, kp["sign"], planets)):
-                out += "The part of your chart that carries this is under strain too, so it needs deliberate effort rather than arriving on its own. "     # [plain 2026-10-11] no planet / \"significator\" in the answer; the basis line keeps the fact
+                out += "One of the main supports for this is under strain too, so it needs deliberate effort rather than arriving on its own. "     # [plain 2026-10-11] no planet / \"significator\" in the answer; the basis line keeps the fact
         return out + f"It breaks if {_f[2] if _f else _BREAKS[concern]}."
     except Exception:
         return ""
@@ -394,10 +394,10 @@ _RECON_TX = {
 # a not-yet -> don't force a timeline, widen where you meet people until the window opens.
 _MARRIAGE_TX = {
     "en": {"go": "Your window is open{w}: put yourself where serious partnership starts — closeness reaches you through {ch} — and say yes to introductions. Decide before you meet anyone what you won't compromise on.",
-           "wait": "Don't force a timeline. Use the time until your window{w} to widen where you meet people — this area of your chart opens through {ch} — and write down what you won't compromise on; then act when it opens.",
+           "wait": "Don't force a timeline. Use the time until your window{w} to widen where you meet people — this area opens through {ch} — and write down what you won't compromise on; then act when it opens.",
            "w": " ({t})"},
     "es": {"go": "Tu ventana está abierta{w}: ponte donde empiezan las relaciones serias — la cercanía te llega a través de {ch} — y acepta las presentaciones. Decide antes de conocer a alguien qué no vas a negociar.",
-           "wait": "No fuerces los tiempos. Usa el tiempo hasta tu ventana{w} para ampliar dónde conoces gente — esta área de tu carta se abre a través de {ch} — y escribe qué no vas a negociar; luego actúa cuando se abra.",
+           "wait": "No fuerces los tiempos. Usa el tiempo hasta tu ventana{w} para ampliar dónde conoces gente — esta área se abre a través de {ch} — y escribe qué no vas a negociar; luego actúa cuando se abra.",
            "w": " ({t})"},
     "pt": {"go": "Sua janela está aberta{w}: coloque-se onde as relações sérias começam — a proximidade chega até você por este canal: {ch} — e aceite apresentações. Decida antes de conhecer alguém o que você não vai negociar.",
            "wait": "Não force os prazos. Use o tempo até a sua janela{w} para ampliar onde você conhece pessoas — esta área do seu mapa se abre por este canal: {ch} — e escreva o que você não vai negociar; depois aja quando ela abrir.",
