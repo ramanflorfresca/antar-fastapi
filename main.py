@@ -33562,7 +33562,7 @@ async def _ask_endpoint_impl(request: AskRequest):
                         (locals().get("_ask_u") or {}).get("intent") == "what_to_do")
                     _sp = (_spp.risk_lead(_sp_state, _sp_win, gambling=_sp_gamb, language=language)
                            if _sp_how else
-                           _spp.lead(_sp_state, _sp_win, gambling=_sp_gamb, language=language))
+                           _spp.lead(_sp_state, _sp_win, gambling=_sp_gamb, language=language, question=question))
                     _sp_note = _spp.asset_note(question, language)
                     if _sp_note and isinstance(_sp, dict) and _sp.get("read") and _sp_note not in _sp["read"]:
                         _sp["read"] = _sp["read"].rstrip() + " " + _sp_note
