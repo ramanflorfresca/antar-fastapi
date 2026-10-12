@@ -1519,3 +1519,26 @@ def test_tile_and_windows_feed_agree_on_the_open_window():
     assert w["start"] == max(s0, TODAY).isoformat()
     from datetime import date as _date
     assert w["end"] == min(e0, _date.fromisoformat(r["period"]["end"])).isoformat()
+
+
+# ── [alternation] a structural-only open never sits next to a care bucket ────
+def _bucket(mode, lit=True, n_ben=0):
+    return {"lit": lit, "mode": mode, "n_benefic": n_ben, "polarity": "x", "score": 4.0}
+
+
+def test_structural_only_open_next_to_care_is_demoted_but_backed_open_stays():
+    res = [((date(2027, 1, 1), date(2027, 1, 30)), _bucket("open")),
+           ((date(2027, 1, 31), date(2027, 3, 1)), _bucket("care")),
+           ((date(2027, 3, 2), date(2027, 3, 31)), _bucket("open", n_ben=1)),
+           ((date(2027, 4, 1), date(2027, 4, 30)), _bucket("care"))]
+    out = T._demote_structural_opens(res)
+    assert [(a["mode"], a["lit"]) for _, a in out] == [("steady", False), ("care", True),
+                                                       ("open", True), ("care", True)]
+    assert out[0][1].get("demoted") is True
+
+
+def test_structural_only_open_away_from_care_is_kept():
+    res = [((date(2027, 1, 1), date(2027, 1, 30)), _bucket("open")),
+           ((date(2027, 1, 31), date(2027, 3, 1)), _bucket("open")),
+           ((date(2027, 3, 2), date(2027, 3, 31)), _bucket("care", lit=False))]
+    assert all(a["mode"] == "open" and a["lit"] for _, a in T._demote_structural_opens(res)[:2])

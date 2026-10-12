@@ -51744,7 +51744,7 @@ def _topic_shared_with(chart_id: str, out: dict, tz_offset, authorization, claim
 
 
 # ── Windows feed: a cross-topic list of dated windows, from the same engine as topic-read ──
-_WINDOWS_FEED_VERSION = "v2"
+_WINDOWS_FEED_VERSION = "v3"
 
 
 def _windows_compute(chart_id: str, language, tz_offset, horizon_months):
