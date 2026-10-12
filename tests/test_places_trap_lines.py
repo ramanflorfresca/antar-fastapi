@@ -44,3 +44,12 @@ def test_malefic_seventh_lord_on_dc_is_strain_for_love():
 def test_far_line_and_wrong_angle_ignored():
     assert lord_trap_watch(_chart("Cancer"), "love", [_line("Saturn", "DC", 10.0, 40.0)], 10.0, 10.0) == []
     assert lord_trap_watch(_chart("Cancer"), "love", [_line("Saturn", "MC")], 10.0, 10.0) == []
+
+
+def test_trap_lines_need_a_line_you_are_on_not_within_700km():
+    # Cancer lagna, love: Saturn on the DC is 'lord_strain'. ~490 km away (moderate
+    # band) must no longer flag; standing on the line still does.
+    near = _line("Saturn", "DC", 10.0, 14.5)
+    on = _line("Saturn", "DC")
+    assert lord_trap_watch(_chart("Cancer"), "love", [near], 10.0, 10.0) == []
+    assert [x["kind"] for x in lord_trap_watch(_chart("Cancer"), "love", [on], 10.0, 10.0)] == ["lord_strain"]
