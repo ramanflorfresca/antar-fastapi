@@ -265,7 +265,19 @@ _DASHA_HOUSE_Q = {   # relocated-house quality for the dasha lord's stage
     1: 0.9, 2: 0.6, 3: 0.4, 4: 0.8, 5: 1.0, 6: -0.5,
     7: 0.7, 8: -0.9, 9: 1.0, 10: 1.0, 11: 0.9, 12: -0.5,
 }
-_DASHA_BLEND_W = 0.30   # share of the final score the running dasha carries
+_DASHA_BLEND_W = 0.30   # share of the final score the running dasha carries (legacy blend)
+
+
+def _dasha_mode() -> str:
+    """'multiplier' (default) or 'blend' (legacy additive) - env-switchable so the
+    change can be rolled back without a deploy of code."""
+    import os
+    return "blend" if os.getenv("PLACES_DASHA_MODE", "multiplier").strip().lower() == "blend" else "multiplier"
+
+
+def _dasha_multiplier(dasha_score01: float) -> float:
+    """Dasha fit in [0,1] (0.5 neutral) -> multiplier in [0.5, 1.5] (1.0 neutral)."""
+    return 0.5 + max(0.0, min(1.0, dasha_score01))
 
 
 def _dasha_relocation_score(chart: dict, relocation: dict, conditions: dict,
@@ -569,9 +581,17 @@ def score_city_for_concern(
         + w["angles"] * angle_score
         + w["houses"] * house_score
     )
-    if dasha_score is not None:
-        # Carve out _DASHA_BLEND_W for the running dasha; the static concern score
-        # (karaka/angle/house, which already sums to 1.0) keeps the remainder.
+    if dasha_score is not None and _dasha_mode() == "multiplier":
+        # [places-dasha-multiplier 2026-10-12] Owner decision (field-tested with
+        # practising astrologers): the running dasha GATES the place, it is not
+        # one ingredient. A dasha lord that relocates badly (score01 -> 0) halves
+        # the place; one that relocates well (-> 1) lifts it by up to half. 0.5
+        # (neutral) leaves the static score untouched.
+        combined = (base_combined * _dasha_multiplier(dasha_score)
+                    - _NEG_SCREEN_W * neg_score)
+    elif dasha_score is not None:
+        # Legacy additive blend (PLACES_DASHA_MODE=blend): carve out
+        # _DASHA_BLEND_W for the running dasha; the static score keeps the rest.
         combined = ((1.0 - _DASHA_BLEND_W) * base_combined
                     + _DASHA_BLEND_W * dasha_score
                     - _NEG_SCREEN_W * neg_score)
