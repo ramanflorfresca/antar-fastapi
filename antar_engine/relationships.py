@@ -974,8 +974,14 @@ def marriage_timing(chart_data: dict, dashas: dict, birth_date: Optional[str] = 
 
         if best:
             _yr = best["start"][:7]
-            summary = (f"The strongest partnership window opens around {_yr} "
-                       f"— {len(best['systems'])} independent systems agree.")
+            # [forward-only 2026-10-12] a window that began in the past and is still open is open NOW; "opens around 2024-11" put a past
+            # start in front of the narrator (Harleen: "late 2024 through late 2027")
+            if best["start"][:10] <= anchor.date().isoformat():
+                summary = (f"The strongest partnership window is open now, through {str(best['end'])[:7]} "
+                           f"— {len(best['systems'])} independent systems agree.")
+            else:
+                summary = (f"The strongest partnership window opens around {_yr} "
+                           f"— {len(best['systems'])} independent systems agree.")
         else:
             summary = ("No sharply-converging marriage window in the next few years — "
                        "the opening is broader; effort and openness matter more than a date.")

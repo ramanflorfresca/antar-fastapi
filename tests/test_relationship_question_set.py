@@ -143,3 +143,15 @@ def test_stock_setup_is_real_sentence_is_dropped_but_not_the_answer():
                    "The foundation under this bond reads as fragile. Build slowly.", "next": "Say what you need once."}
     polish_answer(pay, language="en", typed_question="Will I marry before 30?", concern="marriage")
     assert "setup in your timing is real" not in pay["read"] and "Nov 2026" in pay["read"] and "Build slowly." in pay["read"]
+
+
+def test_past_window_and_window_conflict_are_flagged():
+    from tests.data.relationship_lane_checks import lane_checks
+    q = {"id": 22, "lane": "reframe", "q": "Will he or she come back?"}
+    base = {"next": "x", "concern": "love"}
+    assert "PAST_WINDOW" in lane_checks(q, {**base, "read": "Your strongest window runs late 2024 through late 2027. Make one move."})
+    assert "PAST_WINDOW" not in lane_checks(q, {**base, "read": "Your strongest window runs now through late 2027. Make one move."})
+    conflict = {**base, "timing": "Nov 2026 – Apr 2027",
+                "read": "The window is Nov 2026 – Apr 2027. A bigger window runs now through September 2028. Make one move."}
+    assert "WINDOW_CONFLICT" in lane_checks(q, conflict)
+    assert "WINDOW_CONFLICT" not in lane_checks(q, {**conflict, "read": "The window is Nov 2026 – Apr 2027. Make one move. Be honest."})

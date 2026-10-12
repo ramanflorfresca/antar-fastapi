@@ -99,6 +99,16 @@ def lane_checks(item: dict, p: dict) -> list:
         out.append("ROUTE_UNKNOWN")
     if _DATELESS.search(text):
         out.append("SENTENCE_BROKEN")
+    # [one-window 2026-10-12] a window that starts in the past, or a 'window' sentence that does not sit with the answer's headline window
+    try:
+        from antar_engine import window_guard as _wg
+        _body = str(p.get("read") or "")
+        if _wg.clip_forward(_body) != _body:
+            out.append("PAST_WINDOW")
+        if p.get("timing") and _wg.drop_conflicting_window_sentences(_body, str(p.get("timing"))) != _body:
+            out.append("WINDOW_CONFLICT")
+    except Exception:
+        pass
     if not (p.get("read") or "").strip():
         out.append("EMPTY")
     return out

@@ -603,6 +603,19 @@ def polish_answer(payload: dict, language: str = "en", typed_question: str = "",
         if _dd:
             print("[ask][polish] dateless-date sentence dropped")
         payload["read"] = tidy_sentence_starts(payload.get("read"))
+        # [one-window 2026-10-12] never a window that starts in the past ("late 2024 through late 2027" -> "now through late 2027"), and no
+        # sentence announcing a 'window' that does not sit with the headline window (payload["timing"])
+        try:
+            from antar_engine import window_guard as _wg
+            _r0 = payload.get("read")
+            payload["read"] = _wg.clip_forward(payload.get("read"))
+            payload["read"] = _wg.drop_conflicting_window_sentences(payload.get("read"), payload.get("timing"))
+            if isinstance(payload.get("next"), str):
+                payload["next"] = _wg.clip_forward(payload["next"], keep_min=1)
+            if payload.get("read") != _r0:
+                print("[ask][polish] window dates reconciled (forward-only / one window)")
+        except Exception:
+            pass
         # R4 — spread chart: no "pick one venture / double down" (unless they asked to pick one)
         if chart_lean == "spread" and not _PICK_ONE.search(own):
             payload["read"], _ = _drop_sentences(payload.get("read"), _PICK_ONE, keep_min=2)

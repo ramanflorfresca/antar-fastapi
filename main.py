@@ -30416,7 +30416,10 @@ async def _ask_endpoint_impl(request: AskRequest):
                         # get back with my wife" question fell into the entry path →
                         # "a new person will be attracted to you / widen your circle"
                         # + business bleed. Handle it FIRST and ban that framing.
-                        _is_reconcile = (_detect_concern(question) == "reconciliation")
+                        # [one-window 2026-10-12] the other-person rewrite already KNOWS a "will he come back" / "should I reach out" question is a
+                        # reunion (its reframed sentence - "reach out to a former partner" - is not something the word detector recognises)
+                        _is_reconcile = (_detect_concern(question) == "reconciliation"
+                                         or (_ASK_REFRAMED.get() or {}).get("kind") in ("reunion", "contact"))
                         if _is_reconcile:
                             _rp.append(
                                 "RECONCILIATION — the reader asks about REUNITING with their "
@@ -30456,7 +30459,30 @@ async def _ask_endpoint_impl(request: AskRequest):
                         # transits + Chara + LK varshphal), which pins a real date a
                         # mahadasha alone cannot. For durability, name the strain
                         # window. Otherwise the broad life-phase view.
-                        if (_ri in ("entry", "timing") and _partnered is not True
+                        _rel_headline_window = None
+                        if _is_reconcile:
+                            # [one-window 2026-10-12] A REUNION is timed by the RECONCILIATION engine - the same one the ex-question and the
+                            # divorced two-window block use - never by the new-union convergence window below. That mix is how a divorced
+                            # reader got "your strongest partnership window is now" for "will he come back" and "no window" for "will I marry".
+                            try:
+                                from antar_engine.event_narrator import run_event_engine as _rre
+                                from antar_engine import divorced_union as _DUw
+                                _rr = await run_in_threadpool(_rre, chart_data, locals().get("_ask_jd"), _rel_dashas, _ask_birth_date, "reconciliation")
+                                _rs = _DUw._state(_rr, date.today())
+                                if _rs["state"] == "open_now":
+                                    _rel_headline_window = f"now through {_rs['end'].strftime('%b %Y')}"
+                                    _rp.append(f"TIMING (reunion): the window for rebuilding this bond is open now, through {_rs['end'].strftime('%b %Y')}. "
+                                               "Name only this window. It times the reader's own move, never the other person's reply.")
+                                elif _rs["state"] == "upcoming":
+                                    _rel_headline_window = f"{_rs['start'].strftime('%b %Y')} – {_rs['end'].strftime('%b %Y')}"
+                                    _rp.append(f"TIMING (reunion): the window for rebuilding this bond opens {_rel_headline_window}; until then it is "
+                                               "groundwork, not a reconnection. Name only this window.")
+                                else:
+                                    _rp.append("TIMING (reunion): the timing shows no supported window for rebuilding this bond in the next two years - do "
+                                               "not offer one; put the weight on what the reader can decide themselves.")
+                            except Exception as _rwe:
+                                logger.warning(f"[ask] reunion window skipped (non-fatal): {_rwe}")
+                        if (_ri in ("entry", "timing") and _partnered is not True and not _is_reconcile
                                 and _mt.get("available") and _mt.get("best")):
                             _bw = _mt["best"]
                             _rp.append(
@@ -30554,6 +30580,12 @@ async def _ask_endpoint_impl(request: AskRequest):
                             logger.warning(f"[ask] relationship-timing skipped (non-fatal): {_sne}")
                         _rp.append("Close with ONE concrete, agency-oriented next step.")
                         _ask_relationship_block = "\n".join(_rp)
+                        if _rel_headline_window:
+                            try:
+                                from antar_engine import window_guard as _wg0
+                                _ask_relationship_block = _wg0.reconcile_relationship_block(_ask_relationship_block, _rel_headline_window)
+                            except Exception:
+                                pass
             except Exception as _ree:
                 logger.warning(f"[ask] relationship-engine skipped (non-fatal): {_ree}")
 
@@ -32230,6 +32262,13 @@ async def _ask_endpoint_impl(request: AskRequest):
                             except Exception as _dde:
                                 print(f"[ask][dasha-diff] skipped: {_dde}")
                             _ask_conv_block = _ee["narrator_prompt"]
+                            # [one-window 2026-10-12] the event engine's window is THE window: the relationship facts built earlier carry
+                            # their own (the convergence line, the sub-period stretch). Reconcile them to the headline before the model sees them.
+                            try:
+                                from antar_engine import window_guard as _wg
+                                _ask_relationship_block = _wg.reconcile_relationship_block(_ask_relationship_block, _ee_timing)
+                            except Exception as _wge:
+                                print(f"[ask][one-window] skipped (non-fatal): {_wge}")
                             # [evprimary-2026-06-07] Replace the convergence
                             # path's verdict + verdict_phrase with the
                             # engine's so L1's hard-bind prepend uses the
