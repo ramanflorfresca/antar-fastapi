@@ -1,12 +1,12 @@
 """[output-contract 2026-10-12] The Ask output contract bans 'chart', 'horoscope', 'astrology', houses and house numbers (and the Spanish carta / casa N) in USER-FACING text; the App Store 4.3 defence
 rests on the landing screen not reading as an astrology app. The conversation audit found ~40 answers saying "your chart" from our own template lines. This keeps the answer-template modules clean.
-Docstrings, comments, log lines and the technical `basis_facts` strings (which carry {l1}-style placeholders) are exempt; the suggested-question chips in ask_followups are a separate decision."""
+Docstrings, comments, log lines and the technical `basis_facts` strings (which carry {l1}-style placeholders) are exempt."""
 import ast
 import re
 from pathlib import Path
 
 RX = re.compile(r"\b(charts?|horoscopes?|astrolog\w*|cartas?|mapa astral|casa \d+|\d+(?:st|nd|rd|th) house)\b", re.I)
-FILES = ["ask_basis", "ask_basis_es", "basis_plain", "positioning", "work_fit", "work_profile", "staff_decision", "authority_read", "partner_roles", "pair_view", "divorced_union", "ask_families"]
+FILES = ["ask_basis", "ask_basis_es", "basis_plain", "positioning", "work_fit", "work_profile", "staff_decision", "authority_read", "partner_roles", "pair_view", "divorced_union", "ask_families", "ask_followups"]
 ROOT = Path(__file__).resolve().parent.parent / "antar_engine"
 
 
