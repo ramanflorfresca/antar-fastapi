@@ -114,3 +114,32 @@ def test_shared_lead_verdicts_are_not_template_reuse():
     assert not template_reuse(rows)
     canned = [{"id": i, "read": lead + "The same canned paragraph repeated word for word here."} for i in (1, 2, 3)]
     assert template_reuse(canned)
+
+
+def test_paraphrased_no_window_answers_count():
+    from tests.data.relationship_lane_checks import lane_checks
+    q = {"id": 2, "lane": "serve", "q": "When will I get married?"}
+    for t in ("No solid partnership is likely in the next 24 months.", "A real marriage is not likely in the next two years.",
+              "No strong partnership window in the next 24 months."):
+        assert "NO_WINDOW" not in lane_checks(q, {"read": t, "next": "x", "concern": "marriage"}), t
+
+
+def test_sentence_start_repair_and_opening_time_word_drop():
+    from antar_engine.answer_polish import polish_answer, tidy_sentence_starts
+    assert tidy_sentence_starts("It is not your focus., you're driven by ambition.") == "It is not your focus. You're driven by ambition."
+    assert tidy_sentence_starts("You'll have. several signals of the timing agree.") == "You'll have. Several signals of the timing agree."
+    assert tidy_sentence_starts("Use e.g. a calm tone. then wait.") == "Use e.g. a calm tone. Then wait."
+    assert tidy_sentence_starts("It opens Oct. the next week.") == "It opens Oct. the next week."      # month abbreviation: untouched
+    assert tidy_sentence_starts("A fine sentence. Another one!") == "A fine sentence. Another one!"
+    pay = {"read": "Marriage is possible now, but it's not your focus. Build slowly. Around, things shift. Commitment feels more natural then.",
+           "next": "Reach out once."}
+    polish_answer(pay, language="en", typed_question="Will I marry in this dasha or the next?", concern="marriage")
+    assert "Around," not in pay["read"] and "Build slowly." in pay["read"] and "Commitment feels more natural then." in pay["read"]
+
+
+def test_stock_setup_is_real_sentence_is_dropped_but_not_the_answer():
+    from antar_engine.answer_polish import polish_answer
+    pay = {"read": "Likely — partnership window Nov 2026 – Jan 2027. The setup in your timing is real — the potential for a lasting bond is genuinely there. "
+                   "The foundation under this bond reads as fragile. Build slowly.", "next": "Say what you need once."}
+    polish_answer(pay, language="en", typed_question="Will I marry before 30?", concern="marriage")
+    assert "setup in your timing is real" not in pay["read"] and "Nov 2026" in pay["read"] and "Build slowly." in pay["read"]

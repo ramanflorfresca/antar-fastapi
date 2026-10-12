@@ -124,7 +124,7 @@ _FUND = re.compile(r"(?i)\b((?<!emergency )(?<!rainy-day )(?<!rainy day )(?<!sav
                    r"financiaci[oó]n|financiamiento|financiamento|captar (capital|recursos|inversi[oó]n)|"
                    r"inversionistas?|investidor(es)?)\b")
 _FUND_OK_CONCERNS = {"funding", "business", "startup"}
-_VAGUE_FILLER = re.compile(r"(?i)\bthe timing (genuinely )?shows\b|\bthe setup (for [\w ]{1,30})?is real\b|"
+_VAGUE_FILLER = re.compile(r"(?i)\bthe timing (genuinely )?shows\b|\bthe setup (?:(?:for|in|of) [\w ]{1,30})?is real\b|"
                            r"\bhasn'?t (fully )?(arrived|formed)\b|\bright moment\b|\bgenuine (pressure|promise)\b")
 _FILLER_OPENER = re.compile(r"(?i)\b(this|that|your)\s+(concern|feeling|worry|stuck feeling|frustration|tiredness|exhaustion|"
                             r"anxiety|pattern|question)\b[^.]{0,40}\b(is|are) real\b|\bworth acting on,? not worrying\b|"
@@ -477,7 +477,31 @@ def _drop_sentences(text, rx, keep_min: int = 1):
 # [dateless 2026-10-12] A sentence whose date never arrived: "The next chapter, starting around, brings more warmth" (the narrator was told not
 # to cite a past start, then dropped the date it was meant to give). It reads as broken and promises a time it never names - drop it.
 _DATELESS = re.compile(
-    r"(?i)\b(?:starting|beginning|opening|arriving|kicking\s+off|empezando|comenzando|come[cç]ando|a\s+partir)\s+(?:around|about|in|from|by|at|de|em|en)?\s*[,.;]")
+    r"(?i)\b(?:starting|beginning|opening|arriving|kicking\s+off|empezando|comenzando|come[cç]ando|a\s+partir)\s+(?:around|about|in|from|by|at|de|em|en)?\s*[,.;]|"
+    # a sentence that OPENS with a time word and nothing after it: "Around, things shift."
+    r"(?:^|(?<=[.!?])\s+)(?:around|by|until|from|starting|alrededor|hacia|por\s+volta)\s*[,.]\s")
+
+
+# [sentence-starts 2026-10-12] a dropped clause leaves ".," or a lowercase sentence start ("...not your focus., you're driven...",
+# "...you'll have. several signals of the timing agree"). Repair the punctuation and capitalise the new sentence; abbreviations are left alone.
+_ABBREV = {"e.g", "i.e", "vs", "etc", "approx", "dr", "mr", "mrs", "ms", "st", "no", "fig", "inc", "ltd", "jan", "feb", "mar", "apr", "jun",
+           "jul", "aug", "sep", "sept", "oct", "nov", "dec"}
+
+
+_SENT_START_LOWER = re.compile(r"([a-zà-ÿ0-9\)\"”'’][.!?]\s+)([a-zà-ÿ])")
+
+
+def tidy_sentence_starts(text):
+    if not isinstance(text, str) or not text:
+        return text
+    t = re.sub(r"([.!?]),\s+(?=[A-Za-zÀ-ÿ])", r"\1 ", text)        # "focus., you're" -> "focus. you're"
+
+    def _cap(m):
+        prev = re.search(r"([A-Za-z.]+)$", t[:m.start(1) + 1])
+        if prev and prev.group(1).lower().rstrip(".") in _ABBREV:       # "e.g. the", "Oct. 5": leave alone
+            return m.group(0)
+        return m.group(1) + m.group(2).upper()
+    return _SENT_START_LOWER.sub(_cap, t)
 
 
 # [ack-opener 2026-10-12] An answer that opens by acknowledging the question ("Raman, I hear how much weight this question
@@ -578,6 +602,7 @@ def polish_answer(payload: dict, language: str = "en", typed_question: str = "",
         payload["read"], _dd = _drop_sentences(payload.get("read"), _DATELESS, keep_min=2)
         if _dd:
             print("[ask][polish] dateless-date sentence dropped")
+        payload["read"] = tidy_sentence_starts(payload.get("read"))
         # R4 — spread chart: no "pick one venture / double down" (unless they asked to pick one)
         if chart_lean == "spread" and not _PICK_ONE.search(own):
             payload["read"], _ = _drop_sentences(payload.get("read"), _PICK_ONE, keep_min=2)

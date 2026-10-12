@@ -37,13 +37,13 @@ _ASSUMES = re.compile(r"\b(the affair|your affair|your lover|the third person)\b
 # week-scale promises are over-precision (sookshma-level, birth-time-fragile); pratyantardasha is the floor
 _OVER_PRECISE = re.compile(r"\b(within (?:a few |the next )?(?:days|weeks|hours)|in the next (?:few )?(?:days|weeks)|today|tonight|tomorrow|this week)\b", re.I)
 # a sentence whose date never arrived ("starting around, brings...")
-_DATELESS = re.compile(r"(?i)\b(?:starting|beginning|opening|arriving)\s+(?:around|about|in|from|by|at)?\s*[,.;]")
+_DATELESS = re.compile(r"(?i)\b(?:starting|beginning|opening|arriving)\s+(?:around|about|in|from|by|at)?\s*[,.;]|(?:^|(?<=[.!?])\s+)(?:around|by|until|from)\s*[,.]\s|[.!?],\s+[a-z]")
 _CERTAIN = re.compile(r"\b(definitely|certainly|guaranteed|for sure|100%|without a doubt)\b", re.I)
 _DIVORCE_FACT = re.compile(r"\byou will (?:get )?(?:divorce|divorced)\b|\bmarriage will (?:end|fail)\b", re.I)
 _PEOPLE_HINT = re.compile(r"\b(people|circle|their (?:chart|birth)|compatib|add (?:them|him|her)|both (?:of your )?charts?|birth details)\b", re.I)
 _MOVE = re.compile(r"\b(you (?:can|could|might|may|should)|your (?:move|next step)|best move|try|start|consider|decide)\b", re.I)
 # an honest "there is no supported window" IS an answer to a timing question; silence is not
-_SAYS_NO_WINDOW = re.compile(r"\b(no (?:strong |supported |clear )?(?:partnership |marriage )?window|not yet|no window|not indicated|no supported)\b", re.I)
+_SAYS_NO_WINDOW = re.compile(r"\b(no (?:strong |supported |clear |solid |real )?(?:partnership |marriage )?(?:window|partnership|marriage)|not yet|no window|not indicated|no supported|not likely in the next)\b", re.I)
 # a window stated in the prose (a year, a month, "through late 2027") answers a timing question even without a `timing` field
 _STATES_WINDOW = re.compile(r"(?i)\b(?:20[2-9]\d|jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b")
 _TIMING_Q = re.compile(r"^(when|what (?:month|year)|which (?:month|year)|will i .*(?:this year|before|in this|or the next)|exact year)", re.I)

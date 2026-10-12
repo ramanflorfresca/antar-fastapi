@@ -30537,6 +30537,21 @@ async def _ask_endpoint_impl(request: AskRequest):
                                 _rp.extend(_fd["facts"])
                         except Exception as _fde:
                             logger.warning(f"[ask] relationship-foundation skipped (non-fatal): {_fde}")
+                        # [rel-timing 2026-10-12] layer 3: ending or fight? The running periods' roles (6/8/12 strain lords vs the 7th house),
+                        # the next stretch genuinely CONNECTED to partnership (not "friendly"), and Moon / Venus / Jupiter transits for the
+                        # week scale - never the sookshma period. Times the READER's move, never another person's reply. Runs off the loop
+                        # (a few hundred ephemeris calls).
+                        try:
+                            from antar_engine.relationship_timing import analyze_season as _analyze_season
+                            _sn = await run_in_threadpool(_analyze_season, chart_data, _rel_dashas)
+                            if _sn.get("available"):
+                                _rp.extend(_sn["facts"])
+                                _fband = (((locals().get("_fd") or {}).get("foundation")) or {}).get("band")
+                                if _sn["season"] == "ending" and _fband == "fragile":
+                                    _rp.append("BOTH THE RUNNING PERIODS AND THE FOUNDATION POINT TO AN ENDING: say it kindly and plainly, offer "
+                                               "closure steps and what the reader wants next, and do NOT offer a reunion date or a string of soft maybes.")
+                        except Exception as _sne:
+                            logger.warning(f"[ask] relationship-timing skipped (non-fatal): {_sne}")
                         _rp.append("Close with ONE concrete, agency-oriented next step.")
                         _ask_relationship_block = "\n".join(_rp)
             except Exception as _ree:
