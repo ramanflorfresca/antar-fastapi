@@ -264,8 +264,14 @@ def latest_score(sb, owner_chart_id: str, person_chart_id: str,
     rows.sort(key=lambda r: str(r.get("updated_at") or ""), reverse=True)
     r = rows[0]
     bd = r.get("score_breakdown") if isinstance(r.get("score_breakdown"), dict) else {}
+    headline = bd.get("headline")
+    try:   # [first-names 2026-10-11] list rows read "Raman Singh and Andres Botero…" while other rows say first names
+        from antar_engine import display_names as _DN
+        headline = _DN.apply(headline, [bd.get("name_a"), bd.get("name_b")])
+    except Exception:
+        pass
     return {"score": r.get("overall_score"), "badge": r.get("verdict"),
-            "headline": bd.get("headline"), "compat_type": compat_type,
+            "headline": headline, "compat_type": compat_type,
             "session_id": r.get("session_id"), "updated_at": r.get("updated_at")}
 
 
