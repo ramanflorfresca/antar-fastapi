@@ -114,13 +114,17 @@ TERMS = {
                 "plain_es": "En un signo donde es fuerte, por eso se expresa con facilidad."},
     "debilitated": {"en": "Debilitated", "es": "Debilitado",
                     "plain_en": "In a sign where it needs support, so this area asks for extra care. It does not mean it fails.",
-                    "plain_es": "En un signo donde necesita apoyo, por eso esta área pide cuidado extra. No significa que falle."},
+                    "plain_es": "En un signo donde necesita apoyo, por eso esta área pide cuidado extra. No significa que falle.",
+                    "helps_en": "Give that area extra support: preparation, advice and patience.",
+                    "helps_es": "Dale a esa área apoyo extra: preparación, consejo y paciencia."},
     "own sign": {"en": "In its own sign", "es": "En su propio signo",
                  "plain_en": "At home in its own sign, so it works comfortably.",
                  "plain_es": "En casa, en su propio signo, por eso funciona con comodidad."},
     "combust": {"en": "Combust", "es": "Combusto",
                 "plain_en": "Close to the Sun, so its own voice is absorbed into the Sun's purpose and it works quietly. A reason to give that area deliberate effort.",
-                "plain_es": "Cerca del Sol, por eso su propia voz se absorbe en el propósito del Sol y trabaja en silencio. Una razón para dedicar esfuerzo deliberado a esa área."},
+                "plain_es": "Cerca del Sol, por eso su propia voz se absorbe en el propósito del Sol y trabaja en silencio. Una razón para dedicar esfuerzo deliberado a esa área.",
+                "helps_en": "Give that area deliberate effort: one direct, visible step, instead of waiting for it to happen.",
+                "helps_es": "Dedica a esa área un esfuerzo deliberado: un paso directo y visible, en lugar de esperar a que ocurra."},
 }
 
 

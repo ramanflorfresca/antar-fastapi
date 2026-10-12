@@ -34151,6 +34151,17 @@ async def _ask_endpoint_impl(request: AskRequest):
                         payload["why_factors"] = _wfx
             except Exception as _wfe:
                 print(f"[ask] why_factors skipped (non-fatal): {_wfe}")
+            try:   # [why-argument 2026-10-12] why THIS answer says THIS: the timing methods, the promise, where it is thin
+                _conv_wa = locals().get("_ask_conv")
+                if isinstance(payload, dict) and isinstance(_conv_wa, dict) and not _conv_wa.get("suppress_verdict") \
+                        and not _pos_done and (_conv_wa.get("locks") or {}):
+                    from antar_engine import why_argument as _WA
+                    _wa = _WA.build(_conv_wa, locals().get("_ask_concern"), chart_data, _ask_norm_lang(language),
+                                    timing=payload.get("timing"))
+                    if _wa:
+                        payload["why_argument"] = _wa
+            except Exception as _wae:
+                print(f"[ask] why_argument skipped (non-fatal): {_wae}")
             await _ask_persist(supabase, chart_id, question, payload, language,
                                "explore", locals().get("_ask_concern"))
             return payload
