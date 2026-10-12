@@ -1747,6 +1747,12 @@ _BROKEN_PATTERNS = (
 _ADJ_HINT = re.compile(r"\w+(ly|ful|ous|ive|able|ible|al|ic|ant|ent)$", re.I)
 
 
+# [dangling-until 2026-10-12] "hold your response until, when the day's friction eases" — the
+# time/phrase after "until" was lost. A comma or full stop straight after until/till is never
+# valid English, so regenerate rather than guess the missing word. (Kept out of _BROKEN_PATTERNS:
+# _looks_broken indexes that tuple.)
+_DANGLING_UNTIL = re.compile(r"\b(?<!-)(until|till)\s*[,.;!?]", re.I)
+
 _PHRASAL_END = re.compile(
     r"(?i)\b(look|looking|ask|asking|wait|waiting|plan|planning|aim|aiming|pay|paying|search|"
     r"rely|relying|count|counting|depend|depending|focus|focusing|work|working|deal|dealing|"
@@ -1760,6 +1766,8 @@ def _looks_broken(text) -> bool:
     if not isinstance(text, str) or len(text.strip()) < 8:
         return False
     t = text.strip()
+    if _DANGLING_UNTIL.search(t):
+        return True
     # dangling function word before dash / punctuation / end
     for i, rx in enumerate(_BROKEN_PATTERNS[:4]):
         m = rx.search(t)

@@ -158,8 +158,25 @@ def _expire_stale_claims(chart_id: str, rows: list, sb) -> None:
             pass
 
 
+def _plain_claim(text: str) -> str:
+    """The check-in quotes a stored claim. The global jargon strip turns a planet into
+    "your discipline and structure energy"; as the subject of a verify question that reads as
+    machine speech, so drop the trailing "energy" (and fix the verb: "…structure is" -> "…are").
+    English only; anything else is returned unchanged."""
+    t = str(text or "")
+    try:
+        from antar_engine.output_strips import _PLANET_ENERGY_MAP_EN
+    except Exception:
+        return t
+    for phrase in set(_PLANET_ENERGY_MAP_EN.values()):
+        core = phrase[: -len(" energy")] if phrase.endswith(" energy") else phrase
+        t = re.sub(rf"\b{re.escape(phrase)}\s+is\b", f"{core} are", t, flags=re.I)
+        t = re.sub(rf"\b{re.escape(phrase)}\b", core, t, flags=re.I)
+    return t
+
+
 def get_pending_feedback(chart_id: str, sb, limit: int = 3, language: str = "en",
-                         concern: str = None) -> list:
+                         concern: str = None, surface: str = None) -> list:
     """Return up to `limit` predictions ready for user verification.
 
     [yesno-followup 2026-10-02] `concern` scopes the pool (e.g. "yesno" for the
@@ -191,6 +208,8 @@ def get_pending_feedback(chart_id: str, sb, limit: int = 3, language: str = "en"
     out, stale = [], []
     for r in rows:
         d = _daily_claim_date(r)
+        if surface == "today" and not d:
+            continue          # the Today surface asks only about TODAY's own claim, never a chapter/Ask claim
         if d:
             if d < cutoff:
                 stale.append(r)
@@ -211,6 +230,8 @@ def get_pending_feedback(chart_id: str, sb, limit: int = 3, language: str = "en"
     # unchanged (yes=1.0 win, no=0.0 loss); only the labels differ.
     for r in out:
         r["feedback_ui"] = _feedback_ui(r.get("concern"), language)
+        if (language or "en").split("-")[0].lower() == "en" and r.get("trackable_claim"):
+            r["trackable_claim"] = _plain_claim(r["trackable_claim"])
     return out
 
 
