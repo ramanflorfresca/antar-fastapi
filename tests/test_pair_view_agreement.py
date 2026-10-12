@@ -39,6 +39,8 @@ def test_sync_is_outward_versus_inward_and_the_summary_says_who_sets_the_pace():
     r = PV.build(SESSION, _dashas("Rahu", "Rahu", "Rahu"), _dashas("Saturn", "Saturn", "Rahu"), "en", TODAY)
     assert r["seasons"]["in_sync"] == [False, False, True]
     assert r["seasons"]["summary"] == "You are out of step in 2 of the 3 periods marked Out. Agree who sets the pace in those."
+    one = PV.build(SESSION, _dashas("Rahu", "Rahu", "Rahu"), _dashas("Saturn", "Rahu", "Rahu"), "en", TODAY)
+    assert one["seasons"]["in_sync"] == [False, True, True] and one["seasons"]["summary"] == "You are moving outward and saransh inward (next 6 months). Agree who sets the pace then."
     allout = PV.build(SESSION, _dashas("Rahu", "Rahu", "Rahu"), _dashas("Saturn", "Saturn", "Saturn"), "en", TODAY)
     assert allout["seasons"]["summary"] == "You are moving outward and saransh inward (next 6 months). Agree who sets the pace then."
     flip = PV.build(SESSION, _dashas("Saturn", "Saturn", "Saturn"), _dashas("Rahu", "Rahu", "Rahu"), "en", TODAY)

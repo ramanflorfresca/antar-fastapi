@@ -130,9 +130,10 @@ def build(session_out: dict, dashas_a: dict, dashas_b: dict, language: str = "en
             sync = [x["group"] == y["group"] for x, y in zip(a, b)]
             if all(sync):
                 summary = tx["sync"]
-            elif any(sync):
+            elif any(sync) and sum(1 for ok in sync if not ok) >= 2:
                 summary = tx["mixed"].format(n=sum(1 for ok in sync if not ok))
             else:
+                # one period out of step, or all of them: name who is outward and WHEN (first out-of-step period)
                 first = next(i for i, ok in enumerate(sync) if not ok)
                 summary = tx["out_a" if a[first]["group"] == "out" else "out_b"].format(b=name_b or ("la otra persona" if lang == "es" else "the other person"), when=PERIOD_LABELS[lang][first].lower())
             seasons = {"periods": list(PERIODS), "period_labels": PERIOD_LABELS[lang], "you": a, "other": b, "in_sync": sync, "summary": summary}
