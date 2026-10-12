@@ -122,13 +122,18 @@ def caution_kind(note: Optional[str], topic: str) -> str:
     return "neutral"
 
 
-def _week_tail(note: Optional[str], lang: str) -> str:
-    """', especially the week of October 10' from 'Week of October 10 - ...', else ''."""
+def _week_when(note: Optional[str], lang: str) -> str:
+    """'the week of October 10' from 'Week of October 10 - ...', else ''."""
     head = re.split(r"\s[\u2014\u2013-]\s", str(note or ""), maxsplit=1)[0].strip().rstrip(".")
     if not head or len(head) > 40 or not _WEEK_RX.match(head):
         return ""
-    w = head[0].lower() + head[1:]
-    return C.pick(C.BAL_TAIL, lang).format(when=C.pick(C.BAL_WEEK, lang).format(w=w))
+    return C.pick(C.BAL_WEEK, lang).format(w=head[0].lower() + head[1:])
+
+
+def _week_tail(note: Optional[str], lang: str) -> str:
+    """', especially the week of October 10', else ''."""
+    when = _week_when(note, lang)
+    return C.pick(C.BAL_TAIL, lang).format(when=when) if when else ""
 
 
 def balanced(out: dict, lang: str, note: Optional[str], tail: str = "", swing: bool = False) -> dict:
@@ -695,10 +700,13 @@ def reconcile_month(out: dict, lang: str) -> dict:
         out["detail"] = dict(det, caution_note=note)
         if out.get("tone") == "steady":
             area = C.pick(C.AREA, lang)[out["topic"]]
-            core = C.pick(C.MONTH_CAUTION_CORE, lang).format(area=area)
+            when = _week_when(note, lang)   # the week rides in the same sentence; the engine's own line stays in the detail
+            core = (C.pick(C.YEAR_CAUTION_CORE, lang).format(area=area, when=when) if when
+                    else C.pick(C.MONTH_CAUTION_CORE, lang).format(area=area))
             out["claim"] = C.pick(C.LEAD_JOIN, lang).format(lead=C.pick(C.SPAN_LEAD, lang)["month"], core=core)
             if tail:
                 out["claim"] = f"{out['claim']} {tail}"
+            return out
         if out.get("tone") == "open":
             return balanced(out, lang, note, _week_tail(note, lang))
         if note not in out.get("claim", ""):
