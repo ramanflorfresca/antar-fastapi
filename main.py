@@ -24365,6 +24365,15 @@ async def get_compatibility_session(session_id: str, language: str = "en"):
     # [conn-note 2026-10-02] the user's permanent note on this person (user-authored
     # → never translated). Added after i18n so it's returned verbatim.
     out["user_note"] = _connection_note_get(s.get("chart_id_a"), s.get("chart_id_b")).get("note", "")
+    try:   # [first-names 2026-10-11] one screen said "Raman and saransh", the next "Raman Singh and Andres Botero": serve first names everywhere
+        from antar_engine import display_names as _DN
+        _fn = [out.get("name_a"), out.get("name_b")]
+        _note = out.get("user_note")
+        out = _DN.apply(out, _fn)
+        out["user_note"] = _note                       # the user's own words are never rewritten
+        out["full_name_a"], out["full_name_b"] = _fn[0], _fn[1]
+    except Exception as _dne:
+        print(f"[compat][first-names] non-fatal: {_dne}")
     return out
 
 
