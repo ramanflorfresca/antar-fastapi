@@ -27307,6 +27307,14 @@ _EXISTING_UNION_RX = re.compile(
 
 
 # a retrospective question ("why did my marriage fail?") is not about its future — it stays out of the two-window lane
+# [divorced-gate 2026-10-12] the two-window answer (rebuild vs new partnership) only fits a question about the marriage's
+# future. It was also filling in for "is there a third person?" / "will I get over him?" because the NLU files those under
+# marriage / existing_relationship, so a divorced reader got the same canned block whatever they asked.
+_DU_NOFIT_RX = re.compile(
+    r"(?i)\b(third\s+(?:person|party)|other\s+(?:woman|man|person)|cheat\w*|affair|unfaithful|infiel|trai[cç][aã]o|"
+    r"get\s+over|over\s+(?:him|her|them)|forget|stop\s+(?:thinking|loving|missing)|miss(?:ing)?\s+(?:him|her)|"
+    r"contact\s+me|call\s+me|text\s+me|look\s+like|caste|religion|olvidar|esquecer|"
+    r"older\s+or\s+younger|(?:spouse|husband|wife|partner)(?:'s)?\s+(?:profession|job|age|salary|income)|be\s+(?:rich|wealthy|dominating))\b")
 _DU_PAST_RX = re.compile(r"(?i)\b(why did|what went wrong|how did|did (?:my|our)|was (?:my|our)|por qu\u00e9 (?:fall\u00f3|termin\u00f3)|por que (?:falhou|terminou))\b")
 
 
@@ -33826,6 +33834,8 @@ async def _ask_endpoint_impl(request: AskRequest):
                 if (not locals().get("_existing_union_lane") and _du_area == "separation" and _du_ms in ("divorced", "separated")
                         and _EXISTING_UNION_RX.search(question or "") and not _DU_PAST_RX.search(question or "")):
                     _existing_union_lane = True
+                if locals().get("_existing_union_lane") and _DU_NOFIT_RX.search(f"{locals().get('_ask_typed_q') or ''} {question or ''}"):
+                    _existing_union_lane = False
                 if locals().get("_existing_union_lane") and language in ("en", "es", "pt") and isinstance(payload, dict) \
                         and _du_ms in ("divorced", "separated"):
                     from antar_engine.event_narrator import run_event_engine as _du_ree

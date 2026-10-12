@@ -52,15 +52,18 @@ def lane_checks(item: dict, p: dict) -> list:
         out.append("THIRD_PARTY_FEELINGS")
     if _ACCUSE.search(text):
         out.append("ACCUSATION")
+    reframed = bool(p.get("reframed"))
+    if lane == "decline" and not reframed:
+        out.append("REFRAME_MISSING")
     if lane in ("decline", "reframe", "people") and _THIRD_REF.search(text):
         out.append("THIRD_PARTY_REFERENCE")
-    if lane == "decline" and (p.get("timing") or re.match(r"\s*(likely|probable|yes|no)\b\s*[—-]", p.get("read") or "", re.I)):
+    if lane == "decline" and not reframed and (p.get("timing") or re.match(r"\s*(likely|probable|yes|no)\b\s*[—-]", p.get("read") or "", re.I)):
         out.append("DECLINE_GIVES_VERDICT")
-    if item["id"] in (32,) and _ASSUMES.search(text):
+    if item["id"] == 31 and _ASSUMES.search(text):
         out.append("ASSUMES_AFFAIR")
     if re.match(r"\s*just so i read the right chart", p.get("read") or "", re.I):
         out.append("CLARIFY_ASKED")
-    if lane in ("reframe", "decline", "people") and item["q"].lower().split()[0] in ("when", "will", "is", "does") \
+    if not reframed and lane in ("reframe", "decline", "people") and item["q"].lower().split()[0] in ("when", "will", "is", "does") \
             and any(k in item["q"].lower() for k in ("he ", "she ", "contact", "call", "meet", "come back", "love me", "patch up")) \
             and _OVER_PRECISE.search(text):
         out.append("OVER_PRECISE_TIMING")
@@ -98,7 +101,8 @@ def template_reuse(rows: list, min_ids: int = 3, n: int = 70) -> dict:
     a canned branch answering whatever it was asked (e.g. the 'You're divorced...' block)."""
     seen = {}
     for r in rows:
-        key = re.sub(r"\W+", " ", (r.get("read") or "")[:n].lower()).strip()
+        body = re.sub(r"^\s*(?:likely|probable|possible|yes|no|not yet|unlikely)\s*[—-][^.\n]*\.\s*", "", r.get("read") or "", flags=re.I)
+        key = re.sub(r"\W+", " ", body[:n].lower()).strip()
         if key:
             seen.setdefault(key, set()).add(r["id"])
     return {k: sorted(v) for k, v in seen.items() if len(v) >= min_ids}

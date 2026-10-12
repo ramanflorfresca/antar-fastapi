@@ -47,7 +47,7 @@ async def run(personas, items, repeats):
             except Exception as e:
                 return {"persona": persona["name"], "rep": rep, **item, "issues": ["ERROR"], "error": f"{type(e).__name__}: {e}"[:200]}
             return {"persona": persona["name"], "rep": rep, **item, "concern": p.get("concern"),
-                    "verdict": p.get("verdict"), "timing": p.get("timing"),
+                    "verdict": p.get("verdict"), "timing": p.get("timing"), "reframed": p.get("reframed"),
                     "read": (p.get("read") or "").strip(), "next": (p.get("next") or "").strip(),
                     "issues": lane_checks(item, p)}
     return await asyncio.gather(*[one(pe, it, r) for pe in personas for it in items for r in range(repeats)])
@@ -56,7 +56,8 @@ async def run(personas, items, repeats):
 def report(rows: list, stamp: str) -> str:
     for opening, ids in template_reuse(rows).items():
         for r in rows:
-            if r["id"] in ids and re.sub(r"\W+", " ", (r.get("read") or "")[:70].lower()).strip() == opening:
+            _body = re.sub(r"^\s*(?:likely|probable|possible|yes|no|not yet|unlikely)\s*[—-][^.\n]*\.\s*", "", r.get("read") or "", flags=re.I)
+            if r["id"] in ids and re.sub(r"\W+", " ", _body[:70].lower()).strip() == opening:
                 r["issues"] = r["issues"] + ["TEMPLATE_REUSE"]
     n = len(rows)
     bad = [r for r in rows if r["issues"]]

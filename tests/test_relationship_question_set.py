@@ -31,7 +31,7 @@ def test_lane_checks_catch_third_party_claims():
     d = {"id": 24, "lane": "decline", "q": "x?"}
     assert "DECLINE_GIVES_VERDICT" in lane_checks(d, {"read": "Likely — opening Nov 2026.", "next": "x", "concern": "love"})
     assert "THIRD_PARTY_REFERENCE" in lane_checks(d, {"read": "Mixed signals are likely his way of processing.", "next": "x", "concern": "love"})
-    assert "ASSUMES_AFFAIR" in lane_checks({"id": 32, "lane": "decline", "q": "x?"}, {"read": "The affair sits in a volatile stretch.", "next": "x", "concern": "divorce"})
+    assert "ASSUMES_AFFAIR" in lane_checks({"id": 31, "lane": "decline", "q": "x?"}, {"read": "The affair sits in a volatile stretch.", "next": "x", "concern": "divorce"})
     assert "CLARIFY_ASKED" in lane_checks(d, {"read": "Just so I read the right chart — which partner do you mean?", "concern": None})
     assert "OVER_PRECISE_TIMING" in lane_checks({"id": 23, "lane": "decline", "q": "When will he or she contact me?"}, {"read": "Expect contact within a few weeks.", "next": "x", "concern": "love"})
 
@@ -40,3 +40,17 @@ def test_template_reuse_flags_canned_branch():
     from tests.data.relationship_lane_checks import template_reuse
     rows = [{"id": i, "read": "You're divorced, so there are two separate questions here, and the timing answers them differently."} for i in (25, 27, 28)]
     assert template_reuse(rows) and not template_reuse(rows[:2])
+
+
+def test_assumes_affair_only_when_the_asker_did_not_say_it():
+    from tests.data.relationship_lane_checks import lane_checks
+    row = {"read": "The affair puts you at a fork.", "next": "x", "concern": "love", "reframed": {"kind": "affair"}}
+    assert "ASSUMES_AFFAIR" in lane_checks({"id": 31, "lane": "decline", "q": "Am I having an affair?"}, row)
+    assert "ASSUMES_AFFAIR" not in lane_checks({"id": 32, "lane": "decline", "q": "Will my affair be exposed?"}, row)
+
+
+def test_reframed_decline_answers_are_credited_and_unreframed_flagged():
+    from tests.data.relationship_lane_checks import lane_checks
+    q = {"id": 28, "lane": "decline", "q": "Is there a third person in my relationship?"}
+    assert "REFRAME_MISSING" in lane_checks(q, {"read": "Fine.", "next": "x", "concern": "love"})
+    assert "REFRAME_MISSING" not in lane_checks(q, {"read": "Fine.", "next": "x", "concern": "love", "reframed": {"kind": "trust"}})
