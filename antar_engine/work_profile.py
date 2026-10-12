@@ -47,6 +47,10 @@ _MOVE = {
     ("in_transition", None, "open"): ("Reach out to two people already working in {what}.", "Escribe a dos personas que ya trabajan en {what}."),
     ("in_transition", None, "care"): ("Get clear on the next role in {what}; don't take the first offer.", "Define el siguiente rol en {what}; no aceptes la primera oferta."),
 }
+_CAREER_FOUNDER = {
+    "open": ("Take one visible step as the lead on {what} this week: a talk, a post, or a direct pitch.", "Da un paso visible como líder de {what} esta semana: una charla, una publicación o una propuesta directa."),
+    "care": ("Keep your head down on {what}: do one piece of work you would be proud of and show it later.", "Mantén un perfil bajo en {what}: haz una pieza de trabajo de la que te sientas orgulloso y muéstrala después."),
+}
 _MONEY = {   # money pages talk about the money side of the same work
     "open": ("Review pricing and collections on {what}.", "Revisa precios y cobros de {what}."),
     "care": ("Hold new spending on {what}; re-read the terms before you commit.", "Pausa gastos nuevos en {what}; relee las condiciones antes de comprometerte."),
@@ -133,6 +137,19 @@ def questions(profile: Dict[str, Any], topic: str, lang: str = "en") -> List[dic
     return qs
 
 
+_FALLBACK_NAME = {"en": {"running_business": "your business", "freelance": "your freelance work", "job": "your work", "studying": "your studies", "in_transition": "your next step"},
+                  "es": {"running_business": "tu negocio", "freelance": "tu trabajo freelance", "job": "tu trabajo", "studying": "tus estudios", "in_transition": "tu siguiente paso"}}
+
+
+def short_name(what: str, role: str, lang: str = "en") -> str:
+    """The person's own words when they are short enough to sit inside a sentence; otherwise 'your business' / 'your work' (a venture label like
+    'Tech platform for AI agents/employees for small business in LATAM/USA' reads badly mid-sentence)."""
+    w = " ".join(str(what or "").split())
+    if 0 < len(w) <= 38 and "/" not in w:
+        return w
+    return _FALLBACK_NAME["es" if lang == "es" else "en"].get(role, "your work")
+
+
 def personalise_move(topic: str, tone: str, profile: Dict[str, Any], lang: str = "en") -> Optional[str]:
     """One move that is about THEIR work. Needs at least the one-line `what`; mode follows the engine's tone (open vs care/steady). None → keep the generic move."""
     what = (profile or {}).get("what")
@@ -140,9 +157,12 @@ def personalise_move(topic: str, tone: str, profile: Dict[str, Any], lang: str =
         return None
     mode = "open" if tone == "open" else "care"
     i = 1 if lang == "es" else 0
+    role = profile.get("role") or "running_business"
+    what = short_name(what, role, lang)
     if topic == "money":
         return _MONEY[mode][i].format(what=what)
-    role = profile.get("role") or "running_business"
+    if topic == "career" and role == "running_business":      # Career is about YOU in it (authority, visibility), not the numbers: Business already covers those
+        return _CAREER_FOUNDER[mode][i].format(what=what)
     key = (role, profile.get("stage") if role == "running_business" else None, mode)
     tpl = _MOVE.get(key) or _MOVE.get((role, None, mode))
     return tpl[i].format(what=what) if tpl else None
