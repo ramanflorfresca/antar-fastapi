@@ -51611,6 +51611,16 @@ async def get_chart_topic_read(chart_id: str, topic: str, scale: str = "month",
     out = await _topic_read_full(chart_id, topic, scale, language, tz_offset)
     if out is None:
         raise HTTPException(status_code=404, detail="Chart not found")
+    # [today-agree 2026-10-12] a today read that says "open" while the daily vote says "caution" for the same area becomes a care read (outside the cached body)
+    if scale == "today" and topic in ("money", "career", "health"):
+        try:
+            import antar_engine.topic_engine as _te2
+            _tl = "es" if str(out.get("language") or language or "").startswith("es") else "en"
+            _dcache = await run_in_threadpool(_daily_surface_get, chart_id, "daily-signal", _tl, _prac_local_date(tz_offset).isoformat())
+            if isinstance(_dcache, dict):
+                out = _te2.agree_read_with_daily(out, _dcache.get("domains"), _tl)
+        except Exception as _tae:
+            print(f"[topic-read][today-agree] skipped: {_tae!r}")
     # [work-profile 2026-10-12] Business / Career / Money speak to THEIR work when we know it, and ask for what is missing (outside the cached body)
     try:
         from antar_engine import work_profile as _WP

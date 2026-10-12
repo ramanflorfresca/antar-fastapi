@@ -532,6 +532,27 @@ def reconcile_with_daily(rows: List[dict], daily_domains, lang: str = "en") -> L
         return rows
 
 
+def agree_read_with_daily(out: dict, daily_domains, lang: str = "en") -> dict:
+    """[today-agree 2026-10-12] The topic PAGE at the 'today' scale had the same contradiction the Home card had: header 'Good time today / Open today' next to 'Avoid today: hold off…' when the
+    daily engine says caution for the same area. A today read that is open while the daily vote is caution becomes a care read (claim from the topic's own care wording, no open window).
+    Pure; returns `out` unchanged unless that exact clash is present; never raises."""
+    try:
+        if not isinstance(out, dict) or out.get("scale") != "today" or out.get("tone") != "open":
+            return out
+        dk = _DAILY_DOMAIN.get(out.get("topic"))
+        state = {d.get("key"): d.get("state") for d in (daily_domains or []) if isinstance(d, dict)}.get(dk)
+        if state != "caution":
+            return out
+        out = dict(out)
+        out["tone"] = "care"
+        out["claim"] = _tile_headline(lang, out["topic"], "care", "care_now")
+        out["best_window"] = None
+        return out
+    except Exception:
+        logger.exception("[topic-read] daily agree skipped")
+        return out
+
+
 # ── windows ──────────────────────────────────────────────────────────────────
 def clamp_window(start: date, end: date, today: date) -> Optional[Tuple[date, date]]:
     """No window or deadline may ever be dated before today."""
