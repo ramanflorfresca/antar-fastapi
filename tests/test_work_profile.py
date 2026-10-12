@@ -79,3 +79,23 @@ def test_a_long_venture_label_does_not_sit_inside_the_sentence_and_career_differ
     short = {"role": "running_business", "what": "AI agents for shops", "stage": "launched"}
     assert "AI agents for shops" in WP.personalise_move("business", "open", short, "en")
     assert "visible step" in WP.personalise_move("career", "open", short, "en")
+
+
+def test_the_persons_own_words_sit_inside_a_sentence_without_odd_capitals():
+    t = WP.tidy
+    assert t("Small shops in latam") == "small shops in LATAM"
+    assert t("small shops in the us and mexico") == "small shops in the US and Mexico"
+    assert t("clinics in Latin america") == "clinics in Latin America"
+    assert t("AI agents for small businesses") == "AI agents for small businesses"          # an acronym first word is kept
+    assert t("iPhone repair shops") == "iPhone repair shops"
+    assert t("Acme Studio") == "Acme Studio" and t("Acme Studio for clinics in the us") == "Acme Studio for clinics in the US"      # a name is kept
+    assert t("SMALL SHOPS IN LATAM") == "SMALL SHOPS IN LATAM"                              # all caps: left exactly as written
+    assert t("  ") == "" and t(None) == ""
+    assert WP.short_name("Small shops in latam", "running_business", "en") == "small shops in LATAM"
+
+
+def test_the_market_message_reads_naturally():
+    from antar_engine import positioning as POS, work_fit as WF
+    rank = [{"field": "technology & innovation", "weight": 7.0}, {"field": "science & research", "weight": 6.0}]
+    r = POS.compose({"planets": {}, "lagna": {"sign": "Capricorn"}}, WF.fit(rank, "AI agents", "en"), {"role": "running_business", "what": "AI agents", "market": "Small shops in latam"}, lang="en")
+    assert any(m == "You named small shops in LATAM. Pick one for your first ten customers so the proof stays clean." for m in r["messages"])

@@ -167,7 +167,8 @@ def compose(chart: dict, fit: Optional[dict], profile: Dict[str, Any], *, md: st
         if window:
             s += t["window"].format(w=window)
         msgs.append(s)
-    msgs.append(t["market"].format(m=profile["market"]) if profile.get("market") else t["market_ask"])
+    from antar_engine.work_profile import tidy as _tidy
+    msgs.append(t["market"].format(m=_tidy(profile["market"])) if profile.get("market") else t["market_ask"])
     nxt = None
     try:
         from antar_engine.work_profile import personalise_move

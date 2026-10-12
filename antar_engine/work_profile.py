@@ -137,6 +137,43 @@ def questions(profile: Dict[str, Any], topic: str, lang: str = "en") -> List[dic
     return qs
 
 
+_PROPER = {w.lower(): w for w in (
+    "LATAM", "US", "USA", "UK", "EU", "UAE", "MENA", "APAC", "EMEA", "AI", "B2B", "B2C", "SaaS", "SMB", "SMBs",
+    "Latin America", "North America", "South America", "Europe", "Asia", "Africa", "India", "Mexico", "Colombia", "Brazil", "Argentina", "Chile", "Peru", "Spain", "Canada",
+    "Florida", "Texas", "California", "Miami", "Bogota", "Bogotá", "Medellin", "Medellín", "London", "Dubai", "Singapore", "Australia", "Germany", "France", "Italy", "Portugal")}
+
+
+def tidy(text: Any) -> str:
+    """The person's own words, made safe to sit INSIDE a sentence: a capitalised first word is lower-cased ('Small shops in latam' -> 'small shops in LATAM'), known acronyms / countries /
+    regions get their proper form (latam -> LATAM, us -> US, mexico -> Mexico). Anything else they typed (brand names, 'iPhone', all-caps shouting) is left exactly as written."""
+    t = " ".join(str(text or "").split())
+    if not t:
+        return ""
+    letters = [c for c in t if c.isalpha()]
+    if letters and all(c.isupper() for c in letters) and len(t) > 6:
+        return t                                              # all caps: leave it
+    words = t.split(" ")
+    out, i = [], 0
+    while i < len(words):
+        w = words[i]
+        core = w.strip(".,;:!?()\"'")
+        pre, post = w[:len(w) - len(w.lstrip(".,;:!?()\"'"))], w[len(w.rstrip(".,;:!?()\"'")):]
+        two = (" ".join(x.strip(".,;:!?()\"'") for x in words[i:i + 2])).lower() if i + 1 < len(words) else ""
+        if two in _PROPER:                                    # two-word names: 'latin america', 'north america'
+            out.append(pre + _PROPER[two] + (words[i + 1][len(words[i + 1].rstrip(".,;:!?()\"'")):]))
+            i += 2
+            continue
+        if core.lower() in _PROPER and (core.islower() or core.istitle() or core.isupper()):
+            out.append(pre + _PROPER[core.lower()] + post)
+        elif i == 0 and core[:1].isupper() and core[1:].islower() and not any(
+                x.strip(".,;:!?()\"'")[:1].isupper() and x.strip(".,;:!?()\"'").lower() not in _PROPER for x in words[1:]):
+            out.append(pre + core[:1].lower() + core[1:] + post)         # only when nothing else is capitalised ("Acme Studio" is a name: kept)
+        else:
+            out.append(w)
+        i += 1
+    return " ".join(out)
+
+
 _FALLBACK_NAME = {"en": {"running_business": "your business", "freelance": "your freelance work", "job": "your work", "studying": "your studies", "in_transition": "your next step"},
                   "es": {"running_business": "tu negocio", "freelance": "tu trabajo freelance", "job": "tu trabajo", "studying": "tus estudios", "in_transition": "tu siguiente paso"}}
 
@@ -146,7 +183,7 @@ def short_name(what: str, role: str, lang: str = "en") -> str:
     'Tech platform for AI agents/employees for small business in LATAM/USA' reads badly mid-sentence)."""
     w = " ".join(str(what or "").split())
     if 0 < len(w) <= 38 and "/" not in w:
-        return w
+        return tidy(w)
     return _FALLBACK_NAME["es" if lang == "es" else "en"].get(role, "your work")
 
 
