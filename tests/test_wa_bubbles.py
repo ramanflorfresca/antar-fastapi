@@ -123,8 +123,9 @@ def test_chart_move_follows_the_topic_and_the_chart():
     from antar_engine.ask_basis import chart_move
     chart, dashas = _chart()
     career = chart_move("career", chart, dashas)
-    assert "10th house is weakened" in career or "ruler of your 10th house is weakened" in career
-    assert "your network and gains" in career and "Apr 25, 2100" in career
+    # [weak-leadin 2026-10-11] the move is just the move: no "ruler of your 10th house is weakened" lead-in, no far-off sub-period date
+    assert "ruler" not in career and "weakened" not in career and "Apr 25, 2100" not in career
+    assert "your network and gains" in career
     love = chart_move("love", chart, dashas)
     assert "your own initiative and communication" in love and "first move" in love and "7th" not in love
     assert chart_move("career", chart, dashas, "hi") == ""          # en + es + pt only
@@ -161,7 +162,7 @@ def test_conditions_say_what_makes_it_true_and_what_breaks_it():
     chart, dashas = _chart()
     c = conditions("career", chart, dashas)
     assert c.startswith("It holds if you build it through your network and gains")
-    assert "weakened" in c and "It breaks if" in c and "recognition lags effort" in c
+    assert "in your chart" in c and "weakened" not in c and "It breaks if" in c and "recognition lags effort" in c
     h = conditions("health", chart, dashas)
     assert "recognition" not in h and "Risk stays small" in h
     assert "recognition" not in conditions("property", chart, dashas)
@@ -718,3 +719,13 @@ def test_portuguese_fallback_moves_exist_for_every_topic_and_read_naturally():
     p = polish_answer({"read": "Ainda não.", "next": None}, "pt", "Quando vou sair das dívidas?", concern="wealth",
                       chart_data=chart, dashas=dashas)
     assert "mova uma parte fixa de cada pagamento" not in (p["next"] or "") and "canal" in (p["next"] or "")
+
+
+def test_weak_ruler_is_said_once_in_plain_words_not_in_every_move():
+    from antar_engine.ask_basis import chart_move, conditions
+    chart, dashas = _chart()
+    for q in ("Will my business grow?", "Should I take on a new client?", "Should I switch careers?"):
+        mv = chart_move("business", chart, dashas, "en", q)
+        assert "ruler" not in mv and "weakened" not in mv and "sub-period" not in mv
+        cond = conditions("business", chart, dashas, "en", q)
+        assert "ruler of your" not in cond and "sub-period" not in cond and "in your chart" in cond

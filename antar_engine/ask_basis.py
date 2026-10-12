@@ -197,10 +197,9 @@ def chart_move(concern, chart_data, dashas, language="en", question="") -> str:
         from antar_engine.ask_families import FAMILY_MOVE as _FM, family as _fam
         _ff = _fam(question) if concern in ("career", "business", "wealth", "finance", "funding", "property") else None
         act = (_FM[_ff[0]] if _ff and _ff[0] in _FM and not (_ff[0] == "property") else _ACT[concern]).format(ch=ch)
-        lead = (f"Because the ruler of your {_o(h)} house is weakened, results lag effort — " if weak
-                else "")
-        tail = f" Reassess when the current sub-period ends on {end}." if (weak and end) else ""
-        out = lead + act + "." + tail
+        # [weak-leadin 2026-10-11] the weakness is said ONCE, in plain words, in conditions(); the move is just the move (it used to open every
+        # non-family answer with "Because the ruler of your 10th house is weakened…" and close with a far-off sub-period date)
+        out = act + "."
         return out[0].upper() + out[1:]
     except Exception:
         return ""
@@ -283,8 +282,7 @@ def conditions(concern, chart_data, dashas, language="en", question="") -> str:
         grp = _GROUP[concern]
         if grp == "health":
             holds = ("Risk stays small if you act early and protect sleep and recovery time. "
-                     + (f"The ruler of your {_o(h)} house is weakened, so recovery runs slower than the effort you put in"
-                        f"{f' (the current sub-period runs to {end})' if end else ''}"
+                     + ("In your chart recovery runs slower than the effort you put in"
                         if weak else "Your health house is well supported, so small habits go a long way"))
             return holds + ". It breaks if strain is pushed through without recovery time."
         if grp == "speculation":
@@ -302,8 +300,8 @@ def conditions(concern, chart_data, dashas, language="en", question="") -> str:
         fine, weak_t, meaning = _HOLDS[grp]
         until = f" (the current sub-period runs to {end})" if end else ""
         if weak:
-            holds = (weak_t.format(ch=ch) + f" — the ruler of your {_o(h)} house is weakened: "
-                     + meaning.format(until=until))
+            holds = (weak_t.format(ch=ch) + " — in your chart "
+                     + meaning.format(until=""))
         else:
             holds = fine.format(ch=ch)
         if _f and holds.startswith("It holds if "):
