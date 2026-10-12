@@ -338,7 +338,7 @@ def test_year_is_the_solar_return_year_with_its_range():
     r = T.read_topic(ctx, "money", "year", TODAY, "en", with_best_fit=False)
     assert (r["period"]["start"], r["period"]["end"]) == ("2025-10-15", "2026-10-14")
     assert r["period"]["label"] == "Your year · birthday to birthday"
-    assert r["period"]["chip"] == "10/15/25 – 10/15/26"
+    assert r["period"]["chip"] == "Your year"
     r2 = T.read_topic(ctx, "money", "year", date(2026, 10, 15), "en", with_best_fit=False)
     assert (r2["period"]["start"], r2["period"]["end"]) == ("2026-10-15", "2027-10-14")
 
@@ -1268,11 +1268,11 @@ def test_chip_text_and_rung_per_scale(lang):
     assert (got["month"]["chip"], got["month"]["rung"]) == (m30, "30d")
     assert (got["season"]["chip"], got["season"]["rung"]) == (ch, "stretch")
     assert got["year"]["rung"] == "year"
-    assert got["year"]["chip"] == ("10/15/25 – 10/15/26" if lang == "en" else "15/10/25 – 15/10/26")
+    assert got["year"]["chip"] == {"en": "Your year", "es": "Tu año", "pt": "Seu ano", "hinglish": "Aapka saal"}[lang]
 
 
-@pytest.mark.parametrize("lang,exp", [("en", "9/8/26 – 9/8/27"), ("es", "8/9/26 – 8/9/27"),
-                                      ("pt", "8/9/26 – 8/9/27"), ("hinglish", "8/9/26 – 8/9/27")])
+@pytest.mark.parametrize("lang,exp", [("en", "Your year"), ("es", "Tu año"),
+                                      ("pt", "Seu ano"), ("hinglish", "Aapka saal")])
 def test_year_chip_is_the_numeric_birthday_range_in_locale_order(lang, exp):
     p = T._period(_chip_ctx("1990-09-08"), "year", TODAY, lang)
     assert p["chip"] == exp
@@ -1311,7 +1311,7 @@ def test_rung_order_sorts_year_and_stretch_by_end_date():
 def test_read_topic_period_carries_chip_rung_and_order():
     ctx = _chip_ctx()
     out = T.read_topic(ctx, "money", "year", TODAY, "en")
-    assert out["period"]["chip"] == "10/15/25 – 10/15/26" and out["period"]["rung"] == "year"
+    assert out["period"]["chip"] == "Your year" and out["period"]["rung"] == "year"
     assert out["rung_order"][0] == "now" and out["rung_order"][-1] == "chapter"
 
 
@@ -1322,7 +1322,7 @@ def test_chip_copy_passes_jargon_guard():
             for s in vals:
                 assert not _JARGON.search(s), (lang, s)
     for lang in LANGS:
-        assert set(C.CHIP[lang]) == {"today", "month", "season", "chapter"}
+        assert set(C.CHIP[lang]) == {"today", "month", "season", "chapter", "year"}
 
 
 # ── one plain tag per tile: Open now / Opens / Care now / Care from / Quiet ───

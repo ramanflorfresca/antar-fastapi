@@ -204,20 +204,17 @@ def range_label(start: date, end: date, lang: str) -> str:
 # the numeric birthday-to-birthday range; never "this year" / "365" / "season".
 RUNG_BY_SCALE = {"today": "now", "month": "30d", "year": "year", "season": "stretch", "chapter": "chapter"}
 CHIP: Dict[str, Dict[str, str]] = {
-    "en": {"today": "Right now", "month": "Next 30 days", "season": "Life chapter", "chapter": "Whole chapter"},
-    "es": {"today": "Ahora", "month": "Próximos 30 días", "season": "Capítulo de vida", "chapter": "Capítulo completo"},
-    "pt": {"today": "Agora", "month": "Próximos 30 dias", "season": "Capítulo de vida", "chapter": "Capítulo completo"},
-    "hinglish": {"today": "Abhi", "month": "Agle 30 din", "season": "Life chapter", "chapter": "Poora chapter"},
+    "en": {"today": "Right now", "month": "Next 30 days", "season": "Life chapter", "chapter": "Whole chapter", "year": "Your year"},
+    "es": {"today": "Ahora", "month": "Próximos 30 días", "season": "Capítulo de vida", "chapter": "Capítulo completo", "year": "Tu año"},
+    "pt": {"today": "Agora", "month": "Próximos 30 dias", "season": "Capítulo de vida", "chapter": "Capítulo completo", "year": "Seu ano"},
+    "hinglish": {"today": "Abhi", "month": "Agle 30 din", "season": "Life chapter", "chapter": "Poora chapter", "year": "Aapka saal"},
 }
 
 
 def year_chip(start: date, bday: date, lang: str) -> str:
-    """The birthday range as numbers, in the reader's date order: en 11/26/25 – 11/26/26,
-    es / pt / hinglish 26/11/25 – 26/11/26. `start` = last birthday, `bday` = next birthday."""
-    def num(d: date) -> str:
-        yy = f"{d.year % 100:02d}"
-        return f"{d.month}/{d.day}/{yy}" if lang == "en" else f"{d.day}/{d.month}/{yy}"
-    return f"{num(start)} – {num(bday)}"
+    """[your-year 2026-10-12] The tab says "Your year" (the birthday-to-birthday dates stay in period.label / start / end). It used to be the raw range ("11/26/25 – 11/26/26"), which the app
+    reformatted as "Nov 26, 2025 to Nov 26, 2026". Never "this year" / "next year": the window is birthday to birthday, not the calendar year (test_chips_never_say_season_this_year_or_365)."""
+    return CHIP.get(lang, CHIP["en"])["year"]
 
 
 def rung_order(year_end: Optional[date], stretch_end: Optional[date]) -> list:

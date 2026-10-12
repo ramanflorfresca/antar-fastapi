@@ -364,16 +364,16 @@ def _ctx(birth="1990-10-15", md=("2023-01-01", "2044-08-13")):
     return T.TopicContext("c", {"lagna": {"sign": "Aries"}}, {"vimsottari": rows}, birth_date=birth)
 
 
-@pytest.mark.parametrize("lang,exp", [("en", "10/15/25 – 10/15/26"), ("es", "15/10/25 – 15/10/26"),
-                                      ("pt", "15/10/25 – 15/10/26"), ("hinglish", "15/10/25 – 15/10/26")])
+@pytest.mark.parametrize("lang,exp", [("en", "Your year"), ("es", "Tu año"),
+                                      ("pt", "Seu ano"), ("hinglish", "Aapka saal")])
 def test_year_chip_is_numeric_in_locale_order(lang, exp):
     assert T._period(_ctx(), "year", TODAY, lang)["chip"] == exp
     assert T._period(_ctx(), "year", TODAY, lang)["label"] == C.PERIOD_LABEL[lang]["year"]
 
 
 def test_year_chip_uses_real_previous_and_next_birthdays():
-    assert T._period(_ctx("1990-11-26"), "year", TODAY, "en")["chip"] == "11/26/25 – 11/26/26"
-    assert T._period(_ctx("1990-11-26"), "year", TODAY, "es")["chip"] == "26/11/25 – 26/11/26"
+    assert T._period(_ctx("1990-11-26"), "year", TODAY, "en")["chip"] == "Your year"
+    assert T._period(_ctx("1990-11-26"), "year", TODAY, "es")["chip"] == "Tu año"
 
 
 @pytest.mark.parametrize("lang,chip", [("en", "Whole chapter"), ("es", "Capítulo completo"),
