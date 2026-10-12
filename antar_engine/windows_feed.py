@@ -47,6 +47,39 @@ def _merge(runs: List[Tuple[date, date]]) -> List[Tuple[date, date]]:
     return out
 
 
+def _merge_driver(a: dict, b: dict) -> dict:
+    """The driver of two merged runs: the stronger run's chapter link / timeline agreement,
+    the widest span of dated movement. n_signals is a max, not a sum: month, season and year
+    scans can see the same movement."""
+    base = dict(a if a.get("score", 0) >= b.get("score", 0) else b)
+    firsts = [x["first_date"] for x in (a, b) if x.get("first_date")]
+    lasts = [x["last_date"] for x in (a, b) if x.get("last_date")]
+    base["first_date"] = min(firsts) if firsts else ""
+    base["last_date"] = max(lasts) if lasts else ""
+    base["n_signals"] = max(a.get("n_signals", 0), b.get("n_signals", 0))
+    base["chara_confirm"] = bool(base.get("chara_confirm"))
+    return base
+
+
+def _merge_with(runs: List[Tuple[date, date]], drivers: Dict[str, dict]):
+    """_merge + carry each run's driver (keyed by start ISO) onto the merged run."""
+    out: List[Tuple[date, date]] = []
+    out_drv: Dict[str, dict] = {}
+    for s, e in sorted(runs):
+        d = drivers.get(s.isoformat())
+        if out and (s - out[-1][1]).days <= 1:
+            ps = out[-1][0]
+            out[-1] = (ps, max(out[-1][1], e))
+            if d is not None:
+                out_drv[ps.isoformat()] = (_merge_driver(out_drv[ps.isoformat()], d)
+                                           if ps.isoformat() in out_drv else d)
+        else:
+            out.append((s, e))
+            if d is not None:
+                out_drv[s.isoformat()] = d
+    return out, out_drv
+
+
 def raw_windows(ctx: T.TopicContext, today: date) -> Dict[str, Optional[dict]]:
     """{topic: {"open": [(s, e)], "care": [(s, e)]} | None}, merged across scales, out to the
     longest horizon. None marks a topic whose scan failed (so it is never called "quiet")."""
@@ -54,6 +87,7 @@ def raw_windows(ctx: T.TopicContext, today: date) -> Dict[str, Optional[dict]]:
     for key in T.TOPIC_KEYS:
         try:
             runs = {k: [] for k in KINDS}
+            drv = {k: {} for k in KINDS}
             for scale in FEED_SCALES:
                 w = T.windows_for(ctx, key, scale, today)
                 for k in KINDS:
@@ -61,7 +95,13 @@ def raw_windows(ctx: T.TopicContext, today: date) -> Dict[str, Optional[dict]]:
                         c = T.clamp_window(r["start"], r["end"], today)
                         if c:
                             runs[k].append(c)
-            out[key] = {k: _merge(v) for k, v in runs.items()}
+                            if r.get("driver"):
+                                prev = drv[k].get(c[0].isoformat())
+                                drv[k][c[0].isoformat()] = (_merge_driver(prev, r["driver"])
+                                                            if prev else r["driver"])
+            merged = {k: _merge_with(v, drv[k]) for k, v in runs.items()}
+            out[key] = {k: merged[k][0] for k in KINDS}
+            out[key]["drivers"] = {k: merged[k][1] for k in KINDS}
         except Exception:
             logger.exception("[windows-feed] %s scan failed -> skipped", key)
             out[key] = None
@@ -81,7 +121,29 @@ def _fmt(d: date, lang: str, today: date) -> str:
     return C.day_label(d, lang) if d.year == today.year else C.day_label_y(d, lang)
 
 
-def _entry(key: str, kind: str, s: date, e: date, today: date, lang: str) -> dict:
+def _why(key: str, kind: str, s: date, e: date, today: date, lang: str,
+         driver: Optional[dict], time_quality: str) -> Tuple[dict, Optional[dict]]:
+    """({"line", "bullets"}, {"level", "note"} | None) from the window's driver. The line is the
+    chapter clause plus the dated clause when something is dated; a window carried by the chapter
+    alone says only that (the confidence chip carries the rest)."""
+    if not driver:
+        return {"line": "", "bullets": []}, None
+    d = dict(driver, mode=kind)
+    bullets = T.why_bullets(time_quality, key, d, lang, s, e, today, then=s > today)
+    none_dated = C.pick(C.WHY_BULLET, lang)["none_dated"]
+    bullets = [b for b in bullets if b != none_dated]   # a window card is not "not a dated window"
+    agree = C.pick(C.WHY_BULLET, lang)["agree"]
+    line = " ".join(b for b in bullets[:3] if b != agree and b not in (
+        C.pick(C.WHY_BULLET, lang)["approx_time"], C.pick(C.WHY_BULLET, lang)["no_time"]))
+    level = driver.get("confidence") or "low"
+    if time_quality == "unknown":
+        level = "low"
+    note = C.pick(C.CONFIDENCE_NOTE, lang).get(level, "")
+    return {"line": line, "bullets": bullets}, {"level": level, "note": note}
+
+
+def _entry(key: str, kind: str, s: date, e: date, today: date, lang: str,
+           driver: Optional[dict] = None, time_quality: str = "") -> dict:
     phase = T.window_phase(s, e, today)
     when = _fmt(s, lang, today)
     if phase == "now":
@@ -91,10 +153,12 @@ def _entry(key: str, kind: str, s: date, e: date, today: date, lang: str) -> dic
         headline = _sentence(C.pick(C.CORE_AHEAD, lang)[key][kind].format(date=when))
         move = C.pick(C.MOVE_AHEAD, lang)[key][kind].format(date=when)
     rng = (f"{_fmt(s, lang, today)} – {_fmt(e, lang, today)}" if s != e else _fmt(s, lang, today))
+    why, conf = _why(key, kind, s, e, today, lang, driver, time_quality)
     return {"topic": key, "label": C.LABEL[lang][key], "kind": kind,
             "start": s.isoformat(), "end": e.isoformat(), "label_range": rng,
             "headline": headline, "move": move, "window_phase": phase,
-            "days_left": (e - today).days, "opens_in_days": max(0, (s - today).days)}
+            "days_left": (e - today).days, "opens_in_days": max(0, (s - today).days),
+            "why": why, "confidence": conf}
 
 
 def _big_picture(ctx: T.TopicContext, today: date, lang: str) -> dict:
@@ -135,13 +199,16 @@ def assemble(ctx: T.TopicContext, raw: Dict[str, Optional[dict]], today: date, l
             continue
         wins = {k: _cut(r.get(k, []), horizon_end) for k in KINDS}
         flat = sorted(((s, e, k) for k in KINDS for s, e in wins[k]))
+        drivers = r.get("drivers") or {}
         if not flat:
             quiet.append(key)
             continue
         tracks.append({"topic": key, "label": C.LABEL[lang][key],
                        "windows": [{"kind": k, "start": s.isoformat(), "end": e.isoformat()} for s, e, k in flat]})
         for s, e, k in flat:
-            (now if s <= today else upcoming).append(_entry(key, k, s, e, today, lang))
+            drv = (drivers.get(k) or {}).get(s.isoformat())
+            (now if s <= today else upcoming).append(
+                _entry(key, k, s, e, today, lang, drv, ctx.time_quality))
     now.sort(key=lambda w: (w["end"], T.TOPIC_KEYS.index(w["topic"]), w["kind"]))
     upcoming.sort(key=lambda w: (w["start"], T.TOPIC_KEYS.index(w["topic"]), w["kind"]))
     nxt, per_topic = [], {}
@@ -168,10 +235,13 @@ def empty_feed(chart_id: str, today: date, language: str, horizon_months: int) -
 
 
 def raw_to_json(raw) -> dict:
-    return {k: (None if v is None else {kd: [[s.isoformat(), e.isoformat()] for s, e in v[kd]] for kd in KINDS})
+    return {k: (None if v is None else dict(
+                {kd: [[s.isoformat(), e.isoformat()] for s, e in v[kd]] for kd in KINDS},
+                drivers=v.get("drivers") or {kd: {} for kd in KINDS}))
             for k, v in raw.items()}
 
 
 def raw_from_json(d) -> Dict[str, Optional[dict]]:
-    return {k: (None if v is None else {kd: [(date.fromisoformat(s), date.fromisoformat(e)) for s, e in v[kd]]
-                                        for kd in KINDS}) for k, v in d.items()}
+    return {k: (None if v is None else dict(
+                {kd: [(date.fromisoformat(s), date.fromisoformat(e)) for s, e in v[kd]] for kd in KINDS},
+                drivers=v.get("drivers") or {kd: {} for kd in KINDS})) for k, v in d.items()}

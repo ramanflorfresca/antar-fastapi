@@ -47,7 +47,8 @@ def test_now_next_care_ordering_and_caps(ctx, raw):
     for w in f["now"]:
         assert D(w["start"]) <= TODAY <= D(w["end"]) and w["days_left"] == (D(w["end"]) - TODAY).days
         assert w["kind"] in ("open", "care") and w["headline"].endswith(".") and w["move"]
-        assert set(w) == {"topic", "label", "kind", "start", "end", "days_left", "headline", "move"}
+        assert set(w) == {"topic", "label", "kind", "start", "end", "days_left", "headline", "move",
+                          "why", "confidence"}
     assert [w["end"] for w in f["now"]] == sorted(w["end"] for w in f["now"])      # soonest-ending first
     assert len(f["next"]) <= 12 and len(f["care"]) <= 6
     assert [w["start"] for w in f["next"]] == sorted(w["start"] for w in f["next"])
@@ -276,3 +277,88 @@ def test_demo_chart_reads_without_shared_with(env, ctx, monkeypatch):
     r = cl.get(f"/api/v1/chart/{A}/windows", headers=AUTH["uA"])
     assert r.status_code == 200 and r.json()["tracks"]
     assert all("shared_with" not in t for t in r.json()["tracks"])
+
+
+# ── [why-line] every window says what carried it ──────────────────────────
+def test_every_entry_carries_a_why_and_confidence(ctx, raw):
+    f = feed(ctx, raw)
+    ents = f["now"] + f["next"] + f["care"]
+    assert ents
+    for w in ents:
+        assert set(w["why"]) == {"line", "bullets"} and isinstance(w["why"]["bullets"], list)
+        assert w["confidence"] is None or w["confidence"]["level"] in ("high", "medium", "low")
+        if w["why"]["line"]:
+            assert w["why"]["line"].endswith(".")
+            assert not any(t in w["why"]["line"].lower() for t in ("saturn", "jupiter", "dasha", "house", "transit"))
+        # the contradiction a window card must never carry
+        assert "not a dated window" not in " ".join(w["why"]["bullets"])
+
+
+def test_why_is_chart_specific_and_follows_the_driver():
+    drv_core = {"dasha_kind": "core", "chara_confirm": True, "n_signals": 2,
+                "first_date": "2026-11-02", "last_date": "2026-12-20", "mode": "open", "score": 5.0,
+                "confidence": "high"}
+    drv_alone = dict(drv_core, n_signals=0, first_date="", last_date="", confidence="low")
+    drv_theme = dict(drv_core, dasha_kind="theme", confidence="medium")
+    a, ca = W._why("money", "open", D("2026-11-01"), D("2026-12-30"), TODAY, "en", drv_core, "exact")
+    b, cb = W._why("money", "open", D("2026-11-01"), D("2026-12-30"), TODAY, "en", drv_alone, "exact")
+    c, _ = W._why("money", "open", D("2026-11-01"), D("2026-12-30"), TODAY, "en", drv_theme, "exact")
+    assert "tied directly" in a["line"] and "support" in a["line"].lower()        # chapter + dated clause
+    assert "tied directly" in b["line"] and "support" not in b["line"].lower()    # chapter alone: no dated clause
+    assert "touches the themes" in c["line"]
+    assert ca["level"] == "high" and cb["level"] == "low"
+    assert len({a["line"], b["line"], c["line"]}) == 3
+
+
+def test_why_care_window_says_press_and_unknown_birth_time_caps_confidence():
+    drv = {"dasha_kind": "core", "chara_confirm": False, "n_signals": 1, "first_date": "2026-11-02",
+           "last_date": "2026-11-20", "mode": "care", "score": 4.0, "confidence": "high"}
+    w, conf = W._why("career", "care", D("2026-11-01"), D("2026-11-30"), TODAY, "en", drv, "unknown")
+    assert "press" in w["line"].lower() and conf["level"] == "low"
+    assert any("birth time" in b.lower() for b in w["bullets"])
+
+
+def test_why_missing_driver_is_empty_not_an_error():
+    assert W._why("money", "open", D("2026-11-01"), D("2026-11-30"), TODAY, "en", None, "exact") == (
+        {"line": "", "bullets": []}, None)
+
+
+@pytest.mark.parametrize("lang", LANGS)
+def test_why_lines_exist_in_every_language(ctx, raw, lang):
+    ents = feed(ctx, raw, lang)["now"] + feed(ctx, raw, lang)["next"]
+    assert any(w["why"]["line"] for w in ents)
+
+
+def test_driver_survives_merge_and_the_json_round_trip(ctx, raw):
+    back = W.raw_from_json(W.raw_to_json(raw))
+    for key, v in raw.items():
+        if v is None:
+            continue
+        assert back[key]["open"] == v["open"] and back[key]["care"] == v["care"]
+        assert back[key]["drivers"] == v["drivers"]
+    # every window has a driver keyed by its start
+    for key, v in raw.items():
+        for kd in ("open", "care"):
+            for s, e in (v or {}).get(kd, []):
+                assert s.isoformat() in v["drivers"][kd]
+
+
+def test_merge_driver_keeps_the_stronger_link_and_widest_dates():
+    a = {"dasha_kind": "theme", "chara_confirm": False, "n_signals": 1, "first_date": "2026-11-05",
+         "last_date": "2026-11-10", "score": 2.0, "mode": "open", "confidence": "low"}
+    b = {"dasha_kind": "core", "chara_confirm": True, "n_signals": 3, "first_date": "2026-11-01",
+         "last_date": "2026-11-30", "score": 5.0, "mode": "open", "confidence": "high"}
+    m = W._merge_driver(a, b)
+    assert m["dasha_kind"] == "core" and m["confidence"] == "high"
+    assert m["first_date"] == "2026-11-01" and m["last_date"] == "2026-11-30" and m["n_signals"] == 3
+
+
+def test_a_window_not_yet_open_never_says_right_now():
+    drv = {"dasha_kind": "core", "chara_confirm": False, "n_signals": 1, "first_date": "2027-02-02",
+           "last_date": "2027-03-01", "mode": "open", "score": 4.0, "confidence": "medium"}
+    for lang in LANGS:
+        ahead, _ = W._why("money", "open", TODAY + timedelta(days=90), TODAY + timedelta(days=120), TODAY, lang, drv, "exact")
+        now, _ = W._why("money", "open", TODAY, TODAY + timedelta(days=30), TODAY, lang, drv, "exact")
+        assert ahead["line"] and now["line"] and ahead["line"] != now["line"], lang
+    en, _ = W._why("money", "open", TODAY + timedelta(days=90), TODAY + timedelta(days=120), TODAY, "en", drv, "exact")
+    assert "right now" not in en["line"] and "then" in en["line"]

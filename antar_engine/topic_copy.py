@@ -843,6 +843,8 @@ WHY_BULLET: Dict[str, Dict[str, str]] = {
     "en": {
         "chapter_core": "The chapter you are in right now is tied directly to {area}.",
         "chapter_theme": "The chapter you are in right now touches the themes behind {area}.",
+        "chapter_core_then": "The chapter you will be in then is tied directly to {area}.",
+        "chapter_theme_then": "The chapter you will be in then touches the themes behind {area}.",
         "agree": "A second way of reading your timeline points the same way.",
         "signals_open": "Slow-moving influences support {area} between {start} and {end}.",
         "signals_care": "Slow-moving influences press on {area} between {start} and {end}.",
@@ -855,6 +857,8 @@ WHY_BULLET: Dict[str, Dict[str, str]] = {
     "es": {
         "chapter_core": "La etapa en la que estás ahora está ligada directamente a {area}.",
         "chapter_theme": "La etapa en la que estás ahora toca los temas detrás de {area}.",
+        "chapter_core_then": "La etapa en la que estarás entonces está ligada directamente a {area}.",
+        "chapter_theme_then": "La etapa en la que estarás entonces toca los temas detrás de {area}.",
         "agree": "Una segunda forma de leer tu línea de tiempo apunta en la misma dirección.",
         "signals_open": "Influencias lentas apoyan {area} entre el {start} y el {end}.",
         "signals_care": "Influencias lentas presionan {area} entre el {start} y el {end}.",
@@ -867,6 +871,8 @@ WHY_BULLET: Dict[str, Dict[str, str]] = {
     "pt": {
         "chapter_core": "A fase em que você está agora está ligada diretamente a {area}.",
         "chapter_theme": "A fase em que você está agora toca os temas por trás de {area}.",
+        "chapter_core_then": "A fase em que você estará então está ligada diretamente a {area}.",
+        "chapter_theme_then": "A fase em que você estará então toca os temas por trás de {area}.",
         "agree": "Uma segunda forma de ler a sua linha do tempo aponta na mesma direção.",
         "signals_open": "Influências lentas apoiam {area} entre {start} e {end}.",
         "signals_care": "Influências lentas pressionam {area} entre {start} e {end}.",
@@ -879,6 +885,8 @@ WHY_BULLET: Dict[str, Dict[str, str]] = {
     "hinglish": {
         "chapter_core": "Aap jis daur mein hain wo seedha {area} se juda hai.",
         "chapter_theme": "Aap jis daur mein hain wo {area} ke peeche ke vishayon ko chhooti hai.",
+        "chapter_core_then": "Tab aap jis daur mein honge wo seedha {area} se juda hai.",
+        "chapter_theme_then": "Tab aap jis daur mein honge wo {area} ke peeche ke vishayon ko chhooti hai.",
         "agree": "Aapki timeline padhne ka doosra tareeka bhi isi taraf ishara karta hai.",
         "signals_open": "Dheemi chalne wale prabhav {start} se {end} ke beech {area} ko support karte hain.",
         "signals_care": "Dheemi chalne wale prabhav {start} se {end} ke beech {area} par dabaav daalte hain.",

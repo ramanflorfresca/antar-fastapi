@@ -735,6 +735,21 @@ def _rung_order(ctx: TopicContext, today: date, lang: str) -> list:
     return C.rung_order(ends["year"], ends["season"])
 
 
+def _demote_structural_opens(results: List[Tuple[Tuple[date, date], dict]]) -> List[Tuple[Tuple[date, date], dict]]:
+    """An "open" bucket that rests on the running chapter alone (no dated SUPPORTIVE movement)
+    does not stand next to a "care" bucket: the dated demanding movement wins, and the structural
+    lean goes quiet there instead of flipping care/open/care month to month. An open with a dated
+    supportive movement behind it is a real mixed signal and is kept."""
+    lit_care = [bool(a["lit"] and a["mode"] == "care") for _, a in results]
+    out = []
+    for i, (b, a) in enumerate(results):
+        if (a["lit"] and a["mode"] == "open" and a["n_benefic"] == 0
+                and ((i > 0 and lit_care[i - 1]) or (i + 1 < len(results) and lit_care[i + 1]))):
+            a = dict(a, lit=False, polarity="neutral", mode="steady", demoted=True)
+        out.append((b, a))
+    return out
+
+
 def _scan(ctx: TopicContext, key: str, scale: str, per: dict, today: date) -> List[Tuple[Tuple[date, date], dict]]:
     ws, we = max(per["start"], today), per["end"]
     if scale == "today":
@@ -747,7 +762,8 @@ def _scan(ctx: TopicContext, key: str, scale: str, per: dict, today: date) -> Li
         we_scan = min(we, today + timedelta(days=SEASON_SCAN_CAP_DAYS))
         ev = ctx.events(ws, we_scan, False)
         we, step = we_scan, 30
-    return [(b, _assess_bucket(ctx, key, b, ev)) for b in _bucket_ranges(ws, we, step)]
+    return _demote_structural_opens(
+        [(b, _assess_bucket(ctx, key, b, ev)) for b in _bucket_ranges(ws, we, step)])
 
 
 # ── reasoning ────────────────────────────────────────────────────────────────
@@ -762,15 +778,20 @@ def _confidence(ctx: TopicContext, a: dict) -> str:
     return level
 
 
-def _reasoning(ctx: TopicContext, key: str, a: dict, scale: str, lang: str,
-               w_start: Optional[date] = None, w_end: Optional[date] = None,
-               today: Optional[date] = None) -> dict:
+def why_bullets(time_quality: str, key: str, a: dict, lang: str,
+                w_start: Optional[date] = None, w_end: Optional[date] = None,
+                today: Optional[date] = None, then: bool = False) -> List[str]:
+    """Plain-language reasons for one window or read. `then` words the chapter as the one the
+    person will be in when the window opens (a window not yet open), not "right now". `a` needs dasha_kind, chara_confirm,
+    n_signals and mode (an assessment, or a window's `driver`). Shared by the topic read and
+    the Windows feed so both say the same thing for the same driver."""
     B, area = C.pick(C.WHY_BULLET, lang), C.pick(C.AREA, lang)[key]
     bullets: List[str] = []
+    sfx0 = "_then" if then else ""
     if a["dasha_kind"] == "core":
-        bullets.append(B["chapter_core"].format(area=area))
+        bullets.append(B.get("chapter_core" + sfx0, B["chapter_core"]).format(area=area))
     elif a["dasha_kind"] == "theme":
-        bullets.append(B["chapter_theme"].format(area=area))
+        bullets.append(B.get("chapter_theme" + sfx0, B["chapter_theme"]).format(area=area))
     if a["chara_confirm"]:
         bullets.append(B["agree"])
     if a["n_signals"] and w_start and w_end:
@@ -781,10 +802,17 @@ def _reasoning(ctx: TopicContext, key: str, a: dict, scale: str, lang: str,
                                    end=C.label_near_or_month(w_end, lang, today)))
     elif not a["n_signals"]:
         bullets.append(B["none_dated"])
-    if ctx.time_quality == "approximate":
+    if time_quality == "approximate":
         bullets.append(B["approx_time"])
-    elif ctx.time_quality == "unknown":
+    elif time_quality == "unknown":
         bullets.append(B["no_time"])
+    return bullets
+
+
+def _reasoning(ctx: TopicContext, key: str, a: dict, scale: str, lang: str,
+               w_start: Optional[date] = None, w_end: Optional[date] = None,
+               today: Optional[date] = None) -> dict:
+    bullets = why_bullets(ctx.time_quality, key, a, lang, w_start, w_end, today)
     bo = C.pick(C.BASED_ON, lang)
     # one chip per family that counted toward _confidence, so chips == the confidence's reasons
     based: List[dict] = []
@@ -1048,6 +1076,18 @@ def _read_topic(ctx: TopicContext, key: str, scale: str, today: date, language: 
     return out
 
 
+def _run_driver(ctx: TopicContext, r: dict, a: dict) -> dict:
+    """What carried a run: the strongest bucket's chapter link and timeline agreement, and the
+    dated movement across the whole run. Language-free; the Windows feed words it."""
+    ass = r["assessments"]
+    firsts = [x["first_date"] for x in ass if x.get("first_date")]
+    lasts = [x["last_date"] for x in ass if x.get("last_date")]
+    return {"dasha_kind": a["dasha_kind"], "chara_confirm": bool(a["chara_confirm"]),
+            "n_signals": max((x["n_signals"] for x in ass), default=0),
+            "first_date": min(firsts) if firsts else "", "last_date": max(lasts) if lasts else "",
+            "mode": a["mode"], "score": a["score"], "confidence": _confidence(ctx, a)}
+
+
 def windows_for(ctx: TopicContext, key: str, scale: str, today: date) -> dict:
     """[circle] EVERY dated open / care run for one topic at one scale - the same scan,
     bucketing, run-merging and never-in-the-past clamp `read_topic` uses, but returning all
@@ -1077,7 +1117,8 @@ def windows_for(ctx: TopicContext, key: str, scale: str, today: date) -> dict:
                 if c is None:
                     continue
                 a = max(r["assessments"], key=lambda x: x["score"])
-                out[name].append({"start": c[0], "end": c[1], "confidence": _confidence(ctx, a)})
+                out[name].append({"start": c[0], "end": c[1], "confidence": _confidence(ctx, a),
+                                  "driver": _run_driver(ctx, r, a)})
     except Exception:
         logger.exception("[topic-windows] scan failed -> no runs")
         out["open"], out["care"] = [], []
