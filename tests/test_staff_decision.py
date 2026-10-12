@@ -72,7 +72,8 @@ def test_the_lane_is_wired_after_the_filters_and_only_for_the_fire_family():
     src = open(main.__file__, encoding="utf-8").read()
     i = src.index("[staff-final 2026-10-11]")
     assert i > src.index("[divorced-final 2026-10-11]") and '_f2[0] == "fire"' in src[i:i + 900] and 'compat_type") == "employee"' in src[i:i + 2500]
-    assert "_sd_basis" in src[src.index('payload["basis"] = _basis'):src.index('payload["basis"] = _basis') + 400]
+    j = src.index('payload["basis"] = _plain or _basis')      # [basis-plain] the line people read is plain; the staff-decision basis is still appended after it
+    assert "_sd_basis" in src[j:j + 700]
 
 
 def test_without_a_role_reassign_is_worded_as_a_defined_area_not_as_a_poor_fit():

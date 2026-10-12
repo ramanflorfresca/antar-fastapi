@@ -481,6 +481,20 @@ _CAUTION_BOLD = re.compile(r"(?i)\bsteady,? grounded\b|\b(over|than|not|rather t
 _SUPPORT_BOLD = re.compile(r"(?i)\b(strongly )?(supports?|backs|favou?rs|green-?lights?) (bold|big|dramatic|a big|a bold)\b")
 
 
+# [span-wording 2026-10-12] A year-level read that opens a sentence with "Right now," sounds like TODAY. Home said "Money: Good time · Today only" while the same user's WhatsApp answer said "Right now, the timing
+# shows pressure on cashflow": two true statements about different spans that read as opposites. When the question isn't about today, the sentence says which span it means.
+_RIGHT_NOW = {"en": (re.compile(r"(?:(?<=^)|(?<=[.!?]\s)|(?<=\n))Right now,?\s+(?=the |your |you |money|work|timing|income|cash|career|business)"), "In this stretch, "),
+              "es": (re.compile(r"(?:(?<=^)|(?<=[.!?]\s)|(?<=\n))Ahora mismo,?\s+(?=el |la |tu |tus |los |las |usted |el dinero|el trabajo)"), "En esta etapa, ")}
+
+
+def scope_right_now(text, question: str = "", language: str = "en"):
+    """'Right now, the timing shows…' -> 'In this stretch, the timing shows…' unless the question itself is about today / right now. Idempotent."""
+    if not isinstance(text, str) or not text.strip() or _DAY_SCOPE_Q.search(question or ""):
+        return text
+    rx, rep = _RIGHT_NOW.get(_lang(language), (None, None)) if _lang(language) in _RIGHT_NOW else (None, None)
+    return rx.sub(rep, text) if rx else text
+
+
 def polish_answer(payload: dict, language: str = "en", typed_question: str = "",
                   concern: str = "general", chart_lean: str = "", thread_text: str = "",
                   prev_moves=(), chart_data=None, dashas=None, existing_union: bool = False) -> dict:
@@ -491,6 +505,7 @@ def polish_answer(payload: dict, language: str = "en", typed_question: str = "",
         own = f"{typed_question} {thread_text}"
         for f in ("read", "next"):
             payload[f] = plain_words(payload.get(f), language)
+        payload["read"] = scope_right_now(payload.get("read"), typed_question, language)
         # R4 — spread chart: no "pick one venture / double down" (unless they asked to pick one)
         if chart_lean == "spread" and not _PICK_ONE.search(own):
             payload["read"], _ = _drop_sentences(payload.get("read"), _PICK_ONE, keep_min=2)
