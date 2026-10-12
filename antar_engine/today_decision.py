@@ -120,6 +120,41 @@ def _clean(s: str) -> str:
     return (s or "").strip().rstrip(".!? ")
 
 
+_CLOCK = _re.compile(r"(\d{1,2}):(\d{2})\s*([AaPp])?\.?[Mm]?\.?\s*(?:\u2013|\u2014|-|to)\s*(\d{1,2}):(\d{2})\s*([AaPp])?\.?[Mm]?\.?")
+
+
+def clock_range(window):
+    """("12:18", "13:06") from "12:18 PM \u2013 1:06 PM", else None. 24-hour, same local day as the
+    window. A start with no AM/PM takes the end's, and flips to the other half if that would make it
+    later than the end ("11:30 \u2013 12:15 PM"). Never guesses: an unreadable window gives None."""
+    try:
+        m = _CLOCK.search(str(window or ""))
+        if not m:
+            return None
+        h1, m1, a1, h2, m2, a2 = int(m.group(1)), int(m.group(2)), m.group(3), int(m.group(4)), int(m.group(5)), m.group(6)
+        if not (0 <= m1 < 60 and 0 <= m2 < 60):
+            return None
+
+        def h24(h, ap):
+            if ap is None:
+                return h
+            if not 1 <= h <= 12:
+                return None
+            return (0 if h == 12 else h) + (12 if ap.lower() == "p" else 0)
+
+        end = h24(h2, a2)
+        start = h24(h1, a1 if a1 else a2)
+        if start is None or end is None or not (0 <= start < 24 and 0 <= end < 24):
+            return None
+        if not a1 and a2 and start * 60 + m1 >= end * 60 + m2:
+            start = h24(h1, "a" if a2.lower() == "p" else "p")
+        if start is None or start * 60 + m1 >= end * 60 + m2:
+            return None
+        return f"{start:02d}:{m1:02d}", f"{end:02d}:{m2:02d}"
+    except Exception:
+        return None
+
+
 def _between(w: str, tx: dict) -> str:
     if not w:
         return ""
@@ -250,7 +285,9 @@ def compose(p: dict, language: str = "en"):
             # Publish no move until the full phase so the client never shows a sentence that is then replaced.
             move = ""
         out = {"prediction": pred, "why": why, "holds": holds, "breaks": brk, "move": move,
-               "window": {"best": best, "avoid": avoid, "shift_at": at if (improves or worsens) else None},
+               "window": {"best": best, "avoid": avoid, "shift_at": at if (improves or worsens) else None,
+                          # structured, so the app can offer "add to calendar" without parsing prose
+                          **({"best_start": _cr[0], "best_end": _cr[1]} if (_cr := clock_range(best)) else {})},
                "version": "today-decision-1"}
         return out if (pred and holds and brk) else None
     except Exception:

@@ -1,4 +1,6 @@
 """[today-decision 2026-10-10] Today's one coherent decision block, composed from the daily payload."""
+import pytest
+
 from antar_engine.today_decision import compose
 
 P = {
@@ -164,3 +166,34 @@ def test_sunday_spanish_call_the_key_contact_becomes_a_monday_draft():
     p = _wk_payload("2026-10-11", "domingo", "Llama o escribe al contacto clave antes del mediodía — hoy tu voz llega con más peso que de costumbre.")
     d = compose(p, "es")
     assert "lunes" in d["move"] and "mediodía" not in d["move"] and "Llama" not in d["move"]
+
+
+# ── structured clock range for "add to calendar" ──
+from antar_engine.today_decision import clock_range  # noqa: E402
+
+
+@pytest.mark.parametrize("w,expected", [
+    ("12:18 PM – 1:06 PM", ("12:18", "13:06")),
+    ("12:17 PM - 1:05 PM", ("12:17", "13:05")),
+    ("9:52 AM – 11:17 AM", ("09:52", "11:17")),
+    ("11:30 – 12:15 PM", ("11:30", "12:15")),          # start inherits PM, flips to AM to stay before the end
+    ("12:00 AM – 1:30 AM", ("00:00", "01:30")),
+    ("8:28 AM to 9:52 AM", ("08:28", "09:52")),
+    ("", None), (None, None), ("sunrise", None),
+    ("13:00 PM – 14:00 PM", None),                      # not a 12-hour time
+    ("5:00 PM – 4:00 PM", None),                        # backwards
+])
+def test_clock_range(w, expected):
+    assert clock_range(w) == expected
+
+
+def test_decision_window_carries_the_clock_range_only_when_readable():
+    d = compose(P)
+    assert d["window"]["best_start"] == "12:18" and d["window"]["best_end"] == "13:06"
+    # no best window at all: the keys are simply absent, never null
+    q = {**P, "hora": {}, "panchanga": {}, "abhijit": None}
+    assert "best_start" not in compose(q)["window"]
+    # a window the parser cannot read is left out, the prose is unchanged
+    r = {**P, "hora": {"best_window": "around noon"}}
+    out = compose(r)
+    assert out["window"]["best"] == "around noon" and "best_start" not in out["window"]
