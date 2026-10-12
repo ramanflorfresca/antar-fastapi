@@ -68,17 +68,22 @@ def _planet_sign_index(rec: dict) -> Optional[int]:
     return None
 
 
-def compute_relocated_lagna_index(birth_jd: float, lat: float, lon: float) -> Optional[int]:
-    """Sidereal ascendant sign index at a new place, or None on failure."""
+def compute_relocated_lagna_longitude(birth_jd: float, lat: float, lon: float) -> Optional[float]:
+    """Sidereal ascendant longitude (0-360) at a new place, or None on failure."""
     if not _SWE_AVAILABLE or birth_jd is None:
         return None
     try:
         swe.set_sid_mode(swe.SIDM_LAHIRI)
         _cusps, ascmc = swe.houses_ex(birth_jd, lat, lon, b"W", swe.FLG_SIDEREAL)
-        asc_lon = ascmc[0] % 360.0
-        return int(asc_lon // 30.0)
+        return float(ascmc[0] % 360.0)
     except Exception:
         return None
+
+
+def compute_relocated_lagna_index(birth_jd: float, lat: float, lon: float) -> Optional[int]:
+    """Sidereal ascendant sign index at a new place, or None on failure."""
+    asc_lon = compute_relocated_lagna_longitude(birth_jd, lat, lon)
+    return None if asc_lon is None else int(asc_lon // 30.0)
 
 
 def compute_relocated_chart(natal_chart: dict, lat: float, lon: float) -> dict:
@@ -101,7 +106,8 @@ def compute_relocated_chart(natal_chart: dict, lat: float, lon: float) -> dict:
     """
     birth_jd = natal_chart.get("birth_jd")
     natal_idx = _natal_lagna_index(natal_chart)
-    reloc_idx = compute_relocated_lagna_index(birth_jd, lat, lon)
+    reloc_lon = compute_relocated_lagna_longitude(birth_jd, lat, lon)
+    reloc_idx = None if reloc_lon is None else int(reloc_lon // 30.0)
 
     natal_lagna_name = SIGNS[natal_idx] if natal_idx is not None else None
 
@@ -147,6 +153,7 @@ def compute_relocated_chart(natal_chart: dict, lat: float, lon: float) -> dict:
         "natal_lagna": natal_lagna_name,
         "relocated_lagna": SIGNS[reloc_idx],
         "relocated_lagna_index": reloc_idx,
+        "relocated_lagna_longitude": reloc_lon,
         "lagna_shift_houses": lagna_shift,
         "relocated_house_cusps": relocated_house_cusps,
         "relocated_planet_houses": planet_houses,
