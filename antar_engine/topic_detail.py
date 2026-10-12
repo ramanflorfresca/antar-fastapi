@@ -131,14 +131,14 @@ def _week_tail(note: Optional[str], lang: str) -> str:
     return C.pick(C.BAL_TAIL, lang).format(when=C.pick(C.BAL_WEEK, lang).format(w=w))
 
 
-def balanced(out: dict, lang: str, note: Optional[str], tail: str = "") -> dict:
+def balanced(out: dict, lang: str, note: Optional[str], tail: str = "", swing: bool = False) -> dict:
     """Open window + caution -> ONE headline sentence ('Today, good for income and pricing, but careful
     with speculative moves.') and a Your move that agrees. The raw caution text stays in
     `detail.caution_note`. Returns a new dict."""
     topic, scale = out.get("topic"), out.get("scale")
-    kind = caution_kind(note, topic)
+    kind = "risk" if swing else caution_kind(note, topic)
     good = C.pick(C.BAL_GOOD, lang)[topic]
-    care = C.pick(C.BAL_CARE, lang)[topic][kind]
+    care = C.pick(C.BAL_SWING if swing else C.BAL_CARE, lang)[topic] if swing else C.pick(C.BAL_CARE, lang)[topic][kind]
     out = dict(out)
     out["claim"] = C.pick(C.BAL_JOIN, lang).format(
         lead=C.pick(C.SPAN_LEAD, lang)[scale], good=good, care=care, tail=tail)
@@ -550,8 +550,12 @@ def reconcile(out: dict, daily: Optional[dict], lang: str) -> dict:
                     if not det.get("watch_for"):
                         det["watch_for"] = vol
                     out["detail"] = det
-                elif out.get("tone") == "open" and vol not in out["claim"]:
-                    out["claim"] = f"{out['claim'].rstrip()} {vol}"
+                elif out.get("tone") == "open":   # one balanced sentence; the engine's line rides in the detail
+                    det = dict(out.get("detail") or {})
+                    if not det.get("watch_for"):
+                        det["watch_for"] = vol
+                    out["detail"] = det
+                    return balanced(out, lang, vol, swing=True)
             return out
         out = dict(out)
         out["detail"] = dict(out.get("detail") or {}, caution_note=note)
