@@ -1,0 +1,105 @@
+"""
+24-month deterministic event forecast for a stored chart: Rao Chara windows + Boney
+confluence (composite_events) + Lal Kitab age layer and annual (varshphal) forecasts
+with remedies. Pure function of chart data, dashas and `now`. No LLM, no accuracy gate;
+every rule has a stable id for later feedback grading.
+"""
+from datetime import date, datetime
+from typing import Dict, List, Optional
+
+from antar_engine.jaimini_engine import Planet
+from antar_engine.composite_events import composite_windows
+from antar_engine.lal_kitab_events import lal_kitab_profile
+from antar_engine.lk_annual_forecast import lk_annual_forecast
+
+PLAIN = {"marriage": "Relationship / marriage", "children": "Children",
+         "education": "Study and learning", "career": "Career step"}
+PLANETS = ("Sun", "Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn", "Rahu", "Ketu")
+
+
+def _dt(v) -> Optional[datetime]:
+    if isinstance(v, datetime):
+        return v
+    try:
+        return datetime.fromisoformat(str(v)[:10])
+    except Exception:
+        return None
+
+
+def _planets(chart_data: dict) -> Dict[str, Planet]:
+    out = {}
+    for name, d in (chart_data.get("planets") or {}).items():
+        if name not in PLANETS or not isinstance(d, dict):
+            continue
+        lon = d.get("longitude")
+        if not isinstance(lon, (int, float)):
+            si, deg = d.get("sign_index"), d.get("degree")
+            if isinstance(si, int) and isinstance(deg, (int, float)):
+                lon = si * 30.0 + float(deg) % 30
+        if isinstance(lon, (int, float)):
+            out[name] = Planet(name=name, sign=int(lon // 30) % 12, degree=float(lon),
+                               degree_in_sign=float(lon) % 30,
+                               retrograde=bool(d.get("retrograde")))
+    return out
+
+
+def _lagna(chart_data: dict):
+    lg = chart_data.get("lagna") or {}
+    si = lg.get("sign_index")
+    if not isinstance(si, int):
+        return None, None
+    deg = lg.get("longitude")
+    if not isinstance(deg, (int, float)):
+        d = lg.get("degree")
+        deg = si * 30.0 + float(d) % 30 if isinstance(d, (int, float)) else si * 30.0 + 15
+    return si, float(deg)
+
+
+def _vim_rows(rows) -> List[dict]:
+    out = []
+    for r in rows or []:
+        s, e = _dt(r.get("start_date") or r.get("start")), _dt(r.get("end_date") or r.get("end"))
+        lord = r.get("planet_or_sign") or r.get("lord_or_sign")
+        if s and e and lord:
+            out.append({"planet": lord, "start_date": s, "end_date": e})
+    return out
+
+
+def build_forecast(chart_data: dict, birth_date, vim_rows, today: Optional[date] = None,
+                   months: int = 24) -> dict:
+    today = today or date.today()
+    bd = _dt(birth_date)
+    planets = _planets(chart_data)
+    lagna_sign, lagna_lon = _lagna(chart_data)
+    if not bd or lagna_sign is None or len(planets) < 9:
+        return {"available": False, "reason": "incomplete chart data"}
+
+    start = datetime(today.year, today.month, today.day)
+    y, m = divmod(today.month - 1 + months, 12)
+    end = datetime(today.year + y, m + 1, min(today.day, 28))
+
+    windows = composite_windows(lagna_sign, lagna_lon, planets, bd, start, end,
+                                vim_rows=_vim_rows(vim_rows))
+    events = []
+    for w in windows:
+        for e in w["events"]:
+            events.append({"event": e["event"], "label": PLAIN[e["event"]],
+                           "start": w["start"].date().isoformat(), "end": w["end"].date().isoformat(),
+                           "tier": e["tier"], "layers": e["layers"], "rules": e["rules"],
+                           "major_sign": w["major"], "sub_sign": w["sub"],
+                           "double_transit": e["double_transit"]})
+    order = {"triple": 0, "double": 1, "single": 2}
+    events.sort(key=lambda x: (order[x["tier"]], x["start"]))
+    cautions = [{"start": w["start"].date().isoformat(), "end": w["end"].date().isoformat(),
+                 "rules": w["cautions"]} for w in windows if w["cautions"]]
+
+    age = (today - bd.date()).days // 365
+    natal = {"planets": {p: {"house": pl.sign + 1} for p, pl in planets.items()}}
+    lk_profile = lal_kitab_profile({p: pl.sign for p, pl in planets.items()}, age, horizon=2)
+    annual = [lk_annual_forecast(natal, a, bd.date().isoformat(), today)
+              for a in (age, age + 1)]
+    return {"available": True, "window": [start.date().isoformat(), end.date().isoformat()],
+            "events": events, "cautions": cautions,
+            "lal_kitab": {"profile": lk_profile, "annual": annual},
+            "method": "Jaimini Chara (K.N. Rao) + composite confluence (Boney) + Lal Kitab",
+            "note": "Rule-based tradition output; each rule id is graded by user feedback over time."}
