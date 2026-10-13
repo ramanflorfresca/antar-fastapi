@@ -52914,6 +52914,44 @@ async def get_coming(chart_id: str, view: str = "year", topic: str = "all", lang
     return _cm.build_year(feed, topic, today, lang)
 
 
+@app.get("/api/v1/horizon/{chart_id}")
+async def get_horizon_card(chart_id: str, scope: str = "today", language: Optional[str] = None, tz_offset: Optional[int] = 0):
+    """[horizon 2026-10-13] The Home card at one distance: scope = today | month | year. Same blocks every time (do, don't,
+    coming up, watch out + how to avoid, how to make it work, why, further ahead) plus a conversational opener and three Ask
+    questions. Re-shapes the daily signal / monthly deep-dive / annual plan and their decision objects; nothing new is
+    computed. Fail-open: `available: false` when the source is not ready. 404 only for an unknown chart."""
+    import asyncio as _aio
+    from antar_engine import horizon as _hz
+    if scope not in _hz.SCOPES:
+        raise HTTPException(status_code=400, detail="scope must be today, month or year")
+    row = await run_in_threadpool(lambda: supabase.table("charts").select("id").eq("id", chart_id).limit(1).execute())
+    if not row.data:
+        raise HTTPException(status_code=404, detail="Chart not found")
+    lang = language or "en"
+    today = _prac_local_date(tz_offset)
+    feed = None
+    try:
+        feed = await run_in_threadpool(_windows_compute, chart_id, lang, tz_offset, 12)
+    except Exception as e:
+        print(f"[horizon] windows skipped: {e!r}")
+    try:
+        if scope == "today":
+            from antar_engine import brief as _br
+            sig = await _aio.wait_for(get_daily_signal_endpoint(chart_id=chart_id, language=lang), timeout=45) or {}
+            tone = _br._WORD[_br._lang(lang)][_br.derive_verdict(sig)]
+            wd = ("lunes martes mi\u00e9rcoles jueves viernes s\u00e1bado domingo".split() if _hz._lang(lang) == "es"
+                  else "Monday Tuesday Wednesday Thursday Friday Saturday Sunday".split())[today.weekday()]
+            return _hz.build_today(sig, feed, lang, tone, f"{wd}, {_hz._fmt(today, _hz._lang(lang))}")
+        if scope == "month":
+            md = await _aio.wait_for(get_monthly_deepdive(chart_id=chart_id, language=lang), timeout=45) or {}
+            return _hz.build_month(md, feed, lang)
+        yr = await _aio.wait_for(get_annual_plan(chart_id=chart_id, language=lang), timeout=45) or {}
+        return _hz.build_year(yr, feed, lang)
+    except Exception as e:
+        print(f"[horizon] {scope} source not ready: {e!r}")
+        return _hz._empty(scope, _hz._lang(lang))
+
+
 @app.get("/api/v1/chart/{chart_id}/suggested-questions")
 async def get_chart_suggested_questions(chart_id: str, language: Optional[str] = None,
                                         tz_offset: Optional[int] = None, limit: int = 3):
