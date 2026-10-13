@@ -36,3 +36,15 @@ def test_gambling_note_and_no_window_cases_still_work():
     assert SP._T["en"]["gambling"] in g["read"] and SP._T["en"]["later_nowin"] in g["read"]
     assert SP.lead("open", WIN, language="en")["read"].startswith("The timing supports gains from speculation, and the window")
     assert "Until then" not in SP.lead("no", WIN, language="en")["read"]
+
+
+def test_open_read_is_question_aware_and_long_enough():
+    from antar_engine import speculation_policy as sp
+    import re
+    for lg in ("en", "es", "pt", "hinglish"):
+        reads = {q: sp.lead("open", "Oct 2026 - Dec 2026", language=lg, question=q)["read"]
+                 for q in ("How is speculation this week?", "How does this month look for my money?",
+                           "When does my next window for unearned gains open?")}
+        assert len(set(reads.values())) == 3, lg
+        for r in reads.values():
+            assert len(re.findall(r"[.!?]", r)) >= 3, (lg, r)
