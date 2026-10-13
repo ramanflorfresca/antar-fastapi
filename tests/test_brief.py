@@ -43,7 +43,8 @@ def test_build_fails_open_on_empty():
 def test_beyond_items():
     feed = {"next": [{"kind": "open", "topic": "money", "opens_in_days": 90, "label_range": "a"}],
             "care": [{"topic": "health", "opens_in_days": 240, "label_range": "b"}]}
-    phase = {"available": True, "how_they_combine": "x", "chapter": {"start": "2026-08-13", "end": "2044-08-13"}}
+    phase = {"available": True, "chapter": {"plain_name": "Ambition", "start": "2026-08-13", "end": "2044-08-13"},
+             "shift": {"plain_name": "Growth", "end": "2029-02-01"}}
     assert [i["zoom"] for i in B.beyond(feed, phase)] == ["year", "year", "chapter"]
     feed["care"][0]["opens_in_days"] = 12
     assert B.beyond(feed, None)[1]["zoom"] == "month"
@@ -68,3 +69,13 @@ def test_lines_obey_voice_rules():
             for line in pool:
                 assert not any(b in line.lower() for b in banned), line
                 assert len(line.split()) <= 18, line
+
+
+def test_chapter_line_is_short_plain_and_dated():
+    phase = {"available": True, "chapter": {"plain_name": "Ambition", "start": "2026-08-13", "end": "2044-08-13"},
+             "shift": {"plain_name": "Growth", "end": "2029-02-01"}}
+    it = B.beyond(None, phase)[0]
+    assert it["text"] == "Chapter: Ambition, to 2044. Current shift: Growth, to 2029."
+    assert it["range"] == "2026 \u2192 2044" and "Rahu" not in it["text"]
+    assert B.beyond(None, {"available": True, "chapter": {"plain_name": "Ambition", "end": "2044-08-13"}})[0]["text"] == "Chapter: Ambition, to 2044."
+    assert B.beyond(None, phase, "es")[0]["text"].startswith("Cap\u00edtulo: Ambition, hasta 2044.")
