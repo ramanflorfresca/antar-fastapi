@@ -86,6 +86,26 @@ def current_antardasha(dashas: dict, at: datetime) -> Optional[Tuple[str, dateti
     return None
 
 
+def current_pratyantar(dashas: dict, today: Optional[date] = None) -> Dict[str, str]:
+    """{planet_or_sign, start_date, end_date} of the pratyantar running on `today`, derived from the running antardasha
+    with the same proportional split the Vimshottari tree uses. {} when there is no running antardasha. For charts whose
+    stored rows have no pratyantar level (the dasha calculation now writes mahadasha + antardasha only)."""
+    try:
+        t = today or date.today()
+        at = datetime(t.year, t.month, t.day, 12)
+        cur = current_antardasha(dashas, at)
+        if not cur:
+            return {}
+        pd = subdivide(cur[0], cur[1], cur[2], at)
+        if not pd:
+            return {}
+        return {"planet_or_sign": pd[0], "start_date": pd[1].date().isoformat(),
+                "end_date": (pd[2] - timedelta(days=1)).date().isoformat() if pd[2].time() == datetime.min.time()
+                else pd[2].date().isoformat()}
+    except Exception:
+        return {}
+
+
 # ── hora grid + scoring ──────────────────────────────────────────────────────────────────────────────────────────
 def hora_grid(local_date: date, sunrise_min: float, sunset_min: float) -> List[Dict[str, Any]]:
     """24 horas as local minutes from midnight (the night runs past 1440 into the next morning). Next sunrise is taken

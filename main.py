@@ -39740,7 +39740,13 @@ def _vim_pd(dashas):
         if _is_pd(r) and str(r.get("start_date", ""))[:10] <= today <= str(r.get("end_date", ""))[:10]:
             return {"planet_or_sign": _pl(r), "start_date": str(r.get("start_date", ""))[:10],
                     "end_date": str(r.get("end_date", ""))[:10]}
-    return {}
+    # [pd-fallback 2026-10-13] the dasha calculation stores mahadasha + antardasha only, so most charts have no stored
+    # pratyantar row; derive the running one from the antardasha (same proportional split) instead of returning {}.
+    try:
+        from antar_engine.personal_window import current_pratyantar as _cpd
+        return _cpd({"vimsottari": vim or []})
+    except Exception:
+        return {}
 
 
 def _life_window_phrase(ym: str) -> str:
