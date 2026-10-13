@@ -38,6 +38,7 @@ T = {
         "caution_head": "A pressure period",
         "caution_action": "Keep commitments light, protect your health and cash, and avoid big risks.",
         "birth_time": "Some of the money and career timing depends on your exact birth time. Confirm it to sharpen these dates.",
+        "birth_time_edge": "Your birth time sits right on an edge: a difference of a minute would change part of the money and career timing, so that part is held back.",
         "none": "No strong opening stands out in the next 24 months. Use it to build steadily.",
         "summary": "Your best window: {area}, {dates}.",
         "themes": {1: "your drive and identity", 2: "savings and family", 3: "effort and courage",
@@ -69,6 +70,7 @@ T = {
         "caution_head": "Un periodo de presión",
         "caution_action": "Mantén los compromisos ligeros, cuida tu salud y tu caja, y evita riesgos grandes.",
         "birth_time": "Parte del tiempo de dinero y carrera depende de tu hora exacta de nacimiento. Confírmala para afinar estas fechas.",
+        "birth_time_edge": "Tu hora de nacimiento está justo en un límite: un minuto de diferencia cambiaría parte del tiempo de dinero y carrera, así que esa parte se reserva.",
         "none": "No destaca una oportunidad fuerte en los próximos 24 meses. Úsalo para construir con constancia.",
         "summary": "Tu mejor ventana: {area}, {dates}.",
         "themes": {1: "tu impulso e identidad", 2: "ahorros y familia", 3: "esfuerzo y valentía",
@@ -212,7 +214,8 @@ def compose(forecast: dict, locale: str = "en", today: Optional[date] = None) ->
     if not forecast.get("available"):
         return {"available": False}
     today_s = (today or date.today()).isoformat()
-    fragile = bool(forecast.get("d10", {}).get("sensitivity", {}).get("fragile"))
+    sens = forecast.get("d10", {}).get("sensitivity", {})
+    fragile = bool(sens.get("gate", sens.get("fragile")))      # gate lifted when the user confirmed an exact time
     per_area = {a: _merge_area(v, fragile) for a, v in _collect(forecast, fragile, today_s).items()}
 
     areas, best = [], None
@@ -257,7 +260,8 @@ def compose(forecast: dict, locale: str = "en", today: Optional[date] = None) ->
                          "headline": tx["caution_head"], "action": tx["caution_action"]})
 
     summary = (tx["summary"].format(area=tx["area"][best[0]], dates=best[1]["label"]) if best else tx["none"])
-    notes = [tx["birth_time"]] if fragile else []
+    exact = str(sens.get("accuracy") or "").lower() == "exact"
+    notes = [tx["birth_time_edge"] if exact else tx["birth_time"]] if fragile else []
     annual = (forecast.get("lal_kitab") or {}).get("annual") or []
     return {"available": True, "locale": loc, "summary": summary, "areas": areas,
             "cautions": cautions, "year": _year_block(annual[0] if annual else None, loc), "notes": notes}
