@@ -247,6 +247,40 @@ def beyond(feed: Optional[Dict[str, Any]], phase: Optional[Dict[str, Any]], lang
     return items
 
 
+_AREA_STATE = {"favorable": "good", "rising": "good", "caution": "care", "volatile": "mixed", "steady": "steady"}
+_AREA_ORDER = {"care": 0, "mixed": 1, "good": 2, "steady": 3}
+
+
+def build_areas(signal: Dict[str, Any], limit: int = 5) -> List[Dict[str, Any]]:
+    """Per life-area read for today (Career / Health / Mind / Money / Love...): state good|care|mixed|steady plus the
+    engine's own one-line, straight from `domains` (no new text). Care first, then mixed, notable before not."""
+    out = []
+    for d in (signal or {}).get("domains") or []:
+        line, key = d.get("line"), d.get("key")
+        if not line or not key:
+            continue
+        st = _AREA_STATE.get(str(d.get("state") or "").lower(), "steady")
+        out.append({"key": key, "label": d.get("label") or key.title(), "state": st, "line": line,
+                    "notable": bool(d.get("notable"))})
+    out.sort(key=lambda a: (_AREA_ORDER[a["state"]], not a["notable"]))
+    return out[:limit]
+
+
+def build_do_dont(signal: Dict[str, Any], n: int = 2) -> Dict[str, List[str]]:
+    """Up to `n` do / don't lines. do: do_today, then aligned_for; dont: dont_today, then friction_for."""
+    sig = signal or {}
+
+    def pick(*keys):
+        seen, items = set(), []
+        for k in keys:
+            for x in sig.get(k) or []:
+                if isinstance(x, str) and x.strip() and x not in seen:
+                    seen.add(x)
+                    items.append(x.strip())
+        return items[:n]
+    return {"do": pick("do_today", "aligned_for"), "dont": pick("dont_today", "friction_for")}
+
+
 def build(chart_id: str, signal: Dict[str, Any], feed: Optional[Dict[str, Any]], phase: Optional[Dict[str, Any]],
           language: str, today: _date, now_h: float) -> Dict[str, Any]:
     lang = _lang(language)
@@ -255,12 +289,14 @@ def build(chart_id: str, signal: Dict[str, Any], feed: Optional[Dict[str, Any]],
     best = next((s for s in strip if s["kind"] == "best"), None)
     avoid = next((s for s in strip if s["kind"] == "avoid"), None)
     return {
-        "version": "brief-1", "date": today.isoformat(), "language": lang,
+        "version": "brief-2", "date": today.isoformat(), "language": lang,
         "verdict": verdict, "verdict_word": _WORD[lang][verdict],
         "line": pick_line(chart_id, today, verdict, lang),
         "window": {"best": best, "avoid": avoid},
         "strip": {"day_start": "06:00", "day_end": "24:00", "bands": strip, "now": _frac(now_h)},
         "closing_soon": closing_soon(strip, now_h),
+        "areas": build_areas(signal),
+        **build_do_dont(signal),
         "beyond": beyond(feed, phase, lang),
         "source": {"engine": "daily-signal", "confidence": (signal or {}).get("confidence", {}).get("level")},
     }
