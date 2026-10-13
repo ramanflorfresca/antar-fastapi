@@ -108,6 +108,13 @@ def raw_windows(ctx: T.TopicContext, today: date) -> Dict[str, Optional[dict]]:
     return out
 
 
+def _month_end(d: date) -> date:
+    """Last day of d's month. The feed's horizon snaps here so a window that runs into it ends on a calendar boundary and does
+    not move by a day every day (it was today + N months, so the last window's end date slid daily)."""
+    nxt = date(d.year + (d.month == 12), 1 if d.month == 12 else d.month + 1, 1)
+    return nxt - timedelta(days=1)
+
+
 def _cut(wins: List[Tuple[date, date]], horizon_end: date) -> List[Tuple[date, date]]:
     return [(s, min(e, horizon_end)) for s, e in wins if s <= horizon_end]
 
@@ -191,7 +198,7 @@ def assemble(ctx: T.TopicContext, raw: Dict[str, Optional[dict]], today: date, l
              horizon_months: int = DEFAULT_HORIZON_MONTHS) -> dict:
     lang = C.serve_language(language)
     hm = clamp_horizon(horizon_months)
-    horizon_end = C.add_months(today, hm)
+    horizon_end = _month_end(C.add_months(today, hm))
     now, upcoming, tracks, quiet = [], [], [], []
     for key in T.TOPIC_KEYS:
         r = raw.get(key)
@@ -229,7 +236,7 @@ def assemble(ctx: T.TopicContext, raw: Dict[str, Optional[dict]], today: date, l
 def empty_feed(chart_id: str, today: date, language: str, horizon_months: int) -> dict:
     lang = C.serve_language(language)
     return {"chart_id": chart_id, "as_of": today.isoformat(), "language": lang,
-            "horizon_end": C.add_months(today, clamp_horizon(horizon_months)).isoformat(),
+            "horizon_end": _month_end(C.add_months(today, clamp_horizon(horizon_months))).isoformat(),
             "now": [], "next": [], "care": [], "tracks": [],
             "big_picture": {"stretch": None, "chapter": None}, "quiet_topics": []}
 
