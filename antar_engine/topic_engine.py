@@ -750,20 +750,48 @@ def _demote_structural_opens(results: List[Tuple[Tuple[date, date], dict]]) -> L
     return out
 
 
+def _grid_buckets(start: date, end: date, step: int) -> List[Tuple[date, date]]:
+    """Scan buckets on a FIXED calendar grid, not anchored to today. step 7 -> Monday-to-Sunday weeks; otherwise calendar
+    months. The old buckets began at `today` (7 / 30 days from it), so every window edge slid by one day each day: a window
+    that read "Jan 10 \u2013 May 9" yesterday read "Jan 11 \u2013 May 10" today. On a grid the same sky gives the same dates
+    every day; only the first bucket is clamped to today later (clamp_window)."""
+    out: List[Tuple[date, date]] = []
+    if step == 7:
+        s = start - timedelta(days=start.weekday())
+        while s <= end:
+            out.append((s, s + timedelta(days=6)))
+            s += timedelta(days=7)
+        return out
+    s = start.replace(day=1)
+    while s <= end:
+        nxt = date(s.year + (s.month == 12), 1 if s.month == 12 else s.month + 1, 1)
+        out.append((s, nxt - timedelta(days=1)))
+        s = nxt
+    return out
+
+
+def _grid_end(d: date, step: int) -> date:
+    """The end of the grid bucket containing d (so a rolling cap like today+730 does not move the last edge daily)."""
+    if step == 7:
+        return d + timedelta(days=6 - d.weekday())
+    nxt = date(d.year + (d.month == 12), 1 if d.month == 12 else d.month + 1, 1)
+    return nxt - timedelta(days=1)
+
+
 def _scan(ctx: TopicContext, key: str, scale: str, per: dict, today: date) -> List[Tuple[Tuple[date, date], dict]]:
     ws, we = max(per["start"], today), per["end"]
     if scale == "today":
         ev = ctx.events(today - timedelta(days=1), today + timedelta(days=2), True)
         return [((today, today), assess(ctx, key, today, ev))]
     if scale == "month":
-        ev = ctx.events(ws, we, False)
         step = 7
+        we = _grid_end(we, step)
     else:
-        we_scan = min(we, today + timedelta(days=SEASON_SCAN_CAP_DAYS))
-        ev = ctx.events(ws, we_scan, False)
-        we, step = we_scan, 30
-    return _demote_structural_opens(
-        [(b, _assess_bucket(ctx, key, b, ev)) for b in _bucket_ranges(ws, we, step)])
+        step = 30
+        we = min(we, _grid_end(today + timedelta(days=SEASON_SCAN_CAP_DAYS), step))
+    buckets = _grid_buckets(ws, we, step)
+    ev = ctx.events(buckets[0][0] if buckets else ws, we, False)
+    return _demote_structural_opens([(b, _assess_bucket(ctx, key, b, ev)) for b in buckets])
 
 
 # ── reasoning ────────────────────────────────────────────────────────────────

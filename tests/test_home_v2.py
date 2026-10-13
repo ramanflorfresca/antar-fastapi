@@ -68,3 +68,16 @@ def test_horizon_today_carries_the_read_block():
     c = H.build_today(sig, None, "en", "Steady", "Tue")
     assert c["read"] == {"headline": "Partnerships are live — work the room, not the desk.", "body": "Watch for a client to signal interest. Reply directly.",
                          "move": "A partner or client signals readiness today.", "window": "12:17 PM – 1:05 PM"}
+
+
+def test_greeting_is_made_for_this_person_and_this_hour():
+    from datetime import datetime
+    g = H.greeting("Raman Singh", datetime(2026, 10, 13, 8, 30), "en", {"start": "2026-08-13", "title": "Ambition season"})
+    assert g["text"] == "Good morning, Raman" and g["date"] == "Tuesday, October 13" and g["part"] == "morning" and g["name"] == "Raman"
+    assert g["context"] == "Month 3 of your ambition season"
+    assert H.greeting("Raman", datetime(2026, 10, 13, 13, 0))["text"] == "Good afternoon, Raman"
+    assert H.greeting("Raman", datetime(2026, 10, 13, 23, 59))["part"] == "evening" and H.greeting("Raman", datetime(2026, 10, 13, 3, 0))["part"] == "evening"
+    assert H.greeting(None, datetime(2026, 10, 13, 8, 0))["text"] == "Good morning" and H.greeting("  ", datetime(2026, 10, 13, 8, 0))["name"] is None
+    es = H.greeting("Raman", datetime(2026, 10, 13, 20, 0), "es", {"start": "2026-08-13", "title": "temporada de ambici\u00f3n"})
+    assert es["text"] == "Buenas noches, Raman" and es["date"] == "martes, 13 de octubre" and es["context"] == "Mes 3 de tu temporada de ambici\u00f3n"
+    assert H.greeting("Raman", datetime(2026, 10, 13, 8, 0), "en", {"start": "2027-01-01", "title": "x"})["context"] == ""     # future season: no claim

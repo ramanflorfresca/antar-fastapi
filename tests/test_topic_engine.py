@@ -281,8 +281,8 @@ def test_active_topic_needs_real_activation():
     ctx = _synth("Saturn", [_ev("2026-10-12", "Jupiter", 10)])  # chapter + a supportive aspect on the 10th
     out = {r["key"]: r for r in T.rank_topics(ctx, TODAY, "en")}
     # [ui-audit 2026-10-11] the tile follows the month read, which now lists the same windows as the Windows feed
-    # (the feed's coarse 30-day bucket holding the Oct 12 aspect runs to Nov 5), so tile and feed cannot disagree
-    assert out["career"]["status"] == "active" and out["career"]["tag"] == "Open now, until Nov 5"
+    # (the feed's coarse bucket holding the Oct 12 aspect is the calendar month, so it runs to Oct 31), so tile and feed cannot disagree
+    assert out["career"]["status"] == "active" and out["career"]["tag"] == "Open now, until Oct 31"
     assert T.rank_topics(ctx, TODAY, "en")[0]["key"] == "career"
 
 
@@ -465,7 +465,7 @@ def test_today_windows_carry_no_invented_clock_times():
 
 def test_topic_labels_and_tags_localised():
     out = T.rank_topics(_synth("Saturn", [_ev("2026-10-12", "Jupiter", 10)]), TODAY, "pt")
-    assert out[0]["label"] == "Carreira" and out[0]["tag"] == "Aberto agora, até 5 nov"
+    assert out[0]["label"] == "Carreira" and out[0]["tag"] == "Aberto agora, até 31 out"
 
 
 # ── no jargon, no prices, honesty wording ───────────────────────────────────
@@ -1051,11 +1051,11 @@ def test_windows_for_never_raises_and_degrades_to_no_runs(monkeypatch):
 
 # ── window phase: a window that has not opened yet must not read as "now" ───
 def _later_ctx():
-    return _synth("Saturn", [_ev("2026-12-01", "Jupiter", 10)])      # season window opens Nov 6
+    return _synth("Saturn", [_ev("2026-12-01", "Jupiter", 10)])      # season window opens with the December bucket
 
 
 def _soon_ctx():
-    return _synth("Saturn", [_ev("2026-10-20", "Jupiter", 10), _ev("2026-10-25", "Saturn", 10)])
+    return _synth("Saturn", [_ev("2026-10-20", "Jupiter", 10), _ev("2026-10-28", "Saturn", 10)])   # different calendar weeks
 
 
 def test_window_phase_boundaries():
@@ -1070,23 +1070,23 @@ def test_later_window_names_its_opening_date_and_prepares():
     r = T.read_topic(_later_ctx(), "career", "season", TODAY, "en")
     assert r["tone"] == "open" and r["window_phase"] == "later"
     assert r["best_window"]["window_phase"] == "later"
-    assert r["claim"] == "Over the next 5 months, your best stretch for work starts Nov 6."
-    assert r["your_move"] == ("Use the time before Nov 6 to get the one ask or application ready; "
-                              "make it from Nov 6.")
+    assert r["claim"] == "Over the next 5 months, your best stretch for work starts Dec 2026."
+    assert r["your_move"] == ("Use the time before Dec 2026 to get the one ask or application ready; "
+                              "make it from Dec 2026.")
     assert "inside the window" not in r["your_move"]
 
 
 def test_soon_window_month_scale():
     r = T.read_topic(_soon_ctx(), "career", "month", TODAY, "en")
     assert r["tone"] == "open" and r["window_phase"] == "soon"
-    assert r["claim"] == "Over the next 30 days, your best stretch for work starts Oct 14."
-    assert r["your_move"].startswith("Use the time before Oct 14")
+    assert r["claim"] == "Over the next 30 days, your best stretch for work starts Oct 19."
+    assert r["your_move"].startswith("Use the time before Oct 19")
 
 
 def test_long_read_leads_with_whichever_window_comes_first():
-    r = T.read_topic(_soon_ctx(), "career", "season", TODAY, "en")   # care Oct 7 - Nov 5 (running), open Oct 14 - 20
+    r = T.read_topic(_soon_ctx(), "career", "season", TODAY, "en")   # care Oct 7 - Nov 1 (running), open Oct 19 - 25
     assert r["tone"] == "care" and r["window_phase"] == "now"
-    assert r["watch_window"]["window_phase"] == "now" and r["best_window"]["start"] == "2026-10-14"
+    assert r["watch_window"]["window_phase"] == "now" and r["best_window"]["start"] == "2026-10-19"
     assert r["claim"].startswith("Over the next 5 months, work asks for patience")
     # the 30-day read keeps its own rule (open wins when both exist)
     assert T.read_topic(_soon_ctx(), "career", "month", TODAY, "en")["tone"] == "open"
@@ -1109,8 +1109,8 @@ def test_care_variant_for_a_window_that_has_not_opened():
     r = T.read_topic(ctx, "career", "season", TODAY, "en")
     assert r["tone"] == "care" and r["window_phase"] == "later"
     assert r["watch_window"]["window_phase"] == "later"
-    assert r["claim"] == "Over the next 5 months, work asks for care from Nov 6."
-    assert r["your_move"].startswith("Until Nov 6, finish what is open")
+    assert r["claim"] == "Over the next 5 months, work asks for care from Dec 2026."
+    assert r["your_move"].startswith("Until Dec 2026, finish what is open")
 
 
 def test_ahead_copy_complete_in_every_language_and_jargon_free():
@@ -1542,3 +1542,18 @@ def test_structural_only_open_away_from_care_is_kept():
            ((date(2027, 1, 31), date(2027, 3, 1)), _bucket("open")),
            ((date(2027, 3, 2), date(2027, 3, 31)), _bucket("care", lit=False))]
     assert all(a["mode"] == "open" and a["lit"] for _, a in T._demote_structural_opens(res)[:2])
+
+
+def test_window_dates_do_not_slide_from_one_day_to_the_next():
+    """Found live: a window read Jan 10 - May 9 one day and Jan 11 - May 10 the next, because scan buckets began at today.
+    On the fixed calendar grid the same sky gives the same dates every day; only the part before today is clamped."""
+    ctx = _synth("Saturn", [_ev("2026-11-18", "Jupiter", 10), _ev("2026-12-10", "Jupiter", 10), _ev("2027-01-15", "Saturn", 10)])
+    seen = []
+    for d in range(5):
+        w = T.windows_for(ctx, "career", "season", TODAY + timedelta(days=d))
+        seen.append([(r["start"], r["end"]) for r in w["open"] + w["care"] if r["start"] > TODAY + timedelta(days=d + 1)])
+    assert seen[0] and all(s == seen[0] for s in seen), seen
+    assert T._grid_buckets(date(2026, 10, 7), date(2026, 12, 20), 30)[0] == (date(2026, 10, 1), date(2026, 10, 31))
+    wk = T._grid_buckets(date(2026, 10, 7), date(2026, 10, 25), 7)
+    assert wk[0] == (date(2026, 10, 5), date(2026, 10, 11)) and all(a.weekday() == 0 for a, _ in wk)
+    assert T._grid_end(date(2026, 10, 7), 30) == date(2026, 10, 31) and T._grid_end(date(2026, 10, 7), 7) == date(2026, 10, 11)

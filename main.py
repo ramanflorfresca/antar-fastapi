@@ -52953,11 +52953,33 @@ async def get_horizon_card(chart_id: str, scope: str = "today", language: Option
     from antar_engine import horizon as _hz
     if scope not in _hz.SCOPES:
         raise HTTPException(status_code=400, detail="scope must be today, month or year")
-    row = await run_in_threadpool(lambda: supabase.table("charts").select("id").eq("id", chart_id).limit(1).execute())
+    row = await run_in_threadpool(lambda: supabase.table("charts").select("id, first_name, name").eq("id", chart_id).limit(1).execute())
     if not row.data:
         raise HTTPException(status_code=404, detail="Chart not found")
     lang = language or "en"
     today = _prac_local_date(tz_offset)
+    from datetime import datetime as _dtg, timedelta as _tdg, timezone as _tzg
+    _local_now = _dtg.now(_tzg.utc).replace(tzinfo=None) + _tdg(minutes=int(tz_offset or 0))
+    _first = (row.data[0].get("first_name") or (row.data[0].get("name") or "").split(" ")[0] or "").strip()
+
+    async def _with_greeting(card):
+        try:
+            _season = None
+            try:
+                from antar_engine import phase_view as _pvg
+                _ph = _pvg.build(await run_in_threadpool(get_dashas_for_chart, chart_id) or {}, None, lang, today)
+                if _ph.get("available") and _ph.get("shift"):
+                    _season = {"start": _ph["shift"].get("start"), "title": (_ph["shift"].get("plain_name") or "") + (" season" if _hz._lang(lang) == "en" else " (temporada)")}
+                    if _hz._lang(lang) == "es":
+                        _season["title"] = "temporada de " + (_ph["shift"].get("plain_name") or "").lower()
+            except Exception as _ge:
+                print(f"[horizon] greeting season skipped: {_ge!r}")
+            if isinstance(card, dict):
+                card["greeting"] = _hz.greeting(_first, _local_now, lang, _season)
+        except Exception as _ge2:
+            print(f"[horizon] greeting skipped: {_ge2!r}")
+        return card
+
     feed = None
     try:
         feed = await run_in_threadpool(_windows_compute, chart_id, lang, tz_offset, 12)
@@ -52970,15 +52992,15 @@ async def get_horizon_card(chart_id: str, scope: str = "today", language: Option
             tone = _br._WORD[_br._lang(lang)][_br.derive_verdict(sig)]
             wd = ("lunes martes mi\u00e9rcoles jueves viernes s\u00e1bado domingo".split() if _hz._lang(lang) == "es"
                   else "Monday Tuesday Wednesday Thursday Friday Saturday Sunday".split())[today.weekday()]
-            return _hz.build_today(sig, feed, lang, tone, f"{wd}, {_hz._fmt(today, _hz._lang(lang))}")
+            return await _with_greeting(_hz.build_today(sig, feed, lang, tone, f"{wd}, {_hz._fmt(today, _hz._lang(lang))}"))
         if scope == "month":
             md = await _aio.wait_for(get_monthly_deepdive(chart_id=chart_id, language=lang), timeout=45) or {}
-            return _hz.build_month(md, feed, lang)
+            return await _with_greeting(_hz.build_month(md, feed, lang))
         yr = await _aio.wait_for(get_annual_plan(chart_id=chart_id, language=lang), timeout=45) or {}
-        return _hz.build_year(yr, feed, lang)
+        return await _with_greeting(_hz.build_year(yr, feed, lang))
     except Exception as e:
         print(f"[horizon] {scope} source not ready: {e!r}")
-        return _hz._empty(scope, _hz._lang(lang))
+        return await _with_greeting(_hz._empty(scope, _hz._lang(lang)))
 
 
 @app.get("/api/v1/matters/{chart_id}")
