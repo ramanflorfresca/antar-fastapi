@@ -52789,6 +52789,67 @@ async def get_phase_view(chart_id: str, language: Optional[str] = None, tz_offse
     return _pv.build(dashas, feed, language or "en", _prac_local_date(tz_offset))
 
 
+@app.get("/api/v1/brief/{chart_id}")
+async def get_instrument_brief(chart_id: str, language: Optional[str] = None, tz_offset: Optional[int] = 0):
+    """[instrument-brief 2026-10-12] One-glance Today: verdict (go/steady/wait), the day strip, closing-soon, and
+    one-line Beyond-today items for month / year / chapter. Deterministic; every part fails open (a missing part is
+    omitted, never an error). 404 only for an unknown chart."""
+    from antar_engine import brief as _br
+    row = await run_in_threadpool(lambda: supabase.table("charts").select("id").eq("id", chart_id).limit(1).execute())
+    if not row.data:
+        raise HTTPException(status_code=404, detail="Chart not found")
+    lang = language or "en"
+    signal = {}
+    try:
+        signal = await get_daily_signal_endpoint(chart_id=chart_id, language=lang) or {}
+    except Exception as e:
+        print(f"[brief] signal skipped: {e!r}")
+    feed = phase = None
+    try:
+        feed = await run_in_threadpool(_windows_compute, chart_id, lang, tz_offset, 12)
+    except Exception as e:
+        print(f"[brief] windows skipped: {e!r}")
+    try:
+        dashas = await run_in_threadpool(get_dashas_for_chart, chart_id) or {}
+        from antar_engine import phase_view as _pv
+        phase = _pv.build(dashas, feed, lang, _prac_local_date(tz_offset))
+    except Exception as e:
+        print(f"[brief] phase skipped: {e!r}")
+    from datetime import datetime as _dtb, timedelta as _tdb
+    local = _dtb.utcnow() + _tdb(minutes=int(tz_offset or 0))
+    return _br.build(chart_id, signal, feed, phase, lang, _prac_local_date(tz_offset),
+                     local.hour + local.minute / 60.0)
+
+
+@app.get("/api/v1/timeline/{chart_id}")
+async def get_instrument_timeline(chart_id: str, zoom: str = "day", language: Optional[str] = None,
+                                  tz_offset: Optional[int] = 0):
+    """[instrument-timeline 2026-10-12] Data for the one zoomable Timeline: zoom = day | month | year | chapter, all in
+    one shape (tracks of dated bands as 0-1 fractions). Deterministic; missing parts come back as empty tracks."""
+    from antar_engine import timeline as _tl
+    if zoom not in _tl.ZOOMS:
+        raise HTTPException(status_code=400, detail="zoom must be day, month, year or chapter")
+    row = await run_in_threadpool(lambda: supabase.table("charts").select("id").eq("id", chart_id).limit(1).execute())
+    if not row.data:
+        raise HTTPException(status_code=404, detail="Chart not found")
+    lang = language or "en"
+    signal = feed = phase = None
+    try:
+        if zoom == "day":
+            signal = await get_daily_signal_endpoint(chart_id=chart_id, language=lang) or {}
+        elif zoom in ("month", "year"):
+            feed = await run_in_threadpool(_windows_compute, chart_id, lang, tz_offset, 12)
+        else:
+            dashas = await run_in_threadpool(get_dashas_for_chart, chart_id) or {}
+            from antar_engine import phase_view as _pv
+            phase = _pv.build(dashas, None, lang, _prac_local_date(tz_offset))
+    except Exception as e:
+        print(f"[timeline] {zoom} skipped: {e!r}")
+    from datetime import datetime as _dtt, timedelta as _tdt
+    local = _dtt.utcnow() + _tdt(minutes=int(tz_offset or 0))
+    return _tl.build(zoom, signal, feed, phase, _prac_local_date(tz_offset), local.hour + local.minute / 60.0)
+
+
 @app.get("/api/v1/chart/{chart_id}/suggested-questions")
 async def get_chart_suggested_questions(chart_id: str, language: Optional[str] = None,
                                         tz_offset: Optional[int] = None, limit: int = 3):
