@@ -518,6 +518,32 @@ def drop_repeated_sentences(text, keep_min: int = 2, run: int = 6):
     return " ".join(kept), True
 
 
+# [health-contradiction 2026-10-13] The health template says "Your health is well supported right now…" when the ruler is not weak, while the model's own read of the same answer says "calls for real
+# attention … under real strain". Two opposite statements in one answer. When the read itself says strain / attention, the template's reassurance goes (the fuller reading wins).
+_HEALTH_FINE = re.compile(r"(?i)\b(your health is well supported right now|tu salud est[aá] bien apoyada ahora|a sua sa[uú]de est[aá] bem apoiada agora|"
+                          r"sua sa[uú]de est[aá] bem apoiada agora|aapki sehat (?:abhi )?(?:achhi tarah|achi tarah) support)\b")
+_HEALTH_STRAIN = re.compile(r"(?i)\b(strain|under pressure|real attention|more attention|extra attentive|watch closely|run[- ]?down|depleted|slower recovery|"
+                            r"tensi[oó]n|necesita m[aá]s atenci[oó]n|bajo presi[oó]n|atenci[oó]n real|vigila|tens[aã]o|precisa de mais aten[cç][aã]o|sob press[aã]o|"
+                            r"dhyan dena|dabav|thakaan)\b")
+
+
+def drop_health_contradiction(text):
+    if not isinstance(text, str) or not text.strip():
+        return text, False
+    sents = [x for x in _SENT.split(text.strip()) if x.strip()]
+    fine = [x for x in sents if _HEALTH_FINE.search(x)]
+    if not fine:
+        return text, False
+    # the template's own "It breaks if strain is pushed through…" line says "strain" in every health answer, calm or not: it does not count as the read saying strain
+    rest = " ".join(x for x in sents if x not in fine and not re.match(r"(?i)\s*(it breaks if|se rompe si|quebra se|yeh tab toot)", x))
+    if not _HEALTH_STRAIN.search(rest):
+        return text, False
+    kept = [x for x in sents if x not in fine]
+    if len(kept) < 2:
+        return text, False
+    return " ".join(kept), True
+
+
 # a caution against bold moves, or the opposite, in an answer whose verdict says otherwise
 _CAUTION_BOLD = re.compile(r"(?i)\bsteady,? grounded\b|\b(over|than|not|rather than) (bold|dramatic|big) (pivots?|bets?|moves?|decisions?)\b|"
                            r"\bbold (new )?(bets?|pivots?)\b|\bavoid (bold|big) (moves?|decisions?)\b|"
@@ -748,6 +774,10 @@ def polish_answer(payload: dict, language: str = "en", typed_question: str = "",
             except Exception as _ce:
                 print(f"[ask][polish] conditions skipped: {_ce}")
             # the conditions block is appended just above, so the repeat check has to run after it (it carried the second "bursts and give some of it back")
+            if (concern or "") == "health" or re.search(r"(?i)\b(health|salud|sa[uú]de|sehat)\b", typed_question or ""):
+                payload["read"], _hc = drop_health_contradiction(payload.get("read"))
+                if _hc:
+                    print("[ask][polish] health reassurance dropped: the read itself says strain")
             payload["read"], _rp2 = drop_repeated_sentences(payload.get("read"))
             if _rp2:
                 print("[ask][polish] repeated sentence dropped (after conditions)")
