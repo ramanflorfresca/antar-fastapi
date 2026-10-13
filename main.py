@@ -4611,6 +4611,41 @@ def _chart_row_for_forecast(chart_id: str):
         raise
 
 
+@app.get("/api/v1/chart/{chart_id}/astrologer")
+async def get_chart_astrologer(chart_id: str, question: str = "", subject: str = "", qword: str = "",
+                               language: str = "en"):
+    """Deterministic astrologer: applies the registered book rules that hold in this chart and answers
+    what / why / when / how / where / which for a subject (money, funding, career, job, business, love,
+    marriage, children, education, property, foreign, spirituality, speculation). Pass `question` (free text,
+    EN/ES/PT/Hinglish keywords) or `subject` + `qword`. No LLM; silent where no rule applies."""
+    def _run():
+        row = _chart_row_for_forecast(chart_id)
+        if not row.data:
+            return None
+        cd = row.data.get("chart_data") or {}
+        if isinstance(cd, str):
+            cd = json.loads(cd)
+        from antar_engine import rule_registry as rr
+        vim = (get_dashas_for_chart(chart_id) or {}).get("vimsottari") or []
+        ctx = rr.Ctx(cd, row.data.get("birth_date") or cd.get("birth_date"), vim,
+                     birth_time_accuracy=row.data.get("birth_time_accuracy"))
+        subj, qw = rr.parse_question(question) if question else (None, "what")
+        subj = subject or subj
+        qw = qword or qw
+        out = rr.answer(ctx, subj, qw, language)
+        out["parsed"] = {"subject": subj, "qword": qw}
+        return out
+
+    try:
+        out = await asyncio.to_thread(_run)
+    except Exception as e:
+        print(f"[astrologer] failed: {e}")
+        raise HTTPException(500, "astrologer unavailable")
+    if out is None:
+        raise HTTPException(404, "Chart not found")
+    return out
+
+
 @app.get("/api/v1/chart/{chart_id}/reading")
 async def get_chart_reading(chart_id: str, language: str = "en", months: int = 24):
     """Plain-language 24-month decision calendar (money, career, relationships, learning)
