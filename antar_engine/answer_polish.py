@@ -747,6 +747,10 @@ def polish_answer(payload: dict, language: str = "en", typed_question: str = "",
                         print("[ask][polish] conditions appended")
             except Exception as _ce:
                 print(f"[ask][polish] conditions skipped: {_ce}")
+            # the conditions block is appended just above, so the repeat check has to run after it (it carried the second "bursts and give some of it back")
+            payload["read"], _rp2 = drop_repeated_sentences(payload.get("read"))
+            if _rp2:
+                print("[ask][polish] repeated sentence dropped (after conditions)")
         # [existing-union 2026-10-10] A divorced / single / separated reader asking about their EXISTING marriage
         # ("will my marriage improve?") gets no new-union window verdict, so the model wrote a different move every run —
         # including the canned "have one honest, unhurried conversation" and partner-search advice. One stable, honest,
