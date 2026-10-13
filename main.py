@@ -53010,6 +53010,42 @@ async def get_matters(chart_id: str, limit: int = 3, language: Optional[str] = N
     return _mt.build(rows, feed, lang, _prac_local_date(tz_offset), max(1, min(int(limit or 3), 6)))
 
 
+@app.get("/api/v1/shortcuts/{chart_id}")
+async def get_shortcuts(chart_id: str, language: Optional[str] = None, tz_offset: Optional[int] = 0):
+    """[shortcuts 2026-10-13] The "Ask about" row: topics with a live dot, a status line from the Windows feed, Antar's opener and
+    starter questions; `default` is the out-of-the-box selection. 404 only for an unknown chart."""
+    from antar_engine import shortcuts as _sc
+    row = await run_in_threadpool(lambda: supabase.table("charts").select("id").eq("id", chart_id).limit(1).execute())
+    if not row.data:
+        raise HTTPException(status_code=404, detail="Chart not found")
+    feed = None
+    try:
+        feed = await run_in_threadpool(_windows_compute, chart_id, language or "en", tz_offset, 12)
+    except Exception as e:
+        print(f"[shortcuts] windows skipped: {e!r}")
+    return _sc.build(feed, language or "en", _prac_local_date(tz_offset))
+
+
+@app.get("/api/v1/seasons/{chart_id}")
+async def get_seasons(chart_id: str, language: Optional[str] = None, tz_offset: Optional[int] = 0, months: int = 36):
+    """[seasons 2026-10-13] "Your next three years": the shifts of the running chapter inside the next `months` (default 36) with
+    real dates, the engine's plain words and a per-chart read (functional nature for the rising sign + the houses ruled).
+    Fail-open: `available: false`. 404 only for an unknown chart."""
+    from antar_engine import seasons as _se
+    from antar_engine import phase_view as _pv
+    ctx, row = await run_in_threadpool(_topic_ctx_load, chart_id)
+    if ctx is None:
+        raise HTTPException(status_code=404, detail="Chart not found")
+    lang = language or "en"
+    today = _prac_local_date(tz_offset)
+    try:
+        phase = _pv.build(ctx.dashas, None, lang, today)
+        return _se.build(phase, ctx.chart_data, lang, today, max(12, min(int(months or 36), 60)))
+    except Exception as e:
+        print(f"[seasons] skipped: {e!r}")
+        return {"version": "seasons-1", "available": False, "seasons": []}
+
+
 @app.get("/api/v1/chart/{chart_id}/suggested-questions")
 async def get_chart_suggested_questions(chart_id: str, language: Optional[str] = None,
                                         tz_offset: Optional[int] = None, limit: int = 3):
