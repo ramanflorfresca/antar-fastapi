@@ -124,14 +124,17 @@ TITHI_NAMES = [
 
 # Rahu Kalam by weekday (as fraction of day, 8 equal parts)
 # Each part = day_duration / 8
+# [rahu-kalam 2026-10-13] Monday and Sunday were swapped here (Mon 8 / Sun 2), so Today's steer-clear window was wrong every
+# Monday and Sunday. Classical order: Mon 2nd, Tue 7th, Wed 5th, Thu 6th, Fri 4th, Sat 3rd, Sun 8th. This must equal
+# muhurta_engine.RAHU_KALAM_SEGMENT (a test keeps the two tables in step).
 RAHU_KALAM_PART = {
-    0: 8,  # Monday — 8th part (last before sunset)
+    0: 2,  # Monday — 2nd part
     1: 7,  # Tuesday — 7th
     2: 5,  # Wednesday — 5th
     3: 6,  # Thursday — 6th
     4: 4,  # Friday — 4th
     5: 3,  # Saturday — 3rd
-    6: 2,  # Sunday — 2nd
+    6: 8,  # Sunday — 8th part (last before sunset)
 }
 
 YAMAGANDA_PART = {
