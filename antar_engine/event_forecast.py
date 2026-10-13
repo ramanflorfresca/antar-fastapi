@@ -11,6 +11,7 @@ from antar_engine.jaimini_engine import Planet
 from antar_engine.composite_events import composite_windows
 from antar_engine.lal_kitab_events import lal_kitab_profile
 from antar_engine.lk_annual_forecast import lk_annual_forecast
+from antar_engine.d10_layer import d10_windows
 
 PLAIN = {"marriage": "Relationship / marriage", "children": "Children",
          "education": "Study and learning", "career": "Career step"}
@@ -98,7 +99,10 @@ def build_forecast(chart_data: dict, birth_date, vim_rows, today: Optional[date]
     lk_profile = lal_kitab_profile({p: pl.sign for p, pl in planets.items()}, age, horizon=2)
     annual = [lk_annual_forecast(natal, a, bd.date().isoformat(), today)
               for a in (age, age + 1)]
-    return {"available": True, "window": [start.date().isoformat(), end.date().isoformat()],
+    d10 = d10_windows(lagna_sign, lagna_lon, planets, bd, start, end, vim_rows=_vim_rows(vim_rows))
+    for w in d10["windows"]:
+        w["start"], w["end"] = w["start"].date().isoformat(), w["end"].date().isoformat()
+    return {"available": True, "d10": d10, "window": [start.date().isoformat(), end.date().isoformat()],
             "events": events, "cautions": cautions,
             "lal_kitab": {"profile": lk_profile, "annual": annual},
             "method": "Jaimini Chara (K.N. Rao) + composite confluence (Boney) + Lal Kitab",
