@@ -273,7 +273,7 @@ def test_spanish_basis_conditions_and_moves_are_native_spanish():
     assert "el principal significador aquí" in b
     c = conditions("career", chart, dashas, "es")
     assert c.startswith("Se sostiene si lo construyes a través de tu red de contactos y tus ganancias y dejas que los resultados se acumulen")
-    assert "el regente de tu casa 10 está debilitado" in c and c.endswith("o esperas un título en lugar de entregar un resultado visible.")
+    assert "para ti, el reconocimiento va por detrás del esfuerzo" in c and c.endswith("o esperas un título en lugar de entregar un resultado visible.")
     h = conditions("health", chart, dashas, "es")
     assert h.startswith("El riesgo se mantiene bajo si actúas pronto") and h.endswith("sin dejar tiempo de recuperación.")
     assert "primer contacto breve y directo" in chart_move("reconciliation", chart, dashas, "es")
@@ -710,7 +710,7 @@ def test_portuguese_fallback_moves_exist_for_every_topic_and_read_naturally():
         assert pt, c
         assert "{ch}" not in pt and "por a " not in pt and "Block one hour" not in pt, (c, pt)
     career = chart_move("career", chart, dashas, "pt")
-    assert career.startswith("Como o regente da sua casa 10 está enfraquecido, os resultados ficam atrás do esforço — ponha o esforço neste canal: a sua rede de contatos e os seus ganhos")
+    assert career.startswith("Ponha o esforço neste canal: a sua rede de contatos e os seus ganhos")
     assert career.endswith("Reavalie quando esta etapa terminar em 25 de abril de 2100.")
     assert chart_move("health", chart, dashas, "pt").startswith("Organize primeiro os horários de sono e de refeição")
     assert "Defina o máximo que você pode perder" in chart_move("speculation", chart, dashas, "pt")
@@ -739,3 +739,15 @@ def test_second_weakness_sentence_is_plain():
         c = conditions(con, chart, dashas, "en", "Will it grow?")
         assert "significator" not in c
         assert not any(p in c for p in ("Mercury", "Sun,", "Jupiter", "Venus", "Saturn", "Mars", "Rahu", "Ketu"))
+
+
+def test_es_pt_answers_carry_no_ruler_or_house_vocabulary():
+    import re
+    from antar_engine.ask_basis import conditions, chart_move
+    chart, dashas = _chart()
+    bad = re.compile(r"(?i)\b(regente|regida|significador|casa \d+|\d+(?:º|ª)? casa)\b")
+    for lang in ("es", "pt"):
+        for concern in ("career", "money", "health", "speculation", "love", "business"):
+            for fn in (conditions, chart_move):
+                out = fn(concern, chart, dashas, lang) or ""
+                assert not bad.search(out), (lang, concern, fn.__name__, out)

@@ -174,28 +174,27 @@ def conditions(concern, chart_data, dashas) -> str:
             return ""
         grp = B._GROUP[concern]
         h, weak, ch = f["h"], f["weak"], f["ch"]
-        until_p = f" (esta etapa llega hasta el {I18.date_long(f['end'], L)})" if f["end"] else ""
         if grp == "health":
-            tail = (f"El regente de tu {_ord(h)} está debilitado, así que la recuperación va más lenta que el esfuerzo que haces{until_p}"
+            tail = ("Para ti, la recuperación va más lenta que el esfuerzo que haces"
                     if weak else "Tu salud está bien apoyada ahora, así que los hábitos pequeños rinden mucho")
             return ("El riesgo se mantiene bajo si actúas pronto y proteges el sueño y el tiempo de recuperación. "
                     + tail + f". Se rompe si {_BREAKS[concern]}.")
         if grp == "speculation":
-            tail = (f"El regente de tu {_ord(h)} está debilitado, así que las ganancias tienden a llegar a golpes y a escaparse{until_p}"
+            tail = ("Tus ganancias tienden a llegar a golpes y a escaparse, así que toma lo que te propusiste y detente"
                     if weak else "Te va mejor con posiciones medidas y planeadas que con las impulsivas")
             return ("Se sostiene si limitas lo que arriesgas a una cantidad que puedes permitirte perder. "
                     + tail + f". Se rompe si {_BREAKS[concern]}.")
         fine, weak_t, meaning = _HOLDS[grp]
         until = f" (esta etapa llega hasta el {I18.date_long(f['end'], L)})" if f["end"] else ""
-        holds = (weak_t.format(ch=ch) + f" — el regente de tu {_ord(h)} está debilitado: " + meaning.format(until=until)
+        holds = (weak_t.format(ch=ch) + " — para ti, " + meaning.format(until="")
                  if weak else fine.format(ch=ch))
         out = holds + ". "
         for k in (CONCERN_KARAKAS.get(concern) or [])[:1]:
             kp = f["planets"].get(k) or {}
             if k != f["lord"] and kp.get("sign") and any(
                     n == "debilitated" or n.startswith("combust") for n in B._dignity(k, kp["sign"], f["planets"])):
-                out += (f"{I18.planet(k, L)}, el principal significador aquí, también está debilitado, así que esto "
-                        "requiere un esfuerzo deliberado en lugar de llegar por sí solo. ")
+                out += ("Uno de los apoyos principales de esto también está bajo presión, así que requiere un esfuerzo "
+                        "deliberado en lugar de llegar por sí solo. ")
         return out + f"Se rompe si {_BREAKS[concern]}."
     except Exception:
         return ""
@@ -220,8 +219,7 @@ def chart_move(concern, chart_data, dashas) -> str:
         act = _ACT.get(concern)
         if not act:
             return ""
-        lead = (f"Como el regente de tu {_ord(f['h'])} está debilitado, los resultados van por detrás del esfuerzo — "
-                if f["weak"] else "")
+        lead = ""      # [weak-leadin] the weakness is said once, in plain words, in conditions()
         tail = f" Reevalúa cuando termine esta etapa el {end}." if (f["weak"] and end) else ""
         out = (lead + act.format(ch=f["ch"]) + "." + tail).replace(" de el ", " del ")
         return out[0].upper() + out[1:]
