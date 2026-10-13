@@ -54,7 +54,7 @@ _BREAKS = {
     "marriage": "el contacto se diluye y nadie da el primer paso deliberado",
     "reconciliation": "el viejo patrón se repite igual, o el primer paso se precipita",
     "children": "las bases — salud, finanzas, apoyo — se dejan al azar",
-    "family": "las bases — tiempo, dinero, paciencia — se dejan al azar",
+    "family": "las bases — tiempo, atención, paciencia — se dejan al azar",
     "health": "se aguanta la tensión sin dejar tiempo de recuperación",
     "education": "la práctica es irregular",
     "speculation": "el tamaño de la posición supera lo que puedes permitirte perder",
@@ -134,7 +134,7 @@ def _facts(concern, chart_data, dashas):
     weak = any(n == "debilitated" or n.startswith("combust") for n in B._dignity(lord, pl["sign"], planets))
     per = _period_raw(dashas)
     return {"planets": planets, "h": h, "lord": lord, "pl": pl, "weak": weak, "end": per[2] if per else None,
-            "ch": _CHANNEL.get(pl["house"], "")}
+            "ch": B._channel("es", concern, pl["house"])}
 
 
 def build_basis(concern, chart_data, dashas) -> str:

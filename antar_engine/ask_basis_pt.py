@@ -40,7 +40,7 @@ def chart_move(concern, chart_data, dashas) -> str:
         f = _ES._facts(concern, chart_data, dashas)
         if not f:
             return ""
-        ch = B._PT_CHANNEL.get(f["pl"]["house"], "")
+        ch = B._channel("pt", concern, f["pl"]["house"])
         if not ch:
             return ""
         end = I18.date_long(f["end"], "pt") if f["end"] else ""

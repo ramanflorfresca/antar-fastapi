@@ -180,7 +180,7 @@ def chart_move(concern, chart_data, dashas, language="en", question="") -> str:
         pl = planets.get(lord) or {}
         if not isinstance(pl.get("house"), int) or not pl.get("sign"):
             return ""
-        ch = _CHANNEL.get(pl["house"], "")
+        ch = _channel("en", concern, pl["house"])
         if not ch:
             return ""
         weak = [n for n in _dignity(lord, pl["sign"], planets) if n in ("debilitated",) or n.startswith("combust")]
@@ -217,7 +217,7 @@ _BREAKS = {
     "marriage": "contact drifts and nobody makes the first deliberate move",
     "reconciliation": "the old pattern repeats unchanged, or the first move is rushed",
     "children": "the foundations — health, finances, support — are left to chance",
-    "family": "the foundations — time, money, patience — are left to chance",
+    "family": "the foundations — time, attention, patience — are left to chance",
     "health": "strain is pushed through without recovery time",
     "education": "practice is irregular",
 }
@@ -273,7 +273,7 @@ def conditions(concern, chart_data, dashas, language="en", question="") -> str:
         pl = planets.get(lord) or {}
         if not isinstance(pl.get("house"), int) or not pl.get("sign"):
             return ""
-        ch = _CHANNEL.get(pl["house"], "")
+        ch = _channel("en", concern, pl["house"])
         if not ch:
             return ""
         weak = any(n == "debilitated" or n.startswith("combust") for n in _dignity(lord, pl["sign"], planets))
@@ -367,6 +367,24 @@ def running_period(dashas, language: str = "en") -> str:
 # move was rewritten by the model on every run: the same chart + verdict said "send one message", "don't send
 # another message" (assuming a first one) and "decide what you want first". A move that follows from the verdict
 # is deterministic: reach out ONCE inside the window on a yes / likely; hold off until it opens on a not-yet / no.
+# [family-offtopic 2026-10-12] a family question must not be answered "through home base and property" or "savings and family money": the same placements read in
+# home-life words when the topic is family (the audit's FAMILY_OFFTOPIC)
+_FAMILY_CHANNEL = {"en": {2: "what you share and say at home", 4: "your home base"},
+                   "es": {2: "lo que compartes y dices en casa", 4: "tu base en casa"},
+                   "pt": {2: "o que você compartilha e diz em casa", 4: "a sua base em casa"}}
+
+
+def _channel(lang, concern, house):
+    base = {"en": _CHANNEL, "pt": None}.get(lang)
+    if lang == "es":
+        from antar_engine.ask_basis_es import _CHANNEL as base
+    elif lang == "pt":
+        base = _PT_CHANNEL
+    if concern == "family" and house in _FAMILY_CHANNEL[lang]:
+        return _FAMILY_CHANNEL[lang][house]
+    return (base or {}).get(house, "")
+
+
 _PT_CHANNEL = {1: "o seu esforço e a sua presença pessoal", 2: "a poupança e o dinheiro da família",
                3: "a sua iniciativa e a sua comunicação", 4: "a sua base em casa e o patrimônio",
                5: "o trabalho criativo e o ensino", 6: "o trabalho do dia a dia, o serviço e as rotinas",
