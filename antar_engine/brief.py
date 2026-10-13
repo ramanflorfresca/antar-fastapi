@@ -8,7 +8,7 @@
     line      one warm human-written line, picked by (chart, date, verdict) from a CURATED library
 
 Integrity: engines compute, copy only phrases. No LLM, no new astrology. The warm-line library is hand-written
-(en + es) and is a DRAFT until the owner/marketing copy review; the pick is deterministic so a day never flickers.
+(en + es), copy-reviewed; the pick is deterministic so a day never flickers.
 Pure functions here; the endpoint in main.py supplies the already-computed payloads and fails open."""
 from __future__ import annotations
 
@@ -24,29 +24,108 @@ _WORD = {
     "es": {"go": "Avanza", "steady": "Con calma", "wait": "Espera"},
 }
 
-# DRAFT warm lines (copy review pending). Short, plain, never predictive of an event, never fear.
+# Warm lines: copy-reviewed 2026-10-12 (see Antar.world/WARM_LINE_LIBRARY_for_copy_review.md). Short, plain, conditions never
+# outcomes, never fear. Change text only through copy review; the pick below depends on pool sizes only.
 _LINES = {
     "en": {
-        "go": ["A good day to say the thing you have been rehearsing.",
-               "The door is open. Walk through it before the afternoon turns.",
-               "Conditions are with you. Make the call that matters."],
-        "steady": ["Nothing is forcing your hand today. Keep going at your own pace.",
-                   "A quiet day does real work. Finish what is already in motion.",
-                   "No big moves needed. Small, honest progress counts."],
-        "wait": ["Today is for preparing, not committing. Draft it, sleep on it.",
-                 "Hold the big decision. The window you want is not today.",
-                 "Go gently. What you protect today is worth more than what you push."],
+        "go": [
+            "A good day to say the thing you have been rehearsing.",
+            "The door looks open. Walk through it while the day holds.",
+            "Conditions are with you. Make the call that matters.",
+            "If you have been waiting for a sign, today is a fair day to move.",
+            "Send it. Today favours clear asks.",
+            "You have more room today than usual. Use it on one thing.",
+            "A day to decide, not to keep weighing.",
+            "Good footing today. Take the step you have been circling.",
+            "One thing is worth a yes today. Give it.",
+            "Ask plainly today. The day favours a clear question.",
+            "Momentum is available. Spend it on what matters most.",
+            "Start the conversation. Today gives it a better chance.",
+        ],
+        "steady": [
+            "Nothing is forcing your hand today. Keep going at your own pace.",
+            "A quiet day does real work. Finish what is already in motion.",
+            "No big moves needed. Small, honest progress counts.",
+            "An ordinary day, and a useful one. Tidy the loose ends.",
+            "Not a day to bet big. A good day to keep your word.",
+            "Keep it simple. Do the next right thing.",
+            "Today rewards the patient task. Do it well and move on.",
+            "Mixed signals today, so keep your plans small and flexible.",
+            "Good for follow-ups. Grand announcements can wait.",
+            "Stay with what you started. Starting something new can wait.",
+            "A level day. Use it to catch up, not to leap.",
+            "Light touch today. Notice, don't force.",
+            "A steady day. Steady is enough.",
+            "Do the ordinary thing well. That is the work today.",
+            "No rush today. The task in front of you is the right one.",
+            "Keep your promises, especially the small ones.",
+            "A day for maintenance, not for milestones.",
+            "Nothing needs to be decided today. Let it rest.",
+        ],
+        "wait": [
+            "Today is for preparing, not committing. Draft it, sleep on it.",
+            "Hold the big decision. The window you want is not today.",
+            "Go gently. What you protect today is worth more than what you push.",
+            "If it can wait a day, let it wait.",
+            "Not a day to force a yes. Gather, don't sign.",
+            "Slow is the right speed today.",
+            "Write the hard message, but do not send it yet.",
+            "Keep today small. There is no need to force it.",
+            "Listen more than you decide today.",
+            "Give the details one more look. Commit when you are ready.",
+            "Let the argument wait. It will keep.",
+            "Pause is a decision too. Take it without guilt.",
+        ],
     },
     "es": {
-        "go": ["Buen día para decir eso que has estado ensayando.",
-               "La puerta está abierta. Cruza antes de que cambie la tarde.",
-               "Las condiciones te acompañan. Haz la llamada que importa."],
-        "steady": ["Nada te obliga hoy. Sigue a tu ritmo.",
-                   "Un día tranquilo también trabaja. Termina lo que ya está en marcha.",
-                   "No hacen falta grandes movimientos. El progreso pequeño cuenta."],
-        "wait": ["Hoy es para preparar, no para comprometerse. Escríbelo y déjalo reposar.",
-                 "Retén la decisión grande. La ventana que buscas no es hoy.",
-                 "Ve con suavidad. Lo que cuidas hoy vale más que lo que empujas."],
+        "go": [
+            "Buen día para decir eso que has estado ensayando.",
+            "La puerta parece abierta. Cruza mientras el día aguante.",
+            "Las condiciones te acompañan. Haz la llamada que importa.",
+            "Si esperabas una señal, hoy es un día razonable para moverte.",
+            "Envíalo. Hoy favorece las peticiones claras.",
+            "Hoy tienes más margen que de costumbre. Úsalo en una sola cosa.",
+            "Un día para decidir, no para seguir dándole vueltas.",
+            "Buen terreno hoy. Da el paso que llevas tiempo rodeando.",
+            "Di que sí a lo único que merece un sí.",
+            "Pide con claridad hoy. El día favorece una pregunta clara.",
+            "Hay impulso disponible. Gástalo en lo que más importa.",
+            "Empieza esa conversación. Hoy le da mejor oportunidad.",
+        ],
+        "steady": [
+            "Nada te obliga hoy. Sigue a tu ritmo.",
+            "Un día tranquilo también trabaja. Termina lo que ya está en marcha.",
+            "No hacen falta grandes movimientos. El progreso pequeño cuenta.",
+            "Un día normal, y útil. Cierra los cabos sueltos.",
+            "No es día para apuestas grandes. Sí para cumplir tu palabra.",
+            "Hazlo simple. Haz lo siguiente que toca.",
+            "Hoy premia la tarea paciente. Hazla bien y sigue.",
+            "Señales mezcladas hoy: mantén los planes pequeños y flexibles.",
+            "Bueno para dar seguimiento. Los grandes anuncios pueden esperar.",
+            "Quédate con lo que empezaste. Lo nuevo puede esperar.",
+            "Un día parejo. Úsalo para ponerte al día, no para dar saltos.",
+            "Toque suave hoy. Observa, no fuerces.",
+            "Un día estable. Lo estable es suficiente.",
+            "Haz bien lo ordinario. Ese es el trabajo de hoy.",
+            "Sin prisa hoy. La tarea que tienes delante es la correcta.",
+            "Cumple tu palabra, sobre todo en lo pequeño.",
+            "Un día de mantenimiento, no de hitos.",
+            "Hoy no hay que decidir nada. Déjalo descansar.",
+        ],
+        "wait": [
+            "Hoy es para preparar, no para comprometerse. Escríbelo y déjalo reposar.",
+            "Retén la decisión grande. La ventana que buscas no es hoy.",
+            "Ve con suavidad. Lo que cuidas hoy vale más que lo que empujas.",
+            "Si puede esperar un día, que espere.",
+            "No es día para forzar un sí. Reúne información, no firmes.",
+            "Ir despacio es la velocidad correcta hoy.",
+            "Escribe el mensaje difícil, pero no lo envíes todavía.",
+            "Que hoy sea pequeño. No hace falta forzarlo.",
+            "Hoy escucha más de lo que decides.",
+            "Dale otra mirada a los detalles. Comprométete cuando estés listo.",
+            "Deja la discusión para mañana. Va a seguir ahí.",
+            "Pausar también es decidir. Hazlo sin culpa.",
+        ],
     },
 }
 
@@ -69,9 +148,12 @@ def derive_verdict(signal: Dict[str, Any]) -> str:
 
 
 def pick_line(chart_id: str, day: _date, verdict: str, language: str = "en") -> str:
+    """Deterministic, stateless, and never the same line twice within len(pool)-1 days for one person+verdict:
+    a per-person offset plus the day ordinal walks the pool, so two days of the same verdict land on different
+    lines unless they are an exact multiple of the pool size apart."""
     pool = _LINES[_lang(language)][verdict if verdict in VERDICTS else "steady"]
-    h = int(hashlib.sha256(f"{chart_id}|{day.isoformat()}|{verdict}".encode()).hexdigest(), 16)
-    return pool[h % len(pool)]
+    off = int(hashlib.sha256(f"{chart_id}|{verdict}".encode()).hexdigest(), 16)
+    return pool[(off + day.toordinal()) % len(pool)]
 
 
 def _hm(s) -> Optional[float]:
