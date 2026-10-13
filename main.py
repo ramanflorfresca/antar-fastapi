@@ -52850,11 +52850,22 @@ async def get_phase_view(chart_id: str, language: Optional[str] = None, tz_offse
     return _pv.build(dashas, feed, language or "en", _prac_local_date(tz_offset))
 
 
+def _require_chart_uuid(chart_id) -> str:
+    """[home-endpoints 2026-10-13] A malformed chart id (truncated, empty-looking, 'undefined') used to reach PostgREST and come back
+    as an unhandled 500 (invalid input syntax for type uuid). The Home endpoints answer a clean 404 instead, like /daily-signal."""
+    from uuid import UUID as _UUID_HE
+    try:
+        return str(_UUID_HE(str(chart_id).strip()))
+    except (ValueError, AttributeError, TypeError):
+        raise HTTPException(status_code=404, detail="Chart not found")
+
+
 @app.get("/api/v1/brief/{chart_id}")
 async def get_instrument_brief(chart_id: str, language: Optional[str] = None, tz_offset: Optional[int] = 0):
     """[instrument-brief 2026-10-12] One-glance Today: verdict (go/steady/wait), the day strip, closing-soon, and
     one-line Beyond-today items for month / year / chapter. Deterministic; every part fails open (a missing part is
     omitted, never an error). 404 only for an unknown chart."""
+    chart_id = _require_chart_uuid(chart_id)
     from antar_engine import brief as _br
     row = await run_in_threadpool(lambda: supabase.table("charts").select("id").eq("id", chart_id).limit(1).execute())
     if not row.data:
@@ -52888,6 +52899,7 @@ async def get_instrument_timeline(chart_id: str, zoom: str = "day", language: Op
                                   tz_offset: Optional[int] = 0):
     """[instrument-timeline 2026-10-12] Data for the one zoomable Timeline: zoom = day | month | year | chapter, all in
     one shape (tracks of dated bands as 0-1 fractions). Deterministic; missing parts come back as empty tracks."""
+    chart_id = _require_chart_uuid(chart_id)
     from antar_engine import timeline as _tl
     if zoom not in _tl.ZOOMS:
         raise HTTPException(status_code=400, detail="zoom must be day, month, year or chapter")
@@ -52921,6 +52933,7 @@ async def get_coming(chart_id: str, view: str = "year", topic: str = "all", lang
     money, career, love, health, business, peace, family; plus ask_moves prompts for job change / moving home) or view=chapter (the running chapter and
     its shifts as steps). Re-shapes engines that already exist; nothing new is computed. Never an error for missing data
     (quiet); 404 only for an unknown chart."""
+    chart_id = _require_chart_uuid(chart_id)
     from antar_engine import coming as _cm
     if view not in ("year", "chapter"):
         raise HTTPException(status_code=400, detail="view must be year or chapter")
@@ -52952,6 +52965,7 @@ async def get_horizon_card(chart_id: str, scope: str = "today", language: Option
     coming up, watch out + how to avoid, how to make it work, why, further ahead) plus a conversational opener and three Ask
     questions. Re-shapes the daily signal / monthly deep-dive / annual plan and their decision objects; nothing new is
     computed. Fail-open: `available: false` when the source is not ready. 404 only for an unknown chart."""
+    chart_id = _require_chart_uuid(chart_id)
     import asyncio as _aio
     from antar_engine import horizon as _hz
     if scope not in _hz.SCOPES:
@@ -53015,6 +53029,7 @@ async def get_matters(chart_id: str, limit: int = 3, language: Optional[str] = N
     ranked by recurrence, decision-shape and recency), each with the next real window for its topic from the Windows feed.
     Deterministic; no model call. `empty: true` plus a `prompt` when there is nothing to show yet. Same access model as
     /ask/history. 404 only for an unknown chart."""
+    chart_id = _require_chart_uuid(chart_id)
     from antar_engine import matters as _mt
     row = await run_in_threadpool(lambda: supabase.table("charts").select("id").eq("id", chart_id).limit(1).execute())
     if not row.data:
@@ -53041,6 +53056,7 @@ async def get_matters(chart_id: str, limit: int = 3, language: Optional[str] = N
 async def get_shortcuts(chart_id: str, language: Optional[str] = None, tz_offset: Optional[int] = 0):
     """[shortcuts 2026-10-13] The "Ask about" row: topics with a live dot, a status line from the Windows feed, Antar's opener and
     starter questions; `default` is the out-of-the-box selection. 404 only for an unknown chart."""
+    chart_id = _require_chart_uuid(chart_id)
     from antar_engine import shortcuts as _sc
     row = await run_in_threadpool(lambda: supabase.table("charts").select("id").eq("id", chart_id).limit(1).execute())
     if not row.data:
@@ -53058,6 +53074,7 @@ async def get_seasons(chart_id: str, language: Optional[str] = None, tz_offset: 
     """[seasons 2026-10-13] "Your next three years": the shifts of the running chapter inside the next `months` (default 36) with
     real dates, the engine's plain words and a per-chart read (functional nature for the rising sign + the houses ruled).
     Fail-open: `available: false`. 404 only for an unknown chart."""
+    chart_id = _require_chart_uuid(chart_id)
     from antar_engine import seasons as _se
     from antar_engine import phase_view as _pv
     ctx, row = await run_in_threadpool(_topic_ctx_load, chart_id)
