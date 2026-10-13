@@ -31,6 +31,7 @@ T = {
                    "relationship": "Have the important conversation. Don't force a decision outside this window.",
                    "learning": "Start the course, certification or new skill now."},
         "why_both": "Two independent timing methods point to this period.",
+        "why_three": "Three independent timing methods point to this period.",
         "why_one": "One timing method points strongly to this period.",
         "why_weak": "One timing method points to this period.",
         "why_peak": "The most active stretch is {peak}.",
@@ -77,6 +78,7 @@ T = {
                    "relationship": "Ten la conversación importante. No fuerces una decisión fuera de esta ventana.",
                    "learning": "Empieza ahora el curso, la certificación o la nueva habilidad."},
         "why_both": "Dos métodos de tiempo independientes señalan este periodo.",
+        "why_three": "Tres métodos de tiempo independientes señalan este periodo.",
         "why_one": "Un método de tiempo señala con fuerza este periodo.",
         "why_weak": "Un método de tiempo señala este periodo.",
         "why_peak": "El tramo más activo es {peak}.",
@@ -148,6 +150,12 @@ def _collect(fc: dict, fragile: bool, today: str) -> Dict[str, List[dict]]:
         if area and sp:
             out[area].append({"src": "par", "span": sp, "top": s["grade"] == "strong",
                               "d10": area in ("money", "career")})
+    _MDK = {"marriage": "relationship", "career": "career", "money": "money"}
+    for s in fc.get("mandook", {}).get("spans", []):
+        area = _MDK.get(s["event"])
+        sp = _clip((s["start"], s["end"]), today)
+        if area and sp:
+            out[area].append({"src": "mdk", "span": sp, "peak": sp, "top": False, "d10": False})
     for s in fc.get("event_spans", []):
         area = _JAI_EVENT.get(s["event"])
         if not area:
@@ -184,7 +192,7 @@ def _merge_area(items: List[dict], fragile: bool) -> List[dict]:
             res.append({"span": it["span"], "srcs": {it["src"]}, "top": it["top"], "d10": it["d10"],
                         "peaks": [it["peak"]] if it["src"] == "jai" else []})
     for r in res:
-        r["strength"] = "strong" if len(r["srcs"]) == 2 else ("good" if r["top"] else "possible")
+        r["strength"] = "strong" if len(r["srcs"]) >= 2 else ("good" if r["top"] else "possible")
         if fragile and r["d10"] and r["strength"] == "strong":
             r["strength"] = "good"
     return res
@@ -322,13 +330,13 @@ def compose(forecast: dict, locale: str = "en", today: Optional[date] = None) ->
                 lo = min(p[0] for p in r["peaks"]); hi = max(p[1] for p in r["peaks"])
                 if (lo, hi) != r["span"]:
                     peak = (lo, hi)
-            why = (tx["why_both"] if len(r["srcs"]) == 2
+            why = (tx["why_three"] if len(r["srcs"]) >= 3 else tx["why_both"] if len(r["srcs"]) == 2
                    else tx["why_one"] if r["strength"] in ("good", "strong") else tx["why_weak"])
             if peak:
                 why += " " + tx["why_peak"].format(peak=_fmt(loc, *peak))
             w = {"start": r["span"][0], "end": r["span"][1], "label": _fmt(loc, *r["span"]),
                  "peak": list(peak) if peak else None, "strength": r["strength"],
-                 "strength_label": tx["strength"][r["strength"]], "both_systems": len(r["srcs"]) == 2,
+                 "strength_label": tx["strength"][r["strength"]], "both_systems": len(r["srcs"]) >= 2,
                  "headline": tx["headline"][a], "why": why, "action": tx["action"][a]}
             wins.append(w)
             key = (_RANK[r["strength"]], -len(r["span"][0]))

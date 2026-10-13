@@ -76,6 +76,8 @@ class Chart:
         self.al = arudha(lagna_sign, planets)                         # arudha lagna (public image)
         self.lord2 = _get_sign_lord((lagna_sign + 1) % 12, planets)
         self.lord11 = _get_sign_lord((lagna_sign + 10) % 12, planets)
+        self.kl = navamsa_sign(planets[self.k["AK"]].degree)          # karakamsha (AK's navamsa sign)
+        self.dkn = navamsa_sign(planets[self.k["DK"]].degree)         # DK's navamsa sign (Rao's DKN)
         self.d9_lagna = navamsa_sign(lagna_longitude)
         self.lord7 = _get_sign_lord((lagna_sign + 6) % 12, planets)
         self.lord5 = _get_sign_lord((lagna_sign + 4) % 12, planets)
@@ -102,10 +104,27 @@ def rules_for_sign(c: Chart, s: int) -> Dict[str, List[str]]:
         out["marriage"].append("MAR.7th_from_DK")
     if P[c.lord7].sign == s:
         out["marriage"].append("MAR.contains_7th_lord")
+    # Rangacharya's manual / Rao's Mandook book: the running sign holds the spouse indicators or is the
+    # upapada family (UL, 2nd from UL), the darapada, the 7th from AL, the 7th from AK, or the DK's navamsa sign
+    if s in (dk, P["Ketu"].sign, P["Venus"].sign):
+        out["marriage"].append("MAR.sign_contains_DK_Ketu_or_Venus")
+    if s in (c.ul, (c.ul + 1) % 12):
+        out["marriage"].append("MAR.sign_is_UL_or_2nd_from_UL")
+    if s == c.a7:
+        out["marriage"].append("MAR.sign_is_darapada")
+    if s == (c.al + 6) % 12:
+        out["marriage"].append("MAR.7th_from_AL")
+    if s == (c.k_sign["AK"] + 6) % 12:
+        out["marriage"].append("MAR.7th_from_AK")
+    if s == c.dkn:
+        out["marriage"].append("MAR.sign_is_DK_navamsa_sign")
 
     # ---- Children: Putrakaraka in the 5th from the running sign ----
     if _h(s, c.k_sign["PK"]) == 5:
         out["children"].append("CHI.PK_in_5th_from_dasha_sign")
+    pk = c.k_sign["PK"]
+    if s == pk or _aspects(pk, _sign_of(5, s)) or _aspects(pk, _sign_of(11, s)):
+        out["children"].append("CHI.PK_in_sign_or_aspects_5th_or_11th_of_sign")
 
     # ---- Education ----
     ben = [p for p in ("Jupiter", "Venus", "Mercury") if p in P]
@@ -139,26 +158,31 @@ def rules_for_sign(c: Chart, s: int) -> Dict[str, List[str]]:
                 out["career"].append(f"CAR.rajayoga_{a}_{b}_on_dasha_sign")
 
 
-    # ---- Arudha lagna (AL: how the world sees you): status and gains ----
+    # ---- Arudha lagna: gains (Sutras: the 11th from AL; Rangacharya: dhana from the 2nd of AL) ----
     h_al = _h(c.al, s)
-    if h_al in (10, 11):
-        out["career"].append("CAR.sign_10th_or_11th_from_AL")
-    if s == c.al or _aspects(s, c.al):
-        out["career"].append("CAR.sign_is_or_aspects_AL")
     if h_al in (2, 11):
         out["money"].append("MON.sign_2nd_or_11th_from_AL")
     if any(_h(s, P[lp].sign) in (2, 11) for lp in (c.lord2, c.lord11)):
         out["money"].append("MON.2nd_or_11th_lord_in_2nd_or_11th_from_dasha_sign")
-    if _touches(c.k_sign["AmK"], c.al) and (s == c.al or _aspects(s, c.al) or h_al in (10, 11)):
-        out["career"].append("CAR.AmK_touches_AL_and_sign_linked_to_AL")
+
+    # ---- Job set (Rangacharya's manual): Sun or Venus in the running sign, or benefics on its 5th/9th/10th ----
+    if P["Sun"].sign == s or P["Venus"].sign == s:
+        out["career"].append("CAR.sign_holds_Sun_or_Venus")
+    on_5_9_10 = {_sign_of(5, s), _sign_of(9, s), _sign_of(10, s)}
+    if any(P[b].sign in on_5_9_10 for b in ("Jupiter", "Venus", "Mercury")):
+        out["career"].append("CAR.benefic_on_5th_9th_or_10th_of_sign")
 
     # ---- Rao's caution rules ----
     if _h(s, c.k_sign["AK"]) == 8:
         out["caution"].append("CAU.AK_8th_from_running_sign")
     if s == c.k_sign["AK"]:
         out["caution"].append("CAU.AK_sign_period_fall_risk")
-    if s == 8:
-        out["caution"].append("CAU.sagittarius_period_accident_or_sudden_illness")
+    if s == 8 and c.kl == 8:
+        out["caution"].append("CAU.sagittarius_period_with_AK_in_sagittarius_navamsa")   # Sutra 1.2.10
+    if _h(c.kl, s) == 8:
+        out["caution"].append("KAR.running_sign_8th_from_karakamsha")
+    if _h(c.kl, s) == 6 and any(_touches(P[m].sign, s) for m in ("Mars", "Saturn", "Rahu")):
+        out["caution"].append("KAR.running_sign_6th_from_karakamsha_with_malefic")
     if s == _sign_of(6, c.lagna):
         out["caution"].append("CAU.sixth_house_sign_period")
     return out
@@ -233,8 +257,8 @@ def predict_windows(lagna_sign: int, lagna_longitude: float, planets: Dict[str, 
             events = []
             for ev in ("marriage", "children", "education", "career", "money"):
                 fired = ar[ev]
-                if len(fired) < min_rules:
-                    continue
+                if len(fired) < (min_rules + 1 if ev == "marriage" and min_rules >= 2 else min_rules):
+                    continue      # marriage rule set is wide, so it needs one more rule at the default threshold
                 ctx = md_rules[md.sign][ev]
                 vim = _vim_hit(c, ev, vim_rows, ad.start_date, ad.end_date)
                 events.append({
