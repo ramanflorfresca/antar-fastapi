@@ -19540,6 +19540,9 @@ _CHART_DERIVED_TABLES = (
     # 2026-10-02: the table was created with the Your-Pattern feature and was
     # leaking on delete (test_chart_delete_cascade caught it).
     "ventures",
+    # [shadow tables 2026-10-13] chart-keyed research rows (the day's windows per chart). Both have ON DELETE CASCADE, but the
+    # app tombstones a chart rather than hard-deleting it, so the purge has to name them.
+    "kp_hourly_shadow", "personal_window_shadow",
     # NOT here on purpose:
     #   lal_kitab_remedies   — a STATIC reference library keyed by planet/house
     #     (117 rows of remedy text shared by every chart). It has no chart_id;
