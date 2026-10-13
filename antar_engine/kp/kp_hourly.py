@@ -9,7 +9,8 @@ few hours — so the two can be compared against what actually happened before a
     for each stretch of the local day: Moon's (star lord, sub lord)  ->  houses the sub lord signifies in THIS
     natal KP chart, weighted by KP significator level (L1 strongest)  ->  net = gain houses 2/10/11 minus loss
     houses 8/12  ->  lean (positive net >= 0.5, adverse net <= -0.5, else neutral). The raw net is stored so the cut
-    can be tuned offline.
+    can be tuned offline. Promotion requirement (owner): the user-facing best/avoid must be ONE tight stretch of about
+1-2.5 hours (`kp_best_tight` / `kp_avoid_tight`), never the multi-hour runs.
 
 then best = longest positive run in waking hours, avoid = longest adverse run, and the overlap with the current
 Abhijit / Rahu windows is recorded so the comparison is one query. House sets match kp_daily.py (6 excluded: dual).
@@ -120,6 +121,28 @@ def relative_leans(segments: List[Dict[str, Any]]) -> None:
                     else "adverse" if x["net"] <= lo and x["net"] < hi else "neutral")
 
 
+MAX_WINDOW_MIN = 150          # PROMOTION REQUIREMENT (owner 2026-10-13): one best / one avoid stretch of ~1-2.5 h, not a day
+
+
+def tight_window(segments: List[Dict[str, Any]], best: bool = True) -> Optional[Dict[str, int]]:
+    """The single highest (best) or lowest (avoid) net sub-lord stretch within waking hours, clipped to at most
+    MAX_WINDOW_MIN minutes (keeps the stretch's start). Returns None when the day is flat (no stretch stands out).
+    This is the shape a promoted KP source must have; the longer absolute/relative runs stay for analysis only."""
+    live = []
+    for x in segments:
+        a, b = max(x["start_min"], WAKING[0]), min(x["end_min"], WAKING[1])
+        if b > a:
+            live.append((a, b, x["net"]))
+    if len(live) < 2:
+        return None
+    nets = [n for _, _, n in live]
+    if max(nets) == min(nets):
+        return None
+    pick = max(live, key=lambda t: (t[2], -t[0])) if best else min(live, key=lambda t: (t[2], t[0]))
+    a, b, _ = pick
+    return {"start_min": a, "end_min": min(b, a + MAX_WINDOW_MIN)}
+
+
 def _longest(runs):
     return max(runs, key=lambda r: r["end_min"] - r["start_min"]) if runs else None
 
@@ -178,6 +201,7 @@ def build(chart_record: dict, local_date: date, tz_hours: float,
         relative_leans(segs)
         best = _longest(_runs(segs, "positive"))
         avoid = _longest(_runs(segs, "adverse"))
+        tight_best, tight_avoid = tight_window(segs, True), tight_window(segs, False)
         for s in segs:                                   # relative variant reuses _runs through a shadow key
             s["_abs"], s["lean"] = s["lean"], s["rel"]
         best_rel = _longest(_runs(segs, "positive"))
@@ -186,7 +210,7 @@ def build(chart_record: dict, local_date: date, tz_hours: float,
             s["lean"] = s.pop("_abs")
         ab, rk = _span(abhijit), _span(rahu_kalam)
         return {
-            "available": True, "version": "kp-hourly-2", "date": local_date.isoformat(), "tz_hours": tz_hours,
+            "available": True, "version": "kp-hourly-3", "date": local_date.isoformat(), "tz_hours": tz_hours,
             "birth_time_ok": chart_record.get("needs_reconfirm") is not True,
             "segments": [{"from": _hhmm(s["start_min"]), "to": _hhmm(s["end_min"]), "star": s["star_lord"],
                           "sub": s["sub_lord"], "lean": s["lean"], "rel": s["rel"], "net": s["net"], "houses": s["houses"]} for s in segs],
@@ -194,11 +218,14 @@ def build(chart_record: dict, local_date: date, tz_hours: float,
             "kp_avoid": ({"from": _hhmm(avoid["start_min"]), "to": _hhmm(avoid["end_min"])} if avoid else None),
             "kp_best_rel": ({"from": _hhmm(best_rel["start_min"]), "to": _hhmm(best_rel["end_min"])} if best_rel else None),
             "kp_avoid_rel": ({"from": _hhmm(avoid_rel["start_min"]), "to": _hhmm(avoid_rel["end_min"])} if avoid_rel else None),
+            "kp_best_tight": ({"from": _hhmm(tight_best["start_min"]), "to": _hhmm(tight_best["end_min"])} if tight_best else None),
+            "kp_avoid_tight": ({"from": _hhmm(tight_avoid["start_min"]), "to": _hhmm(tight_avoid["end_min"])} if tight_avoid else None),
             "current": {"best": abhijit or None, "avoid": rahu_kalam or None},
             "agreement": {"best_overlap_min": _overlap(best, ab), "avoid_overlap_min": _overlap(avoid, rk),
                           "best_len_min": (best["end_min"] - best["start_min"]) if best else 0,
                           "avoid_len_min": (avoid["end_min"] - avoid["start_min"]) if avoid else 0,
-                          "best_rel_overlap_min": _overlap(best_rel, ab), "avoid_rel_overlap_min": _overlap(avoid_rel, rk)},
+                          "best_rel_overlap_min": _overlap(best_rel, ab), "avoid_rel_overlap_min": _overlap(avoid_rel, rk),
+                          "best_tight_overlap_min": _overlap(tight_best, ab), "avoid_tight_overlap_min": _overlap(tight_avoid, rk)},
         }
     except Exception as e:
         return {"available": False, "reason": f"kp hourly shadow error: {e}"[:180]}

@@ -90,3 +90,23 @@ def test_switch(monkeypatch):
     assert H.enabled() is False
     monkeypatch.delenv("KP_HOURLY_SHADOW")
     assert H.enabled() is True
+
+
+def _seg(a, b, net):
+    return {"start_min": a, "end_min": b, "net": net}
+
+
+def test_tight_window_is_one_stretch_clipped_to_two_and_a_half_hours():
+    segs = [_seg(0, 360, 0.2), _seg(360, 780, 1.0), _seg(780, 1000, 0.5), _seg(1000, 1440, -1.0)]
+    b = H.tight_window(segs, True)
+    assert b == {"start_min": 360, "end_min": 360 + 150}                    # a 7h run is clipped to 150 min
+    a = H.tight_window(segs, False)
+    assert a["start_min"] == 1000 and a["end_min"] <= 1000 + 150 and a["end_min"] <= H.WAKING[1]
+
+
+def test_tight_window_short_stretch_stays_as_is_and_flat_days_give_none():
+    segs = [_seg(360, 480, 0.0), _seg(480, 570, 1.5), _seg(570, 1320, 0.25)]
+    assert H.tight_window(segs, True) == {"start_min": 480, "end_min": 570}  # 90 min, kept whole
+    assert H.tight_window([_seg(360, 700, 0.5), _seg(700, 1300, 0.5)], True) is None
+    assert H.tight_window([_seg(360, 1300, 1.0)], True) is None
+    assert 60 <= (H.MAX_WINDOW_MIN) <= 180

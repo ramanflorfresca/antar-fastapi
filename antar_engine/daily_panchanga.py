@@ -532,12 +532,7 @@ def build_daily_panchanga_block(panchanga: dict, natal_chart: dict = None) -> st
         f"  ✗ Rahu Kalam (AVOID): {panchanga['rahu_kalam']}",
         f"  ✗ Yamaganda (avoid if possible): {panchanga['yamaganda']}",
         "",
-        "LUCKY HOURS BY ACTIVITY:",
     ]
-
-    for activity, hours in panchanga.get("lucky_hours",{}).items():
-        if hours:
-            lines.append(f"  {activity.replace('_',' ').title():<28}: {', '.join(hours[:2])}")
 
     lines += [
         "",
@@ -589,7 +584,7 @@ def format_daily_for_user(panchanga: dict, natal_signal: str = "") -> dict:
         "avoid_time":      panchanga["rahu_kalam"],
         "do_today":        panchanga.get("do_today",[])[:3],
         "dont_today":      panchanga.get("dont_today",[])[:2],
-        "lucky_hours":     panchanga.get("lucky_hours",{}),
+        # [one-best-one-worst 2026-10-13] no per-activity lucky hours: the day shows ONE best and ONE avoid window
         "color":           panchanga.get("day_color",""),
         "number":          panchanga.get("day_number",""),
         "mantra":          panchanga.get("day_mantra",""),
