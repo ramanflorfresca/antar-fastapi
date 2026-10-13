@@ -30044,6 +30044,12 @@ async def _ask_endpoint_impl(request: AskRequest):
                     print(f"[ask][conversation] language switch {question!r} -> re-answer {_cl_prev!r}")
                     _ASK_TYPED_Q.set(question)
                     question = _cl_prev
+            elif (_convl.bare_affirmative(question) and _cl_thread and _convl.previous_question(_cl_thread)
+                  and not str((_cl_thread[-1] or {}).get("a") or "").rstrip().endswith("?")):   # an answer that ASKED something keeps the model rewrite
+                _cl_prev = _convl.previous_question(_cl_thread)
+                print(f"[ask][conversation] bare agreement {question!r} -> go on with {_cl_prev!r}")
+                _ASK_TYPED_Q.set(question)
+                question = _cl_prev
             elif _convl.looks_like_followup(question, _cl_thread) and not _ask_is_day_overview(question):
                 _cl_raw = await asyncio.wait_for(call_llm_claude(
                     prompt=_convl.rewrite_request(question, _cl_thread, language),
