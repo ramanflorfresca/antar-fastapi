@@ -17,3 +17,13 @@ def test_other_topics_keep_their_channel():
 
 def test_family_breaks_line_has_no_money():
     assert "money" not in B._BREAKS["family"]
+
+
+def test_family_deep_changes_channel_has_no_money_words():
+    for lang in ("en", "es", "pt"):
+        assert not _OFF.search(B._channel(lang, "family", 8)), lang
+
+
+def test_spanish_conditions_contract_de_el():
+    from antar_engine import ask_basis_es as E
+    assert " de el " not in (E.conditions("career", {}, {}) or "")

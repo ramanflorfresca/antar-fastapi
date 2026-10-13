@@ -165,6 +165,11 @@ def build_basis(concern, chart_data, dashas) -> str:
 
 
 def conditions(concern, chart_data, dashas) -> str:
+    # [es-contraction 2026-10-13] 'a través de el dinero…' -> 'a través del dinero…'
+    return (_conditions_raw(concern, chart_data, dashas) or '').replace(' de el ', ' del ')
+
+
+def _conditions_raw(concern, chart_data, dashas) -> str:
     try:
         from antar_engine.ask_consultation import CONCERN_KARAKAS
         if concern not in _BREAKS:

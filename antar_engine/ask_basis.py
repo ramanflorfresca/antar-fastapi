@@ -369,9 +369,9 @@ def running_period(dashas, language: str = "en") -> str:
 # is deterministic: reach out ONCE inside the window on a yes / likely; hold off until it opens on a not-yet / no.
 # [family-offtopic 2026-10-12] a family question must not be answered "through home base and property" or "savings and family money": the same placements read in
 # home-life words when the topic is family (the audit's FAMILY_OFFTOPIC)
-_FAMILY_CHANNEL = {"en": {2: "what you share and say at home", 4: "your home base"},
-                   "es": {2: "lo que compartes y dices en casa", 4: "tu base en casa"},
-                   "pt": {2: "o que você compartilha e diz em casa", 4: "a sua base em casa"}}
+_FAMILY_CHANNEL = {"en": {2: "what you share and say at home", 4: "your home base", 8: "the deeper changes at home"},
+                   "es": {2: "lo que compartes y dices en casa", 4: "tu base en casa", 8: "los cambios profundos en casa"},
+                   "pt": {2: "o que você compartilha e diz em casa", 4: "a sua base em casa", 8: "as mudanças profundas em casa"}}
 
 
 def _channel(lang, concern, house):
