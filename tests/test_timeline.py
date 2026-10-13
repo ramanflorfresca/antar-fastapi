@@ -29,9 +29,16 @@ def test_month_window():
 
 
 def test_chapter_and_empty():
-    ph = {"available": True, "chapter": {"start": "2026-08-13", "end": "2044-08-13", "plain_name": "Ambition"},
+    ph = {"available": True, "chapter": {"start": "2026-08-13", "end": "2044-08-13", "plain_name": "Ambition", "planet": "Rahu"},
           "shift": {"start": "2026-08-13", "end": "2029-02-01", "plain_name": "Ambition"}, "upcoming_shifts": []}
     out = T.build("chapter", None, None, ph, TODAY, 0)
     assert [t["key"] for t in out["tracks"]] == ["chapter", "shift"] and 0 < out["now"] < 0.1
     assert T.build("chapter", None, None, None, TODAY, 0)["tracks"] == []
     assert T.build("bogus", None, None, None, TODAY, 0)["zoom"] == "day"
+
+
+def test_chapter_bands_carry_planet_for_traditional_terms():
+    ph = {"available": True, "chapter": {"start": "2026-08-13", "end": "2044-08-13", "plain_name": "Ambition", "planet": "Rahu"},
+          "shift": None, "upcoming_shifts": [{"start": "2029-04-25", "end": "2031-09-19", "plain_name": "Growth", "planet": "Jupiter"}]}
+    t = T.build("chapter", None, None, ph, TODAY, 0)["tracks"]
+    assert t[0]["bands"][0]["planet"] == "Rahu" and t[1]["bands"][0]["planet"] == "Jupiter"

@@ -34,7 +34,8 @@ def _clip(runs, a: date, b: date, kind_key="kind") -> List[Dict[str, Any]]:
             continue
         s2, e2 = max(s, a), min(e, b)
         out.append({"kind": r.get(kind_key), "start": s2.isoformat(), "end": e2.isoformat(),
-                    "from": _fr(s2, a, b), "to": _fr(e2 + timedelta(days=1), a, b), **({"label": r["label"]} if r.get("label") else {})})
+                    "from": _fr(s2, a, b), "to": _fr(e2 + timedelta(days=1), a, b), **({"label": r["label"]} if r.get("label") else {}),
+                    **({"planet": r["planet"]} if r.get("planet") else {})})
     return out
 
 
@@ -62,13 +63,13 @@ def chapter(phase, today: date) -> Dict[str, Any]:
     a, b = _d(ch.get("start")), _d(ch.get("end"))
     if not a or not b or b <= a:
         return {"zoom": "chapter", "start": None, "end": None, "now": 0.0, "tracks": []}
-    runs = [{"kind": "chapter", "start": ch.get("start"), "end": ch.get("end"), "label": ch.get("plain_name")}]
+    runs = [{"kind": "chapter", "start": ch.get("start"), "end": ch.get("end"), "label": ch.get("plain_name"), "planet": ch.get("planet")}]
     shifts = []
     sh = phase.get("shift")
     if sh and sh.get("start"):
-        shifts.append({"kind": "shift", "start": sh.get("start"), "end": sh.get("end"), "label": sh.get("plain_name")})
+        shifts.append({"kind": "shift", "start": sh.get("start"), "end": sh.get("end"), "label": sh.get("plain_name"), "planet": sh.get("planet")})
     for u in phase.get("upcoming_shifts") or []:
-        shifts.append({"kind": "shift", "start": u.get("start"), "end": u.get("end"), "label": u.get("plain_name")})
+        shifts.append({"kind": "shift", "start": u.get("start"), "end": u.get("end"), "label": u.get("plain_name"), "planet": u.get("planet")})
     tracks = [{"key": "chapter", "label": "Chapter", "bands": _clip(runs, a, b)}]
     if shifts:
         tracks.append({"key": "shift", "label": "Shift", "bands": _clip(shifts, a, b)})
