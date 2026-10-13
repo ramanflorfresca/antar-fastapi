@@ -37068,6 +37068,30 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
             except Exception as _kph_e:
                 print(f"[daily-signal] kp hourly shadow skipped (non-fatal): {_kph_e}")
 
+            # [personal-window shadow 2026-10-13] The candidate replacement for the generic Abhijit / Rahu Kalam pair:
+            # hora ruler vs THIS lagna + the running pratyantar/sookshma lords + the panchang kalas. One best + one avoid
+            # per chart-day, stored for comparison with outcomes; NEVER written into `result`. Today only, fail-open
+            # (the table may not exist yet), off with PERSONAL_WINDOW_SHADOW=off.
+            try:
+                from antar_engine import personal_window as _pw
+                if _pw.enabled() and _ds_requested_date is None:
+                    _pw_local = start_date.date() if hasattr(start_date, "date") else start_date
+                    _pw_lagna = ((cd or {}).get("lagna") or {}).get("sign") if isinstance(cd, dict) else None
+
+                    def _pw_run():
+                        from antar_engine.hora_engine import _get_sunrise_sunset
+                        _sr, _ss = _get_sunrise_sunset(lat, lng, datetime(_pw_local.year, _pw_local.month, _pw_local.day, 12))
+                        _off = float(effective_offset)
+                        _m = lambda t: ((t.hour * 60 + t.minute + t.second / 60.0) + _off * 60.0) % 1440
+                        return _pw.build(_pw_lagna, get_dashas_for_chart(cid) or {}, _pw_local, _off, _m(_sr), _m(_ss),
+                                         panchanga.get("abhijit_muhurta", "") or "", panchanga.get("rahu_kalam", "") or "",
+                                         panchanga.get("yamaganda", "") or "", panchanga.get("gulika_kalam", "") or "")
+                    _pw_p = await run_in_threadpool(_pw_run)
+                    if _pw_p.get("available"):
+                        await run_in_threadpool(_pw.record, supabase, cid, _pw_p)
+            except Exception as _pw_e:
+                print(f"[daily-signal] personal window shadow skipped (non-fatal): {_pw_e}")
+
             # [admin-inspect] capture the deterministic engine pick (raw bundle)
             _ai_c = _inspect_active()
             if _ai_c is not None:
