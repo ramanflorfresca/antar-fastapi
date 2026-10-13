@@ -81,6 +81,9 @@ DUAL_SIGNS = {2, 5, 8, 11}         # Gemini, Virgo, Sagittarius, Pisces
 # Q2 (Can, Leo, Vir) and Q4 (Cap, Aqu, Pis) → BACKWARD
 FORWARD_SIGNS = {0, 1, 2, 6, 7, 8}    # Aries, Taurus, Gemini, Libra, Scorpio, Sagittarius
 BACKWARD_SIGNS = {3, 4, 5, 9, 10, 11}  # Cancer, Leo, Virgo, Capricorn, Aquarius, Pisces
+# The two sets above only decide which way to COUNT from a sign to its lord. The
+# direction of the dasha SEQUENCE is a different grouping (Rao's 9th-house rule):
+DIRECT_LAGNA_SIGNS = {0, 4, 5, 6, 10, 11}  # Aries, Leo, Virgo, Libra, Aquarius, Pisces
 
 # Exaltation signs (0-indexed)
 EXALTATION = {
@@ -436,13 +439,18 @@ def compute_md_sequence(lagna_sign: int) -> List[int]:
     """
     Determine the Mahadasha sign sequence starting from Lagna.
 
-    Direction depends on lagna:
-      - Forward signs (Ari, Tau, Gem, Lib, Sco, Sag): 1→2→3→...→12
-      - Backward signs (Can, Leo, Vir, Cap, Aqu, Pis): 1→12→11→...→2
+    K.N. Rao's 9th-house rule ("Predicting through Jaimini's Chara Dasha", ch.3):
+    the order is forward when the 9th from the lagna is Aries, Taurus, Gemini,
+    Libra, Scorpio or Sagittarius, otherwise backward. That makes
+      - forward lagnas : Aries, Leo, Virgo, Libra, Aquarius, Pisces
+      - backward lagnas: Taurus, Gemini, Cancer, Scorpio, Sagittarius, Capricorn
+    NOTE: this is NOT the same set as FORWARD_SIGNS, which only decides which way
+    to count from a sign to its lord (duration). Using FORWARD_SIGNS here was the
+    bug fixed 2026-10-13 (wrong order for 8 of the 12 lagnas).
 
     Returns list of 12 sign indices in dasha order.
     """
-    if lagna_sign in FORWARD_SIGNS:
+    if lagna_sign in DIRECT_LAGNA_SIGNS:
         return [(lagna_sign + i) % 12 for i in range(12)]
     else:
         return [(lagna_sign - i) % 12 for i in range(12)]
@@ -450,13 +458,17 @@ def compute_md_sequence(lagna_sign: int) -> List[int]:
 
 def compute_ad_sequence(md_sign: int) -> List[int]:
     """
-    Antardasha sequence within a Mahadasha.
-    Starts with the MD sign. Direction follows same forward/backward rule.
+    Antardasha sequence within a Mahadasha (Rao, ch.4).
+
+    The direction follows the same 9th-house rule applied to the MAJOR-PERIOD sign
+    (DIRECT_LAGNA_SIGNS), but each sign takes its OWN sub-period LAST, not first:
+      Aries (forward)  : Taurus, Gemini, ... Pisces, Aries
+      Taurus (backward): Aries, Pisces, ... Gemini, Taurus
     """
-    if md_sign in FORWARD_SIGNS:
-        return [(md_sign + i) % 12 for i in range(12)]
+    if md_sign in DIRECT_LAGNA_SIGNS:
+        return [(md_sign + 1 + i) % 12 for i in range(12)]
     else:
-        return [(md_sign - i) % 12 for i in range(12)]
+        return [(md_sign - 1 - i) % 12 for i in range(12)]
 
 
 def compute_chara_dasha(
@@ -472,7 +484,7 @@ def compute_chara_dasha(
     (confirmed: Jaimini Chara Dasha DOES cycle — verified vs Parasara Light).
 
     Each MD contains 12 ADs, each AD = MD_duration_years in months.
-    AD sequence: starts with MD sign, direction matches MD sign's forward/backward rule.
+    AD sequence: direction by the 9th-house rule on the MD sign, MD sign LAST (Rao ch.4).
     """
     md_sequence = compute_md_sequence(lagna_sign)
     all_periods = []

@@ -23,7 +23,15 @@ Jaimini lord assignments:
 NO CYCLING — Jaimini Chara Dasha runs once through 12 signs.
   (Yogini Dasha repeats; Chara Dasha does NOT.)
 
-SEQUENCE: Even lagna → backward. Odd lagna → forward.
+SEQUENCE (K.N. Rao, "Predicting through Jaimini's Chara Dasha", ch.3 — the 9th-house rule):
+  Look at the 9th house from the lagna. If it is Aries, Taurus, Gemini, Libra,
+  Scorpio or Sagittarius the sign order runs FORWARD; if it is Cancer, Leo, Virgo,
+  Capricorn, Aquarius or Pisces it runs BACKWARD. That gives:
+    FORWARD lagnas : Aries, Leo, Virgo, Libra, Aquarius, Pisces
+    BACKWARD lagnas: Taurus, Gemini, Cancer, Scorpio, Sagittarius, Capricorn
+  (This is a different grouping from the quadrant rule above, which only decides
+  which way to COUNT from a sign to its lord. The old code used the odd/even lagna
+  rule here, which is wrong for 8 of the 12 lagnas.)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 VERIFICATION — Capricorn lagna, Nov 26 1974, New Delhi
@@ -56,8 +64,9 @@ JAIMINI_LORDS: dict[int, str] = {
 FORWARD_SIGNS  = {0, 1, 2, 6, 7, 8}
 BACKWARD_SIGNS = {3, 4, 5, 9, 10, 11}
 
-ODD_LAGNA_SIGNS  = {0, 2, 4, 6, 8, 10}   # forward sequence
-EVEN_LAGNA_SIGNS = {1, 3, 5, 7, 9, 11}   # backward sequence
+# Sequence direction from the lagna (and, for sub-periods, from the major-period
+# sign): Rao's 9th-house rule. Aries, Leo, Virgo, Libra, Aquarius, Pisces = forward.
+DIRECT_LAGNA_SIGNS = {0, 4, 5, 6, 10, 11}
 
 
 def compute_sign_duration(sign_idx: int, planet_sign: dict[str, int]) -> int:
@@ -79,8 +88,8 @@ def compute_sign_duration(sign_idx: int, planet_sign: dict[str, int]) -> int:
 
 
 def get_dasha_sequence(lagna_sign: int) -> list[int]:
-    """12-sign sequence from lagna. Odd lagna=forward, Even lagna=backward."""
-    if lagna_sign in ODD_LAGNA_SIGNS:
+    """12-sign sequence from lagna (Rao's 9th-house rule: see DIRECT_LAGNA_SIGNS)."""
+    if lagna_sign in DIRECT_LAGNA_SIGNS:
         return [(lagna_sign + i) % 12 for i in range(12)]
     else:
         return [(lagna_sign - i) % 12 for i in range(12)]
