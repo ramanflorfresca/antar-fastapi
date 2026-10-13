@@ -187,7 +187,7 @@ def chart_move(concern, chart_data, dashas, language="en", question="") -> str:
         per = _period(dashas)
         end = per[per.find("ends ") + 5:per.rfind(")")] if "ends " in per else ""
         if concern == "health":
-            when = f" Plan on slower recovery through the current sub-period (to {end}) — don't wait for it to fix itself." if (weak and end) else ""
+            when = f" Plan on slower recovery through this stretch (to {end}) — don't wait for it to fix itself." if (weak and end) else ""
             return "Fix sleep and meal times first, and get anything unusual checked early." + when
         if concern == "speculation":
             # [spec-plain 2026-10-11] no ruler / sub-period vocabulary, no far-off year in a move
@@ -283,7 +283,7 @@ def conditions(concern, chart_data, dashas, language="en", question="") -> str:
         if grp == "health":
             holds = ("Risk stays small if you act early and protect sleep and recovery time. "
                      + ("For you, recovery runs slower than the effort you put in"
-                        if weak else "Your health house is well supported, so small habits go a long way"))
+                        if weak else "Your health is well supported right now, so small habits go a long way"))
             return holds + ". It breaks if strain is pushed through without recovery time."
         if grp == "speculation":
             # [spec-plain 2026-10-11] plain words only: no "ruler of your 5th house", no sub-period date
@@ -298,7 +298,7 @@ def conditions(concern, chart_data, dashas, language="en", question="") -> str:
         from antar_engine.ask_families import family as _fam
         _f = _fam(question) if grp in ("money", "career", "property") else None
         fine, weak_t, meaning = _HOLDS[grp]
-        until = f" (the current sub-period runs to {end})" if end else ""
+        until = f" (this stretch runs to {end})" if end else ""
         if weak:
             holds = (weak_t.format(ch=ch) + " — for you, "
                      + meaning.format(until=""))
