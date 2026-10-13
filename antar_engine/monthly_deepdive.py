@@ -1038,7 +1038,11 @@ def _build_deepdive_context(
         from datetime import date as _date, timedelta as _td
         from antar_engine.jyotish_periods import month_period as _p1_mp
         try:
-            _p1_ps_iso, _p1_pe_iso = _p1_mp(birth_date) if birth_date else (None, None)
+            # [roll-scan 2026-10-13] resolve the period for the (possibly rolled) reference date, not the
+            # wall clock: after the roll `now` is the NEXT anchor day, and a bare _p1_mp(birth_date)
+            # returned the PREVIOUS period, so the event scan (and every domain window) covered the
+            # month that had just closed and the reading cached under the new key was stale.
+            _p1_ps_iso, _p1_pe_iso = _p1_mp(birth_date, now.date()) if birth_date else (None, None)
         except Exception:
             _p1_ps_iso = _p1_pe_iso = None
         if _p1_ps_iso and _p1_pe_iso:
