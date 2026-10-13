@@ -123,7 +123,9 @@ _FUND = re.compile(r"(?i)\b((?<!emergency )(?<!rainy-day )(?<!rainy day )(?<!sav
                    r"outside (money|capital|resources|funding)|other people'?s money|shared money|"
                    r"financiaci[oó]n|financiamiento|financiamento|captar (capital|recursos|inversi[oó]n)|"
                    r"inversionistas?|investidor(es)?)\b")
-_FUND_OK_CONCERNS = {"funding", "business", "startup"}
+# [funding-unasked 2026-10-13] "business" and "startup" used to be exempt, so "How do the next months look for my project?" came back with "…ni busques financiación todavía — espera hasta finales
+# de 2027". Only a funding question may talk about funding, and only the question just typed counts (an earlier turn about it does not).
+_FUND_OK_CONCERNS = {"funding"}
 _VAGUE_FILLER = re.compile(r"(?i)\bthe timing (genuinely )?shows\b|\bthe setup (for [\w ]{1,30})?is real\b|"
                            r"\bhasn'?t (fully )?(arrived|formed)\b|\bright moment\b|\bgenuine (pressure|promise)\b")
 _FILLER_OPENER = re.compile(r"(?i)\b(this|that|your)\s+(concern|feeling|worry|stuck feeling|frustration|tiredness|exhaustion|"
@@ -599,7 +601,7 @@ def polish_answer(payload: dict, language: str = "en", typed_question: str = "",
             if d_s:
                 print("[ask][polish] bold-support-on-a-NOT-YET sentence dropped")
         # unasked funding talk
-        if (concern or "") not in _FUND_OK_CONCERNS and not _FUND.search(own):
+        if (concern or "") not in _FUND_OK_CONCERNS and not _FUND.search(typed_question or ""):
             payload["read"], d1 = _drop_sentences(payload.get("read"), _FUND, keep_min=2)
             nx = payload.get("next")
             if isinstance(nx, str) and _FUND.search(nx):
