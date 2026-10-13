@@ -71,6 +71,9 @@ class Chart:
         self.k_sign = {name: planets[p].sign for name, p in self.k.items()}
         self.ul = arudha((lagna_sign + 11) % 12, planets)             # upapada
         self.a7 = arudha((lagna_sign + 6) % 12, planets)              # darapada
+        self.al = arudha(lagna_sign, planets)                         # arudha lagna (public image)
+        self.lord2 = _get_sign_lord((lagna_sign + 1) % 12, planets)
+        self.lord11 = _get_sign_lord((lagna_sign + 10) % 12, planets)
         self.d9_lagna = navamsa_sign(lagna_longitude)
         self.lord7 = _get_sign_lord((lagna_sign + 6) % 12, planets)
         self.lord5 = _get_sign_lord((lagna_sign + 4) % 12, planets)
@@ -80,7 +83,7 @@ class Chart:
 def rules_for_sign(c: Chart, s: int) -> Dict[str, List[str]]:
     """Which of Rao's rules fire when `s` is the running sign. Returns {event: [rule_id]}."""
     out: Dict[str, List[str]] = {"marriage": [], "children": [], "education": [],
-                                 "career": [], "caution": []}
+                                 "career": [], "money": [], "caution": []}
     P = c.planets
 
     # ---- Marriage eligibility (any of; wide by Rao's own admission) ----
@@ -133,6 +136,20 @@ def rules_for_sign(c: Chart, s: int) -> Dict[str, List[str]]:
                     _touches(pair_signs[a], s) and _touches(pair_signs[b], s):
                 out["career"].append(f"CAR.rajayoga_{a}_{b}_on_dasha_sign")
 
+
+    # ---- Arudha lagna (AL: how the world sees you): status and gains ----
+    h_al = _h(c.al, s)
+    if h_al in (10, 11):
+        out["career"].append("CAR.sign_10th_or_11th_from_AL")
+    if s == c.al or _aspects(s, c.al):
+        out["career"].append("CAR.sign_is_or_aspects_AL")
+    if h_al in (2, 11):
+        out["money"].append("MON.sign_2nd_or_11th_from_AL")
+    if any(_h(s, P[lp].sign) in (2, 11) for lp in (c.lord2, c.lord11)):
+        out["money"].append("MON.2nd_or_11th_lord_in_2nd_or_11th_from_dasha_sign")
+    if _touches(c.k_sign["AmK"], c.al) and (s == c.al or _aspects(s, c.al) or h_al in (10, 11)):
+        out["career"].append("CAR.AmK_touches_AL_and_sign_linked_to_AL")
+
     # ---- Rao's caution rules ----
     if _h(s, c.k_sign["AK"]) == 8:
         out["caution"].append("CAU.AK_8th_from_running_sign")
@@ -152,6 +169,7 @@ def _vim_planets(c: Chart) -> Dict[str, List[str]]:
         "children": [c.k["PK"], c.lord5, "Jupiter"],
         "education": [c.k["AmK"], c.lord5, "Mercury", "Jupiter"],
         "career": [c.k["AmK"], c.lord10],
+        "money": [c.lord2, c.lord11, "Jupiter"],
     }
 
 
@@ -211,7 +229,7 @@ def predict_windows(lagna_sign: int, lagna_longitude: float, planets: Dict[str, 
                 continue
             ar = rules_for_sign(c, ad.sign)
             events = []
-            for ev in ("marriage", "children", "education", "career"):
+            for ev in ("marriage", "children", "education", "career", "money"):
                 fired = ar[ev]
                 if len(fired) < min_rules:
                     continue

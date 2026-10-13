@@ -49,6 +49,7 @@ def _targets(event: str, lagna: int, lord_sign: Dict[str, int]) -> List[int]:
         "children": [h(5), h(9), lord_sign["5L"]],
         "education": [h(5), lord_sign["5L"]],
         "career": [h(10), lord_sign["10L"]],
+        "money": [h(2), h(11), lord_sign["2L"], lord_sign["11L"]],
     }[event]
 
 
@@ -57,7 +58,8 @@ def double_transit(event: str, c: Chart, moon_sign: int, when: datetime) -> Opti
     if not sl:
         return None
     lord_sign = {"7L": c.planets[c.lord7].sign, "5L": c.planets[c.lord5].sign,
-                 "10L": c.planets[c.lord10].sign}
+                 "10L": c.planets[c.lord10].sign,
+                 "2L": c.planets[c.lord2].sign, "11L": c.planets[c.lord11].sign}
     for base, lg in (("lagna", c.lagna), ("Moon", moon_sign)):
         # targets counted from lagna for lagna-base; from Moon for Moon-base
         tg = _targets(event, lg, lord_sign)

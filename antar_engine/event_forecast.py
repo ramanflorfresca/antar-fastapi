@@ -15,7 +15,7 @@ from antar_engine.d10_layer import d10_windows
 from antar_engine.parashari_events import parashari_windows
 
 PLAIN = {"marriage": "Relationship / marriage", "children": "Children",
-         "education": "Study and learning", "career": "Career step"}
+         "education": "Study and learning", "money": "Money / income", "career": "Career step"}
 PLANETS = ("Sun", "Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn", "Rahu", "Ketu")
 
 

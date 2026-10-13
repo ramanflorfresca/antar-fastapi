@@ -51,3 +51,26 @@ def test_composite_tiers_and_determinism():
     tiers = {e["tier"] for w in a for e in w["events"]}
     assert tiers <= {"single", "double", "triple"} and tiers
     assert any("vimshottari" in e["layers"] for w in a for e in w["events"] if e["event"] == "marriage")
+
+
+def test_arudha_lagna_rules_for_status_and_gains():
+    P = _planets()
+    c = ev.Chart(LEO, 130.0, P)
+    assert c.al not in (LEO, (LEO + 6) % 12)                  # AL is never the lagna or its 7th
+    tenth_from_al = (c.al + 9) % 12
+    r = ev.rules_for_sign(c, tenth_from_al)
+    assert "CAR.sign_10th_or_11th_from_AL" in r["career"]
+    second_from_al = (c.al + 1) % 12
+    assert "MON.sign_2nd_or_11th_from_AL" in ev.rules_for_sign(c, second_from_al)["money"]
+    assert "CAR.sign_is_or_aspects_AL" in ev.rules_for_sign(c, c.al)["career"]
+
+
+def test_money_event_flows_through_windows_and_composite():
+    from antar_engine import composite_events as ce
+    P = _planets()
+    w = ev.predict_windows(LEO, 130.0, P, datetime(1944, 8, 20), datetime(2026, 1, 1),
+                           datetime(2036, 1, 1), with_transits=False, min_rules=1)
+    assert any(e["event"] == "money" for x in w for e in x["events"])
+    cw = ce.composite_windows(LEO, 130.0, P, datetime(1944, 8, 20), datetime(2026, 1, 1),
+                              datetime(2036, 1, 1), min_rules=1)
+    assert any(e["event"] == "money" and e["tier"] in ("single", "double", "triple") for x in cw for e in x["events"])
