@@ -53,9 +53,13 @@ def run(dry_run: bool = True):
             changed += 1
             continue
         try:
-            sb.table("dasha_periods").delete().eq("chart_id", cid).eq("system", "jaimini").execute()
-            for i in range(0, len(rows), 500):
-                sb.table("dasha_periods").insert(rows[i:i + 500]).execute()
+            # chunked delete: a single delete by chart_id hits the statement timeout on large charts
+            ids = [r["id"] for r in (sb.table("dasha_periods").select("id")
+                   .eq("chart_id", cid).eq("system", "jaimini").limit(2000).execute().data or [])]
+            for i in range(0, len(ids), 50):
+                sb.table("dasha_periods").delete().in_("id", ids[i:i + 50]).execute()
+            for i in range(0, len(rows), 100):
+                sb.table("dasha_periods").insert(rows[i:i + 100]).execute()
             changed += 1
         except Exception as e:
             if "protected" in str(e).lower():
