@@ -36195,7 +36195,7 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
             "panchanga":   formatted,
             "rahu_kalam":  panchanga.get("rahu_kalam", ""),
             "abhijit":     panchanga.get("abhijit_muhurta", ""),
-            "lucky_hours": panchanga.get("lucky_hours", {}),
+            # [one-best-one-worst 2026-10-13] lucky_hours (per-activity hours) removed from the payload
             "do_today":    panchanga.get("do_today", []),
             "dont_today":  panchanga.get("dont_today", []),
             "day_color":   panchanga.get("day_color", ""),
