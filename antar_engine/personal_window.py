@@ -81,29 +81,56 @@ def current_antardasha(dashas: dict, at: datetime) -> Optional[Tuple[str, dateti
         except Exception:
             continue
         lord = r.get("planet_or_sign") or r.get("lord_or_sign") or ""
-        if s <= at < e + timedelta(days=1) and lord in VIM_SEQ:
-            return lord, s, e + timedelta(days=1)
+        if s <= at < e and lord in VIM_SEQ:               # stored periods are contiguous: end == next start
+            return lord, s, e
     return None
 
 
-def current_pratyantar(dashas: dict, today: Optional[date] = None) -> Dict[str, str]:
-    """{planet_or_sign, start_date, end_date} of the pratyantar running on `today`, derived from the running antardasha
-    with the same proportional split the Vimshottari tree uses. {} when there is no running antardasha. For charts whose
-    stored rows have no pratyantar level (the dasha calculation now writes mahadasha + antardasha only)."""
+def _iso(d: datetime) -> str:
+    """Nearest calendar day (the stored levels round the same way), as the stored timestamp string."""
+    return (d + timedelta(hours=12)).date().isoformat() + "T00:00:00+00:00"
+
+
+def derived_pd_entries(vim_entries: list, today: Optional[date] = None) -> List[Dict[str, Any]]:
+    """The 9 pratyantars of the RUNNING antardasha, in get_dashas_for_chart's entry shape, for a chart whose stored rows
+    have no pratyantar level (the dasha calculation now writes mahadasha + antardasha only). [] when the chart already
+    has pratyantar entries or no running antardasha. Same proportional split as every other level of the tree; day
+    boundaries are contiguous (each end == the next start), like the stored levels."""
     try:
+        if any(str(e.get("level", "")).lower() in ("pratyantardasha", "3") for e in (vim_entries or [])):
+            return []
         t = today or date.today()
-        at = datetime(t.year, t.month, t.day, 12)
-        cur = current_antardasha(dashas, at)
+        cur = current_antardasha({"vimsottari": vim_entries}, datetime(t.year, t.month, t.day, 12))
         if not cur:
-            return {}
-        pd = subdivide(cur[0], cur[1], cur[2], at)
-        if not pd:
-            return {}
-        return {"planet_or_sign": pd[0], "start_date": pd[1].date().isoformat(),
-                "end_date": (pd[2] - timedelta(days=1)).date().isoformat() if pd[2].time() == datetime.min.time()
-                else pd[2].date().isoformat()}
+            return []
+        lord, start, end = cur
+        total = (end - start).total_seconds()
+        i0 = VIM_SEQ.index(lord)
+        out, acc = [], 0.0
+        for k in range(9):
+            pl = VIM_SEQ[(i0 + k) % 9]
+            s0 = start + timedelta(seconds=total * acc)
+            acc += VIM_YEARS[pl] / 120.0
+            s1 = end if k == 8 else start + timedelta(seconds=total * acc)
+            out.append({"lord_or_sign": pl, "planet_or_sign": pl, "start": _iso(s0), "end": _iso(s1),
+                        "start_date": _iso(s0), "end_date": _iso(s1), "duration": 0, "duration_years": 0,
+                        "level": "pratyantardasha", "parent_lord": lord})
+        return out
     except Exception:
-        return {}
+        return []
+
+
+def current_pratyantar(dashas: dict, today: Optional[date] = None) -> Dict[str, str]:
+    """{planet_or_sign, start_date, end_date} of the pratyantar running on `today` (from a stored row, else derived)."""
+    t = today or date.today()
+    day = t.isoformat()
+    vim = (dashas or {}).get("vimsottari") or (dashas or {}).get("vimshottari") or []
+    for e in list(vim) + derived_pd_entries(vim, t):
+        if str(e.get("level", "")).lower() in ("pratyantardasha", "3") \
+                and str(e.get("start_date", ""))[:10] <= day < str(e.get("end_date", ""))[:10]:
+            return {"planet_or_sign": e.get("planet_or_sign") or e.get("lord_or_sign") or "",
+                    "start_date": str(e["start_date"])[:10], "end_date": str(e["end_date"])[:10]}
+    return {}
 
 
 # ── hora grid + scoring ──────────────────────────────────────────────────────────────────────────────────────────

@@ -3067,6 +3067,16 @@ def get_dashas_for_chart(chart_id: str) -> dict:
             "level":          row.get("type") or row.get("level", "mahadasha"),
             "parent_lord":    parent_lord,
         })
+    # [derive-pd 2026-10-13] most charts store mahadasha + antardasha only, so every reader of the pratyantar level
+    # ran without it. With derive_pratyantar on, the running antardasha's 9 pratyantars are added to the vimsottari
+    # list (same entry shape and level name a stored pratyantar row has), once, when none are stored.
+    try:
+        from antar_engine import app_config as _app_config
+        if dashas_by_system.get("vimsottari") and _app_config.get(supabase, "derive_pratyantar") == "on":
+            from antar_engine.personal_window import derived_pd_entries as _dpe
+            dashas_by_system["vimsottari"].extend(_dpe(dashas_by_system["vimsottari"]))
+    except Exception as _dpe_err:
+        print(f"[derive-pd] skipped (non-fatal): {_dpe_err}")
     return dashas_by_system
 
 # ── LLM ──────────────────────────────────────────────────────────────────────

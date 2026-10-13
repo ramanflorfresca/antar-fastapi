@@ -52,7 +52,9 @@ class _FakeTable:
 
 def _patch(m, rows):
     counter = [0]
-    m.supabase.table = lambda name, *a, **k: _FakeTable(counter, rows)
+    # only dasha_periods round trips are counted: other tables (app_config switches) are cached on their own TTL
+    m.supabase.table = lambda name, *a, **k: _FakeTable(counter if name == "dasha_periods" else [0],
+                                                        rows if name == "dasha_periods" else [])
     return counter
 
 

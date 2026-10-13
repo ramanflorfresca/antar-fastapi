@@ -42,6 +42,12 @@ ALLOWED_KEYS: Dict[str, dict] = {
                 "instead of when /home is opened. Turn on only after the app ships the loop UI and "
                 "sql_daily_loop.sql has been run.",
     },
+    "derive_pratyantar": {
+        "default": "off", "kind": "bool", "choices": ["on", "off"],
+        "help": "Add the running antardasha's pratyantars to every chart's dasha read when none are stored (most charts store "
+                "mahadasha + antardasha only), so the readers of the pratyantar level (daily engine, Ask subject promise) see it. "
+                "Changes live readings for those charts: turn on, compare, keep or switch back.",
+    },
     "home_generic_windows": {
         "default": "off", "kind": "bool", "choices": ["on", "off"],
         "help": "Show the generic best window (Abhijit muhurta) and steer-clear window (Rahu Kalam) on the new Home, the brief and the Day timeline. "

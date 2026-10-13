@@ -82,9 +82,39 @@ def test_record_retries_after_failure_and_stops_after_success(monkeypatch):
 
 
 def test_current_pratyantar_derived_from_antardasha_when_no_pd_rows():
-    d = {"vimsottari": [{"level": "antardasha", "planet_or_sign": "Rahu", "start_date": "2026-01-01", "end_date": "2028-12-31"}]}
+    d = {"vimsottari": [{"level": "antardasha", "planet_or_sign": "Rahu", "start_date": "2026-01-01", "end_date": "2029-01-01"}]}
     pd = pw.current_pratyantar(d, date(2026, 10, 13))
-    assert pd["planet_or_sign"] == "Jupiter" == pw.running_stack("Rahu", datetime(2026, 1, 1), datetime(2029, 1, 1), datetime(2026, 10, 13, 12))["pd"]
-    assert pd["start_date"] <= "2026-10-13" <= pd["end_date"]
+    assert pd["planet_or_sign"] == "Jupiter"
+    assert pd["start_date"] <= "2026-10-13" < pd["end_date"]
     assert pw.current_pratyantar({}, date(2026, 10, 13)) == {}
     assert pw.current_pratyantar({"vimsottari": [{"level": "mahadasha", "planet_or_sign": "Rahu", "start_date": "2020-01-01", "end_date": "2038-01-01"}]}) == {}
+
+
+AD = {"level": "antardasha", "planet_or_sign": "Rahu", "start_date": "2026-01-01T00:00:00+00:00", "end_date": "2029-01-01T00:00:00+00:00"}
+
+
+def test_derived_pd_entries_tile_the_antardasha_and_match_the_stored_shape():
+    ents = pw.derived_pd_entries([AD], date(2026, 10, 13))
+    assert len(ents) == 9 and ents[0]["planet_or_sign"] == "Rahu" and ents[0]["level"] == "pratyantardasha"
+    assert ents[0]["start_date"].startswith("2026-01-01") and ents[-1]["end_date"].startswith("2029-01-01")
+    for a, b in zip(ents, ents[1:]):
+        assert a["end_date"] == b["start_date"]              # contiguous, like the stored levels
+    assert {e["parent_lord"] for e in ents} == {"Rahu"}
+    for k in ("lord_or_sign", "start", "end", "duration", "duration_years"):
+        assert k in ents[0]
+
+
+def test_derived_pd_entries_leave_charts_that_store_pd_alone():
+    assert pw.derived_pd_entries([AD, {"level": "pratyantardasha", "planet_or_sign": "Rahu", "start_date": "2026-01-01", "end_date": "2026-03-01"}], date(2026, 10, 13)) == []
+    assert pw.derived_pd_entries([], date(2026, 10, 13)) == []
+    assert pw.derived_pd_entries([AD], date(2031, 1, 1)) == []             # no running antardasha
+
+
+def test_readers_pick_up_the_derived_pratyantar():
+    from antar_engine.daily_prediction_engine import _extract_current_dashas
+    d = {"vimsottari": [AD] + pw.derived_pd_entries([AD], date.today())}
+    d["vimsottari"].append({"level": "mahadasha", "planet_or_sign": "Rahu", "start_date": "2020-01-01", "end_date": "2038-01-01"})
+    # the AD above ends in 2029 only if today is inside it; guard so the test is not date-fragile
+    if "2026-01-01" <= date.today().isoformat() < "2029-01-01":
+        out = _extract_current_dashas(d)
+        assert out["ad"] == "Rahu" and out["pd"] in pw.VIM_SEQ
