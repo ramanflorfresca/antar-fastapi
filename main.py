@@ -41948,6 +41948,18 @@ async def _prewarm_topic_surfaces(chart_id: str, tz_hours, language: str = "en")
             print(f"[prewarm] {name} complete chart={chart_id} lang={language}")
         except Exception as _te_err:
             print(f"[prewarm] {name} FAILED (non-fatal) chart={chart_id}: {_te_err}")
+    # [home-cold-start 2026-10-13] The new Home also reads the monthly deep-dive and the annual plan. Each is generated once per period
+    # (a cache hit afterwards is one DB read) but a cold one costs 12-45 s, which is what a user paid on their first Home open
+    # (horizon month ~20 s, year > 45 s). Warm them here, off the request path. HOME_PREWARM_READS=off disables.
+    if os.getenv("HOME_PREWARM_READS", "on").strip().lower() not in ("off", "0", "false", "no"):
+        import asyncio as _pw_aio
+        for name, make in (("monthly-deepdive", lambda: get_monthly_deepdive(chart_id=chart_id, language=language)),
+                           ("annual-plan", lambda: get_annual_plan(chart_id=chart_id, language=language))):
+            try:
+                await _pw_aio.wait_for(make(), timeout=120)
+                print(f"[prewarm] {name} complete chart={chart_id} lang={language}")
+            except Exception as _hp_err:
+                print(f"[prewarm] {name} FAILED (non-fatal) chart={chart_id}: {_hp_err!r}")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -52850,6 +52862,24 @@ async def get_phase_view(chart_id: str, language: Optional[str] = None, tz_offse
     return _pv.build(dashas, feed, language or "en", _prac_local_date(tz_offset))
 
 
+_HOME_BG_TASKS: set = set()
+
+
+async def _bounded_source(make_coro, seconds: float):
+    """[home-cold-start 2026-10-13] Wait for a Home source (daily signal, monthly deep-dive, annual plan) for at most `seconds`.
+    Returns (result, pending). On timeout the work KEEPS RUNNING in the background (shielded, strong ref held) and fills its cache,
+    so the front end's retry a few seconds later is a cache hit. A cold month/year used to block the request for 20-45 s and then
+    504. An exception from the source still propagates to the caller (that is a failure, not a wait)."""
+    import asyncio as _aio
+    task = _aio.ensure_future(make_coro())
+    _HOME_BG_TASKS.add(task)
+    task.add_done_callback(_HOME_BG_TASKS.discard)
+    try:
+        return await _aio.wait_for(_aio.shield(task), timeout=seconds), False
+    except _aio.TimeoutError:
+        return None, True
+
+
 def _require_chart_uuid(chart_id) -> str:
     """[home-endpoints 2026-10-13] A malformed chart id (truncated, empty-looking, 'undefined') used to reach PostgREST and come back
     as an unhandled 500 (invalid input syntax for type uuid). The Home endpoints answer a clean 404 instead, like /daily-signal."""
@@ -52873,7 +52903,8 @@ async def get_instrument_brief(chart_id: str, language: Optional[str] = None, tz
     lang = language or "en"
     signal = {}
     try:
-        signal = await get_daily_signal_endpoint(chart_id=chart_id, language=lang) or {}
+        signal, _brief_pending = await _bounded_source(lambda: get_daily_signal_endpoint(chart_id=chart_id, language=lang), 8.0)
+        signal = signal or {}
     except Exception as e:
         print(f"[brief] signal skipped: {e!r}")
     feed = phase = None
@@ -53005,7 +53036,10 @@ async def get_horizon_card(chart_id: str, scope: str = "today", language: Option
     try:
         if scope == "today":
             from antar_engine import brief as _br
-            sig = await _aio.wait_for(get_daily_signal_endpoint(chart_id=chart_id, language=lang), timeout=45) or {}
+            sig, _pending = await _bounded_source(lambda: get_daily_signal_endpoint(chart_id=chart_id, language=lang), 8.0)
+            if _pending:
+                return await _with_greeting(_hz._empty(scope, _hz._lang(lang), pending=True))
+            sig = sig or {}
             tone = _br._WORD[_br._lang(lang)][_br.derive_verdict(sig)]
             wd = ("lunes martes mi\u00e9rcoles jueves viernes s\u00e1bado domingo".split() if _hz._lang(lang) == "es"
                   else "Monday Tuesday Wednesday Thursday Friday Saturday Sunday".split())[today.weekday()]
@@ -53013,10 +53047,14 @@ async def get_horizon_card(chart_id: str, scope: str = "today", language: Option
             return await _with_greeting(_hz.build_today(sig, feed, lang, tone, f"{wd}, {_hz._fmt(today, _hz._lang(lang))}",
                                                         show_windows=_ach.get_bool(supabase, "home_generic_windows", False)))
         if scope == "month":
-            md = await _aio.wait_for(get_monthly_deepdive(chart_id=chart_id, language=lang), timeout=45) or {}
-            return await _with_greeting(_hz.build_month(md, feed, lang))
-        yr = await _aio.wait_for(get_annual_plan(chart_id=chart_id, language=lang), timeout=45) or {}
-        return await _with_greeting(_hz.build_year(yr, feed, lang))
+            md, _pending = await _bounded_source(lambda: get_monthly_deepdive(chart_id=chart_id, language=lang), 7.0)
+            if _pending:
+                return await _with_greeting(_hz._empty(scope, _hz._lang(lang), pending=True))
+            return await _with_greeting(_hz.build_month(md or {}, feed, lang))
+        yr, _pending = await _bounded_source(lambda: get_annual_plan(chart_id=chart_id, language=lang), 7.0)
+        if _pending:
+            return await _with_greeting(_hz._empty(scope, _hz._lang(lang), pending=True))
+        return await _with_greeting(_hz.build_year(yr or {}, feed, lang))
     except Exception as e:
         print(f"[horizon] {scope} source not ready: {e!r}")
         return await _with_greeting(_hz._empty(scope, _hz._lang(lang)))

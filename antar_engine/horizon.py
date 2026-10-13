@@ -173,8 +173,10 @@ def greeting(first_name: Optional[str], local_now: datetime, language: str = "en
     return out
 
 
-def _empty(scope: str, lg: str) -> Dict[str, Any]:
-    return {"version": "horizon-1", "scope": scope, "available": False, "label": _T[lg][scope]}
+def _empty(scope: str, lg: str, pending: bool = False) -> Dict[str, Any]:
+    """Nothing to show. `pending: true` means the source is still being prepared (a cold month, year or day) and a retry in a few seconds
+    will find it; `pending: false` means it could not be built. Never any words for the user."""
+    return {"version": "horizon-1", "scope": scope, "available": False, "pending": bool(pending), "label": _T[lg][scope]}
 
 
 def _finish(scope: str, lg: str, **kw) -> Dict[str, Any]:
