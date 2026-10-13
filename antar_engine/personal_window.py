@@ -91,11 +91,25 @@ def _iso(d: datetime) -> str:
     return (d + timedelta(hours=12)).date().isoformat() + "T00:00:00+00:00"
 
 
+def split_antardasha(lord: str, start: datetime, end: datetime) -> List[Tuple[str, datetime, datetime]]:
+    """The 9 pratyantars of one antardasha [start, end): (lord, start, end), beginning with the antardasha's own lord,
+    proportional to the Vimshottari years, contiguous (each end == the next start)."""
+    total = (end - start).total_seconds()
+    i0 = VIM_SEQ.index(lord)
+    out, acc = [], 0.0
+    for k in range(9):
+        pl = VIM_SEQ[(i0 + k) % 9]
+        s0 = start + timedelta(seconds=total * acc)
+        acc += VIM_YEARS[pl] / 120.0
+        s1 = end if k == 8 else start + timedelta(seconds=total * acc)
+        out.append((pl, s0, s1))
+    return out
+
+
 def derived_pd_entries(vim_entries: list, today: Optional[date] = None) -> List[Dict[str, Any]]:
     """The 9 pratyantars of the RUNNING antardasha, in get_dashas_for_chart's entry shape, for a chart whose stored rows
-    have no pratyantar level (the dasha calculation now writes mahadasha + antardasha only). [] when the chart already
-    has pratyantar entries or no running antardasha. Same proportional split as every other level of the tree; day
-    boundaries are contiguous (each end == the next start), like the stored levels."""
+    have no pratyantar level. [] when the chart already has pratyantar entries or no running antardasha. Same split as
+    every other level of the tree; day boundaries are contiguous, like the stored levels."""
     try:
         if any(str(e.get("level", "")).lower() in ("pratyantardasha", "3") for e in (vim_entries or [])):
             return []
@@ -104,18 +118,9 @@ def derived_pd_entries(vim_entries: list, today: Optional[date] = None) -> List[
         if not cur:
             return []
         lord, start, end = cur
-        total = (end - start).total_seconds()
-        i0 = VIM_SEQ.index(lord)
-        out, acc = [], 0.0
-        for k in range(9):
-            pl = VIM_SEQ[(i0 + k) % 9]
-            s0 = start + timedelta(seconds=total * acc)
-            acc += VIM_YEARS[pl] / 120.0
-            s1 = end if k == 8 else start + timedelta(seconds=total * acc)
-            out.append({"lord_or_sign": pl, "planet_or_sign": pl, "start": _iso(s0), "end": _iso(s1),
-                        "start_date": _iso(s0), "end_date": _iso(s1), "duration": 0, "duration_years": 0,
-                        "level": "pratyantardasha", "parent_lord": lord})
-        return out
+        return [{"lord_or_sign": pl, "planet_or_sign": pl, "start": _iso(s0), "end": _iso(s1),
+                 "start_date": _iso(s0), "end_date": _iso(s1), "duration": 0, "duration_years": 0,
+                 "level": "pratyantardasha", "parent_lord": lord} for pl, s0, s1 in split_antardasha(lord, start, end)]
     except Exception:
         return []
 

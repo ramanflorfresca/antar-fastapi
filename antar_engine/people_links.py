@@ -380,24 +380,10 @@ def _flat_dashas(raw) -> list:
 
 
 def build_dasha_rows(chart_id: str, chart: dict) -> list:
-    """dasha_periods rows (vimsottari + ashtottari) for a person chart, same shape
-    compatibility_start stores. Each system fails independently."""
-    from antar_engine import vimsottari as _vim, ashtottari as _ash
-    rows = []
-    for system, fn in (("vimsottari", _vim.calculate_vimsottari_from_chart),
-                       ("ashtottari", _ash.calculate_ashtottari_from_chart)):
-        try:
-            periods = _flat_dashas(fn(chart, chart.get("birth_jd")))
-        except Exception:
-            periods = []
-        for i, p in enumerate(periods):
-            lvl = p["level"]
-            rows.append({
-                "chart_id": chart_id, "system": system, "type": lvl,
-                "level": 1 if lvl == "mahadasha" else (2 if lvl == "antardasha" else 3),
-                "planet_or_sign": p["lord"], "start_date": p["start_date"],
-                "end_date": p["end_date"], "duration_years": p["duration_years"],
-                "sequence": i, "parent_id": None,
-                "metadata": {"parent_lord": p["parent_lord"], "type": lvl},
-            })
-    return rows
+    """dasha_periods rows (vimsottari incl. pratyantars + ashtottari) for a person chart. The old body fed the calculators'
+    {mahadashas, antardashas} dict to a list flattener and so returned [] for every chart; the shared builder is the one
+    chart creation uses."""
+    from antar_engine import dasha_heal as _dh
+    sysd = _dh.compute(chart, chart.get("birth_date") or "")
+    sysd["jaimini"] = []        # needs the birth date; a person edit never stored it here
+    return _dh.build_rows(chart_id, sysd)

@@ -15842,7 +15842,13 @@ async def _create_chart_for_user(request: "ChartCreateRequest", user_id: Optiona
         raise HTTPException(500, f"Failed to save chart: {e}")
 
     dasha_rows = []
-    for system, periods in [("vimsottari",vim_dashas),("jaimini",jai_dashas),("ashtottari",ash_dashas)]:
+    try:
+        from antar_engine.dasha_heal import pratyantars_for as _pd_for
+        _vim_with_pd = vim_dashas + _pd_for(vim_dashas)       # [store-pd 2026-10-13] the third level, 729 rows
+    except Exception as _pdx:
+        print(f"[dasha] pratyantars skipped (non-fatal): {_pdx}")
+        _vim_with_pd = vim_dashas
+    for system, periods in [("vimsottari",_vim_with_pd),("jaimini",jai_dashas),("ashtottari",ash_dashas)]:
         for i, p in enumerate(periods):
             lord = p.get("lord") or p.get("lord_or_sign") or p.get("planet_or_sign", "")
             # Get dates and strip to YYYY-MM-DD regardless of format
@@ -19035,6 +19041,11 @@ def _rederive_after_birth_edit(chart_id: str, chart_data: dict, birth_date: str)
         except Exception as e:
             print(f"[edit-birth] ashtottari: {e}")
         rows = []
+        try:
+            from antar_engine.dasha_heal import pratyantars_for as _pd_for2
+            vim = vim + _pd_for2(vim)                          # [store-pd 2026-10-13] the third level, 729 rows
+        except Exception as _pdx2:
+            print(f"[edit-birth] pratyantars skipped (non-fatal): {_pdx2}")
         for system, periods in (("vimsottari", vim), ("jaimini", jai), ("ashtottari", ash)):
             for i, p in enumerate(periods):
                 lord = p.get("lord") or p.get("lord_or_sign") or p.get("planet_or_sign", "")

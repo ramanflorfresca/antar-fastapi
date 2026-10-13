@@ -51,6 +51,34 @@ def _flat(raw) -> List[dict]:
     return out
 
 
+def pratyantars_for(vim_flat: List[dict]) -> List[dict]:
+    """Flat pratyantardasha periods for EVERY antardasha in `vim_flat` (the 9 x 81 = 729 levels charts used to store).
+    The dasha calculation now returns mahadasha + antardasha only; this is the third level, from the same proportional
+    split the tree uses. Empty when the list already has pratyantars or has no usable antardashas."""
+    from datetime import datetime
+    from antar_engine.personal_window import VIM_SEQ, split_antardasha, _iso
+    if any(str(p.get("level", "")).lower() in ("pratyantardasha", "3") for p in vim_flat or []):
+        return []
+    out: List[dict] = []
+    for ad in vim_flat or []:
+        if str(ad.get("level", "")).lower() not in ("antardasha", "2"):
+            continue
+        lord = ad.get("planet_or_sign") or ad.get("lord_or_sign") or ad.get("lord") or ""
+        try:
+            s = datetime.fromisoformat(str(ad.get("start_date") or ad.get("start"))[:10])
+            e = datetime.fromisoformat(str(ad.get("end_date") or ad.get("end"))[:10])
+        except Exception:
+            continue
+        if lord not in VIM_SEQ or e <= s:
+            continue
+        for pl, s0, s1 in split_antardasha(lord, s, e):
+            out.append({"lord": pl, "planet_or_sign": pl, "lord_or_sign": pl,
+                        "start_date": _iso(s0)[:10], "end_date": _iso(s1)[:10], "start": _iso(s0)[:10], "end": _iso(s1)[:10],
+                        "duration_years": round((s1 - s0).total_seconds() / 86400.0 / 365.25, 4),
+                        "level": "pratyantardasha", "parent_lord": lord})
+    return out
+
+
 def compute(chart_data: dict, birth_date: str) -> Dict[str, List[dict]]:
     """{system: flat periods}; a system that fails to compute is left empty (and logged), never raises."""
     from antar_engine import vimsottari, ashtottari
@@ -58,6 +86,7 @@ def compute(chart_data: dict, birth_date: str) -> Dict[str, List[dict]]:
     bjd = (chart_data or {}).get("birth_jd")
     try:
         out["vimsottari"] = _flat(vimsottari.calculate_vimsottari_from_chart(chart_data, bjd))
+        out["vimsottari"] = out["vimsottari"] + pratyantars_for(out["vimsottari"])
     except Exception as e:
         print(f"[dasha-heal] vimsottari failed: {e}")
     try:
@@ -121,6 +150,36 @@ def heal(supabase, chart_id: str, dry_run: bool = False) -> int:
         return 0
     for i in range(0, len(rows), 100):
         supabase.table("dasha_periods").insert(rows[i:i + 100]).execute()
+    try:
+        from antar_engine import dasha_cache
+        dasha_cache.invalidate(chart_id)
+    except Exception:
+        pass
+    return len(rows)
+
+
+def backfill_pratyantars(supabase, chart_id: str, dry_run: bool = False) -> int:
+    """Insert the pratyantar level (729 rows) for a chart that stores antardashas but no pratyantars. Insert-only, built from
+    the chart's OWN stored antardasha rows (so it can never disagree with them), skipped if any level-3 row exists."""
+    have3 = supabase.table("dasha_periods").select("id").eq("chart_id", chart_id).eq("system", "vimsottari").eq("level", 3).limit(1).execute().data
+    if have3:
+        return 0
+    ads, o = [], 0
+    while True:
+        r = (supabase.table("dasha_periods").select("planet_or_sign,start_date,end_date").eq("chart_id", chart_id)
+             .eq("system", "vimsottari").eq("level", 2).order("sequence").range(o, o + 999).execute().data or [])
+        ads += r
+        if len(r) < 1000:
+            break
+        o += 1000
+    flat = [{"level": "antardasha", "planet_or_sign": a["planet_or_sign"], "start_date": a["start_date"], "end_date": a["end_date"]} for a in ads]
+    rows = build_rows(chart_id, {"vimsottari": pratyantars_for(flat)})
+    if not rows or dry_run:
+        return len(rows)
+    if supabase.table("dasha_periods").select("id").eq("chart_id", chart_id).eq("system", "vimsottari").eq("level", 3).limit(1).execute().data:
+        return 0                                           # another worker did it while we computed
+    for i in range(0, len(rows), 250):
+        supabase.table("dasha_periods").insert(rows[i:i + 250]).execute()
     try:
         from antar_engine import dasha_cache
         dasha_cache.invalidate(chart_id)
