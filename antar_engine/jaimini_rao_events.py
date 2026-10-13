@@ -36,14 +36,16 @@ def _sign_of(h: int, frm: int) -> int:
 
 
 def arudha(house_sign: int, planets: Dict[str, Planet]) -> int:
-    """Arudha (pada) of a house: lord's distance projected again; if it lands in the
-    house itself or its 7th, take the 10th from the house."""
+    """Arudha (pada) of a house: the lord's distance projected again. Same house -> 10th from the
+    house; 7th from the house -> 4th from the house (10th from the arudha), per Sutras 1.1.28 ff."""
     lord = _get_sign_lord(house_sign, planets)
     lsign = planets[lord].sign
     d = (lsign - house_sign) % 12
     proj = (lsign + d) % 12
-    if proj == house_sign or proj == (house_sign + 6) % 12:
-        proj = (house_sign + 9) % 12
+    if proj == house_sign:
+        proj = (house_sign + 9) % 12          # same house -> 10th from the house
+    elif proj == (house_sign + 6) % 12:
+        proj = (house_sign + 3) % 12          # 7th from the house -> 4th from the house (10th from the arudha)
     return proj
 
 
