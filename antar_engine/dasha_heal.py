@@ -129,10 +129,59 @@ def _has_rows(supabase, chart_id: str) -> bool:
     return bool(supabase.table("dasha_periods").select("id").eq("chart_id", chart_id).limit(1).execute().data)
 
 
-def heal(supabase, chart_id: str, dry_run: bool = False) -> int:
-    """Insert the chart's dasha rows if it has none. Returns the number of rows inserted (or that would be)."""
-    if _has_rows(supabase, chart_id):
+def _chart_inputs(supabase, chart_id: str):
+    res = supabase.table("charts").select("chart_data,birth_date").eq("id", chart_id).execute().data
+    if not res:
+        return None, ""
+    cd = res[0].get("chart_data")
+    if isinstance(cd, str):
+        cd = json.loads(cd)
+    return (cd if isinstance(cd, dict) and cd.get("planets") else None), (res[0].get("birth_date") or "")
+
+
+def complete_vimsottari(supabase, chart_id: str, dry_run: bool = False) -> int:
+    """For a chart that has other dasha rows but NO vimsottari antardasha (an early creation stopped part-way): insert the
+    vimsottari levels that are missing (mahadasha only if absent; antardasha; pratyantar), leaving every existing row alone.
+    If the chart already stores mahadashas they must equal the recomputed ones, else nothing is written."""
+    def _lvl(n):
+        return supabase.table("dasha_periods").select("planet_or_sign,start_date,end_date").eq("chart_id", chart_id) \
+            .eq("system", "vimsottari").eq("level", n).order("sequence").limit(1000).execute().data or []
+    if _lvl(2):
         return 0
+    cd, bd = _chart_inputs(supabase, chart_id)
+    if cd is None:
+        return 0
+    vim = compute(cd, bd)["vimsottari"]
+    mds = [p for p in vim if p["level"] == "mahadasha"]
+    if not mds or not any(p["level"] == "antardasha" for p in vim):
+        return 0
+    have_md = _lvl(1)
+    if have_md and [(m["planet_or_sign"], str(m["start_date"])[:10]) for m in have_md] != \
+            [(m["planet_or_sign"], str(m["start_date"])[:10]) for m in mds]:
+        print(f"[dasha-heal] chart={chart_id[:8]} stored mahadashas differ from the recomputed ones: not touching")
+        return 0
+    rows = build_rows(chart_id, {"vimsottari": vim})
+    if have_md:
+        rows = [r for r in rows if r["level"] != 1]
+    if dry_run or not rows:
+        return len(rows)
+    if _lvl(2):                                        # another worker completed it while we computed
+        return 0
+    for i in range(0, len(rows), 250):
+        supabase.table("dasha_periods").insert(rows[i:i + 250]).execute()
+    try:
+        from antar_engine import dasha_cache
+        dasha_cache.invalidate(chart_id)
+    except Exception:
+        pass
+    return len(rows)
+
+
+def heal(supabase, chart_id: str, dry_run: bool = False) -> int:
+    """Insert the chart's dasha rows if it has none, or the missing vimsottari levels if it has other rows but no
+    vimsottari antardasha. Returns the number of rows inserted (or that would be)."""
+    if _has_rows(supabase, chart_id):
+        return complete_vimsottari(supabase, chart_id, dry_run)
     res = supabase.table("charts").select("chart_data,birth_date").eq("id", chart_id).execute().data
     if not res:
         return 0

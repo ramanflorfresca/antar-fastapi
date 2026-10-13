@@ -14,6 +14,7 @@ class _Q:
     def select(self, *_): return self
     def eq(self, k, v): self.f[k] = v; return self
     def limit(self, *_): return self
+    def order(self, *_): return self
     def insert(self, rows): self.rows = rows; return self
     def execute(self):
         if self.rows is not None:
@@ -119,3 +120,51 @@ def test_backfill_builds_from_the_charts_own_antardashas_and_is_insert_only():
     assert dh.backfill_pratyantars(db, "cid") == 729 and len(db.inserted) == 729
     assert dh.backfill_pratyantars(db, "cid") == 0                 # now has level 3: untouched
     assert dh.backfill_pratyantars(_BF(ads, has3=True), "cid") == 0
+
+
+class _CV:
+    """dasha_periods stub with per-level rows for one chart; charts table returns a real computed chart."""
+    def __init__(self, mds=None, ads=None):
+        self.levels = {1: list(mds or []), 2: list(ads or []), 3: []}
+        self.inserted = []
+        cd = _chart()
+        self.chart = [{"chart_data": json.dumps(cd), "birth_date": "1990-10-24"}]
+    def table(self, t): return _CVQ(self, t)
+
+
+class _CVQ:
+    def __init__(self, db, t): self.db, self.t, self.f, self.rows = db, t, {}, None
+    def select(self, *_): return self
+    def eq(self, k, v): self.f[k] = v; return self
+    def order(self, *_): return self
+    def limit(self, *_): return self
+    def insert(self, rows): self.rows = rows; return self
+    def execute(self):
+        if self.rows is not None:
+            for r in self.rows:
+                self.db.levels.setdefault(r["level"], []).append(r) if r["system"] == "vimsottari" else None
+            self.db.inserted.extend(self.rows)
+            return type("R", (), {"data": self.rows})
+        if self.t == "charts":
+            return type("R", (), {"data": self.db.chart})
+        return type("R", (), {"data": self.db.levels.get(self.f.get("level"), [])})
+
+
+def test_complete_vimsottari_adds_missing_levels_and_keeps_existing_rows():
+    vim = dh.compute(_chart(), "1990-10-24")["vimsottari"]
+    mds = [{"planet_or_sign": p["planet_or_sign"], "start_date": p["start_date"], "end_date": p["end_date"]} for p in vim if p["level"] == "mahadasha"]
+    db = _CV(mds=mds)                                              # mahadasha only, like the early charts
+    assert dh.complete_vimsottari(db, "cid", dry_run=True) == 81 + 729 and db.inserted == []
+    assert dh.complete_vimsottari(db, "cid") == 810
+    assert {r["level"] for r in db.inserted} == {2, 3}             # the 9 mahadasha rows are never re-inserted
+    assert dh.complete_vimsottari(db, "cid") == 0                  # has antardashas now: untouched
+
+
+def test_complete_vimsottari_refuses_when_stored_mahadashas_disagree():
+    db = _CV(mds=[{"planet_or_sign": "Sun", "start_date": "1900-01-01", "end_date": "1906-01-01"}])
+    assert dh.complete_vimsottari(db, "cid") == 0 and db.inserted == []
+
+
+def test_complete_vimsottari_from_nothing_inserts_all_three_levels():
+    db = _CV()
+    assert dh.complete_vimsottari(db, "cid") == 9 + 81 + 729

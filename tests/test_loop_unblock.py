@@ -28,9 +28,12 @@ def m():
     import main
     original_table = main.supabase.table
     main.invalidate_dasha_cache()
+    from antar_engine import dasha_heal
+    original_schedule, dasha_heal.schedule = dasha_heal.schedule, lambda *a, **k: False   # no repair thread in these stubs
     try:
         yield main
     finally:
+        dasha_heal.schedule = original_schedule
         main.supabase.table = original_table
         main.invalidate_dasha_cache()
 
