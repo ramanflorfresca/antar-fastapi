@@ -232,10 +232,18 @@ def beyond(feed: Optional[Dict[str, Any]], phase: Optional[Dict[str, Any]], lang
                       "text": (f"Etapa de cuidado en {w.get('topic')} en {w.get('opens_in_days')} días."
                                if es else f"A care stretch for {w.get('topic')} starts in {w.get('opens_in_days')} days."),
                       "range": w.get("label_range")})
-    if phase and phase.get("available") and phase.get("how_they_combine"):
-        ch = phase.get("chapter") or {}
-        items.append({"zoom": "chapter", "topic": None, "text": phase.get("how_they_combine"),
-                      "range": f"{ch.get('start')} \u2192 {ch.get('end')}" if ch.get("start") else None})
+    if phase and phase.get("available"):
+        ch, sh = phase.get("chapter") or {}, phase.get("shift") or {}
+        if ch.get("plain_name") and str(ch.get("end") or "")[:4].isdigit():
+            ce = str(ch["end"])[:4]
+            if sh.get("plain_name") and str(sh.get("end") or "")[:4].isdigit():
+                se = str(sh["end"])[:4]
+                text = (f"Cap\u00edtulo: {ch['plain_name']}, hasta {ce}. Etapa actual: {sh['plain_name']}, hasta {se}."
+                        if es else f"Chapter: {ch['plain_name']}, to {ce}. Current shift: {sh['plain_name']}, to {se}.")
+            else:
+                text = f"Cap\u00edtulo: {ch['plain_name']}, hasta {ce}." if es else f"Chapter: {ch['plain_name']}, to {ce}."
+            items.append({"zoom": "chapter", "topic": None, "text": text,
+                          "range": f"{str(ch.get('start'))[:4]} \u2192 {ce}" if ch.get("start") else None})
     return items
 
 
