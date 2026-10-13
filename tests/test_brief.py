@@ -47,3 +47,24 @@ def test_beyond_items():
     assert [i["zoom"] for i in B.beyond(feed, phase)] == ["year", "year", "chapter"]
     feed["care"][0]["opens_in_days"] = 12
     assert B.beyond(feed, None)[1]["zoom"] == "month"
+
+
+def test_no_repeat_within_pool_window_and_pools_sizes():
+    from datetime import timedelta
+    for lang in ("en", "es"):
+        for v in B.VERDICTS:
+            n = len(B._LINES[lang][v])
+            assert n >= 12
+            d0 = date(2026, 10, 12)
+            seen = [B.pick_line("c", d0 + timedelta(days=i), v, lang) for i in range(n)]
+            assert len(set(seen)) == n          # a full cycle shows every line once, no repeat
+    assert len(B._LINES["en"]["steady"]) == len(B._LINES["es"]["steady"]) == 18
+
+
+def test_lines_obey_voice_rules():
+    banned = ("!", "energy", "universe", "cosmic", "vibe", "will happen", "you must")
+    for lang in B._LINES.values():
+        for pool in lang.values():
+            for line in pool:
+                assert not any(b in line.lower() for b in banned), line
+                assert len(line.split()) <= 18, line
