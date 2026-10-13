@@ -140,6 +140,39 @@ def _converse(scope: str, coming: List[Dict[str, Any]], lg: str) -> Dict[str, An
     return {"opener": t["opener"][scope], "chips": chips[:3]}
 
 
+_GREET = {"en": {"morning": "Good morning", "afternoon": "Good afternoon", "evening": "Good evening"},
+          "es": {"morning": "Buenos d\u00edas", "afternoon": "Buenas tardes", "evening": "Buenas noches"}}
+_WEEKDAY = {"en": ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"),
+            "es": ("lunes", "martes", "mi\u00e9rcoles", "jueves", "viernes", "s\u00e1bado", "domingo")}
+_MONTH = {"en": ("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"),
+          "es": ("enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre")}
+
+
+def greeting(first_name: Optional[str], local_now: datetime, language: str = "en", season: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Every Home screen opens with a greeting made for THIS person: their first name, the right part of their day, the date, and
+    where they are in their running season ("Month 3 of your Ambition season"). Deterministic; no model call. The name is used
+    exactly as stored (never guessed); with no name the greeting simply drops it."""
+    lg = _lang(language)
+    h = local_now.hour
+    part = "morning" if 5 <= h < 12 else "afternoon" if 12 <= h < 17 else "evening"
+    name = _s(first_name).split(" ")[0] if _s(first_name) else ""
+    text = f"{_GREET[lg][part]}, {name}" if name else _GREET[lg][part]
+    d = local_now.date()
+    date_txt = (f"{_WEEKDAY[lg][d.weekday()]}, {d.day} de {_MONTH[lg][d.month - 1]}" if lg == "es"
+                else f"{_WEEKDAY[lg][d.weekday()]}, {_MONTH[lg][d.month - 1]} {d.day}")
+    out: Dict[str, Any] = {"text": text + ("." if False else ""), "date": date_txt, "part": part, "name": name or None, "context": ""}
+    try:
+        if season and season.get("start") and season.get("title"):
+            s = _dt(season["start"])
+            if s and s <= d:
+                months = (d.year - s.year) * 12 + (d.month - s.month) + 1
+                out["context"] = (f"Mes {months} de tu {season['title'].lower()}" if lg == "es"
+                                  else f"Month {months} of your {season['title'].lower()}")
+    except Exception:
+        pass
+    return out
+
+
 def _empty(scope: str, lg: str) -> Dict[str, Any]:
     return {"version": "horizon-1", "scope": scope, "available": False, "label": _T[lg][scope]}
 
