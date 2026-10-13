@@ -499,6 +499,25 @@ _PARTNER_ASSUMED = re.compile(r"(?i)\byou and your (business )?partner\b|\b(a|th
                               r"\byou y tu socio\b|\bun nuevo socio\b")
 
 
+# [repeat-sentence 2026-10-12] A speculation read said "your gains tend to arrive in bursts and give some of it back" and, three sentences later, "Your gains tend to come in bursts and give
+# some of it back, so take what you set out to take and stop" (the lead and the basis text each carry the idea). A later sentence that shares a run of six words with an earlier one is dropped.
+def drop_repeated_sentences(text, keep_min: int = 2, run: int = 6):
+    if not isinstance(text, str) or not text.strip():
+        return text, False
+    sents = [x for x in _SENT.split(text.strip()) if x.strip()]
+    seen, kept = set(), []
+    for x in sents:
+        words = re.findall(r"[\w']+", x.lower())
+        grams = {" ".join(words[i:i + run]) for i in range(len(words) - run + 1)}
+        if grams and grams & seen:
+            continue
+        seen |= grams
+        kept.append(x)
+    if len(kept) == len(sents) or len(kept) < keep_min:
+        return text, False
+    return " ".join(kept), True
+
+
 # a caution against bold moves, or the opposite, in an answer whose verdict says otherwise
 _CAUTION_BOLD = re.compile(r"(?i)\bsteady,? grounded\b|\b(over|than|not|rather than) (bold|dramatic|big) (pivots?|bets?|moves?|decisions?)\b|"
                            r"\bbold (new )?(bets?|pivots?)\b|\bavoid (bold|big) (moves?|decisions?)\b|"
@@ -657,6 +676,9 @@ def polish_answer(payload: dict, language: str = "en", typed_question: str = "",
                     print("[ask][polish] unasked partner sentence dropped")
                 if isinstance(payload.get("next"), str) and _PARTNER_ASSUMED.search(payload["next"]):
                     payload["next"] = None
+            payload["read"], _rp = drop_repeated_sentences(payload.get("read"))
+            if _rp:
+                print("[ask][polish] repeated sentence dropped")
             payload["read"], _pr = strip_pressure(payload.get("read"))
             payload["read"], _ck = strip_clock_deadlines(payload.get("read"), typed_question)
             if _ck:
