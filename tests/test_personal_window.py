@@ -79,3 +79,12 @@ def test_record_retries_after_failure_and_stops_after_success(monkeypatch):
     db.fail = False
     assert pw.record(db, "c1", p) is True and len(db.rows) == 1
     assert pw.record(db, "c1", p) is False and len(db.rows) == 1   # done: never written twice
+
+
+def test_current_pratyantar_derived_from_antardasha_when_no_pd_rows():
+    d = {"vimsottari": [{"level": "antardasha", "planet_or_sign": "Rahu", "start_date": "2026-01-01", "end_date": "2028-12-31"}]}
+    pd = pw.current_pratyantar(d, date(2026, 10, 13))
+    assert pd["planet_or_sign"] == "Jupiter" == pw.running_stack("Rahu", datetime(2026, 1, 1), datetime(2029, 1, 1), datetime(2026, 10, 13, 12))["pd"]
+    assert pd["start_date"] <= "2026-10-13" <= pd["end_date"]
+    assert pw.current_pratyantar({}, date(2026, 10, 13)) == {}
+    assert pw.current_pratyantar({"vimsottari": [{"level": "mahadasha", "planet_or_sign": "Rahu", "start_date": "2020-01-01", "end_date": "2038-01-01"}]}) == {}
