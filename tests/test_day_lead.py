@@ -1,6 +1,10 @@
 from datetime import date
 
+import pytest
+
 from antar_engine import practice_composer as PC
+
+_REAL_STAR = PC.moon_star_today
 
 YEAR = {"planet": "Venus", "scope": "varshphal_year", "severity": 0.8}
 CYCLE = {"planet": "Saturn", "scope": "dasha_period", "severity": 0.5}
@@ -8,6 +12,11 @@ NATAL = {"planet": "Mars", "scope": "natal_weakness", "severity": 0.6}
 TODAY_HIT = {"planet": "Mercury", "scope": "daily_transit", "severity": 0.4}
 
 FRI, SAT, TUE, WED = date(2026, 10, 9), date(2026, 10, 10), date(2026, 10, 13), date(2026, 10, 14)
+
+
+@pytest.fixture(autouse=True)
+def _no_star(monkeypatch):
+    monkeypatch.setattr(PC, "moon_star_today", lambda d: None)     # isolate the weekday rule; star rule tested below
 
 
 def lead(actives, d):
@@ -52,3 +61,32 @@ def test_why_now_names_the_weekday_not_the_year():
     e = dict(YEAR, day_basis="weekday_ruler", _weekday=SAT.weekday())
     assert "Saturday" in PC._why_now(e, "en") and "annual chart" not in PC._why_now(e, "en")
     assert "sábado" in PC._why_now(e, "es")
+
+
+def test_moon_star_lord_beats_the_weekday(monkeypatch):
+    monkeypatch.setattr(PC, "moon_star_today", lambda d: ("Swati", "Mars"))
+    l, s = lead([YEAR, CYCLE, NATAL], SAT)                        # Saturday would pick Saturn; the star says Mars
+    assert l["planet"] == "Mars" and l["day_basis"] == "moon_star_lord" and l["_moon_star"] == "Swati"
+    assert "Venus" in [x["planet"] for x in s["secondary"]]
+
+
+def test_star_lord_not_a_candidate_falls_through_to_weekday(monkeypatch):
+    monkeypatch.setattr(PC, "moon_star_today", lambda d: ("Ashwini", "Ketu"))
+    assert lead([YEAR, CYCLE, NATAL], SAT)[0]["day_basis"] == "weekday_ruler"
+
+
+def test_acute_transit_still_beats_the_star(monkeypatch):
+    monkeypatch.setattr(PC, "moon_star_today", lambda d: ("Swati", "Mars"))
+    assert lead([YEAR, NATAL, TODAY_HIT], SAT)[0]["day_basis"] == "today_pressure"
+
+
+def test_why_now_names_the_star():
+    e = dict(YEAR, day_basis="moon_star_lord", _moon_star="Swati")
+    assert "Moon is in Swati" in PC._why_now(e, "en")
+
+
+def test_moon_star_today_is_real_and_valid():
+    r = _REAL_STAR(date(2026, 10, 12))
+    assert r and r[1] in {"Ketu", "Venus", "Sun", "Moon", "Mars", "Rahu", "Jupiter", "Saturn", "Mercury"}
+    assert _REAL_STAR(date(2026, 10, 12)) == r
+    assert len({_REAL_STAR(date(2026, 10, d))[0] for d in range(1, 29)}) >= 20   # it really moves daily

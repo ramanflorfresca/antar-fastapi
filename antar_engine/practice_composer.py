@@ -86,6 +86,10 @@ def _why_now(entry: dict, lang: str) -> str:
     if _basis == "today_pressure":
         return (f"Hoy algo presiona {e} \u2014 una peque\u00f1a pr\u00e1ctica estabiliza el d\u00eda." if lang == "es"
                 else f"Today something presses on {e} \u2014 a small practice steadies the day.")
+    if _basis == "moon_star_lord":
+        _nk = entry.get("_moon_star") or ""
+        return (f"Hoy la Luna est\u00e1 en {_nk}, una estrella de {e} \u2014 y es un \u00e1rea que tu carta te pide trabajar." if lang == "es"
+                else f"Today the Moon is in {_nk}, a star of {e} \u2014 and it is an area your chart asks you to work on.")
     if _basis == "weekday_ruler":
         _wd = _WEEKDAY_NAME[lang][entry["_weekday"]] if entry.get("_weekday") is not None else ""
         return (f"Hoy, {_wd}, es el d\u00eda de {e} \u2014 y es un \u00e1rea que tu carta te pide trabajar." if lang == "es"
@@ -133,9 +137,10 @@ def _stamp_timeframe_fields(entry: dict, lang: str) -> dict:
 # must move day to day, not repeat the year's focus. Candidates are exactly the chart's active remediation
 # entries (every timeframe). Today's lead is, in order:
 #   1. a planet under acute pressure TODAY (a daily_transit entry);
-#   2. the planet that rules today's weekday, if it is one of the candidates (the classical weekday-planet
+#   2. the lord of the star (nakshatra) the Moon is in today, if it is one of the candidates;
+#   3. the planet that rules today's weekday, if it is one of the candidates (the classical weekday-planet
 #      rhythm: fasts, giving and mantra days are keyed to it);
-#   3. otherwise the router's normal lead (year > month > cycle).
+#   4. otherwise the router's normal lead (year > month > cycle).
 # The displaced year lead stays visible as the first secondary entry.
 _WEEKDAY_LORD = ("Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn", "Sun")  # Monday..Sunday
 _WEEKDAY_NAME = {
@@ -148,13 +153,37 @@ def _day_lead_enabled() -> bool:
     return os.getenv("PRACTICE_DAY_LEAD", "on").strip().lower() not in ("off", "0", "false")
 
 
+def moon_star_today(today_date) -> Optional[tuple]:
+    """(nakshatra name, star lord) of the Moon at midday UTC on `today_date` (sidereal, Lahiri). None on any failure.
+    The Moon changes star about once a day, so this is the day's own ruling planet (9 possible lords, Rahu and
+    Ketu included)."""
+    try:
+        import swisseph as swe
+        from antar_engine.antar_ephemeris import NAKSHATRA_LORDS, NAKSHATRAS as NAKSHATRA_NAMES
+        jd = swe.julday(today_date.year, today_date.month, today_date.day, 12.0)
+        swe.set_sid_mode(swe.SIDM_LAHIRI)
+        lon = (swe.calc_ut(jd, swe.MOON)[0][0] - swe.get_ayanamsa_ut(jd)) % 360.0
+        i = int(lon / (360.0 / 27.0)) % 27
+        return NAKSHATRA_NAMES[i], NAKSHATRA_LORDS[i]
+    except Exception:
+        return None
+
+
 def pick_day_lead(merged: list, today_date) -> tuple:
-    """(entry, basis) for today, or (None, None) to keep the router's lead. basis: today_pressure | weekday_ruler."""
+    """(entry, basis) for today, or (None, None) to keep the router's lead.
+    basis: today_pressure | moon_star_lord | weekday_ruler. The entry carries `_moon_star` for the star case."""
     if not merged or today_date is None:
         return None, None
     acute = [m for m in merged if _tf_of(m) == "today"]
     if acute:
         return max(acute, key=lambda m: m.get("severity", 0.0)), "today_pressure"
+    star = moon_star_today(today_date)
+    if star:
+        starred = [m for m in merged if m.get("planet") == star[1]]
+        if starred:
+            e = dict(max(starred, key=lambda m: m.get("severity", 0.0)))
+            e["_moon_star"] = star[0]
+            return e, "moon_star_lord"
     lord = _WEEKDAY_LORD[today_date.weekday()]
     ruled = [m for m in merged if m.get("planet") == lord]
     if ruled:
@@ -422,6 +451,7 @@ def compose_practice_response(
             "why": priority.get("why_paragraph", ""),
             "why_now": _why_now(priority, lang),
             "focus_basis": priority.get("day_basis") or "router",
+            "moon_star": ({"nakshatra": priority.get("_moon_star")} if priority.get("_moon_star") else None),
             "year_focus_planet": priority.get("year_focus_planet"),
             "source": "selection: timeframe-router; content: existing LK remedy tables",
             "streak_days": int(st.get("days", 0)),
