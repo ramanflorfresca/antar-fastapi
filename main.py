@@ -20181,6 +20181,135 @@ async def get_daily_loop_unlock(chart_id: str, unlock_id: str, language: Optiona
     return {**meta, "unlocked": True, "sections": sections}
 
 
+# ═══ [thread-home 2026-10-12, P1] The conversation Home ═══════════════════════════════════════
+# Antar speaks first; replies come back as messages + cards + quick replies. DETERMINISTIC: the sentences are templates
+# (antar_engine/thread_home.py) around engine output that already exists. Free-form questions go to Ask unchanged.
+class _ConvIn(BaseModel):
+    text: str
+    language: Optional[str] = "en"
+    tz_offset: Optional[int] = 0
+
+
+def _conv_flag(chart_id: str) -> bool:
+    from antar_engine import app_config as _ac, thread_home as _th
+    return _th.enabled(chart_id, _ac.get(supabase, "home_thread_pct", "0"), _ac.get(supabase, "home_thread_allow", ""))
+
+
+def _conv_name(chart_id: str) -> str:
+    try:
+        r = supabase.table("charts").select("first_name,name").eq("id", chart_id).limit(1).execute().data
+        return ((r or [{}])[0].get("first_name") or (r or [{}])[0].get("name") or "").strip()
+    except Exception as e:
+        print(f"[thread] name skipped: {e!r}")
+        return ""
+
+
+def _conv_heads_up(chart_id: str):
+    """(person|None, any_starred): the oldest starred person whose day band is friction today."""
+    try:
+        stars = (supabase.table("people_alert_stars").select("connection_chart_id,created_at").eq("chart_id", chart_id)
+                 .order("created_at").execute().data) or []
+    except Exception as e:
+        print(f"[thread] stars skipped: {e!r}")
+        return None, False
+    for r in stars:
+        g = _network_today_glance(r["connection_chart_id"], "en")
+        if g.get("available") and g.get("band") == "friction":
+            try:
+                n = (supabase.table("charts").select("first_name,name").eq("id", r["connection_chart_id"]).limit(1).execute().data or [{}])[0]
+                nm = (n.get("first_name") or n.get("name") or "").split(" ")[0]
+            except Exception:
+                nm = ""
+            return {"name": nm, "connection_chart_id": r["connection_chart_id"]}, True
+    return None, bool(stars)
+
+
+async def _conv_safe(label: str, coro):
+    try:
+        return await coro
+    except Exception as e:
+        print(f"[thread] {label} skipped (non-fatal): {e!r}")
+        return None
+
+
+async def _conv_decision(chart_id: str, lang: str):
+    r = await _conv_safe("decision", get_daily_signal_endpoint(chart_id=chart_id, language=lang))
+    return (r or {}).get("decision") if isinstance(r, dict) else None
+
+
+def _conv_hour(tz_offset) -> int:
+    from datetime import datetime as _dt, timedelta as _td, timezone as _tz
+    return (_dt.now(_tz.utc) + _td(minutes=int(tz_offset or 0))).hour
+
+
+@app.get("/api/v1/conversation/{chart_id}/enabled")
+def conversation_enabled(chart_id: str):
+    """Does this chart get the conversation Home? Stable per chart (allow list, then percent rollout). Never an error."""
+    try:
+        return {"enabled": bool(_conv_flag(chart_id))}
+    except Exception as e:
+        print(f"[thread] flag failed -> off: {e!r}")
+        return {"enabled": False}
+
+
+@app.get("/api/v1/conversation/{chart_id}/open")
+async def conversation_open(chart_id: str, language: Optional[str] = "en", tz_offset: Optional[int] = 0):
+    """Antar's opening message for today: a greeting, what matters now (from the Windows feed, starred people and the day's
+    read), one nudge, and quick replies + the starter set. 404 only for an unknown chart; engine trouble degrades to a plain
+    greeting and the day's read."""
+    from antar_engine import thread_home as _th
+    import time as _tm
+    t0 = _tm.time()
+    lang = _th.lang_of(language)
+    row = await run_in_threadpool(lambda: supabase.table("charts").select("id").eq("id", chart_id).limit(1).execute())
+    if not row.data:
+        raise HTTPException(status_code=404, detail="Chart not found")
+    name = await run_in_threadpool(_conv_name, chart_id)
+    windows = await _conv_safe("windows", run_in_threadpool(_windows_compute, chart_id, lang, tz_offset, 6))
+    heads, _set = await run_in_threadpool(_conv_heads_up, chart_id)
+    decision = await _conv_decision(chart_id, lang)
+    out = _th.opening({"name": name, "hour": _conv_hour(tz_offset), "decision": decision, "windows": windows, "heads_up": heads}, lang)
+    print(f"[thread] open chart={chart_id[:8]} facts={len(out['messages'])} heads={bool(heads)} ms={int((_tm.time()-t0)*1000)}")
+    return out
+
+
+@app.post("/api/v1/conversation/{chart_id}/message")
+async def conversation_message(chart_id: str, body: _ConvIn):
+    """One reply in the conversation: routes the user's text to an engine and returns messages[], cards[] and quick_replies[].
+    Free-form questions go to Ask unchanged (cards[0].type == "ask_answer" carries the Ask response). Never an error for engine
+    trouble: the reply says so and offers to retry."""
+    from antar_engine import thread_home as _th
+    import asyncio as _aio, time as _tm
+    t0 = _tm.time()
+    text = (body.text or "").strip()[:600]
+    lang = _th.lang_of(body.language)
+    tz = body.tz_offset or 0
+    intent, arg = _th.classify(text)
+    eng: dict = {}
+    if intent == "today":
+        eng["decision"] = await _conv_decision(chart_id, lang)
+    elif intent in ("year", "month", "coming"):
+        scale = "month" if intent == "month" else "year"
+        reads = await _aio.gather(*[_conv_safe("topic-read " + k, _topic_read_full(chart_id, k, scale, lang, tz)) for k in ("money", "career", "love", "health")])
+        eng["reads"] = [r for r in reads if isinstance(r, dict)]
+        if intent == "coming":
+            eng["phase"] = await _conv_safe("phase", get_phase_view(chart_id, lang, tz))
+    elif intent == "chapter":
+        eng["phase"] = await _conv_safe("phase", get_phase_view(chart_id, lang, tz))
+    elif intent == "topic":
+        eng["topic_read"] = await _conv_safe("topic-read", _topic_read_full(chart_id, arg, "month", lang, tz))
+    elif intent == "loop":
+        eng["loop"] = await _conv_safe("loop", run_in_threadpool(get_daily_loop, chart_id, lang, tz))
+    elif intent == "people":
+        eng["heads_up"], eng["heads_set"] = await run_in_threadpool(_conv_heads_up, chart_id)
+    elif intent == "ask":
+        res = await _conv_safe("ask", ask_endpoint(AskRequest(question=text, chart_id=chart_id, mode="explore", language=lang, tz_offset=tz)))
+        eng["ask"] = res if isinstance(res, dict) else None
+    out = _th.reply(intent, arg, eng, lang)
+    print(f"[thread] msg chart={chart_id[:8]} intent={intent} cards={len(out['cards'])} ms={int((_tm.time()-t0)*1000)}")
+    return out
+
+
 @app.get("/api/v1/streak/{chart_id}")
 def get_streak_endpoint(chart_id: str, tz_offset: int = 0):
     """

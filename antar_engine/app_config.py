@@ -42,6 +42,14 @@ ALLOWED_KEYS: Dict[str, dict] = {
                 "instead of when /home is opened. Turn on only after the app ships the loop UI and "
                 "sql_daily_loop.sql has been run.",
     },
+    "home_thread_pct": {
+        "default": "0", "kind": "str", "choices": None,
+        "help": "Percent (0-100) of charts that get the conversation Home (the thread). Stable per chart. 0 = off for everyone except the allow list.",
+    },
+    "home_thread_allow": {
+        "default": "", "kind": "str", "choices": None,
+        "help": "Comma-separated chart ids that always get the conversation Home (the first cohort).",
+    },
     "narration_audit_strict": {
         "default": "off", "kind": "bool", "choices": ["on", "off"],
         "help": "If on, a jargon/broken/incoherent daily card is regenerated "
