@@ -52882,6 +52882,38 @@ async def get_instrument_timeline(chart_id: str, zoom: str = "day", language: Op
     return _tl.build(zoom, signal, feed, phase, _prac_local_date(tz_offset), local.hour + local.minute / 60.0)
 
 
+@app.get("/api/v1/coming/{chart_id}")
+async def get_coming(chart_id: str, view: str = "year", topic: str = "all", language: Optional[str] = None,
+                     tz_offset: Optional[int] = 0):
+    """[coming 2026-10-13] "What is coming": view=year (12 month tiles + one sentence + dated moments for one topic: all,
+    money, career, love, health, business, peace, family; plus ask_moves prompts for job change / moving home) or view=chapter (the running chapter and
+    its shifts as steps). Re-shapes engines that already exist; nothing new is computed. Never an error for missing data
+    (quiet); 404 only for an unknown chart."""
+    from antar_engine import coming as _cm
+    if view not in ("year", "chapter"):
+        raise HTTPException(status_code=400, detail="view must be year or chapter")
+    row = await run_in_threadpool(lambda: supabase.table("charts").select("id").eq("id", chart_id).limit(1).execute())
+    if not row.data:
+        raise HTTPException(status_code=404, detail="Chart not found")
+    lang = language or "en"
+    today = _prac_local_date(tz_offset)
+    if view == "chapter":
+        phase = None
+        try:
+            from antar_engine import phase_view as _pv
+            dashas = await run_in_threadpool(get_dashas_for_chart, chart_id) or {}
+            phase = _pv.build(dashas, None, lang, today)
+        except Exception as e:
+            print(f"[coming] chapter skipped: {e!r}")
+        return _cm.build_chapter(phase, today, lang)
+    feed = None
+    try:
+        feed = await run_in_threadpool(_windows_compute, chart_id, lang, tz_offset, 12)
+    except Exception as e:
+        print(f"[coming] {topic} skipped: {e!r}")
+    return _cm.build_year(feed, topic, today, lang)
+
+
 @app.get("/api/v1/chart/{chart_id}/suggested-questions")
 async def get_chart_suggested_questions(chart_id: str, language: Optional[str] = None,
                                         tz_offset: Optional[int] = None, limit: int = 3):
