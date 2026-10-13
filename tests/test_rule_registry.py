@@ -133,8 +133,10 @@ def test_a_rule_runs_only_when_its_planet_or_sign_is_dashaed():
     c = ctx_v()
     moon12 = next(e for e in rr.applicable(c) if e.rule_id == "LK.Moon_12.bad")
     assert "vimshottari" in rr.running(c, moon12, rr.dasha_state(c, TODAY))          # Moon dasha running
-    st_later = rr.dasha_state(c, date(2028, 1, 1))                                    # Saturn sub-period
-    assert "vimshottari" not in rr.running(c, moon12, st_later)
+    later = rr.dasha_state(c, date(2028, 1, 1))                                       # Moon major, Saturn sub: still runs
+    assert later["vim_ad"] == "Saturn" and "vimshottari" in rr.running(c, moon12, later)
+    neither = {**later, "vim_md": "Venus"}                                            # no Moon lord running
+    assert "vimshottari" not in rr.running(c, moon12, neither)
 
 
 def test_timeline_segments_are_ordered_labelled_and_silent_when_nothing_runs():
