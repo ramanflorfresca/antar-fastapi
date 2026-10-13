@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from dotenv import load_dotenv
 load_dotenv()
 import main  # noqa: E402
-from antar_engine.conversation import language_switch  # noqa: E402
+from antar_engine.conversation import bare_affirmative, language_switch  # noqa: E402
 from antar_engine.narration_validator import validate_narration  # noqa: E402
 from antar_engine.daily_prediction_engine import _looks_broken  # noqa: E402
 from antar_engine.readability import _CHILDISH_RX  # noqa: E402
@@ -324,9 +324,9 @@ async def run_chain(sem, persona, chain_name, steps, rep, profile, chart_lean, u
                 q = q.format(one=persona["one"], two=persona["two"])
                 p = await ask(persona, q, thread)
                 # [audit 2026-10-12] "English please" replays the previous question: grade it against THAT question
-                eff = prev_real if (prev_real and language_switch(q)) else q
+                eff = prev_real if (prev_real and (language_switch(q) or bare_affirmative(q))) else q
                 turns.append(_turn(p, q, persona, profile, chart_lean, chain_name, rep, tap=None, eff=eff))
-                if not language_switch(q):
+                if not language_switch(q) and not bare_affirmative(q):
                     prev_real = q
                 last = p
             base = list(thread)
