@@ -38,3 +38,16 @@ def test_windows_are_deterministic_and_carry_rule_ids():
                            datetime(2030, 1, 1), with_transits=False, min_rules=1)
     assert a == b and a
     assert all(e["rules"] for w in a for e in w["events"])
+
+
+def test_composite_tiers_and_determinism():
+    from antar_engine import composite_events as ce
+    P = _planets()
+    vim = [{"planet": "Venus", "start_date": datetime(2026, 1, 1), "end_date": datetime(2032, 1, 1)}]
+    a = ce.composite_windows(LEO, 130.0, P, datetime(1944, 8, 20), datetime(2026, 1, 1),
+                             datetime(2032, 1, 1), vim_rows=vim, min_rules=1)
+    assert a == ce.composite_windows(LEO, 130.0, P, datetime(1944, 8, 20), datetime(2026, 1, 1),
+                                     datetime(2032, 1, 1), vim_rows=vim, min_rules=1)
+    tiers = {e["tier"] for w in a for e in w["events"]}
+    assert tiers <= {"single", "double", "triple"} and tiers
+    assert any("vimshottari" in e["layers"] for w in a for e in w["events"] if e["event"] == "marriage")

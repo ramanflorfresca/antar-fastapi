@@ -162,8 +162,9 @@ def _vim_hit(c: Chart, event: str, vim_rows: Optional[list], start: datetime, en
     mid = start + (end - start) / 2
     for r in vim_rows:
         s = r["start_date"]; e = r["end_date"]
-        if s <= mid < e and (r.get("planet") in want or r.get("lord") in want):
-            return r.get("planet") or r.get("lord")
+        who = r.get("planet") or r.get("lord") or r.get("planet_or_sign")
+        if s <= mid < e and who in want:
+            return who
     return None
 
 
