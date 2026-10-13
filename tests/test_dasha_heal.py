@@ -168,3 +168,35 @@ def test_complete_vimsottari_refuses_when_stored_mahadashas_disagree():
 def test_complete_vimsottari_from_nothing_inserts_all_three_levels():
     db = _CV()
     assert dh.complete_vimsottari(db, "cid") == 9 + 81 + 729
+
+
+def test_alert_failure_raises_a_keyed_alert_and_never_raises(monkeypatch):
+    seen = []
+    from antar_engine import alerting
+    monkeypatch.setattr(alerting, "alert", lambda key, message, level="warn", detail=None: seen.append((key, level, message, detail)))
+    dh.alert_failure("create:insert:sync", "abcdef12-0000", RuntimeError("boom"))
+    assert seen == [("dasha_write_failed:create:insert:sync", "error", "dasha create:insert:sync failed for chart abcdef12: boom",
+                     "chart_id=abcdef12-0000")]
+    monkeypatch.setattr(alerting, "alert", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("webhook down")))
+    dh.alert_failure("x", "c", "e")                                  # a broken alert channel must not raise
+
+
+def test_heal_thread_failure_alerts_as_a_warning(monkeypatch):
+    import time
+    seen = []
+    monkeypatch.setattr(dh, "alert_failure", lambda stage, cid, err, level="error": seen.append((stage, level)))
+    monkeypatch.setattr(dh, "heal", lambda sb, cid: (_ for _ in ()).throw(RuntimeError("db down")))
+    dh._INFLIGHT.clear(); dh._NEXT_TRY.clear()
+    assert dh.schedule(object(), "c9") is True
+    for _ in range(100):
+        if seen:
+            break
+        time.sleep(0.02)
+    assert seen == [("heal", "warn")]
+
+
+def test_creation_and_edit_paths_alert_on_their_silent_failures():
+    import re
+    src = open("main.py").read()
+    for stage in ("create:compute:vimsottari", "create:insert:", "edit-birth", "create:no-vimsottari-rows"):
+        assert re.search(r"_daf\(f?\"" + re.escape(stage), src), stage

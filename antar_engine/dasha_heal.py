@@ -26,6 +26,19 @@ SIGNS = ["Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo", "Libra", "Scorpi
          "Aquarius", "Pisces"]
 
 
+def alert_failure(stage: str, chart_id: str, err, level: str = "error") -> None:
+    """Turn a swallowed dasha failure into an operational alert (log line always; webhook / email if configured, throttled
+    per stage). Never raises: an alert must not touch the write path. A chart that ends up with no dasha rows runs every
+    dasha-aware surface without a running period and nothing else shows it."""
+    try:
+        from antar_engine.alerting import alert
+        alert(f"dasha_write_failed:{stage}",
+              f"dasha {stage} failed for chart {str(chart_id)[:8]}: {str(err)[:200]}", level=level,
+              detail=f"chart_id={chart_id}")
+    except Exception:
+        pass
+
+
 def _flat(raw) -> List[dict]:
     """The dasha modules return {mahadashas:[…], antardashas:[…]} or a flat list (Jaimini): one flat list."""
     if isinstance(raw, list):
@@ -89,6 +102,7 @@ def compute(chart_data: dict, birth_date: str) -> Dict[str, List[dict]]:
         out["vimsottari"] = out["vimsottari"] + pratyantars_for(out["vimsottari"])
     except Exception as e:
         print(f"[dasha-heal] vimsottari failed: {e}")
+        alert_failure("compute:vimsottari", "?", e, level="warn")
     try:
         import datetime as _dt
         from antar_engine import jaimini
@@ -102,10 +116,12 @@ def compute(chart_data: dict, birth_date: str) -> Dict[str, List[dict]]:
                                                               _dt.date.fromisoformat(str(birth_date)[:10])))
     except Exception as e:
         print(f"[dasha-heal] jaimini failed: {e}")
+        alert_failure("compute:jaimini", "?", e, level="warn")
     try:
         out["ashtottari"] = _flat(ashtottari.calculate_ashtottari_from_chart(chart_data, bjd))
     except Exception as e:
         print(f"[dasha-heal] ashtottari failed: {e}")
+        alert_failure("compute:ashtottari", "?", e, level="warn")
     return out
 
 
@@ -253,6 +269,7 @@ def schedule(supabase, chart_id: str) -> bool:
             print(f"[dasha-heal] chart={chart_id[:8]} inserted {n} rows")
         except Exception as e:
             print(f"[dasha-heal] chart={chart_id[:8]} failed (will retry later): {str(e)[:160]}")
+            alert_failure("heal", chart_id, e, level="warn")
         finally:
             with _LOCK:
                 _INFLIGHT.discard(chart_id)
