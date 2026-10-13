@@ -81,3 +81,28 @@ def test_greeting_is_made_for_this_person_and_this_hour():
     es = H.greeting("Raman", datetime(2026, 10, 13, 20, 0), "es", {"start": "2026-08-13", "title": "temporada de ambici\u00f3n"})
     assert es["text"] == "Buenas noches, Raman" and es["date"] == "martes, 13 de octubre" and es["context"] == "Mes 3 de tu temporada de ambici\u00f3n"
     assert H.greeting("Raman", datetime(2026, 10, 13, 8, 0), "en", {"start": "2027-01-01", "title": "x"})["context"] == ""     # future season: no claim
+
+
+def test_generic_windows_can_be_hidden_without_touching_the_rest():
+    sig = {"headline": "A steady day.", "verdict_subline": "Partnerships are live.", "wow": "Reply fast.", "signal": "A client signals readiness.",
+           "windows": [{"kind": "best", "start": "12:17 PM", "end": "1:05 PM", "text": "Best."}, {"kind": "avoid", "start": "4:54 PM", "end": "6:19 PM", "text": "Avoid."}],
+           "do_today": ["Do a thing"], "dont_today": ["Don't gamble"],
+           "domains": [{"key": "money", "label": "Money", "state": "volatile", "line": "Money moves both ways.", "notable": True}]}
+    on = H.build_today(sig, None, "en", "Steady", "Tue", show_windows=True)
+    off = H.build_today(sig, None, "en", "Steady", "Tue", show_windows=False)
+    assert len(on["coming"]) == 2 and on["read"]["window"] == "12:17 PM \u2013 1:05 PM" and on["avoid"]
+    assert off["coming"] == [] and off["read"]["window"] == "" and off["avoid"] == ""
+    assert off["do"] == on["do"] and off["dont"] == on["dont"] and off["read"]["headline"] == on["read"]["headline"] and off["read"]["move"] == on["read"]["move"]
+    assert off["areas"][0]["key"] == "money" and off["areas"][0]["state"] == "mixed" and off["converse"]["chips"][-1] == "What is the one thing I should focus on today?"
+    from antar_engine import brief as B
+    from antar_engine import timeline as TL
+    from datetime import date as _d
+    assert B.build("c", sig, None, None, "en", _d(2026, 10, 13), 9.0, show_windows=False)["strip"]["bands"] == []
+    assert B.build("c", sig, None, None, "en", _d(2026, 10, 13), 9.0)["window"]["best"]["start"] == "12:17 PM"
+    assert TL.build("day", sig, None, None, _d(2026, 10, 13), 9.0, show_windows=False)["tracks"] == []
+    assert TL.build("day", sig, None, None, _d(2026, 10, 13), 9.0)["tracks"][0]["bands"]
+
+
+def test_home_generic_windows_key_is_registered_off_by_default():
+    from antar_engine import app_config as AC
+    assert AC.ALLOWED_KEYS["home_generic_windows"]["default"] == "off" and AC.ALLOWED_KEYS["home_generic_windows"]["kind"] == "bool"

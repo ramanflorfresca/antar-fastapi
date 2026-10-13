@@ -184,7 +184,7 @@ def _finish(scope: str, lg: str, **kw) -> Dict[str, Any]:
 
 
 def build_today(signal: Optional[dict], feed: Optional[dict], language: str = "en", tone_word: str = "",
-                when: str = "") -> Dict[str, Any]:
+                when: str = "", show_windows: bool = True) -> Dict[str, Any]:
     lg = _lang(language)
     sig = signal or {}
     dec = sig.get("decision") or {}
@@ -198,6 +198,8 @@ def build_today(signal: Optional[dict], feed: Optional[dict], language: str = "e
                            "title": t["best_window"] if w["kind"] == "best" else t["steer_clear"],
                            "when": f"{w['start']} – {w['end']}", "text": _s(w.get("text"))})
     coming.sort(key=lambda c: c["kind"] != "good")
+    if not show_windows:                 # the generic Abhijit / Rahu Kalam pair is not personal; Home hides it unless switched on
+        coming = []
     aw = next((c["when"] for c in coming if c["kind"] == "care"), "")
     # A quiet day has no decision object (the engine will not invent one). Fall back to the daily signal's own lines.
     hora = sig.get("hora") if isinstance(sig.get("hora"), dict) else {}
@@ -210,7 +212,8 @@ def build_today(signal: Optional[dict], feed: Optional[dict], language: str = "e
     lead = _s(sig.get("verdict_subline")) or _s(sig.get("headline")) or short
     read = {"headline": lead, "body": _s(sig.get("wow")) or short, "move": _s(sig.get("signal")) or (_s(dec.get("move"))),
             "window": next((c["when"] for c in coming if c["kind"] == "good"), "")}
-    return _finish("today", lg, read=read, when=when, tone=tone_word, short=short,
+    from antar_engine import brief as _brief
+    return _finish("today", lg, read=read, areas=_brief.build_areas(sig), when=when, tone=tone_word, short=short,
                    do=_uniq([*(sig.get("do_today") or []), dec.get("move"), *(sig.get("aligned_for") or [])]),
                    dont=_uniq([*(sig.get("dont_today") or []), *(sig.get("friction_for") or [])]),
                    coming=coming, watch=watch,

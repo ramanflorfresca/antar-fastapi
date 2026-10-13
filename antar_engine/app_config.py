@@ -42,6 +42,12 @@ ALLOWED_KEYS: Dict[str, dict] = {
                 "instead of when /home is opened. Turn on only after the app ships the loop UI and "
                 "sql_daily_loop.sql has been run.",
     },
+    "home_generic_windows": {
+        "default": "off", "kind": "bool", "choices": ["on", "off"],
+        "help": "Show the generic best window (Abhijit muhurta) and steer-clear window (Rahu Kalam) on the new Home, the brief and the Day timeline. "
+                "Off by default: they are the same for everyone at one place, so they are not personal. Turn on only until a personal window "
+                "(panchang + chart + running dasha) is validated.",
+    },
     "narration_audit_strict": {
         "default": "off", "kind": "bool", "choices": ["on", "off"],
         "help": "If on, a jargon/broken/incoherent daily card is regenerated "

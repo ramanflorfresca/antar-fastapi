@@ -52878,8 +52878,9 @@ async def get_instrument_brief(chart_id: str, language: Optional[str] = None, tz
         print(f"[brief] phase skipped: {e!r}")
     from datetime import datetime as _dtb, timedelta as _tdb
     local = _dtb.utcnow() + _tdb(minutes=int(tz_offset or 0))
+    from antar_engine import app_config as _acb
     return _br.build(chart_id, signal, feed, phase, lang, _prac_local_date(tz_offset),
-                     local.hour + local.minute / 60.0)
+                     local.hour + local.minute / 60.0, show_windows=_acb.get_bool(supabase, "home_generic_windows", False))
 
 
 @app.get("/api/v1/timeline/{chart_id}")
@@ -52908,7 +52909,9 @@ async def get_instrument_timeline(chart_id: str, zoom: str = "day", language: Op
         print(f"[timeline] {zoom} skipped: {e!r}")
     from datetime import datetime as _dtt, timedelta as _tdt
     local = _dtt.utcnow() + _tdt(minutes=int(tz_offset or 0))
-    return _tl.build(zoom, signal, feed, phase, _prac_local_date(tz_offset), local.hour + local.minute / 60.0)
+    from antar_engine import app_config as _act
+    return _tl.build(zoom, signal, feed, phase, _prac_local_date(tz_offset), local.hour + local.minute / 60.0,
+                     show_windows=_act.get_bool(supabase, "home_generic_windows", False))
 
 
 @app.get("/api/v1/coming/{chart_id}")
@@ -52992,7 +52995,9 @@ async def get_horizon_card(chart_id: str, scope: str = "today", language: Option
             tone = _br._WORD[_br._lang(lang)][_br.derive_verdict(sig)]
             wd = ("lunes martes mi\u00e9rcoles jueves viernes s\u00e1bado domingo".split() if _hz._lang(lang) == "es"
                   else "Monday Tuesday Wednesday Thursday Friday Saturday Sunday".split())[today.weekday()]
-            return await _with_greeting(_hz.build_today(sig, feed, lang, tone, f"{wd}, {_hz._fmt(today, _hz._lang(lang))}"))
+            from antar_engine import app_config as _ach
+            return await _with_greeting(_hz.build_today(sig, feed, lang, tone, f"{wd}, {_hz._fmt(today, _hz._lang(lang))}",
+                                                        show_windows=_ach.get_bool(supabase, "home_generic_windows", False)))
         if scope == "month":
             md = await _aio.wait_for(get_monthly_deepdive(chart_id=chart_id, language=lang), timeout=45) or {}
             return await _with_greeting(_hz.build_month(md, feed, lang))
