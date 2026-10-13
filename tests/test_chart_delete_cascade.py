@@ -46,7 +46,9 @@ def test_tables_that_previously_leaked_are_covered(m):
               "practice_log", "verification_ratings",
               # user content the old list missed entirely
               "conversations", "device_tokens", "signature_question_log",
-              "places_saved_cities"):
+              "places_saved_cities",
+              # chart-keyed research rows written by the daily-signal shadows
+              "kp_hourly_shadow", "personal_window_shadow"):
         assert t in m._CHART_DERIVED_TABLES, f"{t} would leak on chart delete"
 
 
