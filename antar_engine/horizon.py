@@ -173,7 +173,11 @@ def build_today(signal: Optional[dict], feed: Optional[dict], language: str = "e
     work = _s(dec.get("holds")) or ((_cap(_s(hora.get("best_for"))) + ".") if _s(hora.get("best_for")) else "")
     why = _s(dec.get("why")) or (f"The Moon is in {_s(sig.get('moon_sign'))}, in {_s(sig.get('moon_nakshatra'))}."
                                   if sig.get("moon_sign") and sig.get("moon_nakshatra") and lg == "en" else "")
-    return _finish("today", lg, when=when, tone=tone_word, short=short,
+    # The "read": the day's own lead line, body and move, for the Home read (no model call; the daily engine's own sentences).
+    lead = _s(sig.get("verdict_subline")) or _s(sig.get("headline")) or short
+    read = {"headline": lead, "body": _s(sig.get("wow")) or short, "move": _s(sig.get("signal")) or (_s(dec.get("move"))),
+            "window": next((c["when"] for c in coming if c["kind"] == "good"), "")}
+    return _finish("today", lg, read=read, when=when, tone=tone_word, short=short,
                    do=_uniq([*(sig.get("do_today") or []), dec.get("move"), *(sig.get("aligned_for") or [])]),
                    dont=_uniq([*(sig.get("dont_today") or []), *(sig.get("friction_for") or [])]),
                    coming=coming, watch=watch,
