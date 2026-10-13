@@ -79,3 +79,29 @@ def test_chapter_line_is_short_plain_and_dated():
     assert it["range"] == "2026 \u2192 2044" and "Rahu" not in it["text"]
     assert B.beyond(None, {"available": True, "chapter": {"plain_name": "Ambition", "end": "2044-08-13"}})[0]["text"] == "Chapter: Ambition, to 2044."
     assert B.beyond(None, phase, "es")[0]["text"].startswith("Cap\u00edtulo: Ambition, hasta 2044.")
+
+
+def test_areas_map_states_order_and_use_engine_lines():
+    sig = {"domains": [
+        {"key": "work", "label": "Career", "state": "steady", "line": "Work is steady.", "notable": False},
+        {"key": "money", "label": "Money", "state": "volatile", "line": "Money moves both ways.", "notable": True},
+        {"key": "body", "label": "Health", "state": "caution", "line": "Go easy.", "notable": False},
+        {"key": "mind", "label": "Mind", "state": "favorable", "line": "Head is clear.", "notable": True},
+        {"key": "x", "label": "X", "state": "weird", "line": "", "notable": False}]}
+    a = B.build_areas(sig)
+    assert [x["key"] for x in a] == ["body", "money", "mind", "work"]            # care, mixed, good, steady; empty line dropped
+    assert [x["state"] for x in a] == ["care", "mixed", "good", "steady"]
+    assert a[1]["line"] == "Money moves both ways." and B.build_areas({}) == []
+
+
+def test_do_dont_fall_back_dedupe_and_cap():
+    sig = {"do_today": ["Finish X"], "aligned_for": ["Finish X", "Review Y", "Plan Z"], "dont_today": [], "friction_for": ["Avoid A"]}
+    d = B.build_do_dont(sig)
+    assert d["do"] == ["Finish X", "Review Y"] and d["dont"] == ["Avoid A"]
+    assert B.build_do_dont({}) == {"do": [], "dont": []}
+
+
+def test_build_carries_areas_and_dos():
+    out = B.build("c", {"domains": [{"key": "money", "label": "Money", "state": "caution", "line": "Hold.", "notable": True}],
+                        "do_today": ["a"], "dont_today": ["b"]}, None, None, "en", date(2026, 10, 12), 9.0)
+    assert out["areas"][0]["state"] == "care" and out["do"] == ["a"] and out["dont"] == ["b"]
