@@ -55,7 +55,7 @@ def chart_move(concern, chart_data, dashas) -> str:
         act = _ACT.get(concern)
         if not act:
             return ""
-        lead = (f"Como o regente da sua casa {f['h']} está enfraquecido, os resultados ficam atrás do esforço — " if f["weak"] else "")
+        lead = ""      # [weak-leadin] the weakness is said once, in plain words, in conditions()
         tail = f" Reavalie quando esta etapa terminar em {end}." if (f["weak"] and end) else ""
         out = lead + act.format(ch=ch) + "." + tail
         return out[0].upper() + out[1:]
