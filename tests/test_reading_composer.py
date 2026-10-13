@@ -93,3 +93,42 @@ def test_exact_birth_time_lifts_the_gate_unless_margin_is_under_a_minute():
     assert not r["notes"] and any(w["strength"] == "strong" for a in r["areas"] for w in a["windows"] if a["area"] == "money")
     base["d10"]["sensitivity"].update(gate=True, accuracy="exact", approx_minutes_of_birth_time=0.5)
     assert "edge" in c2(base, "en", TODAY)["notes"][0]
+
+
+def test_focus_push_picks_strongest_active_area_and_is_antar_driven():
+    r = compose(FC, "en", TODAY)
+    f = r["focus"]
+    assert f["mode"] == "push" and f["primary"]["area"] == "money"        # strong money window active now
+    assert f["primary"]["timing"] == "Active now" and f["primary"]["first_step"]
+    assert f["horizon"][0] == "2026-10-13" and f["horizon"][1] > "2027-03-01"
+    assert all(a["area"] != "money" for a in f["also"])
+
+
+def test_focus_protect_when_pressure_dominates_and_nothing_strong_is_active():
+    fc = json.loads(json.dumps(FC)); fc["caution_spans"] = [{"start": "2026-10-13", "end": "2027-06-01", "rules": ["x"]}]
+    fc["parashari"]["spans"] = []; fc["d10"]["spans"] = []          # leaves only possible/good career windows
+    fc["event_spans"] = [{"event": "career", "tier": "double", "start": "2026-10-13", "end": "2027-09-08"}]
+    fc["event_spans"][0]["peak"] = ["2026-10-13", "2027-01-08"]
+    r = compose(fc, "en", TODAY)
+    top = r["focus"]
+    assert top["mode"] in ("protect", "push")
+    fc["event_spans"] = []
+    assert compose(fc, "en", TODAY)["focus"]["mode"] == "protect"
+    assert compose(fc, "en", TODAY)["focus"]["primary"]["headline"] == "Protect your energy and cash"
+
+
+def test_focus_pressure_does_not_override_a_strong_active_window():
+    fc = json.loads(json.dumps(FC)); fc["caution_spans"] = [{"start": "2026-10-13", "end": "2027-06-01", "rules": ["x"]}]
+    f = compose(fc, "en", TODAY)["focus"]
+    assert f["mode"] == "push" and f["primary"]["area"] == "money" and f["avoid"]
+
+
+def test_focus_build_when_nothing_is_active_and_both_locales_plain():
+    fc = {"available": True, "d10": {"sensitivity": {}, "spans": []}, "event_spans": [], "caution_spans": [],
+          "parashari": {"spans": [], "caution_spans": []}}
+    f = compose(fc, "en", TODAY)["focus"]
+    assert f["mode"] == "build" and f["primary"]["area"] is None
+    for loc in ("en", "es"):
+        text = json.dumps(compose(FC, loc, TODAY)["focus"], ensure_ascii=False).lower()
+        assert not [j for j in JARGON if j in text], loc
+    assert compose(FC, "es", TODAY)["focus"]["title"].startswith("Tu enfoque")
