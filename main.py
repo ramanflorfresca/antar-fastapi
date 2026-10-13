@@ -4601,6 +4601,16 @@ _OVERVIEW_YOGA_PLAIN = {
 _OVERVIEW_NEG = {"Kemadruma", "Grahan", "Guru-Chandala"}
 
 
+def _chart_row_for_forecast(chart_id: str):
+    """chart_data + birth_date + birth_time_accuracy; fail-open if the column is not migrated."""
+    try:
+        return supabase.table("charts").select("chart_data,birth_date,birth_time_accuracy").eq("id", chart_id).single().execute()
+    except Exception as e:
+        if "birth_time_accuracy" in str(e) or "PGRST204" in str(e) or "42703" in str(e):
+            return supabase.table("charts").select("chart_data,birth_date").eq("id", chart_id).single().execute()
+        raise
+
+
 @app.get("/api/v1/chart/{chart_id}/reading")
 async def get_chart_reading(chart_id: str, language: str = "en", months: int = 24):
     """Plain-language 24-month decision calendar (money, career, relationships, learning)
@@ -4609,7 +4619,7 @@ async def get_chart_reading(chart_id: str, language: str = "en", months: int = 2
     months = max(1, min(months, 36))
 
     def _run():
-        row = supabase.table("charts").select("chart_data,birth_date").eq("id", chart_id).single().execute()
+        row = _chart_row_for_forecast(chart_id)
         if not row.data:
             return None
         cd = row.data.get("chart_data") or {}
@@ -4618,7 +4628,8 @@ async def get_chart_reading(chart_id: str, language: str = "en", months: int = 2
         from antar_engine.event_forecast import build_forecast
         from antar_engine.reading_composer import compose
         vim = (get_dashas_for_chart(chart_id) or {}).get("vimsottari") or []
-        fc = build_forecast(cd, row.data.get("birth_date") or cd.get("birth_date"), vim, months=months)
+        fc = build_forecast(cd, row.data.get("birth_date") or cd.get("birth_date"), vim, months=months,
+                            birth_time_accuracy=row.data.get("birth_time_accuracy"))
         return compose(fc, language)
 
     try:
@@ -4638,7 +4649,7 @@ async def get_event_forecast(chart_id: str, months: int = 24):
     months = max(1, min(months, 60))
 
     def _run():
-        row = supabase.table("charts").select("chart_data,birth_date").eq("id", chart_id).single().execute()
+        row = _chart_row_for_forecast(chart_id)
         if not row.data:
             return None
         cd = row.data.get("chart_data") or {}
@@ -4646,7 +4657,8 @@ async def get_event_forecast(chart_id: str, months: int = 24):
             cd = json.loads(cd)
         from antar_engine.event_forecast import build_forecast
         vim = (get_dashas_for_chart(chart_id) or {}).get("vimsottari") or []
-        return build_forecast(cd, row.data.get("birth_date") or cd.get("birth_date"), vim, months=months)
+        return build_forecast(cd, row.data.get("birth_date") or cd.get("birth_date"), vim, months=months,
+                            birth_time_accuracy=row.data.get("birth_time_accuracy"))
 
     try:
         out = await asyncio.to_thread(_run)

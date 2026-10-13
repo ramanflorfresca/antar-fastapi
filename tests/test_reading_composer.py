@@ -81,3 +81,15 @@ def test_weak_single_system_window_does_not_say_strongly():
         for w in a["windows"]:
             if w["strength"] == "possible":
                 assert "strongly" not in w["why"]
+
+
+def test_exact_birth_time_lifts_the_gate_unless_margin_is_under_a_minute():
+    from antar_engine.reading_composer import compose as c2
+    base = json.loads(json.dumps(FC))
+    base["d10"]["sensitivity"] = {"fragile": True, "gate": True, "approx_minutes_of_birth_time": 2.8, "accuracy": None}
+    assert c2(base, "en", TODAY)["notes"]                                  # gated, asks to confirm
+    base["d10"]["sensitivity"].update(gate=False, accuracy="exact")        # confirmed exact, margin 2.8 min
+    r = c2(base, "en", TODAY)
+    assert not r["notes"] and any(w["strength"] == "strong" for a in r["areas"] for w in a["windows"] if a["area"] == "money")
+    base["d10"]["sensitivity"].update(gate=True, accuracy="exact", approx_minutes_of_birth_time=0.5)
+    assert "edge" in c2(base, "en", TODAY)["notes"][0]

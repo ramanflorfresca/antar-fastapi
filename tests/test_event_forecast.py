@@ -31,3 +31,14 @@ def test_merge_spans_joins_back_to_back_windows():
     assert [(o["start"], o["end"], o["windows"]) for o in out] == [
         ("2026-10-13", "2027-09-08", 2), ("2028-01-01", "2028-03-01", 1)]
     assert out[0]["rules"] == ["a", "b"]
+
+
+def test_gate_lifted_by_exact_time_but_not_inside_one_minute():
+    from antar_engine.event_forecast import build_forecast
+    cd = {**CD, "lagna": {"sign_index": 9, "degree": 24.69}}   # ~2.8 min from a D-10 edge
+    off = build_forecast(cd, "1974-11-26", [], today=date(2026, 10, 13))["d10"]["sensitivity"]
+    on = build_forecast(cd, "1974-11-26", [], today=date(2026, 10, 13), birth_time_accuracy="exact")["d10"]["sensitivity"]
+    assert off["fragile"] and off["gate"] and on["fragile"] and not on["gate"]
+    cd2 = {**CD, "lagna": {"sign_index": 9, "degree": 24.1}}   # ~0.4 min from the edge
+    edge = build_forecast(cd2, "1974-11-26", [], today=date(2026, 10, 13), birth_time_accuracy="exact")["d10"]["sensitivity"]
+    assert edge["gate"]
