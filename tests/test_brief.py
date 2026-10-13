@@ -44,4 +44,6 @@ def test_beyond_items():
     feed = {"next": [{"kind": "open", "topic": "money", "opens_in_days": 90, "label_range": "a"}],
             "care": [{"topic": "health", "opens_in_days": 240, "label_range": "b"}]}
     phase = {"available": True, "how_they_combine": "x", "chapter": {"start": "2026-08-13", "end": "2044-08-13"}}
-    assert [i["zoom"] for i in B.beyond(feed, phase)] == ["year", "month", "chapter"]
+    assert [i["zoom"] for i in B.beyond(feed, phase)] == ["year", "year", "chapter"]
+    feed["care"][0]["opens_in_days"] = 12
+    assert B.beyond(feed, None)[1]["zoom"] == "month"

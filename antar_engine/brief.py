@@ -124,6 +124,14 @@ def closing_soon(strip: List[Dict[str, Any]], now_h: float, within_h: float = 4.
     return None
 
 
+def _zoom_for(days) -> str:
+    """The timeline zoom whose range actually contains a window `days` away (month = 30 days, year = 365)."""
+    try:
+        return "month" if int(days) <= 30 else "year"
+    except (TypeError, ValueError):
+        return "year"
+
+
 def beyond(feed: Optional[Dict[str, Any]], phase: Optional[Dict[str, Any]], language: str = "en") -> List[Dict[str, Any]]:
     """Month / year / chapter one-liners from the windows feed and the phase view. Omits what is missing."""
     es = _lang(language) == "es"
@@ -131,14 +139,14 @@ def beyond(feed: Optional[Dict[str, Any]], phase: Optional[Dict[str, Any]], lang
     nxt = [w for w in ((feed or {}).get("next") or []) if w.get("kind") == "open"]
     if nxt:
         w = nxt[0]
-        items.append({"zoom": "year", "topic": w.get("topic"),
+        items.append({"zoom": _zoom_for(w.get("opens_in_days")), "topic": w.get("topic"),
                       "text": (f"Se abre una ventana de {w.get('topic')} en {w.get('opens_in_days')} días."
                                if es else f"A {w.get('topic')} window opens in {w.get('opens_in_days')} days."),
                       "range": w.get("label_range")})
     care = ((feed or {}).get("care") or [])
     if care:
         w = care[0]
-        items.append({"zoom": "month", "topic": w.get("topic"),
+        items.append({"zoom": _zoom_for(w.get("opens_in_days")), "topic": w.get("topic"),
                       "text": (f"Etapa de cuidado en {w.get('topic')} en {w.get('opens_in_days')} días."
                                if es else f"A care stretch for {w.get('topic')} starts in {w.get('opens_in_days')} days."),
                       "range": w.get("label_range")})
