@@ -52,6 +52,20 @@ T = {
                       "testing": "A testing year. Lean on the remedies and keep plans simple."},
         "remedy_for": "For {theme}",
         "special": "This is a turning-point year in your cycle.",
+        "focus_title": "Your focus for the next six months",
+        "focus_head": {"money": "Focus on income", "career": "Focus on your next step up",
+                       "relationship": "Focus on your closest relationship or partnership",
+                       "learning": "Focus on learning one thing properly",
+                       "protect": "Protect your energy and cash", "build": "Build steadily"},
+        "focus_step": {"money": "This week, list the three deals or clients closest to closing and put a date on each.",
+                       "career": "This week, write down the role or scope you want and ask one person who decides on it.",
+                       "relationship": "This week, set up the conversation you have been putting off.",
+                       "learning": "This week, pick the course or skill and book the first session.",
+                       "protect": "This week, list your fixed costs and cut one commitment that isn't paying you back.",
+                       "build": "This week, pick the one project that matters most and finish its next step."},
+        "focus_active": "Active now", "focus_starts": "Starts {when}",
+        "focus_also": "Also in view",
+        "focus_avoid": "Go lightly in {label}. {action}",
     },
     "es": {
         "area": {"money": "Dinero", "career": "Carrera", "relationship": "Relaciones", "learning": "Aprendizaje"},
@@ -84,6 +98,20 @@ T = {
                       "testing": "Un año de pruebas. Apóyate en los remedios y mantén los planes simples."},
         "remedy_for": "Para {theme}",
         "special": "Este es un año de inflexión en tu ciclo.",
+        "focus_title": "Tu enfoque para los próximos seis meses",
+        "focus_head": {"money": "Enfócate en los ingresos", "career": "Enfócate en tu próximo ascenso",
+                       "relationship": "Enfócate en tu relación o sociedad más cercana",
+                       "learning": "Enfócate en aprender bien una cosa",
+                       "protect": "Protege tu energía y tu dinero", "build": "Construye con constancia"},
+        "focus_step": {"money": "Esta semana, haz una lista de los tres tratos o clientes más cerca de cerrar y ponle fecha a cada uno.",
+                       "career": "Esta semana, escribe el puesto o alcance que quieres y pídeselo a una persona que decida.",
+                       "relationship": "Esta semana, organiza la conversación que has estado posponiendo.",
+                       "learning": "Esta semana, elige el curso o la habilidad y reserva la primera sesión.",
+                       "protect": "Esta semana, lista tus costos fijos y recorta un compromiso que no te devuelve nada.",
+                       "build": "Esta semana, elige el proyecto que más importa y termina su siguiente paso."},
+        "focus_active": "Activo ahora", "focus_starts": "Empieza {when}",
+        "focus_also": "También a la vista",
+        "focus_avoid": "Ve con calma en {label}. {action}",
     },
 }
 
@@ -208,6 +236,73 @@ def _year_block(lk: dict, loc: str) -> Optional[dict]:
             "remedies": remedies[:4]}
 
 
+_FOCUS_ORDER = ("money", "career", "relationship", "learning")   # tie-break: owner's product focus order
+HORIZON_DAYS = 183
+
+
+def _days(a: str, b: str) -> int:
+    return (_d(b) - _d(a)).days
+
+
+def _focus_block(areas: List[dict], cautions: List[dict], loc: str, today_s: str) -> dict:
+    """Antar-driven focus for the next six months: one primary focus chosen by the engine."""
+    tx = T[loc]
+    t0 = _d(today_s)
+    h_end = date.fromordinal(t0.toordinal() + HORIZON_DAYS).isoformat()
+
+    def overlap(a, b):
+        lo, hi = max(a, today_s), min(b, h_end)
+        return max(0, _days(lo, hi)) if lo <= hi else 0
+
+    cands = []
+    for ar in areas:
+        for w in ar["windows"]:
+            ov = overlap(w["start"], w["end"])
+            if ov > 0:
+                cands.append({"area": ar["area"], "w": w, "ov": ov, "rank": _RANK[w["strength"]]})
+    cands.sort(key=lambda c: (-c["rank"], -c["ov"], _FOCUS_ORDER.index(c["area"])))
+
+    caution_days = 0
+    pressure = None
+    for c in cautions:
+        ov = overlap(c["start"], c["end"])
+        caution_days += ov
+        if ov and pressure is None:
+            pressure = c
+    # Protect only when pressure dominates AND nothing strong or good is active; otherwise the
+    # pressure becomes a "go lightly" note beside a real focus.
+    protect = caution_days >= int(HORIZON_DAYS * 0.6) and not (cands and cands[0]["rank"] >= 1)
+
+    def when(w):
+        return tx["focus_active"] if w["start"] <= today_s else tx["focus_starts"].format(
+            when=_fmt(loc, w["start"], w["start"]))
+
+    if protect:
+        mode, key, win = "protect", "protect", None
+    elif cands and cands[0]["rank"] >= 1:
+        mode, key, win = "push", cands[0]["area"], cands[0]["w"]
+    elif cands:
+        mode, key, win = "build", cands[0]["area"], cands[0]["w"]
+    else:
+        mode, key, win = "build", "build", None
+
+    primary = {"area": key if key in _FOCUS_ORDER else None, "headline": tx["focus_head"][key],
+               "first_step": tx["focus_step"][key]}
+    if win:
+        primary.update({"window": win["label"], "timing": when(win), "strength": win["strength"],
+                        "strength_label": win["strength_label"], "why": win["why"], "action": win["action"]})
+    also = []
+    for c in cands:
+        if c["area"] != primary["area"] and len(also) < 2:
+            also.append({"area": c["area"], "headline": tx["focus_head"][c["area"]], "window": c["w"]["label"],
+                         "timing": when(c["w"]), "strength_label": c["w"]["strength_label"]})
+    avoid = None
+    if pressure and not protect:
+        avoid = {"label": pressure["label"], "text": tx["focus_avoid"].format(label=pressure["label"], action=pressure["action"])}
+    return {"title": tx["focus_title"], "horizon": [today_s, h_end], "mode": mode,
+            "primary": primary, "also": also, "avoid": avoid}
+
+
 def compose(forecast: dict, locale: str = "en", today: Optional[date] = None) -> dict:
     loc = locale if locale in T else "en"
     tx = T[loc]
@@ -262,6 +357,8 @@ def compose(forecast: dict, locale: str = "en", today: Optional[date] = None) ->
     summary = (tx["summary"].format(area=tx["area"][best[0]], dates=best[1]["label"]) if best else tx["none"])
     exact = str(sens.get("accuracy") or "").lower() == "exact"
     notes = [tx["birth_time_edge"] if exact else tx["birth_time"]] if fragile else []
+    focus = _focus_block(areas, cautions, loc, today_s)
     annual = (forecast.get("lal_kitab") or {}).get("annual") or []
     return {"available": True, "locale": loc, "summary": summary, "areas": areas,
-            "cautions": cautions, "year": _year_block(annual[0] if annual else None, loc), "notes": notes}
+            "focus": focus, "cautions": cautions,
+            "year": _year_block(annual[0] if annual else None, loc), "notes": notes}
