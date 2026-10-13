@@ -132,3 +132,15 @@ def test_focus_build_when_nothing_is_active_and_both_locales_plain():
         text = json.dumps(compose(FC, loc, TODAY)["focus"], ensure_ascii=False).lower()
         assert not [j for j in JARGON if j in text], loc
     assert compose(FC, "es", TODAY)["focus"]["title"].startswith("Tu enfoque")
+
+
+def test_mandook_is_a_third_independent_system():
+    fc = json.loads(json.dumps(FC))
+    fc["mandook"] = {"applicable": True, "current": None,
+                     "spans": [{"event": "money", "start": "2027-05-27", "end": "2027-11-26", "rules": ["a", "b"]}]}
+    w = next(a for a in compose(fc, "en", TODAY)["areas"] if a["area"] == "money")["windows"][0]
+    assert w["strength"] == "strong" and "Three independent" in w["why"]
+    # a chart outside Mandook's gate is unaffected
+    fc["mandook"] = {"applicable": False, "spans": [], "current": None}
+    w2 = next(a for a in compose(fc, "en", TODAY)["areas"] if a["area"] == "money")["windows"][0]
+    assert "Two independent" in w2["why"]

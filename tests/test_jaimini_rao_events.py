@@ -53,16 +53,31 @@ def test_composite_tiers_and_determinism():
     assert any("vimshottari" in e["layers"] for w in a for e in w["events"] if e["event"] == "marriage")
 
 
-def test_arudha_lagna_rules_for_status_and_gains():
+def test_arudha_lagna_money_and_ledger_rules():
     P = _planets()
     c = ev.Chart(LEO, 130.0, P)
     assert c.al not in (LEO, (LEO + 6) % 12)                  # AL is never the lagna or its 7th
-    tenth_from_al = (c.al + 9) % 12
-    r = ev.rules_for_sign(c, tenth_from_al)
-    assert "CAR.sign_10th_or_11th_from_AL" in r["career"]
-    second_from_al = (c.al + 1) % 12
-    assert "MON.sign_2nd_or_11th_from_AL" in ev.rules_for_sign(c, second_from_al)["money"]
-    assert "CAR.sign_is_or_aspects_AL" in ev.rules_for_sign(c, c.al)["career"]
+    assert "MON.sign_2nd_or_11th_from_AL" in ev.rules_for_sign(c, (c.al + 1) % 12)["money"]
+    assert "MON.sign_2nd_or_11th_from_AL" in ev.rules_for_sign(c, (c.al + 10) % 12)["money"]
+    # unsupported-by-the-books AL career rules are gone
+    for sgn in range(12):
+        assert not any("_AL" in r for r in ev.rules_for_sign(c, sgn)["career"])
+    # Rangacharya's job set: Sun or Venus in the running sign
+    assert "CAR.sign_holds_Sun_or_Venus" in ev.rules_for_sign(c, P["Sun"].sign)["career"]
+    # spouse set: upapada family, darapada, 7th from AL / AK, DK's navamsa sign
+    assert "MAR.sign_is_UL_or_2nd_from_UL" in ev.rules_for_sign(c, c.ul)["marriage"]
+    assert "MAR.sign_is_darapada" in ev.rules_for_sign(c, c.a7)["marriage"]
+    assert "MAR.7th_from_AL" in ev.rules_for_sign(c, (c.al + 6) % 12)["marriage"]
+    assert "MAR.sign_is_DK_navamsa_sign" in ev.rules_for_sign(c, c.dkn)["marriage"]
+
+
+def test_karakamsha_cautions_and_narrowed_sagittarius_rule():
+    P = _planets()
+    c = ev.Chart(LEO, 130.0, P)
+    assert "KAR.running_sign_8th_from_karakamsha" in ev.rules_for_sign(c, (c.kl + 7) % 12)["caution"]
+    sag = ev.rules_for_sign(c, 8)["caution"]
+    assert ("CAU.sagittarius_period_with_AK_in_sagittarius_navamsa" in sag) == (c.kl == 8)
+    assert not any(x == "CAU.sagittarius_period_accident_or_sudden_illness" for x in sag)
 
 
 def test_money_event_flows_through_windows_and_composite():

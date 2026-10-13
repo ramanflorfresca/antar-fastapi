@@ -1,3 +1,4 @@
+import json
 from datetime import date
 
 from antar_engine.event_forecast import build_forecast
@@ -42,3 +43,15 @@ def test_gate_lifted_by_exact_time_but_not_inside_one_minute():
     cd2 = {**CD, "lagna": {"sign_index": 9, "degree": 24.1}}   # ~0.4 min from the edge
     edge = build_forecast(cd2, "1974-11-26", [], today=date(2026, 10, 13), birth_time_accuracy="exact")["d10"]["sensitivity"]
     assert edge["gate"]
+
+
+def test_mandook_block_only_for_charts_passing_the_kendra_gate():
+    from antar_engine.event_forecast import build_forecast
+    off = build_forecast(CD, "1981-03-02", [], today=date(2026, 10, 13))["mandook"]
+    # CD has Sun/Mercury/Jupiter/Venus in Leo (lagna Leo) plus Mars/Ketu in Capricorn: Leo lagna kendras
+    # are Leo, Scorpio, Aquarius, Taurus -> 4 of the seven planets -> applicable
+    assert off["applicable"] is True and off["current"] and off["current"]["major"]
+    cd2 = json.loads(json.dumps(CD))
+    for n in ("Sun", "Mercury", "Jupiter", "Venus"):
+        cd2["planets"][n].update(sign_index=2, longitude=60 + 5)   # Gemini: 11th from Leo, not a kendra
+    assert build_forecast(cd2, "1981-03-02", [], today=date(2026, 10, 13))["mandook"]["applicable"] is False

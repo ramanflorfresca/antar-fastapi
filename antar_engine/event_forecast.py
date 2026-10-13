@@ -7,12 +7,14 @@ every rule has a stable id for later feedback grading.
 from datetime import date, datetime
 from typing import Dict, List, Optional
 
-from antar_engine.jaimini_engine import Planet
+from antar_engine.jaimini_engine import Planet, SIGN_NAMES
 from antar_engine.composite_events import composite_windows
 from antar_engine.lal_kitab_events import lal_kitab_profile
 from antar_engine.lk_annual_forecast import lk_annual_forecast
 from antar_engine.d10_layer import d10_windows
 from antar_engine.parashari_events import parashari_windows
+from antar_engine.mandook_dasha import compute_mandook_dasha, mandook_current
+from antar_engine.jaimini_rao_events import Chart as _JChart, rules_for_sign as _jrules
 
 PLAIN = {"marriage": "Relationship / marriage", "children": "Children",
          "education": "Study and learning", "money": "Money / income", "career": "Career step"}
@@ -122,6 +124,35 @@ def _parashari_block(lagna_sign, lagna_lon, planets, vim_rows, start, end) -> di
             "caution_spans": merge_spans(cautions, key=lambda x: "c")}
 
 
+def _mandook_block(lagna_sign, lagna_lon, planets, bd, start, end) -> dict:
+    """Rao's Mandook dasha as a third timing system. Only for charts that pass his kendra gate
+    (about 17 percent). Same event rules as Chara are read on the Mandook sub-period sign; marriage
+    also gets the 'major period is the 7th from the lagna' rule."""
+    signs = {n: p.sign for n, p in planets.items()}
+    periods = compute_mandook_dasha(lagna_sign, signs, bd, num_cycles=3)
+    if periods is None:
+        return {"applicable": False, "spans": [], "current": None}
+    c = _JChart(lagna_sign, lagna_lon, planets)
+    items = []
+    for p in periods:
+        for sub in p.subs:
+            if sub.end < start or sub.start > end:
+                continue
+            r = _jrules(c, sub.sign)
+            for ev in ("marriage", "career", "money"):
+                rules = list(r[ev])
+                if ev == "marriage" and p.sign == (lagna_sign + 6) % 12:
+                    rules.append("MAR.mdk_major_is_7th_from_lagna")
+                if len(rules) >= (3 if ev == "marriage" else 2):
+                    items.append({"event": ev, "start": sub.start.date().isoformat(),
+                                  "end": sub.end.date().isoformat(), "rules": rules})
+    cur_p, cur_s = mandook_current(periods, start)
+    cur = None
+    if cur_p:
+        cur = {"major": SIGN_NAMES[cur_p.sign], "sub": SIGN_NAMES[cur_s.sign] if cur_s else None}
+    return {"applicable": True, "spans": merge_spans(items, key=lambda x: x["event"]), "current": cur}
+
+
 def build_forecast(chart_data: dict, birth_date, vim_rows, today: Optional[date] = None,
                    months: int = 24, birth_time_accuracy: Optional[str] = None) -> dict:
     today = today or date.today()
@@ -170,7 +201,8 @@ def build_forecast(chart_data: dict, birth_date, vim_rows, today: Optional[date]
                                key=lambda x: "gain", tier_key="gain_score")
     caution_spans = merge_spans([{**c_, "rules": c_["rules"]} for c_ in cautions], key=lambda x: "c")
     parashari = _parashari_block(lagna_sign, lagna_lon, planets, vim_rows, start, end)
-    return {"available": True, "parashari": parashari, "event_spans": spans, "caution_spans": caution_spans, "d10": d10, "window": [start.date().isoformat(), end.date().isoformat()],
+    mandook = _mandook_block(lagna_sign, lagna_lon, planets, bd, start, end)
+    return {"available": True, "mandook": mandook, "parashari": parashari, "event_spans": spans, "caution_spans": caution_spans, "d10": d10, "window": [start.date().isoformat(), end.date().isoformat()],
             "events": events, "cautions": cautions,
             "lal_kitab": {"profile": lk_profile, "annual": annual},
             "method": "Jaimini Chara (K.N. Rao) + composite confluence (Boney) + Lal Kitab",
