@@ -1530,6 +1530,20 @@ async def _accuracy_board_job():
         print(f"[accuracy_board] job non-fatal: {e}")
 
 
+async def _dasha_audit_job():
+    """[dasha-audit 2026-10-13] NIGHTLY 03:20 UTC: every live chart still has the dasha rows the surfaces read (recent charts
+    nightly, all charts on Sundays); gaps are repaired insert-only and alerted. DASHA_AUDIT_REPAIR=off alerts without writing."""
+    import asyncio as _aio_da
+    from antar_engine import dasha_audit as _da
+    try:
+        _full = datetime.now(timezone.utc).weekday() == 6
+        _rep = (os.environ.get("DASHA_AUDIT_REPAIR", "on").strip().lower() not in ("off", "0", "false", "no"))
+        res = await _aio_da.to_thread(_da.audit, supabase, _full, _rep)
+        print(f"[dasha_audit] {res}")
+    except Exception as e:
+        print(f"[dasha_audit] job non-fatal: {e}")
+
+
 def _ec_flag(name: str) -> bool:
     return (os.environ.get(name) or "").strip().lower() in ("1", "on", "true", "yes")
 
@@ -2205,6 +2219,8 @@ scheduler.add_job(_outcome_checkin_job, "cron", minute=15,
                   id="outcome_checkin", replace_existing=True)  # hourly; dated Ask claims "did it happen?" at local ~8 AM
 scheduler.add_job(_decoy_seed_job, "cron", hour=4, minute=10,
                   id="decoy_seed", replace_existing=True)  # daily; past-window decoys → base rate
+scheduler.add_job(_dasha_audit_job, "cron", hour=3, minute=20,
+                  id="dasha_audit", replace_existing=True)  # nightly; charts with missing dasha rows -> repair + alert
 scheduler.add_job(_accuracy_board_job, "cron", hour=3, minute=40,
                   id="accuracy_board", replace_existing=True)  # nightly; board → accuracy_board_snapshots
 scheduler.add_job(_evening_checkin_job, "cron", minute=17,
