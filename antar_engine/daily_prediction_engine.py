@@ -452,7 +452,7 @@ def get_tithi(target_date: datetime, tz_offset: float = 0) -> str:
 # Scoring (KEPT from v1)
 # ──────────────────────────────────────────────
 
-def _score_day(moon_sign: str, natal_moon_sign: str, nakshatra: str, weekday: str) -> tuple:
+def _score_day(moon_sign: str, natal_moon_sign: str, nakshatra: str, weekday: str, star_weight: int = 2) -> tuple:
     """
     Returns (score: int, is_friction: bool)
     score 0–10, higher = more aligned
@@ -463,10 +463,12 @@ def _score_day(moon_sign: str, natal_moon_sign: str, nakshatra: str, weekday: st
                    "Chitra", "Dhanishta", "Magha", "Punarvasu"}
     friction_nakshatras = {"Ardra", "Ashlesha", "Jyeshtha", "Mula",
                            "Purva Bhadrapada", "Bharani"}
+    # star_weight: the generic (same-for-everyone) star list. 2 historically; 1 when the personal star-lord term
+    # is blended in, so the personal term refines rather than piles onto it.
     if nakshatra in high_energy:
-        score += 2
+        score += star_weight
     elif nakshatra in friction_nakshatras:
-        score -= 2
+        score -= star_weight
 
     friction_signs = MOON_FRICTION_MAP.get(natal_moon_sign, [])
     if moon_sign in friction_signs:
@@ -2704,7 +2706,9 @@ async def generate_weekly_signals(
         chandra_bala = get_chandra_bala(natal_moon_sign, moon_sign)
 
         # Score the day (KEPT)
-        score, is_friction = _score_day(moon_sign, natal_moon_sign, nakshatra, weekday)
+        from antar_engine.daily_precision import star_lord_enabled as _sle
+        score, is_friction = _score_day(moon_sign, natal_moon_sign, nakshatra, weekday,
+                                        star_weight=(1 if (daily_context and _sle()) else 2))
 
         # [daily-precision c1] chart-relative layer (tara + moon-house),
         # computed from daily_context (natal moon nakshatra + lagna). None
@@ -2713,6 +2717,7 @@ async def generate_weekly_signals(
         try:
             if daily_context:
                 from antar_engine.daily_precision import compute_daily_precision
+                from antar_engine.daily_precision import nakshatra_lord_by_index as _nak_lord_by_index
                 _precision = compute_daily_precision(
                     natal_moon_nak=daily_context.get("moon_nakshatra", ""),
                     natal_lagna_sign=daily_context.get("lagna_sign", ""),
@@ -2722,6 +2727,9 @@ async def generate_weekly_signals(
                     weekday_index=target_date.weekday(),
                     dasha_ad=daily_context.get("ad", ""),
                     dasha_pd=daily_context.get("pd", ""),
+                    today_star_lord=(_nak_lord_by_index(NAKSHATRAS.index(nakshatra))
+                                     if nakshatra in NAKSHATRAS else ""),
+                    dasha_md=daily_context.get("md", ""),
                 )
                 # [double-transit 2026-10-12] confidence input, fail-open.
                 try:

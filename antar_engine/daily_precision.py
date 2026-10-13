@@ -22,6 +22,7 @@ SOURCE DISCIPLINE
 
 from __future__ import annotations
 
+import os
 from typing import Any, Dict, Optional
 
 from antar_engine.tara_bala import compute_tara_bala
@@ -121,11 +122,79 @@ def day_owned_by(weekday_index: Optional[int], ad: str = "", pd: str = "") -> Op
     return None
 
 
+_VIM_LORDS = ("Ketu", "Venus", "Sun", "Moon", "Mars", "Rahu", "Jupiter", "Saturn", "Mercury")
+
+
+def nakshatra_lord_by_index(i: int) -> str:
+    """Vimshottari star lord of the i-th nakshatra (0 = Ashwini): the 9 lords repeat three times."""
+    return _VIM_LORDS[int(i) % 9]
+
+
+def star_lord_enabled() -> bool:
+    """DAILY_STAR_LORD=on blends the personal star-lord term into the day score (default off = shadow only:
+    the term is still computed and exposed as fields, but the score is unchanged)."""
+    return os.getenv("DAILY_STAR_LORD", "off").strip().lower() in ("on", "1", "true", "yes")
+
+
+def star_lord_term(star_lord: str, lagna_sign: str, md: str = "", ad: str = "") -> Dict[str, Any]:
+    """[star-lord 2026-10-12] How today's Moon star lord stands to THIS chart. PROVISIONAL weights, small by design.
+
+      nature      +1 functional benefic for the lagna, -1 functional malefic, 0 otherwise. Rahu/Ketu are 0 (their
+                  stars already carry the generic friction list; counting them again would double-penalise).
+      activation  when the star lord is also the running chapter (MD) or shift (AD) lord, its nature counts once
+                  more in the SAME direction (a malefic dasha lord's star day is harder, not luckier).
+    Total is in [-2, +2]. Correlated facts (yogakaraka, MD/AD, benefic) are not stacked: yogakaraka is already a
+    functional benefic here, and dasha lords only AMPLIFY the nature, never add a free bonus."""
+    out: Dict[str, Any] = {"star_lord": star_lord or None, "delta": 0, "nature": 0, "activated": None}
+    sl = str(star_lord or "").strip().title()
+    if not sl or sl in ("Rahu", "Ketu"):
+        return out
+    try:
+        from antar_engine.practice_engine import is_functional_benefic, is_functional_malefic
+        nature = 1 if is_functional_benefic(sl, lagna_sign) else (-1 if is_functional_malefic(sl, lagna_sign) else 0)
+    except Exception:
+        return out
+    out["nature"] = nature
+    if nature == 0:
+        return out
+    act = None
+    if str(md or "").strip().title() == sl:
+        act = "md"
+    elif str(ad or "").strip().title() == sl:
+        act = "ad"
+    out["activated"] = act
+    out["delta"] = nature * (2 if act else 1)
+    return out
+
+
+_STAR_LORD_REASON = {
+    "en": {"pos": "Today's Moon star is ruled by a planet that supports your chart.",
+           "neg": "Today's Moon star is ruled by a planet that strains your chart.",
+           "pos_md": " It also runs your current chapter, so it counts double.",
+           "pos_ad": " It also runs your current shift, so it counts double."},
+    "es": {"pos": "La estrella de la Luna hoy est\u00e1 regida por un planeta que apoya tu carta.",
+           "neg": "La estrella de la Luna hoy est\u00e1 regida por un planeta que tensiona tu carta.",
+           "pos_md": " Adem\u00e1s rige tu cap\u00edtulo actual, as\u00ed que cuenta doble.",
+           "pos_ad": " Adem\u00e1s rige tu etapa actual, as\u00ed que cuenta doble."},
+}
+
+
+def star_lord_reason(term: Dict[str, Any], lang: str = "en") -> Optional[str]:
+    if not term or not term.get("delta"):
+        return None
+    t = _STAR_LORD_REASON["es" if str(lang).lower().startswith("es") else "en"]
+    txt = t["pos"] if term["delta"] > 0 else t["neg"]
+    if term.get("activated"):
+        txt += t["pos_" + term["activated"]]
+    return txt
+
+
 def compute_daily_precision(natal_moon_nak: str, natal_lagna_sign: str,
                             today_moon_nak: str, today_moon_sign: str,
                             natal_moon_sign: str = "",
                             weekday_index: Optional[int] = None,
-                            dasha_ad: str = "", dasha_pd: str = "") -> Dict[str, Any]:
+                            dasha_ad: str = "", dasha_pd: str = "",
+                            today_star_lord: str = "", dasha_md: str = "") -> Dict[str, Any]:
     """Return the chart-relative daily layer. Always returns a dict; individual
     fields are None when an input is missing (degrades gracefully)."""
     out: Dict[str, Any] = {
@@ -161,6 +230,13 @@ def compute_daily_precision(natal_moon_nak: str, natal_lagna_sign: str,
             out["house_score_delta"], out["chandra_delta"])
     out["day_owned_by"] = day_owned_by(weekday_index, dasha_ad, dasha_pd)
 
+    # [star-lord 2026-10-12] personal star-lord term: always computed (shadow), blended only when enabled.
+    _sl = star_lord_term(today_star_lord, natal_lagna_sign, dasha_md, dasha_ad)
+    out["star_lord"] = _sl["star_lord"]
+    out["star_lord_delta"] = _sl["delta"]
+    out["star_lord_activated"] = _sl["activated"]
+    out["star_lord_in_score"] = star_lord_enabled()
+
     return out
 
 
@@ -171,6 +247,8 @@ def apply_precision_to_score(base_score: int, precision: Dict[str, Any]):
         return base_score, base_score < 4
     s = int(base_score) + int(precision.get("tara_score_delta", 0)) \
         + int(precision.get("house_score_delta", 0))
+    if precision.get("star_lord_in_score"):
+        s += int(precision.get("star_lord_delta", 0))
     s = max(0, min(10, s))
     return s, s < 4
 
@@ -184,6 +262,12 @@ def precision_fields(precision: Dict[str, Any]) -> Dict[str, Any]:
     out = {k: precision[k] for k in keys if precision.get(k) is not None}
     if precision.get("day_owned_by"):
         out["day_owned_by_dasha"] = True
+    if precision.get("star_lord_in_score") and precision.get("star_lord_delta"):
+        out["star_lord_delta"] = precision["star_lord_delta"]
+        out["star_lord_reason"] = {"en": star_lord_reason(
+            {"delta": precision["star_lord_delta"], "activated": precision.get("star_lord_activated")}, "en"),
+            "es": star_lord_reason(
+            {"delta": precision["star_lord_delta"], "activated": precision.get("star_lord_activated")}, "es")}
     return out
 
 
