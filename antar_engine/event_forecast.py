@@ -66,6 +66,33 @@ def _vim_rows(rows) -> List[dict]:
     return out
 
 
+_TIER_RANK = {"single": 0, "double": 1, "triple": 2}
+
+
+def merge_spans(items: List[dict], key, tier_key=None) -> List[dict]:
+    """Merge back-to-back windows (end == next start) of the same kind into one span.
+    A span keeps the best tier / score seen, the members' count, and the union of rules."""
+    out: List[dict] = []
+    for it in sorted(items, key=lambda x: (key(x), x["start"])):
+        prev = out[-1] if out else None
+        if prev and key(prev) == key(it) and prev["end"] >= it["start"]:
+            prev["end"] = max(prev["end"], it["end"])
+            prev["windows"] += 1
+            prev["rules"] = sorted(set(prev["rules"]) | set(it["rules"]))
+            if tier_key == "tier":
+                if _TIER_RANK[it["tier"]] > _TIER_RANK[prev["tier"]]:
+                    prev["tier"] = it["tier"]
+                    prev["peak"] = [it["start"], it["end"]]
+            elif tier_key == "gain_score" and it["gain_score"] > prev["gain_score"]:
+                prev["gain_score"] = it["gain_score"]
+                prev["peak"] = [it["start"], it["end"]]
+            prev["funding_signal"] = prev.get("funding_signal") or it.get("funding_signal")
+        else:
+            out.append({**it, "windows": 1, "rules": list(it["rules"]),
+                        "peak": [it["start"], it["end"]]})
+    return sorted(out, key=lambda x: x["start"])
+
+
 def build_forecast(chart_data: dict, birth_date, vim_rows, today: Optional[date] = None,
                    months: int = 24) -> dict:
     today = today or date.today()
@@ -102,7 +129,11 @@ def build_forecast(chart_data: dict, birth_date, vim_rows, today: Optional[date]
     d10 = d10_windows(lagna_sign, lagna_lon, planets, bd, start, end, vim_rows=_vim_rows(vim_rows))
     for w in d10["windows"]:
         w["start"], w["end"] = w["start"].date().isoformat(), w["end"].date().isoformat()
-    return {"available": True, "d10": d10, "window": [start.date().isoformat(), end.date().isoformat()],
+    spans = merge_spans([e for e in events if e["tier"] != "single"], key=lambda x: (x["event"], x["tier"] == "triple"), tier_key="tier")
+    d10["spans"] = merge_spans([{**w, "rules": w["rules"]} for w in d10["windows"] if w["gain_score"] >= 3],
+                               key=lambda x: "gain", tier_key="gain_score")
+    caution_spans = merge_spans([{**c_, "rules": c_["rules"]} for c_ in cautions], key=lambda x: "c")
+    return {"available": True, "event_spans": spans, "caution_spans": caution_spans, "d10": d10, "window": [start.date().isoformat(), end.date().isoformat()],
             "events": events, "cautions": cautions,
             "lal_kitab": {"profile": lk_profile, "annual": annual},
             "method": "Jaimini Chara (K.N. Rao) + composite confluence (Boney) + Lal Kitab",
