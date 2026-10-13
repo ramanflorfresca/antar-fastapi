@@ -37013,6 +37013,22 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
             except Exception as _kp_e:
                 print(f"[daily-signal] kp shadow skipped (non-fatal): {_kp_e}")
 
+            # [KP hourly shadow 2026-10-12] The Moon's sub-lord timeline for the local day + the chart-specific
+            # best/avoid stretches, stored next to the Abhijit / Rahu Kalam windows users see, so the two can be
+            # compared with real outcomes before anything is shown. Today only (not ?date=), one row per chart-day,
+            # fail-open (the table may not exist yet), NEVER written into `result`.
+            try:
+                from antar_engine.kp import kp_hourly as _kph
+                if _kph.enabled() and _ds_requested_date is None:
+                    _kph_local = start_date.date() if hasattr(start_date, "date") else start_date
+                    _kph_p = await run_in_threadpool(
+                        _kph.build, row, _kph_local, effective_offset,
+                        result.get("abhijit", "") or "", result.get("rahu_kalam", "") or "")
+                    if _kph_p.get("available"):
+                        await run_in_threadpool(_kph.record, supabase, cid, _kph_p)
+            except Exception as _kph_e:
+                print(f"[daily-signal] kp hourly shadow skipped (non-fatal): {_kph_e}")
+
             # [admin-inspect] capture the deterministic engine pick (raw bundle)
             _ai_c = _inspect_active()
             if _ai_c is not None:
