@@ -20,3 +20,14 @@ def test_forecast_shape_and_determinism():
 
 def test_incomplete_chart_is_unavailable():
     assert build_forecast({}, "1981-03-02", [], today=date(2026, 10, 13))["available"] is False
+
+
+def test_merge_spans_joins_back_to_back_windows():
+    from antar_engine.event_forecast import merge_spans
+    items = [{"event": "career", "tier": "double", "start": "2026-10-13", "end": "2027-01-08", "rules": ["a"]},
+             {"event": "career", "tier": "double", "start": "2027-01-08", "end": "2027-09-08", "rules": ["b"]},
+             {"event": "career", "tier": "double", "start": "2028-01-01", "end": "2028-03-01", "rules": ["a"]}]
+    out = merge_spans(items, key=lambda x: x["event"], tier_key="tier")
+    assert [(o["start"], o["end"], o["windows"]) for o in out] == [
+        ("2026-10-13", "2027-09-08", 2), ("2028-01-01", "2028-03-01", 1)]
+    assert out[0]["rules"] == ["a", "b"]
