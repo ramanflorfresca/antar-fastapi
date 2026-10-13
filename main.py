@@ -15624,7 +15624,13 @@ async def _create_chart_for_user(request: "ChartCreateRequest", user_id: Optiona
     vim_dashas, jai_dashas, ash_dashas = [], [], []
     try: vim_dashas = _normalise_dashas(
             vimsottari.calculate_vimsottari_from_chart(chart_data, chart_data.get("birth_jd")))
-    except Exception as e: print(f"Vimsottari error: {e}")
+    except Exception as e:
+        print(f"Vimsottari error: {e}")
+        try:
+            from antar_engine.dasha_heal import alert_failure as _daf
+            _daf("create:compute:vimsottari", "new-chart", e)
+        except Exception:
+            pass
     try:
         from antar_engine.jaimini import build_planet_map
         import datetime as _dt
@@ -15643,10 +15649,22 @@ async def _create_chart_for_user(request: "ChartCreateRequest", user_id: Optiona
         jai_dashas = _normalise_dashas(
             jaimini.compute_jaimini_dashas(_lagna_idx, _planet_sign_map, _bdate)
         )
-    except Exception as e: print(f"Jaimini error: {e}")
+    except Exception as e:
+        print(f"Jaimini error: {e}")
+        try:
+            from antar_engine.dasha_heal import alert_failure as _daf
+            _daf("create:compute:jaimini", "new-chart", e, level="warn")
+        except Exception:
+            pass
     try: ash_dashas = _normalise_dashas(
             ashtottari.calculate_ashtottari_from_chart(chart_data, chart_data.get("birth_jd")))
-    except Exception as e: print(f"Ashtottari error: {e}")
+    except Exception as e:
+        print(f"Ashtottari error: {e}")
+        try:
+            from antar_engine.dasha_heal import alert_failure as _daf
+            _daf("create:compute:ashtottari", "new-chart", e, level="warn")
+        except Exception:
+            pass
 
     dashas_combined = {"vimsottari": vim_dashas, "jaimini": jai_dashas, "ashtottari": ash_dashas}
 
@@ -15886,12 +15904,23 @@ async def _create_chart_for_user(request: "ChartCreateRequest", user_id: Optiona
                 supabase.table("dasha_periods").insert(_rows[i:i+100]).execute()
             except Exception as e:
                 print(f"[dasha_insert:{_tag}] batch {i//100+1} FAILED: {e}")
+                try:
+                    from antar_engine.dasha_heal import alert_failure as _daf
+                    _daf(f"create:insert:{_tag}", chart_id, e)
+                except Exception:
+                    pass
         # [loop-unblock 2026-09-28] Drop any cached rows for this chart. The
         # deferred background batch lands AFTER the first Today read, so without
         # this the cache would pin the Today-critical subset (MD+AD only) and the
         # Ask/concern engines would read a chart with no PD level for the whole
         # TTL. See invalidate_dasha_cache.
         invalidate_dasha_cache(chart_id)
+    if not any(r["system"] == "vimsottari" for r in dasha_rows):
+        try:
+            from antar_engine.dasha_heal import alert_failure as _daf
+            _daf("create:no-vimsottari-rows", chart_id, "the chart was created with no vimsottari dasha rows")
+        except Exception:
+            pass
     if dasha_rows:
         _sync_rows = [r for r in dasha_rows
                       if (r["system"] == "vimsottari" and r["level"] in (1, 2))
@@ -19070,6 +19099,11 @@ def _rederive_after_birth_edit(chart_id: str, chart_data: dict, birth_date: str)
     except Exception as e:
         status["dashas"] = f"failed: {e}"
         print(f"[edit-birth] dashas failed chart={chart_id[:8]}: {e}")
+        try:
+            from antar_engine.dasha_heal import alert_failure as _daf
+            _daf("edit-birth", chart_id, e)
+        except Exception:
+            pass
 
     # 3. jaimini_data
     try:
