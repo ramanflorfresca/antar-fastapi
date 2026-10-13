@@ -29962,6 +29962,16 @@ async def ask_endpoint(request: AskRequest):
     _rf = _ASK_REFRAMED.get()
     if _rf and isinstance(_res, dict):
         _res["reframed"] = {"kind": _rf["kind"], "original": _rf["original"]}
+    # [ask-decision-view 2026-10-13] structured decision (prediction / holds / breaks / move / why) split from the text the
+    # engine already wrote, so the answer sheet can render it. Additive, only for decision-shaped explore answers.
+    try:
+        if isinstance(_res, dict) and "decision" not in _res and _res.get("mode") == "explore" and not _res.get("locked"):
+            from antar_engine.ask_decision import build as _ad_build
+            _ad = _ad_build(_res.get("read"), _res.get("next"), _res.get("basis"), getattr(request, "language", "en"))
+            if _ad:
+                _res["decision"] = _ad
+    except Exception as _ade:
+        print(f"[ask] decision view skipped (non-fatal): {_ade}")
     # [daily-loop 2026-10-12] A successful Ask is the loop's third step. Off the event loop, never blocks the answer.
     try:
         if isinstance(_res, dict) and not _res.get("error") and (request.chart_id or "").strip():
