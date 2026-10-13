@@ -86,14 +86,13 @@ def _why_now(entry: dict, lang: str) -> str:
     if _basis == "today_pressure":
         return (f"Hoy algo presiona {e} \u2014 una peque\u00f1a pr\u00e1ctica estabiliza el d\u00eda." if lang == "es"
                 else f"Today something presses on {e} \u2014 a small practice steadies the day.")
-    if _basis == "moon_star_lord":
+    if _basis == "ruling_planets":
         _nk = entry.get("_moon_star") or ""
-        return (f"Hoy la Luna est\u00e1 en {_nk}, una estrella de {e} \u2014 y es un \u00e1rea que tu carta te pide trabajar." if lang == "es"
-                else f"Today the Moon is in {_nk}, a star of {e} \u2014 and it is an area your chart asks you to work on.")
-    if _basis == "weekday_ruler":
-        _wd = _WEEKDAY_NAME[lang][entry["_weekday"]] if entry.get("_weekday") is not None else ""
-        return (f"Hoy, {_wd}, es el d\u00eda de {e} \u2014 y es un \u00e1rea que tu carta te pide trabajar." if lang == "es"
-                else f"Today, {_wd}, is the day of {e} \u2014 and it is an area your chart asks you to work on.")
+        if _nk:
+            return (f"Hoy la Luna est\u00e1 en {_nk}, una estrella de {e} \u2014 y es un \u00e1rea que tu carta te pide trabajar." if lang == "es"
+                    else f"Today the Moon is in {_nk}, a star of {e} \u2014 and it is an area your chart asks you to work on.")
+        return (f"Hoy las influencias del d\u00eda apuntan a {e} \u2014 y es un \u00e1rea que tu carta te pide trabajar." if lang == "es"
+                else f"Today's influences point to {e} \u2014 and it is an area your chart asks you to work on.")
     srcs = entry.get("contributing_sources") or [tf]
     merged_with_natal = ("natal_baseline" in srcs and tf in LEADABLE_TIMEFRAMES)
     if lang == "es":
@@ -137,57 +136,68 @@ def _stamp_timeframe_fields(entry: dict, lang: str) -> dict:
 # must move day to day, not repeat the year's focus. Candidates are exactly the chart's active remediation
 # entries (every timeframe). Today's lead is, in order:
 #   1. a planet under acute pressure TODAY (a daily_transit entry);
-#   2. the lord of the star (nakshatra) the Moon is in today, if it is one of the candidates;
-#   3. the planet that rules today's weekday, if it is one of the candidates (the classical weekday-planet
-#      rhythm: fasts, giving and mantra days are keyed to it);
-#   4. otherwise the router's normal lead (year > month > cycle).
+#   2. the KP ruling planets of today's Moon (star lord, sub lord, sign lord) plus the weekday lord, whichever of
+#      them is one of the candidates; a planet holding several roles outranks one holding a single role;
+#   3. otherwise the router's normal lead (year > month > cycle).
 # The displaced year lead stays visible as the first secondary entry.
-_WEEKDAY_LORD = ("Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn", "Sun")  # Monday..Sunday
-_WEEKDAY_NAME = {
-    "en": ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"),
-    "es": ("lunes", "martes", "mi\u00e9rcoles", "jueves", "viernes", "s\u00e1bado", "domingo"),
-}
-
-
 def _day_lead_enabled() -> bool:
     return os.getenv("PRACTICE_DAY_LEAD", "on").strip().lower() not in ("off", "0", "false")
 
 
-def moon_star_today(today_date) -> Optional[tuple]:
-    """(nakshatra name, star lord) of the Moon at midday UTC on `today_date` (sidereal, Lahiri). None on any failure.
-    The Moon changes star about once a day, so this is the day's own ruling planet (9 possible lords, Rahu and
-    Ketu included)."""
+def moon_ruling_today(today_date) -> Optional[dict]:
+    """The Moon's KP chain for `today_date` at midday UTC (KP-Krishnamurti sidereal): nakshatra, star lord (NL),
+    sub lord (SL), sign lord (RL), plus the weekday lord. None on any failure. The Moon changes star about daily
+    and sub every few hours, so a fixed midday reference keeps one stable focus per day.
+    (The sub-sub lord needs a finer table than the repo's 249-sub one, so it is not used yet.)"""
     try:
         import swisseph as swe
-        from antar_engine.antar_ephemeris import NAKSHATRA_LORDS, NAKSHATRAS as NAKSHATRA_NAMES
+        from antar_engine.kp import kp_chart as _kc
+        from antar_engine.kp.kp_horary import WEEKDAY_LORDS as _WL
         jd = swe.julday(today_date.year, today_date.month, today_date.day, 12.0)
-        swe.set_sid_mode(swe.SIDM_LAHIRI)
-        lon = (swe.calc_ut(jd, swe.MOON)[0][0] - swe.get_ayanamsa_ut(jd)) % 360.0
-        i = int(lon / (360.0 / 27.0)) % 27
-        return NAKSHATRA_NAMES[i], NAKSHATRA_LORDS[i]
+        _kc._assert_kp_ayanamsa()
+        m = _kc.compute_planets(jd)["Moon"]
+        return {"nakshatra": m["nakshatra"], "star_lord": m["star_lord"], "sub_lord": m["sub_lord"],
+                "sign_lord": m["sign_lord"], "day_lord": _WL[today_date.weekday()]}
     except Exception:
         return None
 
 
+def moon_star_today(today_date) -> Optional[tuple]:
+    """(nakshatra, star lord) for the day, from the same KP chain. None on failure."""
+    r = moon_ruling_today(today_date)
+    return (r["nakshatra"], r["star_lord"]) if r else None
+
+
+# role weight: the star lord carries the day, the sub lord refines it, sign lord and day lord support it
+_RULING_WEIGHT = (("star_lord", "star", 3), ("sub_lord", "sub", 2), ("sign_lord", "sign", 1), ("day_lord", "day", 1))
+
+
 def pick_day_lead(merged: list, today_date) -> tuple:
     """(entry, basis) for today, or (None, None) to keep the router's lead.
-    basis: today_pressure | moon_star_lord | weekday_ruler. The entry carries `_moon_star` for the star case."""
+    basis: today_pressure | ruling_planets. A planet that holds several ruling roles today outranks one holding
+    one (KP ruling-planet principle); ties go to the more severe entry. The chosen entry carries `_roles` and,
+    when it is the star lord, `_moon_star`."""
     if not merged or today_date is None:
         return None, None
     acute = [m for m in merged if _tf_of(m) == "today"]
     if acute:
         return max(acute, key=lambda m: m.get("severity", 0.0)), "today_pressure"
-    star = moon_star_today(today_date)
-    if star:
-        starred = [m for m in merged if m.get("planet") == star[1]]
-        if starred:
-            e = dict(max(starred, key=lambda m: m.get("severity", 0.0)))
-            e["_moon_star"] = star[0]
-            return e, "moon_star_lord"
-    lord = _WEEKDAY_LORD[today_date.weekday()]
-    ruled = [m for m in merged if m.get("planet") == lord]
-    if ruled:
-        return max(ruled, key=lambda m: m.get("severity", 0.0)), "weekday_ruler"
+    r = moon_ruling_today(today_date)
+    if r:
+        best, best_key = None, None
+        for m in merged:
+            roles = [(role, w) for key, role, w in _RULING_WEIGHT if r.get(key) == m.get("planet")]
+            if not roles:
+                continue
+            key = (sum(w for _, w in roles), m.get("severity", 0.0))
+            if best_key is None or key > best_key:
+                best, best_key, best_roles = m, key, [role for role, _ in roles]
+        if best is not None:
+            e = dict(best)
+            e["_roles"] = best_roles
+            if "star" in best_roles:
+                e["_moon_star"] = r["nakshatra"]
+            return e, "ruling_planets"
     return None, None
 
 
@@ -226,7 +236,6 @@ def select_practice_set(actives: list, sticky_key=None, completed_today=None, to
         if _dl is not None:
             lead = dict(_dl)
             lead["day_basis"] = _basis
-            lead["_weekday"] = today_date.weekday()
             if year_lead is not None and year_lead.get("planet") != lead.get("planet"):
                 lead["year_focus_planet"] = year_lead.get("planet")
 
@@ -452,6 +461,7 @@ def compose_practice_response(
             "why_now": _why_now(priority, lang),
             "focus_basis": priority.get("day_basis") or "router",
             "moon_star": ({"nakshatra": priority.get("_moon_star")} if priority.get("_moon_star") else None),
+            "focus_roles": priority.get("_roles"),
             "year_focus_planet": priority.get("year_focus_planet"),
             "source": "selection: timeframe-router; content: existing LK remedy tables",
             "streak_days": int(st.get("days", 0)),
