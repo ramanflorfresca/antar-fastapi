@@ -227,6 +227,8 @@ class Evidence:
     why: Dict[str, str]
     planet: Optional[str] = None
     house: Optional[int] = None
+    planets: tuple = ()            # planets the rule is about (a dasha of one of them runs the rule)
+    signs: tuple = ()              # signs the rule is about (a Jaimini sub-period in one of them runs the rule)
 
 
 @dataclass
@@ -245,16 +247,20 @@ def _kar_rules(ctx: Ctx):
     out = []
     if any(T_(P[x].sign, tenth) or T_(P[x].sign, kl) for x in ("Saturn", "Mercury")):
         out.append(Evidence("KAR.fame_sat_mer", "K.N. Rao, Karakamsha", ["career", "business"], "good", "specific",
-                            {l: T[l]["kar_fame"] for l in T}, {l: T[l]["kar_fame_why"] for l in T}))
+                            {l: T[l]["kar_fame"] for l in T}, {l: T[l]["kar_fame_why"] for l in T},
+                            planets=("Saturn", "Mercury"), signs=(kl, tenth)))
     if T_(P["Moon"].sign, tenth) and T_(P["Venus"].sign, tenth):
         out.append(Evidence("KAR.fame_moon_venus", "K.N. Rao, Karakamsha", ["career", "business"], "good", "specific",
-                            {l: T[l]["kar_fame"] for l in T}, {l: T[l]["kar_fame_why"] for l in T}))
+                            {l: T[l]["kar_fame"] for l in T}, {l: T[l]["kar_fame_why"] for l in T},
+                            planets=("Moon", "Venus"), signs=(kl, tenth)))
     if T_(j.k_sign["AmK"], tenth):
         out.append(Evidence("KAR.fame_amk", "K.N. Rao, Karakamsha", ["career", "business"], "good", "specific",
-                            {l: T[l]["kar_fame"] for l in T}, {l: T[l]["kar_fame_why"] for l in T}))
+                            {l: T[l]["kar_fame"] for l in T}, {l: T[l]["kar_fame_why"] for l in T},
+                            planets=(j.k["AmK"],), signs=(kl, tenth)))
     if any(P[b].sign == (kl + 11) % 12 for b in ("Jupiter", "Venus", "Mercury")):
         out.append(Evidence("KAR.spiritual_12th_from_KL", "K.N. Rao, Karakamsha", ["spirituality", "foreign"], "info",
-                            "specific", {l: T[l]["kar_spirit"] for l in T}, {l: T[l]["kar_spirit_why"] for l in T}))
+                            "specific", {l: T[l]["kar_spirit"] for l in T}, {l: T[l]["kar_spirit_why"] for l in T},
+                            planets=("Jupiter", "Venus", "Mercury"), signs=((kl + 11) % 12,)))
     return out
 
 
@@ -278,7 +284,7 @@ def _lk_rules(ctx: Ctx):
             plain[l] = T[l]["lk_good" if tone == "good" else "lk_bad"].format(p=p, t=t)
             why[l] = T[l]["lk_why"].format(t=t, v=T[l]["v_good" if tone == "good" else "v_bad"])
         out.append(Evidence(f"LK.{planet}_{h}.{tone}", "Lal Kitab", HOUSE_SUBJECTS.get(h, []), tone, "tone",
-                            plain, why, planet=planet, house=h))
+                            plain, why, planet=planet, house=h, planets=(planet,)))
     return out
 
 
@@ -306,7 +312,8 @@ def _yoga_rules(ctx: Ctx):
                  for l in pl}
         out.append(Evidence(f"YOGA.{stem.replace(' ', '_')}", "B.V. Raman, combinations",
                             _YOGA_SUBJECTS.get(y.get("category", "general"), []), tone, "specific",
-                            plain, {l: T[l]["yoga_why"] for l in T}))
+                            plain, {l: T[l]["yoga_why"] for l in T},
+                            planets=tuple(p for p in (y.get("planets") or []) if p in ctx.planets)))
     return out
 
 
@@ -354,6 +361,97 @@ def remedies_for(evs: List[Evidence], limit: int = 3) -> List[dict]:
         if len(out) >= limit:
             break
     return out
+
+
+# ----------------------------------------------------------------------------- dashas drive the rules
+from datetime import datetime, timedelta
+
+
+def _dt(v):
+    try:
+        return v if isinstance(v, datetime) else datetime.fromisoformat(str(v)[:10])
+    except Exception:
+        return None
+
+
+def dasha_state(ctx: Ctx, when: date) -> dict:
+    """Running Vimshottari major/sub lords and Jaimini Chara major/sub signs on `when`."""
+    from antar_engine.jaimini_engine import compute_chara_dasha
+    if not hasattr(ctx, "_chara"):
+        bd = _dt(ctx.birth_date)
+        ctx._chara = compute_chara_dasha(ctx.lagna, ctx.planets, bd, num_cycles=3) if bd else []
+    w = datetime(when.year, when.month, when.day)
+    vmd = vad = None
+    for r in ctx.vim_rows:
+        s, e = _dt(r.get("start_date") or r.get("start")), _dt(r.get("end_date") or r.get("end"))
+        lord = r.get("planet_or_sign") or r.get("lord_or_sign")
+        lvl = str(r.get("level") or r.get("type") or "").lower()
+        if s and e and s <= w < e:
+            if lvl in ("1", "mahadasha"):
+                vmd = lord
+            elif lvl in ("2", "antardasha", "bhukti"):
+                vad = lord
+    cmd = cad = None
+    for md in ctx._chara:
+        if md.start_date <= w < md.end_date:
+            cmd = md.sign
+            for ad in md.sub_periods:
+                if ad.start_date <= w < ad.end_date:
+                    cad = ad.sign
+    return {"vim_md": vmd, "vim_ad": vad, "chara_md": cmd, "chara_ad": cad}
+
+
+def running(ctx: Ctx, e: Evidence, st: dict) -> List[str]:
+    """Which timing systems run this rule on that date. [] = the rule is dormant."""
+    out = []
+    if any(p in (st["vim_md"], st["vim_ad"]) for p in e.planets):
+        out.append("vimshottari")
+    cad = st["chara_ad"]
+    if cad is not None:
+        hit = any(ctx.planets[p].sign == cad or jre._aspects(ctx.planets[p].sign, cad) for p in e.planets if p in ctx.planets)
+        hit = hit or cad in e.signs
+        if hit:
+            out.append("jaimini")
+    return out
+
+
+def running_rules(ctx: Ctx, when: date, subject: Optional[str] = None):
+    """[(Evidence, [systems])] of the applicable rules that the dashas are running on `when`."""
+    st = dasha_state(ctx, when)
+    evs = applicable(ctx)
+    if subject:
+        evs = for_subject(evs, subject)
+    return [(e, s) for e in evs if (s := running(ctx, e, st))], st
+
+
+def timeline(ctx: Ctx, subject: str, months: int = 24, lang: str = "en"):
+    """Segments of the next `months` months with the tone the running rules give `subject`:
+    supportive / strained / mixed. Months with no running rule are silent."""
+    tx = {"en": {"good": "supportive", "bad": "strained", "mixed": "mixed"},
+          "es": {"good": "favorable", "bad": "tenso", "mixed": "mixto"}}[lang if lang in ("en", "es") else "en"]
+    monthly = []
+    for k in range(months):
+        d = ctx.today + timedelta(days=30 * k)
+        rr_, _ = running_rules(ctx, d, subject)
+        tones = {e.tone for e, _ in rr_ if e.tone in ("good", "bad")}
+        tone = "mixed" if tones == {"good", "bad"} else ("good" if tones == {"good"} else ("bad" if tones == {"bad"} else None))
+        two = any(len(sy) == 2 for _, sy in rr_)
+        ids = tuple(sorted(e.rule_id for e, _ in rr_ if e.tone in ("good", "bad")))
+        monthly.append((d, tone, two, ids))
+    segs = []
+    for d, tone, two, ids in monthly:
+        if tone is None:
+            continue
+        if segs and segs[-1]["tone"] == tone and (d - segs[-1]["end"]).days <= 31:
+            segs[-1]["end"] = d
+            segs[-1]["both"] = segs[-1]["both"] or two
+            segs[-1]["ids"] = sorted(set(segs[-1]["ids"]) | set(ids))
+        else:
+            segs.append({"start": d, "end": d, "tone": tone, "both": two, "ids": list(ids)})
+    for s_ in segs:
+        s_["tone_label"] = tx[s_["tone"]]
+        s_["start"], s_["end"] = s_["start"].isoformat(), (s_["end"] + timedelta(days=30)).isoformat()
+    return segs
 
 
 # ----------------------------------------------------------------------------- the astrologer
@@ -414,7 +512,11 @@ def answer(ctx: Ctx, subject: Optional[str], qword: str = "what", lang: str = "e
             lines.append(f'{w["label"]} ({w["strength_label"]}): {w["headline"]}. {w["why"]}')
         for w in wake:
             lines.append(tx["wake"].format(age=w["age"]))
-        if not wins and not wake:
+        tl = timeline(ctx, subject, 24, lang) if ctx.vim_rows else []
+        for sg in tl:
+            lines.append(f'{sg["start"][:7]} to {sg["end"][:7]}: {sg["tone_label"]}' + (" (both timing systems)" if sg["both"] and lang == "en" else ""))
+            used += sg["ids"]
+        if not wins and not wake and not tl:
             lines.append(tx["none_when"].format(s=label))
         used += [f"WINDOW.{subject}"] if wins else []
     elif qword == "how":
