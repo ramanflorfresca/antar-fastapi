@@ -321,18 +321,17 @@ def compute_upapada_lagna(lagna_sign: int, planets: Dict[str, Planet]) -> Arudha
     exception_applied = False
     exception_detail = ""
 
-    # Exception 1: projected UL == 12th house sign itself
+    # Standard arudha exceptions (Jaimini Sutras 1.1.28 ff., commentary): if the projection lands
+    # in the house itself take the 10th from the house; if it lands in the 7th from the house
+    # take the 4th from the house (= 10th from the arudha).
     if projected_sign == h12_sign:
-        projected_sign = (projected_sign + 10) % 12
+        projected_sign = (h12_sign + 9) % 12
         exception_applied = True
-        exception_detail = "UL fell in 12th house sign → added 10 signs"
-
-    # Exception 2: projected UL == 7th from 12th house sign
-    seventh_from_h12 = (h12_sign + 6) % 12
-    if projected_sign == seventh_from_h12:
-        projected_sign = (projected_sign + 10) % 12
+        exception_detail = "UL fell in the 12th house sign -> 10th from it"
+    elif projected_sign == (h12_sign + 6) % 12:
+        projected_sign = (h12_sign + 3) % 12
         exception_applied = True
-        exception_detail = "UL fell in 7th from 12th house → added 10 signs"
+        exception_detail = "UL fell in the 7th from the 12th house sign -> 4th from the 12th house sign"
 
     return ArudhaResult(
         name="UL",
@@ -568,14 +567,18 @@ def get_rashi_drishti(sign: int) -> List[int]:
       - Fixed signs (1,4,7,10) aspect Movable signs (0,3,6,9) EXCEPT the adjacent one
       - Dual signs (2,5,8,11) aspect all other Dual signs
 
-    "Adjacent" = the next sign in zodiacal order from the aspecting sign.
-    Example: Aries (0) cannot aspect Taurus (1) even though Taurus is Fixed.
+    The excluded "adjacent" sign is the neighbouring sign that is of the aspected modality:
+    for a movable sign the next sign (Aries cannot aspect Taurus), for a fixed sign the
+    previous sign (Taurus cannot aspect Aries). The next sign after a fixed sign is dual,
+    so counting forward would exclude nothing and leave four aspects.
     """
-    adjacent = (sign + 1) % 12
-
     if sign in MOVABLE_SIGNS:
+        # movable aspects the three fixed signs except the one right after it (Aries -> not Taurus)
+        adjacent = (sign + 1) % 12
         return [s for s in FIXED_SIGNS if s != adjacent]
     elif sign in FIXED_SIGNS:
+        # fixed aspects the three movable signs except the one right BEFORE it (Taurus -> not Aries)
+        adjacent = (sign - 1) % 12
         return [s for s in MOVABLE_SIGNS if s != adjacent]
     elif sign in DUAL_SIGNS:
         return [s for s in DUAL_SIGNS if s != sign]
