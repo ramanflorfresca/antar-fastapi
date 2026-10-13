@@ -34,6 +34,9 @@ OPEN_CLIENTS = frozenset({"SUPPORTED", "YES", "LIKELY"})
 
 _T = {
     "en": {
+        "q_open_month": "So for this month, the window is live: keep each position small and decide your exit before you enter.",
+        "q_open_when": "It is already open, so the question is not when but how much: set your cap before you place anything.",
+        "q_open_span": "For this stretch, the rule is the same: keep each position small and decide your exit before you enter.",
         "why_later": "The pattern in your timing for now is a slow build, not quick payoffs.",
         "why_open": "Open means possible, not safe: your gains tend to arrive in bursts and give some of it back.",
         "why_no": "Your money grows more reliably through steady work, so put the effort there.",
@@ -52,6 +55,9 @@ _T = {
         "next_later": "Until then, prepare rather than bet — and keep any speculative money small.",
     },
     "es": {
+        "q_open_month": "Así que este mes la ventana está activa: mantén cada posición pequeña y decide tu salida antes de entrar.",
+        "q_open_when": "Ya está abierta, así que la pregunta no es cuándo sino cuánto: fija tu tope antes de colocar nada.",
+        "q_open_span": "Para este tramo, la regla es la misma: mantén cada posición pequeña y decide tu salida antes de entrar.",
         "why_later": "El patrón de tu momento por ahora es de construcción lenta, no de ganancias rápidas.",
         "why_open": "Abierta significa posible, no segura: tus ganancias tienden a llegar en ráfagas y a devolver una parte.",
         "why_no": "Tu dinero crece de forma más fiable con trabajo constante, así que pon el esfuerzo ahí.",
@@ -70,6 +76,9 @@ _T = {
         "next_later": "Mientras tanto, prepárate en vez de apostar — y mantén pequeño cualquier dinero especulativo.",
     },
     "pt": {
+        "q_open_month": "Então, neste mês, a janela está ativa: mantenha cada posição pequena e decida a saída antes de entrar.",
+        "q_open_when": "Ela já está aberta, então a pergunta não é quando, mas quanto: defina o seu limite antes de colocar qualquer coisa.",
+        "q_open_span": "Para este período, a regra é a mesma: mantenha cada posição pequena e decida a saída antes de entrar.",
         "why_later": "O padrão do seu momento por enquanto é de construção lenta, não de ganhos rápidos.",
         "why_open": "Aberta significa possível, não segura: seus ganhos tendem a vir em rajadas e devolver uma parte.",
         "why_no": "Seu dinheiro cresce de forma mais confiável com trabalho constante, então coloque o esforço aí.",
@@ -88,6 +97,9 @@ _T = {
         "next_later": "Até lá, prepare-se em vez de apostar — e mantenha pequeno qualquer dinheiro especulativo.",
     },
     "hinglish": {
+        "q_open_month": "Isliye is mahine window active hai: har position chhoti rakhiye aur lagane se pehle apna exit tay kar lijiye.",
+        "q_open_when": "Yeh pehle se khuli hai, isliye sawaal kab ka nahi, kitna ka hai: kuch lagane se pehle apni limit tay kar lijiye.",
+        "q_open_span": "Is daur ke liye bhi niyam wahi hai: har position chhoti rakhiye aur lagane se pehle apna exit tay kar lijiye.",
         "why_later": "Abhi aapki timing ka pattern dheere-dheere banne ka hai, jaldi faayde ka nahi.",
         "why_open": "Khuli ka matlab mumkin hai, surakshit nahi: aapke faayde jhatke se aate hain aur kuch hissa wapas chala jaata hai.",
         "why_no": "Aapka paisa steady mehnat se zyada bharose se badhta hai, isliye mehnat wahin lagayiye.",
@@ -163,6 +175,9 @@ def lead(st: str, window: str = "", gambling: bool = False, language: str = "en"
     if st == "open":
         head = T["open"].format(w=T["through"].format(w=w) if w else "")
         nxt, why = T["next_open"], T["why_open"]
+        # [open-reads 2026-10-12] the open state was the same two sentences for "tomorrow", "this week", "this month" and "when does it open"
+        qline = (T["q_open_month"] if _MONTH_Q.search(question or "") else
+                 T["q_open_when"] if _WHEN_Q.search(question or "") else T["q_open_span"])
     elif st == "later":
         head = T["later"].format(w=w) if w else T["later_nowin"]
         nxt, why = T["next_later"], T["why_later"]
