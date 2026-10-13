@@ -3038,6 +3038,14 @@ def get_dashas_for_chart(chart_id: str) -> dict:
     """All dasha systems for a chart, grouped by system. Rows come from the
     TTL cache above — see its block comment for why that matters."""
     _rows = _fetch_dasha_rows(chart_id)
+    if not _rows:
+        # [dasha-heal 2026-10-13] a chart with NO rows (creation swallowed a failure) is rebuilt in the background, once
+        # per chart per process; this read still returns {} (as before), the next one finds the rows.
+        try:
+            from antar_engine import dasha_heal as _dh
+            _dh.schedule(supabase, chart_id)
+        except Exception as _dhe:
+            print(f"[dasha-heal] schedule skipped (non-fatal): {_dhe}")
 
     dashas_by_system = {}
     for row in _rows:
