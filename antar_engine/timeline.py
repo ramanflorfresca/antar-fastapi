@@ -76,10 +76,10 @@ def chapter(phase, today: date) -> Dict[str, Any]:
     return {"zoom": "chapter", "start": a.isoformat(), "end": b.isoformat(), "now": _fr(today, a, b), "tracks": tracks}
 
 
-def build(zoom: str, signal, feed, phase, today: date, now_h: float) -> Dict[str, Any]:
+def build(zoom: str, signal, feed, phase, today: date, now_h: float, show_windows: bool = True) -> Dict[str, Any]:
     z = zoom if zoom in ZOOMS else "day"
     if z == "day":
-        out = day(signal, now_h, today)
+        out = day(signal if show_windows else {}, now_h, today)
     elif z == "chapter":
         out = chapter(phase, today)
     else:

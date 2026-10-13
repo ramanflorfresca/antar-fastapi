@@ -282,10 +282,10 @@ def build_do_dont(signal: Dict[str, Any], n: int = 2) -> Dict[str, List[str]]:
 
 
 def build(chart_id: str, signal: Dict[str, Any], feed: Optional[Dict[str, Any]], phase: Optional[Dict[str, Any]],
-          language: str, today: _date, now_h: float) -> Dict[str, Any]:
+          language: str, today: _date, now_h: float, show_windows: bool = True) -> Dict[str, Any]:
     lang = _lang(language)
     verdict = derive_verdict(signal)
-    strip = build_strip(signal)
+    strip = build_strip(signal) if show_windows else []
     best = next((s for s in strip if s["kind"] == "best"), None)
     avoid = next((s for s in strip if s["kind"] == "avoid"), None)
     return {
