@@ -29962,6 +29962,25 @@ async def ask_endpoint(request: AskRequest):
     _rf = _ASK_REFRAMED.get()
     if _rf and isinstance(_res, dict):
         _res["reframed"] = {"kind": _rf["kind"], "original": _rf["original"]}
+    # [one-timing-source 2026-10-13] An Ask window that falls in a care stretch of the same topic in the Windows feed is
+    # read together with it (trimmed to the usable part and annotated) so one chart never gets two stories. Fail-open;
+    # TIMING_RECONCILE=off disables.
+    try:
+        if (isinstance(_res, dict) and _res.get("mode") == "explore" and not _res.get("locked")
+                and isinstance(_res.get("timing"), str) and _res["timing"].strip()
+                and (request.chart_id or "").strip()
+                and os.getenv("TIMING_RECONCILE", "on").strip().lower() not in ("off", "0", "false")):
+            from antar_engine import timing_reconcile as _tr
+            _tr_topic = _tr.topic_for_concern(_detect_concern(request.question))
+            if _tr_topic:
+                _tr_feed = await run_in_threadpool(_windows_compute, request.chart_id.strip(), request.language,
+                                                   request.tz_offset or 0, 24)
+                _tr_rc = _tr.reconcile(_res["timing"], _tr.windows_for_topic(_tr_feed, _tr_topic), _tr_topic,
+                                       request.language, _prac_local_date(request.tz_offset or 0))
+                if _tr_rc:
+                    _tr.apply_to_answer(_res, _tr_rc, _res["timing"])
+    except Exception as _tre:
+        print(f"[ask] timing reconcile skipped (non-fatal): {_tre}")
     # [ask-decision-view 2026-10-13] structured decision (prediction / holds / breaks / move / why) split from the text the
     # engine already wrote, so the answer sheet can render it. Additive, only for decision-shaped explore answers.
     try:
