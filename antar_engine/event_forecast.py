@@ -12,6 +12,7 @@ from antar_engine.composite_events import composite_windows
 from antar_engine.lal_kitab_events import lal_kitab_profile
 from antar_engine.lk_annual_forecast import lk_annual_forecast
 from antar_engine.d10_layer import d10_windows
+from antar_engine.parashari_events import parashari_windows
 
 PLAIN = {"marriage": "Relationship / marriage", "children": "Children",
          "education": "Study and learning", "career": "Career step"}
@@ -93,6 +94,34 @@ def merge_spans(items: List[dict], key, tier_key=None) -> List[dict]:
     return sorted(out, key=lambda x: x["start"])
 
 
+def _vim_levelled(rows) -> List[dict]:
+    out = []
+    for r in rows or []:
+        s, e = _dt(r.get("start_date") or r.get("start")), _dt(r.get("end_date") or r.get("end"))
+        lord = r.get("planet_or_sign") or r.get("lord_or_sign")
+        lvl = str(r.get("level") or r.get("type") or "")
+        if s and e and lord:
+            out.append({"planet": lord, "level": lvl, "start_date": s, "end_date": e})
+    return out
+
+
+def _parashari_block(lagna_sign, lagna_lon, planets, vim_rows, start, end) -> dict:
+    """Selection rule: grade 'strong', or 'supported' when the Jupiter+Saturn double transit confirms."""
+    ws = parashari_windows(lagna_sign, lagna_lon, planets, _vim_levelled(vim_rows), start, end)
+    items = []
+    for w in ws:
+        for e in w["events"]:
+            if e["grade"] == "strong" or (e["grade"] == "supported" and e["double_transit"]):
+                items.append({"event": e["event"], "start": w["start"].date().isoformat(),
+                              "end": w["end"].date().isoformat(), "rules": e["rules"],
+                              "grade": e["grade"], "transit": bool(e["double_transit"]),
+                              "md": w["md"], "ad": w["ad"], "tier": "double" if e["double_transit"] else "single"})
+    cautions = [{"start": w["start"].date().isoformat(), "end": w["end"].date().isoformat(),
+                 "rules": w["caution"]} for w in ws if w["caution"]]
+    return {"spans": merge_spans(items, key=lambda x: x["event"]),
+            "caution_spans": merge_spans(cautions, key=lambda x: "c")}
+
+
 def build_forecast(chart_data: dict, birth_date, vim_rows, today: Optional[date] = None,
                    months: int = 24) -> dict:
     today = today or date.today()
@@ -133,7 +162,8 @@ def build_forecast(chart_data: dict, birth_date, vim_rows, today: Optional[date]
     d10["spans"] = merge_spans([{**w, "rules": w["rules"]} for w in d10["windows"] if w["gain_score"] >= 3],
                                key=lambda x: "gain", tier_key="gain_score")
     caution_spans = merge_spans([{**c_, "rules": c_["rules"]} for c_ in cautions], key=lambda x: "c")
-    return {"available": True, "event_spans": spans, "caution_spans": caution_spans, "d10": d10, "window": [start.date().isoformat(), end.date().isoformat()],
+    parashari = _parashari_block(lagna_sign, lagna_lon, planets, vim_rows, start, end)
+    return {"available": True, "parashari": parashari, "event_spans": spans, "caution_spans": caution_spans, "d10": d10, "window": [start.date().isoformat(), end.date().isoformat()],
             "events": events, "cautions": cautions,
             "lal_kitab": {"profile": lk_profile, "annual": annual},
             "method": "Jaimini Chara (K.N. Rao) + composite confluence (Boney) + Lal Kitab",

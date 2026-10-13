@@ -4601,6 +4601,36 @@ _OVERVIEW_YOGA_PLAIN = {
 _OVERVIEW_NEG = {"Kemadruma", "Grahan", "Guru-Chandala"}
 
 
+@app.get("/api/v1/chart/{chart_id}/reading")
+async def get_chart_reading(chart_id: str, language: str = "en", months: int = 24):
+    """Plain-language 24-month decision calendar (money, career, relationships, learning)
+    composed deterministically from the Jaimini + Parashari + D-10 + Lal Kitab engines.
+    No LLM; contains no technical terms. Locales: en, es."""
+    months = max(1, min(months, 36))
+
+    def _run():
+        row = supabase.table("charts").select("chart_data,birth_date").eq("id", chart_id).single().execute()
+        if not row.data:
+            return None
+        cd = row.data.get("chart_data") or {}
+        if isinstance(cd, str):
+            cd = json.loads(cd)
+        from antar_engine.event_forecast import build_forecast
+        from antar_engine.reading_composer import compose
+        vim = (get_dashas_for_chart(chart_id) or {}).get("vimsottari") or []
+        fc = build_forecast(cd, row.data.get("birth_date") or cd.get("birth_date"), vim, months=months)
+        return compose(fc, language)
+
+    try:
+        out = await asyncio.to_thread(_run)
+    except Exception as e:
+        print(f"[reading] failed: {e}")
+        raise HTTPException(500, "reading unavailable")
+    if out is None:
+        raise HTTPException(404, "Chart not found")
+    return out
+
+
 @app.get("/api/v1/chart/{chart_id}/event-forecast")
 async def get_event_forecast(chart_id: str, months: int = 24):
     """Deterministic 24-month event forecast (Rao Chara + Boney confluence + Lal Kitab
