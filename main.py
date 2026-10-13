@@ -26684,6 +26684,14 @@ _ASK_DAYNAME_Q = re.compile(
     r"s[aá]bado|domingo|segunda|ter[cç]a|quarta|quinta|sexta|s[aá]bado|domingo)\b")
 
 
+# [week-ahead 2026-10-13] "How is my week ahead?" names a weekday as part of the answer ("Monday 13 Oct is your clearest day"), but _ask_tf_dayscope is not set for it, so the 'plain' strip
+# deleted the bare weekday and the reader got "…is your clearest day; use it." / "…is the best day to do it." A question about the days of a week keeps them.
+_ASK_WEEKSPAN_Q = re.compile(
+    r"(?i)\b(week ahead|this week|next week|coming days|next few days|rest of the week|days ahead|which days?|best days?|"
+    r"esta semana|pr[oó]xima semana|semana que viene|pr[oó]ximos d[ií]as|la semana|"
+    r"esta semana|semana que vem|pr[oó]ximos dias|is hafte|agle hafte|aane wale din|agle kuch din|hafta)\b")
+
+
 async def _ask_localize(payload, language, fields, chart_id=None, keep_days=False):
     """
     Translate at response time from the English source.
@@ -34406,7 +34414,9 @@ async def _ask_endpoint_impl(request: AskRequest):
             ], chart_id,
                 keep_days=bool(locals().get("_ask_tf_dayscope") or locals().get("_ask_tf_windowscan")
                                or _ASK_DAYNAME_Q.search(question or "")
-                               or _ASK_DAYNAME_Q.search(locals().get("_ask_typed_q") or "")))
+                               or _ASK_WEEKSPAN_Q.search(question or "")
+                               or _ASK_DAYNAME_Q.search(locals().get("_ask_typed_q") or "")
+                               or _ASK_WEEKSPAN_Q.search(locals().get("_ask_typed_q") or "")))
             # [ask-timeframe] the window-scan timing chip is a deterministic date —
             # localize it directly (no LLM) so the translator can't paraphrase a
             # lone value into prose ("sua energia de identidade… 15 nov").
