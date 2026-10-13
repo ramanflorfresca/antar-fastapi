@@ -67,6 +67,21 @@ def language_switch(text: str) -> Optional[str]:
     return _SWITCH_LANG.get(m.group(1).lower()) if m else None
 
 
+# [bare-yes 2026-10-12] "Yes" / "Haan" with nothing else is the person saying "go on" to the answer they just read. The Haiku rewrite had nothing to hold on to and the Hinglish run
+# answered "aapka pichla message incomplete tha — aap kya pooch rahe hain?". It is now treated like a language switch: the previous question is answered again (the moves-already-given
+# block makes the move different).
+_AFFIRM_RX = re.compile(
+    r"(?i)^\s*(?:yes|yeah|yep|yup|sure|ok(?:ay)?|please do|go on|go ahead|tell me more|"
+    r"s[ií]|claro|vale|dale|por favor|adelante|cu[eé]ntame m[aá]s|"
+    r"sim|pode ser|com certeza|pode continuar|"
+    r"haan|han|haa|ha|ji|ji haan|haan ji|theek hai|thik hai|bilkul|zaroor|batao|bataiye|aur batao)[\s.!]*$")
+
+
+def bare_affirmative(text: str) -> bool:
+    """True when the whole message is only an agreement / "go on"."""
+    return bool(_AFFIRM_RX.match(text or ""))
+
+
 def previous_question(thread: list) -> Optional[str]:
     """The last REAL question in the thread (not itself a bare language switch or a one/two-word reply)."""
     for t in reversed(thread or []):
