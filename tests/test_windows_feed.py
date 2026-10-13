@@ -90,7 +90,7 @@ def test_no_window_is_dated_before_today(ctx, raw):
 def test_horizon_cut_and_clamp(ctx, raw):
     full, short = feed(ctx, raw, hm=30), feed(ctx, raw, hm=3)
     he = D(short["horizon_end"])
-    assert he == C.add_months(TODAY, 3)
+    assert he == W._month_end(C.add_months(TODAY, 3))          # snapped to a calendar boundary so the last window's end does not slide daily
     for lst in (short["now"], short["next"], short["care"]):
         for w in lst:
             assert D(w["start"]) <= he and D(w["end"]) <= he
@@ -99,7 +99,7 @@ def test_horizon_cut_and_clamp(ctx, raw):
     assert sum(len(t["windows"]) for t in short["tracks"]) < sum(len(t["windows"]) for t in full["tracks"])
     assert W.clamp_horizon(99) == 36 and W.clamp_horizon(0) == 1 and W.clamp_horizon("x") == 30
     assert W.clamp_horizon(None) == 30 and W.clamp_horizon(12) == 12
-    assert feed(ctx, raw, hm=99)["horizon_end"] == C.add_months(TODAY, 36).isoformat()
+    assert feed(ctx, raw, hm=99)["horizon_end"] == W._month_end(C.add_months(TODAY, 36)).isoformat()
 
 
 def test_quiet_topics_have_no_window_in_the_horizon(ctx, raw):
@@ -236,7 +236,7 @@ def test_second_call_does_not_recompute(env, ctx, monkeypatch):
     es = cl.get(url + "?language=es").json()                   # new language: words only, same dates
     assert es["language"] == "es" and len(calls) == n
     assert cl.get(url + "?language=en&horizon_months=6").status_code == 200 and len(calls) == n
-    assert cl.get(url + "?horizon_months=99").json()["horizon_end"] == C.add_months(CIRCLE_TODAY, 36).isoformat()
+    assert cl.get(url + "?horizon_months=99").json()["horizon_end"] == W._month_end(C.add_months(CIRCLE_TODAY, 36)).isoformat()
 
 
 def test_route_fails_open_and_404(env, ctx, monkeypatch):
@@ -362,3 +362,11 @@ def test_a_window_not_yet_open_never_says_right_now():
         assert ahead["line"] and now["line"] and ahead["line"] != now["line"], lang
     en, _ = W._why("money", "open", TODAY + timedelta(days=90), TODAY + timedelta(days=120), TODAY, "en", drv, "exact")
     assert "right now" not in en["line"] and "then" in en["line"]
+
+
+def test_horizon_end_is_the_same_all_month_so_the_last_window_does_not_slide():
+    from datetime import date as _d
+    assert W._month_end(_d(2026, 10, 7)) == _d(2026, 10, 31) and W._month_end(_d(2026, 12, 31)) == _d(2026, 12, 31)
+    assert W._month_end(_d(2028, 2, 3)) == _d(2028, 2, 29)
+    ends = {W._month_end(C.add_months(_d(2026, 10, d), 12)) for d in range(1, 29)}
+    assert ends == {_d(2027, 10, 31)}
