@@ -82,6 +82,14 @@ def _why_now(entry: dict, lang: str) -> str:
     tf = _tf_of(entry)
     e = _nrg_energy(entry.get("planet"), lang)
     E = (e[:1].upper() + e[1:]) if e else e
+    _basis = entry.get("day_basis")
+    if _basis == "today_pressure":
+        return (f"Hoy algo presiona {e} \u2014 una peque\u00f1a pr\u00e1ctica estabiliza el d\u00eda." if lang == "es"
+                else f"Today something presses on {e} \u2014 a small practice steadies the day.")
+    if _basis == "weekday_ruler":
+        _wd = _WEEKDAY_NAME[lang][entry["_weekday"]] if entry.get("_weekday") is not None else ""
+        return (f"Hoy, {_wd}, es el d\u00eda de {e} \u2014 y es un \u00e1rea que tu carta te pide trabajar." if lang == "es"
+                else f"Today, {_wd}, is the day of {e} \u2014 and it is an area your chart asks you to work on.")
     srcs = entry.get("contributing_sources") or [tf]
     merged_with_natal = ("natal_baseline" in srcs and tf in LEADABLE_TIMEFRAMES)
     if lang == "es":
@@ -120,7 +128,41 @@ def _stamp_timeframe_fields(entry: dict, lang: str) -> dict:
     return entry
 
 
-def select_practice_set(actives: list, sticky_key=None, completed_today=None) -> dict:
+# ── day-aware lead [daily-focus 2026-10-12] ─────────────────────────────────
+# Owner rule: the daily focus follows the planets that are weak / strained / over-working in THIS chart and
+# must move day to day, not repeat the year's focus. Candidates are exactly the chart's active remediation
+# entries (every timeframe). Today's lead is, in order:
+#   1. a planet under acute pressure TODAY (a daily_transit entry);
+#   2. the planet that rules today's weekday, if it is one of the candidates (the classical weekday-planet
+#      rhythm: fasts, giving and mantra days are keyed to it);
+#   3. otherwise the router's normal lead (year > month > cycle).
+# The displaced year lead stays visible as the first secondary entry.
+_WEEKDAY_LORD = ("Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn", "Sun")  # Monday..Sunday
+_WEEKDAY_NAME = {
+    "en": ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"),
+    "es": ("lunes", "martes", "mi\u00e9rcoles", "jueves", "viernes", "s\u00e1bado", "domingo"),
+}
+
+
+def _day_lead_enabled() -> bool:
+    return os.getenv("PRACTICE_DAY_LEAD", "on").strip().lower() not in ("off", "0", "false")
+
+
+def pick_day_lead(merged: list, today_date) -> tuple:
+    """(entry, basis) for today, or (None, None) to keep the router's lead. basis: today_pressure | weekday_ruler."""
+    if not merged or today_date is None:
+        return None, None
+    acute = [m for m in merged if _tf_of(m) == "today"]
+    if acute:
+        return max(acute, key=lambda m: m.get("severity", 0.0)), "today_pressure"
+    lord = _WEEKDAY_LORD[today_date.weekday()]
+    ruled = [m for m in merged if m.get("planet") == lord]
+    if ruled:
+        return max(ruled, key=lambda m: m.get("severity", 0.0)), "weekday_ruler"
+    return None, None
+
+
+def select_practice_set(actives: list, sticky_key=None, completed_today=None, today_date=None) -> dict:
     """Brief's prioritized selection. Returns {lead, secondary, baseline}.
       lead      — highest-priority *time-active leadable* layer (Year>Month>Cycle);
                   natal/today never lead when a leadable layer exists.
@@ -148,6 +190,16 @@ def select_practice_set(actives: list, sticky_key=None, completed_today=None) ->
     if lead is None:
         # No time-active leadable layer -> natal baseline is promoted to lead.
         lead = max(merged, key=lambda m: m.get("severity", 0.0))
+
+    year_lead = lead
+    if _day_lead_enabled():
+        _dl, _basis = pick_day_lead(merged, today_date)
+        if _dl is not None:
+            lead = dict(_dl)
+            lead["day_basis"] = _basis
+            lead["_weekday"] = today_date.weekday()
+            if year_lead is not None and year_lead.get("planet") != lead.get("planet"):
+                lead["year_focus_planet"] = year_lead.get("planet")
 
     baseline = None
     if natal:
@@ -334,7 +386,7 @@ def compose_practice_response(
     _locale = "IN" if str(current_country or "").upper() == "IN" else "GLOBAL"
 
     if _router_enabled():
-        _set = select_practice_set(actives, sticky_key, completed_today)
+        _set = select_practice_set(actives, sticky_key, completed_today, today_date)
         priority = _set["lead"] or _fallback_priority(chart, conditions, language)
         # secondary entries first, natal baseline appended last as background.
         others = list(_set["secondary"])
@@ -369,6 +421,8 @@ def compose_practice_response(
             "duration_label": dur,
             "why": priority.get("why_paragraph", ""),
             "why_now": _why_now(priority, lang),
+            "focus_basis": priority.get("day_basis") or "router",
+            "year_focus_planet": priority.get("year_focus_planet"),
             "source": "selection: timeframe-router; content: existing LK remedy tables",
             "streak_days": int(st.get("days", 0)),
             "streak_best": int(st.get("best", st.get("days", 0))),
