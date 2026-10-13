@@ -52971,6 +52971,35 @@ async def get_horizon_card(chart_id: str, scope: str = "today", language: Option
         return _hz._empty(scope, _hz._lang(lang))
 
 
+@app.get("/api/v1/matters/{chart_id}")
+async def get_matters(chart_id: str, limit: int = 3, language: Optional[str] = None, tz_offset: Optional[int] = 0):
+    """[matters 2026-10-13] "Your matters": the two or three decisions this person keeps coming back to, found from their own
+    Ask history (last 90 days, each distinct question once per day, horizon checks ignored, grouped by topic and subject,
+    ranked by recurrence, decision-shape and recency), each with the next real window for its topic from the Windows feed.
+    Deterministic; no model call. `empty: true` plus a `prompt` when there is nothing to show yet. Same access model as
+    /ask/history. 404 only for an unknown chart."""
+    from antar_engine import matters as _mt
+    row = await run_in_threadpool(lambda: supabase.table("charts").select("id").eq("id", chart_id).limit(1).execute())
+    if not row.data:
+        raise HTTPException(status_code=404, detail="Chart not found")
+    lang = language or "en"
+    rows = []
+    try:
+        from datetime import timedelta as _tdm
+        since = (_prac_local_date(tz_offset) - _tdm(days=_mt.WINDOW_DAYS)).isoformat()
+        rows = (await run_in_threadpool(lambda: supabase.table("chat_messages")
+                .select("question, domain, action_item, created_at").eq("chart_id", chart_id)
+                .gte("created_at", since).order("created_at", desc=True).limit(400).execute())).data or []
+    except Exception as e:
+        print(f"[matters] history skipped: {e!r}")
+    feed = None
+    try:
+        feed = await run_in_threadpool(_windows_compute, chart_id, lang, tz_offset, 12)
+    except Exception as e:
+        print(f"[matters] windows skipped: {e!r}")
+    return _mt.build(rows, feed, lang, _prac_local_date(tz_offset), max(1, min(int(limit or 3), 6)))
+
+
 @app.get("/api/v1/chart/{chart_id}/suggested-questions")
 async def get_chart_suggested_questions(chart_id: str, language: Optional[str] = None,
                                         tz_offset: Optional[int] = None, limit: int = 3):
