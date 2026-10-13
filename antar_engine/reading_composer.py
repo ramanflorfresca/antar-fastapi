@@ -13,7 +13,7 @@ from typing import Dict, List, Optional
 
 AREAS = ("money", "career", "relationship", "learning")
 _PAR_EVENT = {"money": "money", "career": "career", "marriage": "relationship", "study": "learning"}
-_JAI_EVENT = {"career": "career", "marriage": "relationship", "education": "learning"}
+_JAI_EVENT = {"money": "money", "career": "career", "marriage": "relationship", "education": "learning"}
 _RANK = {"possible": 0, "good": 1, "strong": 2}
 
 MONTHS = {
