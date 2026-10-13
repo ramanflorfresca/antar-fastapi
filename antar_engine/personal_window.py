@@ -224,6 +224,8 @@ def build(lagna: str, dashas: dict, local_date: date, tz_hours: float, sunrise_m
 
 
 _DONE: set = set()
+_RETRY_AFTER: Dict[Any, float] = {}
+RETRY_SECS = 600.0
 
 
 def enabled() -> bool:
@@ -233,17 +235,25 @@ def enabled() -> bool:
 
 
 def record(supabase, chart_id: str, payload: Dict[str, Any]) -> bool:
-    """Upsert one row per chart-day into personal_window_shadow. Fail-open: a missing table is a logged no-op."""
+    """Upsert one row per chart-day into personal_window_shadow. Fail-open. A chart-day is remembered as done only
+    after a successful write; a failure (e.g. the table is not created yet) is retried at most every RETRY_SECS, so
+    creating the table later starts storing without a restart and a missing table is not hit on every request."""
+    import time
     try:
         if not payload.get("available"):
             return False
         key = (chart_id, payload["date"])
-        if key in _DONE:
+        if key in _DONE or time.monotonic() < _RETRY_AFTER.get(key, 0.0):
             return False
+        try:
+            supabase.table("personal_window_shadow").upsert(
+                {"chart_id": chart_id, "local_date": payload["date"], "payload": payload},
+                on_conflict="chart_id,local_date").execute()
+        except Exception:
+            _RETRY_AFTER[key] = time.monotonic() + RETRY_SECS
+            raise
         _DONE.add(key)
-        supabase.table("personal_window_shadow").upsert(
-            {"chart_id": chart_id, "local_date": payload["date"], "payload": payload},
-            on_conflict="chart_id,local_date").execute()
+        _RETRY_AFTER.pop(key, None)
         return True
     except Exception as e:
         print(f"[personal-window] not stored (non-fatal): {str(e)[:120]}")

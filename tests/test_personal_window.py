@@ -57,3 +57,25 @@ def test_period_lord_hour_amplifies_by_function():
     plain = pw.score_hora(g, "Capricorn", {"ad": None, "pd": None, "sd": None}, [None, None, None], None)
     run = pw.score_hora(g, "Capricorn", {"ad": None, "pd": None, "sd": "Venus"}, [None, None, None], None)
     assert plain["parts"]["chart"] == 1.0 and run["score"] == plain["score"] + pw.W_SD   # Venus benefic for Capricorn
+
+
+class _Tbl:
+    def __init__(self, fail): self.fail, self.rows = fail, []
+    def table(self, _): return self
+    def upsert(self, row, on_conflict=None): self.row = row; return self
+    def execute(self):
+        if self.fail:
+            raise RuntimeError("table missing")
+        self.rows.append(self.row)
+
+
+def test_record_retries_after_failure_and_stops_after_success(monkeypatch):
+    pw._DONE.clear(); pw._RETRY_AFTER.clear()
+    p = {"available": True, "date": "2026-10-13"}
+    db = _Tbl(fail=True)
+    assert pw.record(db, "c1", p) is False and "c1" not in {k[0] for k in pw._DONE}
+    assert pw.record(db, "c1", p) is False                     # inside the backoff: no second hit
+    pw._RETRY_AFTER.clear()                                    # backoff elapsed
+    db.fail = False
+    assert pw.record(db, "c1", p) is True and len(db.rows) == 1
+    assert pw.record(db, "c1", p) is False and len(db.rows) == 1   # done: never written twice
