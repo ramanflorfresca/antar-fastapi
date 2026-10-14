@@ -2107,7 +2107,8 @@
 ],
 "tone": "bad",
 "topics": [
-"money"
+"money",
+"speculation"
 ],
 "effect": "You are more likely to lose money in stretches of time tied to speculation, sudden loss and spending.",
 "effect_es": "Es más probable que pierdas dinero en etapas ligadas a la especulación, las pérdidas repentinas y el gasto.",
@@ -8322,7 +8323,8 @@
 ],
 "tone": "info",
 "topics": [
-"money"
+"money",
+"speculation"
 ],
 "effect": "This phase can bring gains from sports-related speculation.",
 "effect_es": "Esta etapa puede traer ganancias de la especulación en el deporte.",
@@ -10034,7 +10036,8 @@
 ],
 "tone": "info",
 "topics": [
-"money"
+"money",
+"speculation"
 ],
 "effect": "You can gain from speculation in this phase.",
 "effect_es": "Puedes obtener ganancias de la especulación en esta etapa.",
@@ -10167,7 +10170,8 @@
 ],
 "tone": "good",
 "topics": [
-"money"
+"money",
+"speculation"
 ],
 "effect": "You can receive a sudden gain in this phase.",
 "effect_es": "Puedes recibir una ganancia repentina en esta etapa.",
@@ -15744,7 +15748,8 @@
 "activation": [],
 "tone": "bad",
 "topics": [
-"money"
+"money",
+"speculation"
 ],
 "effect": "You lose money in speculation.",
 "effect_es": "Pierdes dinero en la especulación.",
@@ -19581,7 +19586,8 @@
 "activation": [],
 "tone": "good",
 "topics": [
-"career"
+"career",
+"speculation"
 ],
 "effect": "Your life holds a real possibility of working in sport, the arts, film or speculation.",
 "effect_es": "Tu vida tiene una posibilidad real de trabajar en el deporte, las artes, el cine o la especulación.",
@@ -19646,7 +19652,8 @@
 ],
 "tone": "good",
 "topics": [
-"career"
+"career",
+"speculation"
 ],
 "effect": "This stretch of your life moves you closer to working in sport, the arts, film or speculation.",
 "effect_es": "Esta etapa de tu vida te acerca a trabajar en el deporte, las artes, el cine o la especulación.",
@@ -27033,7 +27040,8 @@
 "activation": [],
 "tone": "bad",
 "topics": [
-"money"
+"money",
+"speculation"
 ],
 "effect": "You may lose money through speculation.",
 "effect_es": "Puedes perder dinero en la especulación.",
@@ -28104,7 +28112,8 @@
 ],
 "tone": "good",
 "topics": [
-"money"
+"money",
+"speculation"
 ],
 "effect": "Your chart supports luck in lotteries and prize draws.",
 "effect_es": "Tu carta favorece la suerte en loterías y sorteos.",
@@ -29085,7 +29094,8 @@
 ],
 "tone": "mixed",
 "topics": [
-"money"
+"money",
+"speculation"
 ],
 "effect": "Your chart supports occasional gains from betting and races.",
 "effect_es": "Tu carta favorece ganancias ocasionales en apuestas y carreras.",
@@ -32581,6 +32591,320 @@
 "timing_note": "Book: main-period lord must give results of 2, 5, 7, 11; sub-period lord must be connected with 7. Transit of period lords, Sun and Moon must also agree (not encoded).",
 "clarity": "inferred",
 "line": 8619
+},
+{
+"id": "SPC.36",
+"book": "speculation_sweep",
+"requires": [
+{
+"frame": "kp",
+"cusp": 5,
+"sub_lord_signifies": [
+2,
+6,
+11
+],
+"mode": "all"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "You tend to gain from speculation and games of chance.",
+"effect_es": "Tiendes a ganar con la especulación y los juegos de azar.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Dynamics table: gambling gain read from the sub lord of the 5th cusp signifying 2, 6, 11.",
+"clarity": "inferred",
+"line": 1795
+},
+{
+"id": "SPC.37",
+"book": "speculation_sweep",
+"requires": [
+{
+"frame": "kp",
+"cusp": 5,
+"sub_lord_signifies": [
+6,
+11
+],
+"mode": "all"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "You can gain from sports and contests where chance plays a part.",
+"effect_es": "Puedes ganar en deportes y competencias donde interviene el azar.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "inferred",
+"line": 1714
+},
+{
+"id": "SPC.38",
+"book": "speculation_sweep",
+"requires": [
+{
+"frame": "kp",
+"cusp": 5,
+"sub_lord_signifies": [
+2,
+11
+],
+"mode": "all"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "You can earn your living from speculation, sport or the creative arts.",
+"effect_es": "Puedes ganarte la vida con la especulación, el deporte o las artes creativas.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "inferred",
+"line": 126
+},
+{
+"id": "SPC.39",
+"book": "speculation_sweep",
+"requires": [
+{
+"frame": "kp",
+"cusp": 8,
+"sub_lord_signifies": [
+2,
+11
+],
+"mode": "all"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "Sudden, unexpected money can come your way.",
+"effect_es": "Puede llegarte dinero repentino e inesperado.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 160
+},
+{
+"id": "SPC.40",
+"book": "speculation_sweep",
+"requires": [
+{
+"frame": "kp",
+"cusp": 8,
+"sub_lord_signifies": [
+2,
+6,
+11
+],
+"mode": "all"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "You can receive money you did not work for, such as loans, inheritances or other unearned sums.",
+"effect_es": "Puedes recibir dinero por el que no trabajaste, como préstamos, herencias u otras sumas no ganadas.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 3284
+},
+{
+"id": "SPC.41",
+"book": "speculation_sweep",
+"requires": [
+{
+"frame": "kp",
+"cusp": 8,
+"sub_lord_signifies": [
+6,
+11
+],
+"mode": "all"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "You can see a sudden profit.",
+"effect_es": "Puedes obtener una ganancia repentina.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "inferred",
+"line": 1795
+},
+{
+"id": "SPC.42",
+"book": "speculation_sweep",
+"requires": [
+{
+"frame": "kp",
+"cusp": 2,
+"sub_lord_signifies": [
+6,
+8,
+11
+],
+"mode": "all"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "Money can arrive suddenly and without much effort.",
+"effect_es": "El dinero puede llegar de repente y sin mucho esfuerzo.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "inferred",
+"line": 1795
+},
+{
+"id": "SPC.43",
+"book": "speculation_sweep",
+"requires": [
+{
+"frame": "kp",
+"cusp": 8,
+"sub_lord_signifies": [
+5,
+12
+],
+"mode": "all"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "You can suffer a sudden, unexpected loss of money.",
+"effect_es": "Puedes sufrir una pérdida de dinero repentina e inesperada.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 160
+},
+{
+"id": "SPC.44",
+"book": "speculation_sweep",
+"requires": [
+{
+"frame": "kp",
+"cusp": 8,
+"sub_lord_signifies": [
+11
+],
+"mode": "any"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "You can have income you did not work or strain for.",
+"effect_es": "Puedes tener ingresos por los que no trabajaste ni te esforzaste.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book also allows a strong significator of the 8th instead of the cusp sub lord; not expressed.",
+"clarity": "inferred",
+"line": 1905
+},
+{
+"id": "SPC.45",
+"book": "speculation_sweep",
+"requires": [
+{
+"frame": "kp",
+"cusp": 11,
+"sub_lord_signifies": [
+4,
+11
+],
+"mode": "all"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "You can come upon hidden treasure.",
+"effect_es": "Puedes encontrar un tesoro oculto.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "inferred",
+"line": 1905
+},
+{
+"id": "SPC.46",
+"book": "speculation_sweep",
+"requires": [],
+"activation": [
+{
+"frame": "kp",
+"dasha_signifies": {
+"level": "ad",
+"houses": [
+2,
+5,
+10,
+11
+],
+"mode": "all"
+}
+}
+],
+"tone": "good",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "A running period like this favours success in speculative business.",
+"effect_es": "Una etapa así favorece el éxito en los negocios especulativos.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Table reads: running planet signifies 2,5,10 while its sub lord signifies 11; approximated as the sub-period lord signifying all four.",
+"clarity": "inferred",
+"line": 10437
 }
 ]
 }
