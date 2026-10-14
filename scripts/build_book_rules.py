@@ -25,6 +25,7 @@ def _has(clauses, key):
     return any(key in c or key in json.dumps(c) for c in clauses)
 
 
+HYPE_RE = re.compile(r"\b(regal|royal|royalty|kingdom|throne|emperor|monarch|millionaires?|billionaires?|lakhs?|crores?|sovereign)\b|rule over", re.I)
 SPEC_RE = re.compile(r"specul|gambl|lotter|games? of chance|betting|\bwager|sudden (gain|wealth)|windfall", re.I)
 MARKET_BOOKS = ("butaney",)          # same-for-everyone market timing: stored, not applied (owner: personal logic only)
 
@@ -62,6 +63,9 @@ def build(data_dir):
                 continue
             if re.search(r"\bsuit(s)? (you|your)\b", en) and "," in en:  # industry lists: vertical study closed negative
                 st["dropped_vertical_list"] = st.get("dropped_vertical_list", 0) + 1
+                continue
+            if HYPE_RE.search(en):                                  # over-the-top promises (regal power, millionaire): not our voice
+                st["dropped_hype"] = st.get("dropped_hype", 0) + 1
                 continue
             if re.search(r"pin down|for (about|around|nearly) [\w\- ]+ years", en, re.I):  # vague multi-year spans
                 st["dropped_vague_span"] = st.get("dropped_vague_span", 0) + 1

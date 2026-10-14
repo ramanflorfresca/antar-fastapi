@@ -17283,30 +17283,6 @@
 "line": 2671
 },
 {
-"id": "BVJ2.171",
-"book": "bv_raman_how_to_judge_2",
-"requires": [
-{
-"planet": "Mars",
-"in_houses": [
-8
-]
-}
-],
-"activation": [],
-"tone": "good",
-"topics": [
-"career"
-],
-"effect": "You come to rule over many people.",
-"effect_es": "Llegas a dirigir a mucha gente.",
-"remedy": null,
-"remedy_es": null,
-"timing_note": null,
-"clarity": "clear",
-"line": 2672
-},
-{
 "id": "BVJ2.172",
 "book": "bv_raman_how_to_judge_2",
 "requires": [
@@ -33878,38 +33854,6 @@
 "line": 4183
 },
 {
-"id": "BVHPA1.158",
-"book": "bv_raman_hpa_1",
-"requires": [
-{
-"from": "Moon",
-"houses": [
-6,
-7,
-8
-],
-"holds_any": [
-"Jupiter",
-"Venus",
-"Mercury"
-]
-}
-],
-"activation": [],
-"tone": "good",
-"topics": [
-"career",
-"fame"
-],
-"effect": "You rise to a commanding position, as a leader, minister or someone of near-royal standing.",
-"effect_es": "Asciendes a una posición de mando, como lider, ministro o alguien de rango casi real.",
-"remedy": null,
-"remedy_es": null,
-"timing_note": "Book: benefics in 6th, 7th and 8th from the Moon; read as benefics in any of them.",
-"clarity": "inferred",
-"line": 4185
-},
-{
 "id": "BVHPA1.159",
 "book": "bv_raman_hpa_1",
 "requires": [
@@ -34587,45 +34531,6 @@
 "timing_note": "Book: Moon, Mars and Mercury in a quadrant; read as all three in quadrant houses (not necessarily the same one).",
 "clarity": "inferred",
 "line": 4272
-},
-{
-"id": "BVHPA1.190",
-"book": "bv_raman_hpa_1",
-"requires": [
-{
-"planet": "L2",
-"in_houses": [
-11
-]
-},
-{
-"a": "L2",
-"b": "L9",
-"relation": "conjunct"
-},
-{
-"a": "L2",
-"b": "Moon",
-"relation": "conjunct"
-},
-{
-"a": "L2",
-"b": "Jupiter",
-"relation": "conjunct"
-}
-],
-"activation": [],
-"tone": "good",
-"topics": [
-"money"
-],
-"effect": "You become a millionaire.",
-"effect_es": "Te conviertes en millonario.",
-"remedy": null,
-"remedy_es": null,
-"timing_note": null,
-"clarity": "clear",
-"line": 4295
 },
 {
 "id": "BVHPA1.192",
@@ -39114,41 +39019,6 @@
 "line": 194
 },
 {
-"id": "BVHPA2.43",
-"book": "bv_raman_hpa_2",
-"requires": [],
-"activation": [
-{
-"dasha": {
-"level": "md",
-"lords": [
-"Rahu"
-]
-}
-},
-{
-"dasha": {
-"level": "ad",
-"lords": [
-"Jupiter"
-]
-}
-}
-],
-"tone": "good",
-"topics": [
-"career",
-"money"
-],
-"effect": "Royal-style favour, gains through powerful people and success in your efforts come during this stretch.",
-"effect_es": "Llegan el favor de gente de poder, ganancias gracias a ella y éxito en tus esfuerzos durante esta etapa.",
-"remedy": null,
-"remedy_es": null,
-"timing_note": null,
-"clarity": "inferred",
-"line": 200
-},
-{
 "id": "BVHPA2.44",
 "book": "bv_raman_hpa_2",
 "requires": [],
@@ -40597,6 +40467,7 @@
 ],
 "tone": "bad",
 "topics": [
+"career",
 "fame"
 ],
 "effect": "Loss of respect and troubles through superiors mark this stretch.",
@@ -51427,32 +51298,6 @@
 "line": 1788
 },
 {
-"id": "JSUT.19",
-"book": "jaimini_sutras",
-"requires": [
-{
-"planet": "Sun",
-"touches": "KL"
-},
-{
-"planet": "Venus",
-"touches": "KL"
-}
-],
-"activation": [],
-"tone": "good",
-"topics": [
-"career"
-],
-"effect": "Powerful or royal people employ you and trust you as a confidant.",
-"effect_es": "Personas poderosas o de alto rango te emplean y confian en ti como persona cercana.",
-"remedy": null,
-"remedy_es": null,
-"timing_note": null,
-"clarity": "inferred",
-"line": 1547
-},
-{
 "id": "JSUT.20",
 "book": "jaimini_sutras",
 "requires": [
@@ -55334,49 +55179,6 @@
 "timing_note": null,
 "clarity": "clear",
 "line": 2662
-},
-{
-"id": "JP2.46",
-"book": "jataka_parijata_2",
-"requires": [
-{
-"house": 12,
-"holds_any_benefic": true
-},
-{
-"house": 11,
-"holds_any_benefic": true
-},
-{
-"house": 1,
-"holds_any_benefic": true
-},
-{
-"house": 2,
-"holds_any_benefic": true
-},
-{
-"house": 3,
-"holds_any_benefic": true
-},
-{
-"house": 10,
-"holds_any_benefic": true
-}
-],
-"activation": [],
-"tone": "good",
-"topics": [
-"career",
-"fame"
-],
-"effect": "You enjoy a sovereign-like standing and the favor of the powerful.",
-"effect_es": "Disfrutas de una posición casi soberana y del favor de los poderosos.",
-"remedy": null,
-"remedy_es": null,
-"timing_note": null,
-"clarity": "inferred",
-"line": 2669
 },
 {
 "id": "JP2.47",
@@ -59867,7 +59669,6 @@
 "activation": [],
 "tone": "good",
 "topics": [
-"education",
 "career"
 ],
 "effect": "You are eloquent and skilled in medicine and the fine arts.",
@@ -62639,36 +62440,6 @@
 "timing_note": null,
 "clarity": "clear",
 "line": 7975
-},
-{
-"id": "JP2.319",
-"book": "jataka_parijata_2",
-"requires": [
-{
-"planet": "Moon",
-"dignity": [
-"own"
-]
-},
-{
-"a": "Venus",
-"b": "Moon",
-"relation": "a_aspects_b"
-}
-],
-"activation": [],
-"tone": "good",
-"topics": [
-"career",
-"fame"
-],
-"effect": "You reach a standing equal to royalty.",
-"effect_es": "Alcanzas una posición equivalente a la realeza.",
-"remedy": null,
-"remedy_es": null,
-"timing_note": null,
-"clarity": "clear",
-"line": 7976
 },
 {
 "id": "JP2.320",
@@ -72927,46 +72698,6 @@
 "line": 6616
 },
 {
-"id": "JP3.549",
-"book": "jataka_parijata_3",
-"requires": [
-{
-"planets_in_houses": [
-"Sun",
-"Moon",
-"Mars",
-"Mercury",
-"Jupiter",
-"Venus",
-"Saturn"
-],
-"houses": [
-9
-],
-"at_least": 3
-},
-{
-"planet": "Mercury",
-"in_houses": [
-9
-]
-}
-],
-"activation": [],
-"tone": "good",
-"topics": [
-"career",
-"fame"
-],
-"effect": "You attain regal power.",
-"effect_es": "Alcanzas un poder de tipo real.",
-"remedy": null,
-"remedy_es": null,
-"timing_note": null,
-"clarity": "inferred",
-"line": 6616
-},
-{
 "id": "JP3.550",
 "book": "jataka_parijata_3",
 "requires": [
@@ -77476,39 +77207,6 @@
 "timing_note": null,
 "clarity": "inferred",
 "line": 8880
-},
-{
-"id": "JP3.781",
-"book": "jataka_parijata_3",
-"requires": [
-{
-"chart": "female"
-},
-{
-"from": "Moon",
-"houses": [
-7
-],
-"holds_any": [
-"Jupiter",
-"Venus",
-"Mercury"
-]
-}
-],
-"activation": [],
-"tone": "good",
-"topics": [
-"career",
-"fame"
-],
-"effect": "You rise to sovereign authority of your own.",
-"effect_es": "Asciendes a una autoridad soberana propia.",
-"remedy": null,
-"remedy_es": null,
-"timing_note": null,
-"clarity": "inferred",
-"line": 8896
 },
 {
 "id": "JP3.782",
@@ -88395,41 +88093,6 @@
 "line": 12098
 },
 {
-"id": "JP3.1174",
-"book": "jataka_parijata_3",
-"requires": [],
-"activation": [
-{
-"dasha": {
-"level": "md",
-"lords": [
-"Moon"
-]
-}
-},
-{
-"dasha": {
-"level": "ad",
-"lords": [
-"Sun"
-]
-}
-}
-],
-"tone": "good",
-"topics": [
-"career",
-"money"
-],
-"effect": "You gain near-regal power, your enemies decline, and you enjoy happiness and prosperity.",
-"effect_es": "Ganas un poder casi real, tus enemigos decaen y disfrutas de felicidad y prosperidad.",
-"remedy": null,
-"remedy_es": null,
-"timing_note": null,
-"clarity": "clear",
-"line": 12115
-},
-{
 "id": "JP3.1176",
 "book": "jataka_parijata_3",
 "requires": [],
@@ -88834,42 +88497,6 @@
 "line": 12360
 },
 {
-"id": "JP3.1191",
-"book": "jataka_parijata_3",
-"requires": [],
-"activation": [
-{
-"dasha": {
-"level": "md",
-"lords": [
-"Rahu"
-]
-}
-},
-{
-"dasha": {
-"level": "ad",
-"lords": [
-"Jupiter"
-]
-}
-}
-],
-"tone": "good",
-"topics": [
-"career",
-"money",
-"children"
-],
-"effect": "You gain royal favour, wealth, children and great perseverance, and obstacles clear.",
-"effect_es": "Ganas el favor de los gobernantes, riqueza, hijos y gran perseverancia, y los obstáculos se despejan.",
-"remedy": null,
-"remedy_es": null,
-"timing_note": null,
-"clarity": "inferred",
-"line": 12369
-},
-{
 "id": "JP3.1192",
 "book": "jataka_parijata_3",
 "requires": [],
@@ -88903,42 +88530,6 @@
 "timing_note": null,
 "clarity": "inferred",
 "line": 12379
-},
-{
-"id": "JP3.1193",
-"book": "jataka_parijata_3",
-"requires": [],
-"activation": [
-{
-"dasha": {
-"level": "md",
-"lords": [
-"Rahu"
-]
-}
-},
-{
-"dasha": {
-"level": "ad",
-"lords": [
-"Mercury"
-]
-}
-}
-],
-"tone": "good",
-"topics": [
-"money",
-"family",
-"career"
-],
-"effect": "You enjoy the company of friends and family, gain wealth and win royal favour.",
-"effect_es": "Disfrutas de la compañía de amigos y familia, ganas riqueza y obtienes el favor de los gobernantes.",
-"remedy": null,
-"remedy_es": null,
-"timing_note": null,
-"clarity": "clear",
-"line": 12390
 },
 {
 "id": "JP3.1194",
@@ -89144,33 +88735,6 @@
 "line": 12492
 },
 {
-"id": "JP3.1202",
-"book": "jataka_parijata_3",
-"requires": [],
-"activation": [
-{
-"dasha": {
-"level": "md",
-"lords": [
-"Jupiter"
-]
-}
-}
-],
-"tone": "good",
-"topics": [
-"career",
-"education"
-],
-"effect": "In this period you gain royal favour, great diligence, success in what you attempt, and learning.",
-"effect_es": "En este periodo ganas el favor de los gobernantes, gran diligencia, éxito en lo que intentas y saber.",
-"remedy": null,
-"remedy_es": null,
-"timing_note": null,
-"clarity": "clear",
-"line": 12511
-},
-{
 "id": "JP3.1203",
 "book": "jataka_parijata_3",
 "requires": [],
@@ -89205,41 +88769,6 @@
 "timing_note": null,
 "clarity": "clear",
 "line": 12523
-},
-{
-"id": "JP3.1204",
-"book": "jataka_parijata_3",
-"requires": [],
-"activation": [
-{
-"dasha": {
-"level": "md",
-"lords": [
-"Jupiter"
-]
-}
-},
-{
-"dasha": {
-"level": "ad",
-"lords": [
-"Mercury"
-]
-}
-}
-],
-"tone": "good",
-"topics": [
-"money",
-"career"
-],
-"effect": "You gain wealth through trade and royal favour, and are perfectly hospitable.",
-"effect_es": "Ganas riqueza por el comercio y el favor de los gobernantes, y eres perfectamente hospitalario.",
-"remedy": null,
-"remedy_es": null,
-"timing_note": null,
-"clarity": "clear",
-"line": 12539
 },
 {
 "id": "JP3.1205",
@@ -89310,76 +88839,6 @@
 "timing_note": null,
 "clarity": "inferred",
 "line": 12568
-},
-{
-"id": "JP3.1207",
-"book": "jataka_parijata_3",
-"requires": [],
-"activation": [
-{
-"dasha": {
-"level": "md",
-"lords": [
-"Jupiter"
-]
-}
-},
-{
-"dasha": {
-"level": "ad",
-"lords": [
-"Sun"
-]
-}
-}
-],
-"tone": "good",
-"topics": [
-"career",
-"money"
-],
-"effect": "Your enemies flee and you gain victory, ease, diligence, wealth, royal favour and sound health.",
-"effect_es": "Tus enemigos huyen y obtienes victoria, holgura, diligencia, riqueza, el favor de los gobernantes y buena salud.",
-"remedy": null,
-"remedy_es": null,
-"timing_note": null,
-"clarity": "clear",
-"line": 12587
-},
-{
-"id": "JP3.1208",
-"book": "jataka_parijata_3",
-"requires": [],
-"activation": [
-{
-"dasha": {
-"level": "md",
-"lords": [
-"Jupiter"
-]
-}
-},
-{
-"dasha": {
-"level": "ad",
-"lords": [
-"Moon"
-]
-}
-}
-],
-"tone": "good",
-"topics": [
-"career",
-"money"
-],
-"effect": "You gain power, royal favour, material comfort, and fine clothing and ornaments.",
-"effect_es": "Ganas poder, el favor de los gobernantes, comodidad material y ropa y adornos finos.",
-"remedy": null,
-"remedy_es": null,
-"timing_note": null,
-"clarity": "inferred",
-"line": 12608
 },
 {
 "id": "JP3.1209",
@@ -89760,41 +89219,6 @@
 "line": 12827
 },
 {
-"id": "JP3.1222",
-"book": "jataka_parijata_3",
-"requires": [],
-"activation": [
-{
-"dasha": {
-"level": "md",
-"lords": [
-"Saturn"
-]
-}
-},
-{
-"dasha": {
-"level": "ad",
-"lords": [
-"Jupiter"
-]
-}
-}
-],
-"tone": "good",
-"topics": [
-"spiritual",
-"career"
-],
-"effect": "You are devoted to the divine, gain royal favour and great happiness and attain rank.",
-"effect_es": "Te dedicas a lo divino, ganas el favor de los gobernantes y gran felicidad, y alcanzas rango.",
-"remedy": null,
-"remedy_es": null,
-"timing_note": null,
-"clarity": "clear",
-"line": 12838
-},
-{
 "id": "JP3.1224",
 "book": "jataka_parijata_3",
 "requires": [],
@@ -89928,40 +89352,6 @@
 "line": 12916
 },
 {
-"id": "JP3.1228",
-"book": "jataka_parijata_3",
-"requires": [],
-"activation": [
-{
-"dasha": {
-"level": "md",
-"lords": [
-"Mercury"
-]
-}
-},
-{
-"dasha": {
-"level": "ad",
-"lords": [
-"Sun"
-]
-}
-}
-],
-"tone": "good",
-"topics": [
-"money"
-],
-"effect": "You gain apparel, ornaments and wealth, royal favour, great ease, and hear moral teaching.",
-"effect_es": "Ganas ropa, adornos y riqueza, el favor de los gobernantes, gran holgura y escuchas enseñanzas morales.",
-"remedy": null,
-"remedy_es": null,
-"timing_note": null,
-"clarity": "clear",
-"line": 12934
-},
-{
 "id": "JP3.1229",
 "book": "jataka_parijata_3",
 "requires": [],
@@ -89995,78 +89385,6 @@
 "timing_note": null,
 "clarity": "inferred",
 "line": 12953
-},
-{
-"id": "JP3.1230",
-"book": "jataka_parijata_3",
-"requires": [],
-"activation": [
-{
-"dasha": {
-"level": "md",
-"lords": [
-"Mercury"
-]
-}
-},
-{
-"dasha": {
-"level": "ad",
-"lords": [
-"Mars"
-]
-}
-}
-],
-"tone": "good",
-"topics": [
-"fame",
-"career",
-"spiritual"
-],
-"effect": "Danger fades, and you gain fame through charity and royal favour.",
-"effect_es": "El peligro se desvanece y ganas fama por la caridad y el favor de los gobernantes.",
-"remedy": null,
-"remedy_es": null,
-"timing_note": null,
-"clarity": "inferred",
-"line": 12966
-},
-{
-"id": "JP3.1231",
-"book": "jataka_parijata_3",
-"requires": [],
-"activation": [
-{
-"dasha": {
-"level": "md",
-"lords": [
-"Mercury"
-]
-}
-},
-{
-"dasha": {
-"level": "ad",
-"lords": [
-"Rahu"
-]
-}
-}
-],
-"tone": "good",
-"topics": [
-"money",
-"education",
-"career"
-],
-"effect": "You gain wealth from friends and relatives, and win happiness, learning, ornaments and royal favour.",
-"effect_es": "Ganas riqueza de amigos y familiares, y obtienes felicidad, saber, adornos y el favor de los gobernantes.",
-"remedy": null,
-"remedy_es": null,
-"timing_note": null,
-"clarity": "clear",
-"line": 12981
 },
 {
 "id": "JP3.1232",
@@ -90311,42 +89629,6 @@
 "timing_note": null,
 "clarity": "clear",
 "line": 13112
-},
-{
-"id": "JP3.1242",
-"book": "jataka_parijata_3",
-"requires": [],
-"activation": [
-{
-"dasha": {
-"level": "md",
-"lords": [
-"Ketu"
-]
-}
-},
-{
-"dasha": {
-"level": "ad",
-"lords": [
-"Jupiter"
-]
-}
-}
-],
-"tone": "good",
-"topics": [
-"spiritual",
-"career",
-"children"
-],
-"effect": "You win the goodwill of the divine, religious people and elders, and royal favour, and gain lands and children.",
-"effect_es": "Ganas la buena voluntad de lo divino, de personas religiosas y de mayores, y el favor de los gobernantes, y obtienes tierras e hijos.",
-"remedy": null,
-"remedy_es": null,
-"timing_note": null,
-"clarity": "clear",
-"line": 13125
 },
 {
 "id": "JP3.1244",
@@ -90815,42 +90097,6 @@
 "timing_note": null,
 "clarity": "inferred",
 "line": 13311
-},
-{
-"id": "JP3.1262",
-"book": "jataka_parijata_3",
-"requires": [],
-"activation": [
-{
-"dasha": {
-"level": "md",
-"lords": [
-"Venus"
-]
-}
-},
-{
-"dasha": {
-"level": "ad",
-"lords": [
-"Mercury"
-]
-}
-}
-],
-"tone": "good",
-"topics": [
-"family",
-"money",
-"career"
-],
-"effect": "You enjoy the comfort of your children and friends, wealth, royal favour, happiness, prosperity and sound health.",
-"effect_es": "Disfrutas del consuelo de tus hijos y amigos, riqueza, el favor de los gobernantes, felicidad, prosperidad y buena salud.",
-"remedy": null,
-"remedy_es": null,
-"timing_note": null,
-"clarity": "clear",
-"line": 13329
 },
 {
 "id": "JP3.1263",
@@ -104444,39 +103690,6 @@
 "timing_note": null,
 "clarity": "clear",
 "line": 1411
-},
-{
-"id": "KNLE.B.50",
-"book": "kn_rao_learn_easily",
-"requires": [
-{
-"a": "Jupiter",
-"b": "Sun",
-"relation": "conjunct"
-}
-],
-"activation": [
-{
-"dasha": {
-"level": "md",
-"lords": [
-"L5"
-]
-}
-}
-],
-"tone": "good",
-"topics": [
-"career",
-"fame"
-],
-"effect": "You gain a position of regal dignity and standing.",
-"effect_es": "Obtienes una posición de dignidad y prestigio, propia de la realeza.",
-"remedy": null,
-"remedy_es": null,
-"timing_note": "Book: the period of the fifth lord is when the dignity shows",
-"clarity": "clear",
-"line": 1439
 },
 {
 "id": "KNLE.B.51",
@@ -121151,6 +120364,516 @@
 "timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
 "clarity": "clear",
 "line": 8620
+},
+{
+"id": "BNN.1",
+"book": "nadi_probe",
+"requires": [],
+"activation": [
+{
+"transit_conj": {
+"planet": "Jupiter",
+"with": "Ketu"
+}
+}
+],
+"tone": "info",
+"topics": [
+"spiritual"
+],
+"effect": "A year when you feel drawn to pilgrimage and religious travel.",
+"effect_es": "Un año en que sentirás el llamado a peregrinar y a viajar por motivos religiosos.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Stated in the introduction as one of five fixed uses of the method.",
+"clarity": "clear",
+"line": 39
+},
+{
+"id": "BNN.2",
+"book": "nadi_probe",
+"requires": [
+{
+"a": "Jupiter",
+"b": "Mars",
+"relation": "mutual_aspect"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "Your marriage may bring less happiness than you hope, and you may grow detached from family life.",
+"effect_es": "Tu matrimonio puede traer menos felicidad de la que esperas, y puedes distanciarte de la vida familiar.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 4287
+},
+{
+"id": "BNN.3",
+"book": "nadi_probe",
+"requires": [
+{
+"planet": "Mars",
+"in_houses_from": "Jupiter",
+"houses": [
+7
+]
+},
+{
+"planet": "Moon",
+"in_houses_from": "Jupiter",
+"houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "Your married life is likely to come under strain.",
+"effect_es": "Es probable que tu vida matrimonial pase por tensiones.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Author says this placement is always harmful for married life.",
+"clarity": "clear",
+"line": 5706
+},
+{
+"id": "BNN.4",
+"book": "nadi_probe",
+"requires": [
+{
+"planet": "Moon",
+"in_houses_from": "Mercury",
+"houses": [
+2
+]
+}
+],
+"activation": [],
+"tone": "mixed",
+"topics": [
+"children"
+],
+"effect": "Having children may come later than you expect.",
+"effect_es": "Tener hijos puede llegar más tarde de lo que esperas.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Author says the Moon-Mercury position (Moon in the sign after Mercury in his example) always delays the birth of children.",
+"clarity": "clear",
+"line": 13129
+},
+{
+"id": "BNN.13",
+"book": "nadi_probe",
+"requires": [
+{
+"planet": "Mars",
+"in_houses_from": "Mercury",
+"houses": [
+12
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"education"
+],
+"effect": "You may meet obstacles and breaks in your education.",
+"effect_es": "Puedes encontrar obstáculos e interrupciones en tu educación.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Induced from worked cases; the book states no general rule.",
+"clarity": "inferred",
+"line": 1289
+},
+{
+"id": "BNN.14",
+"book": "nadi_probe",
+"requires": [
+{
+"a": "Rahu",
+"b": "Mercury",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "mixed",
+"topics": [
+"education"
+],
+"effect": "Your education is likely to have ups and downs, with interruptions along the way.",
+"effect_es": "Es probable que tu educación tenga altibajos, con interrupciones en el camino.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Induced from worked cases; the book states no general rule.",
+"clarity": "inferred",
+"line": 3102
+},
+{
+"id": "BNN.15",
+"book": "nadi_probe",
+"requires": [
+{
+"a": "Ketu",
+"b": "Mercury",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"education"
+],
+"effect": "Your formal education may stay limited or meet real difficulties.",
+"effect_es": "Tu educación formal puede quedar limitada o enfrentar dificultades reales.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Induced from worked cases; the book states no general rule.",
+"clarity": "inferred",
+"line": 2002
+},
+{
+"id": "BNN.16",
+"book": "nadi_probe",
+"requires": [
+{
+"a": "Venus",
+"b": "Mercury",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"education"
+],
+"effect": "You are likely to have a sharp, learned mind.",
+"effect_es": "Es probable que tengas una mente aguda y erudita.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Induced from worked cases; the book states no general rule.",
+"clarity": "inferred",
+"line": 1004
+},
+{
+"id": "BNN.17",
+"book": "nadi_probe",
+"requires": [
+{
+"planet": "Jupiter",
+"in_houses_from": "Mercury",
+"houses": [
+2
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"education"
+],
+"effect": "You are likely to be well educated and learned.",
+"effect_es": "Es probable que seas una persona instruida y erudita.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Induced from worked cases; the book states no general rule.",
+"clarity": "inferred",
+"line": 847
+},
+{
+"id": "BNN.18",
+"book": "nadi_probe",
+"requires": [
+{
+"planet": "Sun",
+"in_houses_from": "Saturn",
+"houses": [
+2
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "You are likely to find work in government service.",
+"effect_es": "Es probable que encuentres trabajo en el servicio del gobierno.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Induced from worked cases; the book states no general rule.",
+"clarity": "inferred",
+"line": 860
+},
+{
+"id": "BNN.19",
+"book": "nadi_probe",
+"requires": [
+{
+"a": "Sun",
+"b": "Saturn",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "info",
+"topics": [
+"career"
+],
+"effect": "Your work or career is likely to have some link with government.",
+"effect_es": "Es probable que tu trabajo o carrera tenga algún vínculo con el gobierno.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Induced from worked cases; the book states no general rule.",
+"clarity": "inferred",
+"line": 414
+},
+{
+"id": "BNN.20",
+"book": "nadi_probe",
+"requires": [
+{
+"a": "Mars",
+"b": "Saturn",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "info",
+"topics": [
+"career"
+],
+"effect": "Your work is likely to involve machinery, factories or engineering.",
+"effect_es": "Es probable que tu trabajo involucre maquinaria, fábricas o ingeniería.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Induced from worked cases; the book states no general rule.",
+"clarity": "inferred",
+"line": 9314
+},
+{
+"id": "BNN.21",
+"book": "nadi_probe",
+"requires": [
+{
+"planet": "Mars",
+"in_houses_from": "Saturn",
+"houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "info",
+"topics": [
+"career"
+],
+"effect": "Your work is likely to involve machinery, factories or engineering.",
+"effect_es": "Es probable que tu trabajo involucre maquinaria, fábricas o ingeniería.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Induced from worked cases; the book states no general rule.",
+"clarity": "inferred",
+"line": 2094
+},
+{
+"id": "BNN.22",
+"book": "nadi_probe",
+"requires": [
+{
+"a": "Saturn",
+"b": "Venus",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You are likely to earn well and build real wealth.",
+"effect_es": "Es probable que ganes bien y construyas una riqueza real.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Induced from worked cases; the book states no general rule.",
+"clarity": "inferred",
+"line": 2717
+},
+{
+"id": "BNN.23",
+"book": "nadi_probe",
+"requires": [
+{
+"from": "Saturn",
+"houses": [
+2,
+12
+],
+"holds_none_of": [
+"Sun",
+"Moon",
+"Mars",
+"Mercury",
+"Jupiter",
+"Venus",
+"Rahu",
+"Ketu"
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"career"
+],
+"effect": "Your career may stay unsettled, with modest pay and frequent changes of work.",
+"effect_es": "Tu carrera puede mantenerse inestable, con paga modesta y cambios frecuentes de trabajo.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Induced from worked cases; the book states no general rule.",
+"clarity": "inferred",
+"line": 761
+},
+{
+"id": "BNN.24",
+"book": "nadi_probe",
+"requires": [
+{
+"from": "Jupiter",
+"houses": [
+12
+],
+"holds_none_of": [
+"Sun",
+"Moon",
+"Mars",
+"Mercury",
+"Venus",
+"Rahu",
+"Ketu",
+"Saturn"
+]
+}
+],
+"activation": [],
+"tone": "info",
+"topics": [
+"family"
+],
+"effect": "You are likely to be the first-born child in your family.",
+"effect_es": "Es probable que seas el primer hijo o hija de tu familia.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Induced from worked cases; the book states no general rule.",
+"clarity": "inferred",
+"line": 339
+},
+{
+"id": "BNN.25",
+"book": "nadi_probe",
+"requires": [],
+"activation": [
+{
+"transit_conj": {
+"planet": "Jupiter",
+"with": "Venus"
+}
+}
+],
+"tone": "good",
+"topics": [
+"marriage"
+],
+"effect": "Your marriage is likely to take place in a year when luck and wisdom turn toward partnership.",
+"effect_es": "Es probable que te cases en un año en que la suerte y la sabiduría se dirigen hacia la pareja.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Jupiter's transit over a planet's sign is the book's timing tool; Jupiter passes each sign about once a year and returns to the same sign about every 12 years. In the book's cases this falls near ages 22-35.",
+"clarity": "inferred",
+"line": 237
+},
+{
+"id": "BNN.26",
+"book": "nadi_probe",
+"requires": [],
+"activation": [
+{
+"transit": {
+"planet": "Jupiter",
+"from": "Venus",
+"houses": [
+7
+]
+}
+}
+],
+"tone": "good",
+"topics": [
+"marriage"
+],
+"effect": "A year of good luck facing your partnership is a likely time for your marriage.",
+"effect_es": "Un año de buena suerte frente a tu vida en pareja es un momento probable para tu matrimonio.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Jupiter's transit over a planet's sign is the book's timing tool; Jupiter passes each sign about once a year and returns to the same sign about every 12 years. In the book's cases this falls near ages 22-35.",
+"clarity": "inferred",
+"line": 11283
+},
+{
+"id": "BNN.27",
+"book": "nadi_probe",
+"requires": [],
+"activation": [
+{
+"transit_conj": {
+"planet": "Saturn",
+"with": "Venus"
+}
+}
+],
+"tone": "good",
+"topics": [
+"marriage"
+],
+"effect": "Your marriage is likely in a year when discipline and responsibility settle on your partnership.",
+"effect_es": "Es probable que te cases en un año en que la disciplina y la responsabilidad se asientan en tu relación de pareja.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Saturn passes each sign in about two and a half years; in the book's cases the marriage falls around ages 30-31.",
+"clarity": "inferred",
+"line": 5983
+},
+{
+"id": "BNN.28",
+"book": "nadi_probe",
+"requires": [],
+"activation": [
+{
+"transit_conj": {
+"planet": "Saturn",
+"with": "Jupiter"
+}
+}
+],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "Hard work pays off in that year with a good job, a rise in position, or better earnings.",
+"effect_es": "El trabajo duro da frutos ese año con un buen empleo, un ascenso o mejores ingresos.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Saturn passes each sign in about two and a half years; the book gives no single age.",
+"clarity": "inferred",
+"line": 2015
 },
 {
 "id": "SPC.1",
