@@ -88,8 +88,8 @@ def _signs_in_house(state: dict, h: int) -> int:
 
 
 def holds(c: dict, state: dict) -> bool:
-    if "unparsed" in c:
-        return False
+    if "unparsed" in c or c.get("frame") in ("kp", "varsha"):
+        return False            # KP and solar-return clauses have their own evaluators
     if "chart" in c and len(c) == 1:
         return state.get("gender") == c["chart"]
     signs = state["signs"]
@@ -173,3 +173,36 @@ def applies(rule: dict, state: dict) -> bool:
 def applying(state: dict, rules: Optional[List[dict]] = None) -> List[dict]:
     rules = load_rules() if rules is None else rules
     return [r for r in rules if applies(r, state)]
+
+
+def act_holds(a: dict, state: dict) -> bool:
+    """Activation clause at a date. state also carries 'periods' {md, ad, pd, sd}, 'transit' {planet: sign}, 'age_year'."""
+    if "unparsed" in a or a.get("frame") in ("kp", "varsha"):
+        return False
+    if "dasha" in a:
+        d = a["dasha"]
+        lord = (state.get("periods") or {}).get(d.get("level"))
+        if not lord:
+            return False
+        wanted = {_planet(state, e) for e in d.get("lords", [])}
+        return lord in wanted
+    if "transit" in a:
+        t = a["transit"]
+        ts = (state.get("transit") or {}).get(t.get("planet"))
+        ref = _sign(state, t.get("from", "lagna"))
+        if ts is None or ref is None:
+            return False
+        return ((ts - ref) % 12 + 1) in t.get("houses", [])
+    if "transit_conj" in a:
+        t = a["transit_conj"]
+        ts = (state.get("transit") or {}).get(t.get("planet"))
+        tgt = _sign(state, t.get("with"))
+        return ts is not None and tgt is not None and ts == tgt
+    if "age_year" in a:
+        return state.get("age_year") in a["age_year"]
+    return False
+
+
+def timed_ok(rule: dict, state: dict) -> bool:
+    """Natal requires AND every activation clause hold (state carries the date's periods and transits)."""
+    return applies(rule, state) and all(act_holds(a, state) for a in rule.get("activation", []))

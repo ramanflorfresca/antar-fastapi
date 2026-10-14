@@ -23,6 +23,8 @@ def small_rules(monkeypatch):
     monkeypatch.setattr(rc, "_cache", SMALL)
     monkeypatch.setattr(_cb, "_cache", [])                      # isolate the tests from the shipped data files
     monkeypatch.setattr(_lkr, "_cache", [])
+    from antar_engine import book_rules as _br
+    monkeypatch.setattr(_br, "_cache", [])
     yield
 
 SIGNS = ["Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo", "Libra", "Scorpio", "Sagittarius",

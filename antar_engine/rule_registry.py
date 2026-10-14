@@ -32,6 +32,8 @@ from antar_engine import rc_rules as rc
 from antar_engine import combo_rules as cb
 from antar_engine import lk_remedies as lkr
 from antar_engine import vim_levels as vl
+from antar_engine import book_rules as br
+from antar_engine.transit_signs import transit_signs
 from antar_engine.varshaphal_table import get_annual_house
 from antar_engine.lal_kitab_events import lal_kitab_profile, AGE_TRIGGERS, MATURITY
 
@@ -159,7 +161,7 @@ T = {
            "head_when": "When {s} is most active", "head_how": "How to work with {s}",
            "head_where": "Where {s} points", "head_which": "Which part of your chart leads on {s}",
            "none_when": "No window for {s} stands out in the next 24 months.",
-           "windows": "Windows", "remedies": "Practical remedies", "strengths": "Working for you", "lean_on": "Lean on", "worth_knowing": "Worth knowing", "for_days": "Keep it up for {d}.", "timing_note": "Timing: {d}.",
+           "windows": "Windows", "remedies": "Practical remedies", "strengths": "Working for you", "lean_on": "Lean on", "worth_knowing": "Worth knowing", "active_now": "Active right now", "for_days": "Keep it up for {d}.", "timing_note": "Timing: {d}.",
            "challenges": "To handle with care", "tone_only": "This reading only says whether it helps or strains; the books give no more detail.",
            "spec": "Treat speculation with caution: size any bet to what you can afford to lose. This is a caution, not a call on any trade.",
            "step": "First step: {a}", "wake": "A dormant area wakes around age {age}.", "lead": "The strongest lead is {x}."},
@@ -179,7 +181,7 @@ T = {
            "head_when": "Cuándo {s} está más activo", "head_how": "Cómo trabajar con {s}",
            "head_where": "Hacia dónde apunta {s}", "head_which": "Qué parte de tu carta lidera en {s}",
            "none_when": "Ninguna ventana para {s} destaca en los próximos 24 meses.",
-           "windows": "Ventanas", "remedies": "Remedios prácticos", "strengths": "A tu favor", "lean_on": "Apóyate en", "worth_knowing": "Conviene saber", "for_days": "Mantenlo durante {d}.", "timing_note": "Momento: {d}.",
+           "windows": "Ventanas", "remedies": "Remedios prácticos", "strengths": "A tu favor", "lean_on": "Apóyate en", "worth_knowing": "Conviene saber", "active_now": "Activo ahora mismo", "for_days": "Mantenlo durante {d}.", "timing_note": "Momento: {d}.",
            "challenges": "Para manejar con cuidado", "tone_only": "Esta lectura solo dice si ayuda o presiona; los libros no dan más detalle.",
            "spec": "Trata la especulación con cautela: limita cualquier apuesta a lo que puedas perder. Es una precaución, no una indicación sobre ninguna operación.",
            "step": "Primer paso: {a}", "wake": "Un área latente despierta hacia los {age} años.", "lead": "La pista más fuerte es {x}."},
@@ -230,6 +232,22 @@ class Ctx:
 
     def lk_house(self, planet: str) -> int:
         return self.planets[planet].sign + 1          # fixed frame: Aries = house 1
+
+    def chart_state(self) -> dict:
+        """State the book-rule evaluator reads: lagna, signs, gender, Jaimini karakas and points, age."""
+        if not hasattr(self, "_chart_state"):
+            self._chart_state = {"lagna": self.lagna, "signs": {p: pl.sign for p, pl in self.planets.items()},
+                                 "gender": self.gender, "karakas": dict(self.j.k),
+                                 "points": {"AL": self.j.al, "UL": self.j.ul, "A7": self.j.a7, "KL": self.j.kl},
+                                 "age_year": (self.age + 1) if self.age is not None else None}
+        return self._chart_state
+
+    def timed_book_rules(self) -> List[dict]:
+        """Timed book rules whose natal conditions hold in this chart (activation is checked per date)."""
+        if not hasattr(self, "_timed_book"):
+            st = self.chart_state()
+            self._timed_book = [r for r in br.load_rules() if r.get("activation") and cb.applies(r, st)]
+        return self._timed_book
 
     def rc_state(self) -> dict:
         """State the Roop Chand rules read: natal houses (fixed frame), this year's annual houses, gender, rising sign."""
@@ -343,8 +361,7 @@ _YOGA_SUBJECTS = {"wealth": ["money", "funding"], "raj_yoga": ["career", "job", 
 
 def _combo_family(ctx: Ctx):
     """B.V. Raman's combinations (Part I, entries 1-162), applied only where every condition holds."""
-    state = {"lagna": ctx.lagna, "signs": {p: pl.sign for p, pl in ctx.planets.items()}, "gender": ctx.gender,
-             "karakas": dict(ctx.j.k), "points": {"AL": ctx.j.al, "UL": ctx.j.ul, "A7": ctx.j.a7, "KL": ctx.j.kl}}
+    state = ctx.chart_state()
     out = []
     for r in cb.applying(state):
         tone = r["tone"] if r["tone"] in ("good", "bad") else "info"
@@ -359,6 +376,35 @@ def _combo_family(ctx: Ctx):
         out.append(Evidence(f"CB.{r['id'].split('.', 1)[1]}", "B.V. Raman, combinations", subs, tone, "specific",
                             plain, {l: T[l]["combo_why"] for l in T}))
     return out
+
+
+def _book_evidence(r: dict) -> Evidence:
+    tone = r["tone"] if r["tone"] in ("good", "bad") else "info"
+    plain = {"en": r["effect"]}
+    if r.get("effect_es"):
+        plain["es"] = r["effect_es"]
+    subs = []
+    for t in r.get("topics", []):
+        for sj in rc.TOPIC_SUBJECTS.get(t, []):
+            if sj not in subs:
+                subs.append(sj)
+    rem = {l: v for l, v in (("en", r.get("remedy")), ("es", r.get("remedy_es"))) if v and _plain_ok(v)} or None
+    return Evidence(f"BK.{r['id']}", br.label(r), subs, tone, "specific" if r.get("clarity") == "clear" else "tone",
+                    plain, {l: T[l]["combo_why"] for l in T}, remedy=rem)
+
+
+def _book_family(ctx: Ctx):
+    """Library rules with no timing condition (standing traits), applied only where their natal conditions hold."""
+    st = ctx.chart_state()
+    return [_book_evidence(r) for r in br.load_rules() if not r.get("activation") and cb.applies(r, st)]
+
+
+def timed_book_evidence(ctx: Ctx, when: date) -> List[Evidence]:
+    """Timed library rules that hold on `when` (natal conditions + dasha/transit activation)."""
+    st = dict(ctx.chart_state())
+    st["periods"] = ctx.periods_at(when)
+    st["transit"] = transit_signs(when)
+    return [_book_evidence(r) for r in ctx.timed_book_rules() if all(cb.act_holds(a, st) for a in r["activation"])]
 
 
 def _combo_stems() -> set:
@@ -395,6 +441,7 @@ REGISTRY: List[Rule] = [
     Rule("KAR", "K.N. Rao, Karakamsha", _kar_rules),
     Rule("LK.RC", "Lal Kitab (Roop Chand)", _rc_family),
     Rule("CB", "B.V. Raman, combinations", _combo_family),
+    Rule("BK", "Library (K.N. Rao, B.V. Raman)", _book_family),
     Rule("YOGA", "B.V. Raman, combinations", _yoga_rules),
 ]
 
@@ -786,6 +833,20 @@ def answer(ctx: Ctx, subject: Optional[str], qword: str = "what", lang: str = "e
         lead = (good + bad)[:1]
         if lead:
             add(lead)
+    if qword in ("what", "how", "why", "which") and subject not in ("remedies",):
+        now_ev = [e for e in for_subject(timed_book_evidence(ctx, ctx.today), subject)]
+        shown, seen_t = [], set()
+        for e in _interleave(now_ev):
+            t = e.plain.get(lang)
+            if t and t not in seen_t:
+                seen_t.add(t); shown.append((e, t))
+            if len(shown) >= 4:
+                break
+        if shown:
+            lines.append(tx["active_now"] + ":")
+            for e, t in shown:
+                lines.append(("- " if qword == "why" else "") + t)
+                used.append(e.rule_id)
     if subject == "speculation":
         lines.append(tx["spec"])
     applicable_any = bool(evs or wins or wake or plan or subject == "speculation")
