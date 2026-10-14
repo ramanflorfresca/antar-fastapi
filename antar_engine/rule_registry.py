@@ -29,6 +29,7 @@ from typing import Callable, Dict, Iterable, List, Optional
 from antar_engine.jaimini_engine import SIGN_NAMES
 from antar_engine import jaimini_rao_events as jre
 from antar_engine import rc_rules as rc
+from antar_engine import combo_rules as cb
 from antar_engine.varshaphal_table import get_annual_house
 from antar_engine.lal_kitab_events import lal_kitab_profile, AGE_TRIGGERS, MATURITY
 
@@ -147,6 +148,7 @@ T = {
            "yoga_why": "This combination is present in your birth chart.",
            "rc_why_planet": "{p} sits in the part of your chart that governs {t}, and the traditional text speaks to exactly that arrangement.",
            "rc_why_chart": "It follows from how your chart is arranged, which the traditional text addresses directly.",
+           "combo_why": "The planets in your chart relate to each other in a combination the classical text describes.",
            "none": "The chart gives no rule on {s}, so there is nothing to predict here.",
            "head_what": "What your chart says about {s}", "head_why": "Why your chart reads this way about {s}",
            "head_when": "When {s} is most active", "head_how": "How to work with {s}",
@@ -166,6 +168,7 @@ T = {
            "yoga_why": "Esta combinación está presente en tu carta natal.",
            "rc_why_planet": "{p} está en la parte de tu carta que rige {t}, y el texto tradicional habla exactamente de esa disposición.",
            "rc_why_chart": "Se deriva de cómo está dispuesta tu carta, algo que el texto tradicional aborda directamente.",
+           "combo_why": "Los planetas de tu carta se relacionan entre sí en una combinación que describe el texto clásico.",
            "none": "La carta no da ninguna regla sobre {s}, así que no hay nada que predecir aquí.",
            "head_what": "Lo que dice tu carta sobre {s}", "head_why": "Por qué tu carta se lee así sobre {s}",
            "head_when": "Cuándo {s} está más activo", "head_how": "Cómo trabajar con {s}",
@@ -315,6 +318,29 @@ _YOGA_SUBJECTS = {"wealth": ["money", "funding"], "raj_yoga": ["career", "job", 
                   "reputation": ["career"], "karmic": [], "challenge": [], "general": []}
 
 
+def _combo_family(ctx: Ctx):
+    """B.V. Raman's combinations (Part I, entries 1-162), applied only where every condition holds."""
+    state = {"lagna": ctx.lagna, "signs": {p: pl.sign for p, pl in ctx.planets.items()}, "gender": ctx.gender}
+    out = []
+    for r in cb.applying(state):
+        tone = r["tone"] if r["tone"] in ("good", "bad") else "info"
+        plain = {"en": r["effect"]}
+        if r.get("effect_es"):
+            plain["es"] = r["effect_es"]
+        subs = []
+        for t in r.get("topics", []):
+            for sj in rc.TOPIC_SUBJECTS.get(t, []):
+                if sj not in subs:
+                    subs.append(sj)
+        out.append(Evidence(f"CB.{r['id'].split('.', 1)[1]}", "B.V. Raman, combinations", subs, tone, "specific",
+                            plain, {l: T[l]["combo_why"] for l in T}))
+    return out
+
+
+def _combo_stems() -> set:
+    return {re.sub(r"\s*\(.*\)", "", (r.get("name") or "")).replace(" Yoga", "").strip() for r in cb.load_rules()}
+
+
 def _yoga_rules(ctx: Ctx):
     from antar_engine.yogas import detect_all_yogas, plain_yoga
     cd = ctx.chart_data
@@ -327,6 +353,8 @@ def _yoga_rules(ctx: Ctx):
         stem = y["name"].split("(")[0].strip()
         if stem in seen:
             continue
+        if stem.replace(" Yoga", "").strip() in _combo_stems() - {"Dhana", "Raj"}:
+            continue                                         # the book's own definition of this yoga is registered instead
         seen.add(stem)
         pl = {l: plain_yoga(y["name"], l) for l in ("en", "es")}
         tone = "good" if pl["en"]["kind"] == "strength" else "bad"
@@ -342,6 +370,7 @@ def _yoga_rules(ctx: Ctx):
 REGISTRY: List[Rule] = [
     Rule("KAR", "K.N. Rao, Karakamsha", _kar_rules),
     Rule("LK.RC", "Lal Kitab (Roop Chand)", _rc_family),
+    Rule("CB", "B.V. Raman, combinations", _combo_family),
     Rule("YOGA", "B.V. Raman, combinations", _yoga_rules),
 ]
 
@@ -353,6 +382,19 @@ def applicable(ctx: Ctx) -> List[Evidence]:
     out: List[Evidence] = []
     for r in REGISTRY:
         out.extend(r.applies(ctx))
+    return out
+
+
+def _interleave(items: List[Evidence]) -> List[Evidence]:
+    """Round-robin across books so a capped answer draws from every source, not just the biggest one."""
+    by_book: Dict[str, List[Evidence]] = {}
+    for e in items:
+        by_book.setdefault(e.book, []).append(e)
+    out, lists = [], list(by_book.values())
+    while any(lists):
+        for lst in lists:
+            if lst:
+                out.append(lst.pop(0))
     return out
 
 
@@ -515,7 +557,7 @@ def answer(ctx: Ctx, subject: Optional[str], qword: str = "what", lang: str = "e
         ('because your X sits in Y') is stated once per placement instead of after every sentence."""
         seen_text, shown = set(), 0
         groups = {}
-        for e in items:
+        for e in _interleave(items):
             txt = e.plain.get(lang)
             if not txt or txt in seen_text:
                 continue                                   # no text in this language, or a repeat

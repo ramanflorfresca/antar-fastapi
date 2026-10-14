@@ -19,7 +19,7 @@ DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "lk
 PLANETS = ("Sun", "Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn", "Rahu", "Ketu")
 TOPIC_SUBJECTS = {"money": ["money"], "career": ["career", "job", "business"], "marriage": ["marriage", "love"],
                   "children": ["children"], "fame": ["career"], "property": ["property"], "foreign": ["foreign"],
-                  "education": ["education"], "health": ["health"], "family": [], "other": []}
+                  "education": ["education"], "health": ["health"], "spiritual": ["spirituality"], "family": [], "other": []}
 
 _cache: Optional[List[dict]] = None
 
