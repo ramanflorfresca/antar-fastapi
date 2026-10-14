@@ -23,9 +23,9 @@ AREAS = [  # key, subjects, label en/es, one-line empty-state hint is not needed
     ("inner", ("spirituality",), {"en": "Inner life", "es": "Vida interior"}),
 ]
 LABELS = {"en": {"pattern": "Your pattern", "season": "Your season", "move": "Your move", "watch": "Watch",
-                 "support": "Do this to support it", "care": "Keep your body steady"},
+                 "support": "Do this to support it", "care": "Keep your body steady", "window": "Window", "take_care": "Take care"},
           "es": {"pattern": "Tu patrón", "season": "Tu temporada", "move": "Tu paso", "watch": "Ojo con",
-                 "support": "Haz esto para apoyarlo", "care": "Mantén tu cuerpo estable"}}
+                 "support": "Haz esto para apoyarlo", "care": "Mantén tu cuerpo estable", "window": "Ventana", "take_care": "Cuidado"}}
 TOPIC_WORDS = {"money": ("money", "fund", "income", "dinero", "financ", "invest", "speculat"),
                "work": ("career", "job", "work", "business", "client", "carrera", "empleo", "negocio", "trabajo"),
                "partnership": ("love", "marri", "relation", "partner", "amor", "matrimonio", "pareja"),
@@ -125,6 +125,29 @@ def _care(library: dict) -> Optional[dict]:
     return None
 
 
+def _window(season: Optional[dict], watch: Optional[dict]) -> Optional[dict]:
+    """The row's one-line status: a dated 'window' while the support is running, 'care' when only a caution applies."""
+    if season and season.get("start") and season.get("end"):
+        kind = "care" if (season.get("strength") == "possible" and watch) else "window"
+        return {"kind": kind, "start": season["start"], "end": season["end"]}
+    if watch:
+        return {"kind": "care", "start": None, "end": None}
+    return None
+
+
+def _also_hint(card: dict, focus_cards: list) -> Optional[str]:
+    """A one-line hint for a folded area: only a dated, specific season line. Never a standing trait (those read as flattery), never the
+    health area (the body-care line says it), never a sentence already shown in a focus card."""
+    if card.get("area") == "health":
+        return None
+    season = card.get("season") or {}
+    text = season.get("text")
+    if not text:
+        return None
+    shown = {t for f in focus_cards for t in ((f.get("season") or {}).get("text"), (f.get("pattern") or {}).get("text"))}
+    return None if text in shown else text
+
+
 def build(ctx, library: dict, life: Optional[dict] = None, recent_topics: Optional[List[str]] = None,
           lang: str = "en", pinned: Optional[List[str]] = None, kp: Optional[Dict[str, dict]] = None,
           horizon_months: int = 6, area: Optional[str] = None) -> dict:
@@ -160,7 +183,8 @@ def build(ctx, library: dict, life: Optional[dict] = None, recent_topics: Option
         if pinned and key in pinned:
             score += 100.0
         w0 = watch[0] if watch else None
-        cards.append({"area": key, "label": label[lang], "_score": score,
+        watch_card = {"text": w0["text"], "do": w0.get("do"), "ref": public_view.ref_for(w0["rule_id"])} if w0 else None
+        cards.append({"area": key, "label": label[lang], "_score": score, "window": _window(season, watch_card),
                       "pattern": pattern, "season": season, "move": move, "support": _support(ctx, subjects, lang, used_remedies),
                       "watch": {"text": w0["text"], "do": w0.get("do"), "ref": public_view.ref_for(w0["rule_id"])} if w0 else None})
     cards.sort(key=lambda c: -c["_score"])
@@ -171,6 +195,5 @@ def build(ctx, library: dict, life: Optional[dict] = None, recent_topics: Option
     want = next((c for c in cards if c["area"] == area), None) if area else None
     return {"labels": LABELS[lang], "horizon_months": horizon_months, "care": _care(library), "focus": [clean(c) for c in focus],
             "card": clean(want) if want else None,
-            "also": [{"area": c["area"], "label": c["label"],
-                      "hint": (c["season"] or {}).get("text") or (c["pattern"] or {}).get("text")} for c in also],
+            "also": [{"area": c["area"], "label": c["label"], "window": c.get("window"), "hint": _also_hint(c, [f for f in focus])} for c in also],
             "horizon": library.get("horizon")}

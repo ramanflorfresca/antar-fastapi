@@ -56,3 +56,22 @@ def test_computed_reasons_agree_with_their_status():
         if c["status"] == "strong":
             assert "well supported" in r, (key, r)
         assert not re.search(r"balanced", r), (key, r)
+
+
+def test_mixed_rulers_read_as_one_coherent_sentence():
+    t = PC._reason([("Venus", "combust"), ("Saturn", "friend")], "weak", "en")
+    assert ", though " in t and t.endswith("This center needs attention.") and "—" not in t
+    assert t.index("overshadowed") < t.index("though") < t.index("well-placed")
+    es = PC._reason([("Venus", "combust"), ("Saturn", "friend")], "weak", "es")
+    assert ", aunque " in es and es.endswith("Este centro pide atención.")
+    only_good = PC._reason([("Venus", "friend")], "strong", "en")
+    assert "though" not in only_good and only_good.endswith("This center is well supported.")
+
+
+def test_why_this_mantra_never_names_the_moon():
+    from antar_engine import daily_wisdom as DW
+    for lang in ("en", "es", "pt"):
+        for season in ("consolidating", "expansive", "steady"):
+            for cause in ({"kind": "moon", "house": 3}, {"kind": "dasha", "lord": "Rahu"}, {}):
+                t = DW._why_mantra(season, cause, "Om Gam", lang)
+                assert "moon" not in t.lower() and "luna" not in t.lower() and "lua" not in t.lower(), t

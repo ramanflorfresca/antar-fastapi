@@ -498,27 +498,41 @@ def _reason_key(status: Optional[str], state: str, rulers_states: list) -> str:
     return state
 
 
+_STRAINED_CONDS = {"enemy", "debilitated", "combust", "sleeping"}
+
+
 def _reason(rulers_states: list[tuple], state: str, lang: str) -> str:
+    """One plain, non-contradicting sentence: the strained part first, the supportive part as 'though ...', then the verdict."""
     from antar_engine.practice_scopes import _energy as _nrg
     _conn = "se lee" if lang == "es" else "reads"
-    parts = [f"{_nrg(p, lang)} {_conn} {_COND_WORD[lang].get(c, c)}" for p, c in rulers_states]
-    joined = (" y " if lang == "es" else " and ").join(parts) if len(parts) <= 2 else \
-        ((", ".join(parts[:-1])) + (" y " if lang == "es" else " and ") + parts[-1])
+    _and = " y " if lang == "es" else " and "
+
+    def _join(items):
+        parts = [f"{_nrg(p, lang)} {_conn} {_COND_WORD[lang].get(c, c)}" for p, c in items]
+        return _and.join(parts) if len(parts) <= 2 else (", ".join(parts[:-1]) + _and + parts[-1])
+
+    bad = [(p, c) for p, c in rulers_states if c in _STRAINED_CONDS]
+    good = [(p, c) for p, c in rulers_states if c not in _STRAINED_CONDS]
+    if bad and good:
+        body = f"{_join(bad)}, {'aunque' if lang == 'es' else 'though'} {_join(good)}."
+    else:
+        body = f"{_join(rulers_states)}."
+    body = body[:1].upper() + body[1:]
     if lang == "es":
-        tail = {"strong": "— este centro tiene buen sostén.",
-                "steady": "— este centro está estable; no necesita acción.",
-                "mixed": "— panorama mixto: se puede usar, con una parte que cuidar.",
-                "balanced": "— este centro está equilibrado.",
-                "weak": "— este centro pide atención.",
-                "blocked": "— este centro está bloqueado y necesita trabajo."}[state]
-        return f"{joined.capitalize()} {tail}"
-    tail = {"strong": "— this center is well supported.",
-            "steady": "— this center is steady; no action needed.",
-            "mixed": "— a mixed picture: workable, with one part to tend.",
-            "balanced": "— this center is balanced.",
-            "weak": "— this center needs attention.",
-            "blocked": "— this center is blocked and needs work."}[state]
-    return f"{joined.capitalize()} {tail}"
+        tail = {"strong": "Este centro tiene buen sostén.",
+                "steady": "Este centro está estable; no necesita acción.",
+                "mixed": "Panorama mixto: se puede usar, con una parte que cuidar.",
+                "balanced": "Este centro está equilibrado.",
+                "weak": "Este centro pide atención.",
+                "blocked": "Este centro está bloqueado y necesita trabajo."}[state]
+    else:
+        tail = {"strong": "This center is well supported.",
+                "steady": "This center is steady; no action needed.",
+                "mixed": "A mixed picture: workable, with one part to tend.",
+                "balanced": "This center is balanced.",
+                "weak": "This center needs attention.",
+                "blocked": "This center is blocked and needs work."}[state]
+    return f"{body} {tail}"
 
 
 def compute_chakra_states(

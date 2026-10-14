@@ -79,3 +79,19 @@ def test_every_topic_step_is_plain_and_bilingual():
     from scripts.build_rc_rules import PLANET_RE, JARGON_RE, LABEL_RE
     for en, es in wl.STEPS.values():
         assert en and es and not (PLANET_RE.search(en) or JARGON_RE.search(en) or LABEL_RE.search(en))
+
+
+def test_wellness_never_repeats_the_same_habit_on_two_shown_themes(monkeypatch):
+    from tests.test_rule_registry import ctx
+    from antar_engine import reading_library as rl, book_rules
+    habit = "Favour fruit and buttermilk."
+    rules = [{"id": f"H{i}", "requires": [], "activation": [{"dasha": {"level": "md", "lords": ["Moon", "Mars", "Sun", "Venus", "Saturn", "Mercury", "Jupiter", "Rahu", "Ketu"]}}],
+              "tone": "info", "topics": ["health"], "effect": f"Area {i} may need care.", "remedy": (habit if i < 3 else "Use neem."), "book": "chatterjee_medical"}
+             for i in range(4)]
+    ev = [rl.rr._book_evidence(r) for r in rules]
+    monkeypatch.setattr(rl.rr, "timed_book_evidence", lambda c, d: ev)
+    monkeypatch.setattr(rl.rr, "_book_family", lambda c: [])
+    monkeypatch.setattr(book_rules, "load_rules", lambda: rules)
+    w = rl.wellness(ctx(), language="en")
+    remedies = [t["remedy"] for t in w["themes"] if t["remedy"]]
+    assert len(remedies) == len(set(remedies)) and "Use neem." in remedies and len(w["themes"]) == 3

@@ -933,19 +933,26 @@ _LEAN = {"consolidating": {"en": "consolidating", "es": "de consolidaci\u00f3n",
          "steady": {"en": "steady", "es": "estable", "pt": "est\u00e1vel"}}
 
 
+_MIND = {"consolidating": {"en": "today your mind favours turning inward and building steadily over pushing",
+                           "es": "hoy tu mente favorece volcarte hacia adentro y construir con constancia en lugar de empujar",
+                           "pt": "hoje sua mente favorece voltar-se para dentro e construir com const\u00e2ncia em vez de for\u00e7ar"},
+         "expansive": {"en": "today your mind favours moving forward", "es": "hoy tu mente favorece avanzar",
+                       "pt": "hoje sua mente favorece avan\u00e7ar"},
+         "steady": {"en": "today your mind is steady and even", "es": "hoy tu mente est\u00e1 estable y pareja",
+                    "pt": "hoje sua mente est\u00e1 est\u00e1vel e equilibrada"}}
+
+
 def _why_mantra(season: str, cause: dict, name: str, lang: str) -> str:
     """One plain sentence: the real cause of the season, then why this mantra answers it."""
     tone, does = _TONE.get(season, _TONE["steady"])[lang]
     kind = (cause or {}).get("kind")
     if kind == "moon" and isinstance((cause or {}).get("house"), int):
-        cs = {"en": f"today's Moon is in {tone}",
-              "es": f"la Luna de hoy est\u00e1 en {tone}",
-              "pt": f"a Lua de hoje est\u00e1 em {tone}"}[lang]
+        cs = _MIND.get(season, _MIND["steady"])[lang]
     elif kind == "dasha" and (cause or {}).get("lord"):
         lean = _LEAN[season][lang]
-        cs = {"en": f"today's Moon is neutral, so the stretch of life you are in sets the tone and it is {lean}",
-              "es": f"la Luna de hoy es neutra, as\u00ed que la etapa de vida en que est\u00e1s marca el tono y es {lean}",
-              "pt": f"a Lua de hoje \u00e9 neutra, ent\u00e3o a fase da vida em que voc\u00ea est\u00e1 d\u00e1 o tom e \u00e9 {lean}"}[lang]
+        cs = {"en": f"today is a neutral day, so the stretch of life you are in sets the tone and it is {lean}",
+              "es": f"hoy es un d\u00eda neutro, as\u00ed que la etapa de vida en que est\u00e1s marca el tono y es {lean}",
+              "pt": f"hoje \u00e9 um dia neutro, ent\u00e3o a fase da vida em que voc\u00ea est\u00e1 d\u00e1 o tom e \u00e9 {lean}"}[lang]
     else:
         cs = {"en": "today reads as a steady day for you", "es": "hoy se lee como un d\u00eda estable para ti",
               "pt": "hoje se l\u00ea como um dia est\u00e1vel para voc\u00ea"}[lang]

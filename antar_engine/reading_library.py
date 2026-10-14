@@ -212,5 +212,21 @@ def wellness(ctx, start: Optional[date] = None, horizon_days: int = 120, languag
                       "remedy": (ev.remedy or {}).get(lang) or (ev.remedy or {}).get("en"), "_s": 0})
     order = {"now": 0, "soon": 1, "standing": 2}
     items.sort(key=lambda i: (order[i["timing"]], -i["_s"], bool(i["remedy"]) is False))
-    top = [{k: v for k, v in i.items() if k != "_s"} for i in items[:MAX_WELLNESS]]
+    # show distinct habits: a theme whose habit another shown theme already carries is held back (or, if nothing else is left,
+    # shown without repeating the habit)
+    chosen, held, used = [], [], set()
+    for i in items:
+        r = i.get("remedy")
+        if r and r in used:
+            held.append(i)
+        else:
+            if r:
+                used.add(r)
+            chosen.append(i)
+    chosen = chosen[:MAX_WELLNESS]
+    for i in held:
+        if len(chosen) >= MAX_WELLNESS:
+            break
+        chosen.append({**i, "remedy": None})
+    top = [{k: v for k, v in i.items() if k != "_s"} for i in chosen]
     return {"themes": top, "more": max(0, len(items) - len(top)), "note": WELLNESS_LINE[lang]}
