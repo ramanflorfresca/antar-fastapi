@@ -77,20 +77,19 @@ def chart_read(planet: str, lagna_sign: str, chart_data: Optional[dict], engine_
             tone = "neutral"
         out["tone"], out["houses"] = tone, hs
         if hs:
-            words = "; ".join(HOUSE_WORD[lg][h] for h in hs)
-            names = " and ".join(_ord(h, lg) for h in hs)
-            fnw = {1: ("supportive for you", "favorable para ti"), -1: ("a strain for you", "una carga para ti"),
-                   0: ("neutral for you", "neutral para ti")}[fn][1 if lg == "es" else 0]
-            lead = ("Esta etapa trabaja a través del planeta que rige donde se sitúa Rahu o Ketu. " if via and lg == "es"
-                    else "This planet has no house of its own, so it acts through the planet that rules where it sits. " if via else "")
+            parts = [HOUSE_WORD[lg][h] for h in hs]
+            touches = parts[0] if len(parts) == 1 else (f"{parts[0]}, y {parts[1]}" if lg == "es" else f"{parts[0]}, and {parts[1]}")
+            fnw = {"supportive": ("supportive", "a tu favor"), "testing": ("a strain", "una carga"),
+                   "mixed": ("a mix", "mixta"), "neutral": ("neutral", "neutral")}[tone][1 if lg == "es" else 0]
             tail = {"mixed": ("So the gains come with a cost.", "As\u00ed que lo bueno viene con un costo."),
                     "testing": ("So expect it to test you.", "As\u00ed que espera que te ponga a prueba."),
                     "supportive": ("So it tends to help.", "As\u00ed que tiende a ayudar."),
                     "neutral": ("", "")}[tone][1 if lg == "es" else 0]
+            # plain words only: no planet, house number or rising sign ever reaches the user
             if lg == "es":
-                out["note"] = f"{lead}Para tu ascendente es {fnw}: rige tus casas {names} ({words}). {tail}".strip()
+                out["note"] = f"Para ti esta etapa es {fnw}: toca {touches}. {tail}".strip()
             else:
-                out["note"] = f"{lead}For your rising sign it is {fnw}: it rules your {names} house{'s' if len(hs) > 1 else ''} ({words}). {tail}".strip()
+                out["note"] = f"For you this season is {fnw}: it touches {touches}. {tail}".strip()
     except Exception:
         pass
     return out
@@ -120,10 +119,10 @@ def build(phase: Optional[dict], chart_data: Optional[dict], language: str = "en
         cr = chart_read(x.get("planet") or "", lagna or "", chart_data, x.get("nature") or "", lg)
         name = x.get("plain_name") or ""
         years = (("Ahora" if lg == "es" else "Now") + f" – {e[:4]}") if now else f"{s[:4]} – {e[:4]}"
-        seasons.append({"key": f"{(x.get('planet') or '').lower()}-{s[:7]}", "now": now, "planet": x.get("planet"), "start": s, "end": e,
+        seasons.append({"key": f"season-{s[:7]}", "now": now, "start": s, "end": e,
                         "years": years, "title": (f"Temporada de {name.lower()}" if lg == "es" else f"{name} season"),
                         "line": x.get("line") or "", "helps": x.get("helps") or "", "watch": x.get("watch") or "",
-                        "tone": cr["tone"], "houses": cr["houses"], "note": cr["note"]})
+                        "tone": cr["tone"], "note": cr["note"]})
     ch = phase.get("chapter") or {}
     return {"version": "seasons-1", "available": bool(seasons), "horizon_end": horizon.isoformat(),
             "chapter": {"title": ch.get("plain_name"), "end": ch.get("end"), "line": ch.get("line")}, "seasons": seasons}
