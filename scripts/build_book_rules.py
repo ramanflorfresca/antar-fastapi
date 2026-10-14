@@ -25,7 +25,13 @@ def _has(clauses, key):
     return any(key in c or key in json.dumps(c) for c in clauses)
 
 
-def frame_of(rule):
+SPEC_RE = re.compile(r"specul|gambl|lotter|games? of chance|betting|\bwager|sudden (gain|wealth)|windfall", re.I)
+MARKET_BOOKS = ("butaney",)          # same-for-everyone market timing: stored, not applied (owner: personal logic only)
+
+
+def frame_of(rule, book=""):
+    if book.startswith(MARKET_BOOKS):
+        return "market"
     blob = json.dumps(rule.get("requires", [])) + json.dumps(rule.get("activation", []))
     if '"frame": "kp"' in blob:
         return "kp"
@@ -37,7 +43,7 @@ def frame_of(rule):
 def build(data_dir):
     files = sorted(glob.glob(os.path.join(data_dir, "RULES_book_*_2026-10-1[34].json")))
     st = {"files": len(files), "raw": 0}
-    out = {"main": [], "kp": [], "varsha": []}
+    out = {"main": [], "kp": [], "varsha": [], "market": []}
     seen = set()
     for f in files:
         book = os.path.basename(f)[len("RULES_book_"):-len("_2026-10-13.json")]       # both dates have the same length
@@ -77,12 +83,14 @@ def build(data_dir):
                     "tone": r.get("tone", "info"), "topics": r.get("topics") or ["other"], "effect": en,
                     "effect_es": es or None, "remedy": rem, "remedy_es": rem_es if rem else None,
                     "timing_note": r.get("timing_note"), "clarity": r.get("clarity", "clear"), "line": r.get("line")}
+            if SPEC_RE.search(en) and "speculation" not in rule["topics"]:    # personal gambling / speculation statements answer speculation questions
+                rule["topics"] = list(rule["topics"]) + ["speculation"]
             key = (json.dumps(rule["requires"], sort_keys=True), json.dumps(rule["activation"], sort_keys=True), rule["tone"], en)
             if key in seen:
                 st["duplicates"] = st.get("duplicates", 0) + 1
                 continue
             seen.add(key)
-            out[frame_of(r)].append(rule)
+            out[frame_of(r, book)].append(rule)
     # owner overrides survive rebuilds: antar_engine/data/rule_overrides.json {"overrides": {id: {drop|effect|effect_es|tone|topics|remedy|remedy_es}}}
     ov_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "antar_engine", "data", "rule_overrides.json")
     try:
@@ -130,7 +138,7 @@ if __name__ == "__main__":
     data_dir = sys.argv[1] if len(sys.argv) > 1 else os.path.expanduser("~/antarai/Antar.world")
     out, stats = build(data_dir)
     base = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "antar_engine", "data")
-    for name, fr in (("book_rules.json", "main"), ("book_rules_kp.json", "kp"), ("book_rules_varsha.json", "varsha")):
+    for name, fr in (("book_rules.json", "main"), ("book_rules_kp.json", "kp"), ("book_rules_varsha.json", "varsha"), ("book_rules_market.json", "market")):
         json.dump({"source": "astrology library, decomposed 2026-10-13 (see BOOK_INVENTORY)", "rules": out[fr]},
                   open(os.path.join(base, name), "w"), indent=0, ensure_ascii=False)
     print(json.dumps(stats, indent=1))
