@@ -4680,7 +4680,7 @@ async def get_chart_focus(chart_id: str, http_request: Request, language: str = 
 
 
 @app.get("/api/v1/chart/{chart_id}/week")
-async def get_chart_week(chart_id: str, http_request: Request, language: str = "en", days: int = 7):
+async def get_chart_week(chart_id: str, http_request: Request, language: str = "en", days: int = 7, exclude: str = ""):
     """Week ahead as separate labelled lines: Vimshottari (+ Moon-based Gochara), Jaimini/book timed rules, Lal Kitab
     year. Deterministic; empty where no rule applies."""
     def _run():
@@ -4705,7 +4705,12 @@ async def get_chart_week(chart_id: str, http_request: Request, language: str = "
         raise HTTPException(404, "Chart not found")
     if not _is_admin_request(http_request):
         from antar_engine import public_view
-        return public_view.week(out)
+        w = public_view.week(out)
+        skip = {x for x in exclude.split(",") if x}                    # refs the app already shows elsewhere on the screen
+        if skip and w:
+            w["lean_in"] = [i for i in w["lean_in"] if i.get("ref") not in skip]
+            w["watch"] = [i for i in w["watch"] if i.get("ref") not in skip]
+        return w
     return out
 
 

@@ -125,6 +125,19 @@ def _care(library: dict) -> Optional[dict]:
     return None
 
 
+def _also_hint(card: dict, focus_cards: list) -> Optional[str]:
+    """A one-line hint for a folded area: only a dated, specific season line. Never a standing trait (those read as flattery), never the
+    health area (the body-care line says it), never a sentence already shown in a focus card."""
+    if card.get("area") == "health":
+        return None
+    season = card.get("season") or {}
+    text = season.get("text")
+    if not text:
+        return None
+    shown = {t for f in focus_cards for t in ((f.get("season") or {}).get("text"), (f.get("pattern") or {}).get("text"))}
+    return None if text in shown else text
+
+
 def build(ctx, library: dict, life: Optional[dict] = None, recent_topics: Optional[List[str]] = None,
           lang: str = "en", pinned: Optional[List[str]] = None, kp: Optional[Dict[str, dict]] = None,
           horizon_months: int = 6, area: Optional[str] = None) -> dict:
@@ -171,6 +184,5 @@ def build(ctx, library: dict, life: Optional[dict] = None, recent_topics: Option
     want = next((c for c in cards if c["area"] == area), None) if area else None
     return {"labels": LABELS[lang], "horizon_months": horizon_months, "care": _care(library), "focus": [clean(c) for c in focus],
             "card": clean(want) if want else None,
-            "also": [{"area": c["area"], "label": c["label"],
-                      "hint": (c["season"] or {}).get("text") or (c["pattern"] or {}).get("text")} for c in also],
+            "also": [{"area": c["area"], "label": c["label"], "hint": _also_hint(c, [f for f in focus])} for c in also],
             "horizon": library.get("horizon")}
