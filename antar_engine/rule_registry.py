@@ -343,7 +343,8 @@ _YOGA_SUBJECTS = {"wealth": ["money", "funding"], "raj_yoga": ["career", "job", 
 
 def _combo_family(ctx: Ctx):
     """B.V. Raman's combinations (Part I, entries 1-162), applied only where every condition holds."""
-    state = {"lagna": ctx.lagna, "signs": {p: pl.sign for p, pl in ctx.planets.items()}, "gender": ctx.gender}
+    state = {"lagna": ctx.lagna, "signs": {p: pl.sign for p, pl in ctx.planets.items()}, "gender": ctx.gender,
+             "karakas": dict(ctx.j.k), "points": {"AL": ctx.j.al, "UL": ctx.j.ul, "A7": ctx.j.a7, "KL": ctx.j.kl}}
     out = []
     for r in cb.applying(state):
         tone = r["tone"] if r["tone"] in ("good", "bad") else "info"

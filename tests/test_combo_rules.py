@@ -57,3 +57,19 @@ def test_kendras_counts_gender_and_unparsed():
     assert cb.holds({"chart": "male"}, s) and not cb.holds({"chart": "female"}, s)
     assert not cb.holds({"unparsed": "strong lagna lord"}, s)
     assert not cb.holds({"mystery": 1}, s)
+
+
+def test_jaimini_entities_and_points():
+    s = st(ARI, Sun=LEO, Moon=CAN, Mars=ARI, Mercury=GEM, Jupiter=SAG, Venus=TAU, Saturn=AQU)
+    s["karakas"] = {"AK": "Sun", "AmK": "Mercury", "DK": "Venus"}
+    s["points"] = {"AL": SCO, "UL": PIS, "A7": LIB, "KL": CAN}
+    assert cb._planet(s, "AK") == "Sun" and cb._planet(s, "PK") is None
+    assert cb.holds({"planet": "AK", "in_houses": [5]}, s)
+    assert cb.holds({"point": "AL", "house_from": "lagna", "in": [8]}, s)
+    assert cb.holds({"point": "KL", "house_from": "Moon", "in": [1]}, s)
+    assert cb.holds({"planet": "Venus", "touches": "A7"}, s)             # Taurus (fixed) aspects Cancer, Libra, Capricorn
+    assert not cb.holds({"planet": "Venus", "touches": "AL"}, s)         # ... not Scorpio
+    assert cb.holds({"planet": "Mars", "touches": "AL"}, s)              # Aries (movable) aspects Leo, Scorpio, Aquarius
+    assert cb.holds({"planet": "Moon", "touches": "KL"}, s)              # the Moon sits in the karakamsha sign itself
+    assert not cb.holds({"planet": "AK", "touches": "KL"}, s)            # Leo aspects Aries, Libra, Capricorn
+    assert not cb.holds({"planet": "PK", "in_houses": [1]}, s)                           # missing karaka never holds
