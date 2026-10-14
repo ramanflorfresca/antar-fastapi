@@ -14,7 +14,7 @@ DATA = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
 
 
 def rows():
-    for fname, system in (("book_rules.json", None), ("book_rules_kp.json", "KP (internal, off)"), ("book_rules_varsha.json", "Solar return (not applied yet)")):
+    for fname, system in (("book_rules.json", None), ("book_rules_kp.json", "KP (internal, off)"), ("book_rules_varsha.json", "Solar return (not applied yet)"), ("book_rules_market.json", "Market timing (off)")):
         for r in json.load(open(os.path.join(DATA, fname))).get("rules", []):
             sysname = system or ("Same for everyone (transit only)" if combo_rules.is_impersonal(r) else
                                  ("Jaimini line" if line_of(r) == "jaimini" else "Vimshottari line"))
