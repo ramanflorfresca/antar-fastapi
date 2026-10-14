@@ -129,7 +129,10 @@ def _window(season: Optional[dict], watch: Optional[dict]) -> Optional[dict]:
     """The row's one-line status: a dated 'window' while the support is running, 'care' when only a caution applies."""
     if season and season.get("start") and season.get("end"):
         kind = "care" if (season.get("strength") == "possible" and watch) else "window"
-        return {"kind": kind, "start": season["start"], "end": season["end"]}
+        pk = (season.get("peaks") or [None])[0]
+        # the row shows the STRONGEST stretch when there is one (that is what differs between areas); `through` is the support's end
+        return {"kind": kind, "start": pk["start"] if pk else season["start"], "end": pk["end"] if pk else season["end"],
+                "through": season["end"]}
     if watch:
         return {"kind": "care", "start": None, "end": None}
     return None
