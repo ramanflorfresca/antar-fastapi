@@ -7437,6 +7437,36 @@ def outcomes_due(chart_id: str, authorization: str = Header(...)):
     return {"due": out}
 
 
+class _FollowIn(BaseModel):
+    ref: str
+    text: str
+    start: Optional[str] = None
+    end: Optional[str] = None
+    topic: Optional[str] = None
+    language: Optional[str] = "en"
+
+
+@app.post("/api/v1/chart/{chart_id}/follow")
+def follow_statement(chart_id: str, body: _FollowIn, authorization: str = Header(...)):
+    """The person tapped 'why am I seeing this' on a week / year / wellness statement: record it as a claim so the normal
+    'Did this hold?' check-in (GET /outcomes/due, POST /outcomes/{claim_id}) asks after its window. The app only ever holds the
+    opaque `ref` the endpoints returned; the rule id is resolved here and kept server-side."""
+    from antar_engine import outcomes as _oc, public_view as _pv
+    user_id = verify_token(authorization)
+    if not _oc_owned_chart(user_id, chart_id):
+        raise HTTPException(403, "not your chart")
+    rule_id = _pv.resolve_ref(body.ref)
+    if not rule_id:
+        raise HTTPException(404, "unknown reference")
+    claim = _oc.build_library_claim(chart_id, rule_id, body.ref, body.text, body.start, body.end, body.topic, body.language or "en")
+    if not claim:
+        raise HTTPException(400, "could not record this")
+    cid = _oc.record_claim(supabase, claim)
+    if not cid:
+        raise HTTPException(503, "could not save")
+    return {"claim_id": cid, "checkin_after": claim["window_end"]}
+
+
 class _OutcomeIn(BaseModel):
     outcome: str
     note: Optional[str] = None
