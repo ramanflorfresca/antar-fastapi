@@ -4620,6 +4620,47 @@ def _is_admin_request(http_request) -> bool:
     return bool(_admin) and http_request.headers.get("X-Admin-Key") == _admin
 
 
+@app.get("/api/v1/chart/{chart_id}/focus")
+async def get_chart_focus(chart_id: str, http_request: Request, language: str = "en", months: int = 24, pin: str = ""):
+    """Year view around the person: up to 2 life areas that matter NOW (their recent questions > their situation > how strongly a
+    window runs), each merged into one card (pattern, season, move, watch); the rest fold under `also`. One voice: no method,
+    book or rule names. `pin` = comma list of area keys the user chose to focus on."""
+    def _run():
+        row = _chart_row_for_forecast(chart_id)
+        if not row.data:
+            return None
+        cd = row.data.get("chart_data") or {}
+        if isinstance(cd, str):
+            cd = json.loads(cd)
+        from antar_engine import rule_registry as rr, reading_library, focus_view, life_context
+        vim = (get_dashas_for_chart(chart_id) or {}).get("vimsottari") or []
+        ctx = rr.Ctx(cd, row.data.get("birth_date") or cd.get("birth_date"), vim,
+                     birth_time_accuracy=row.data.get("birth_time_accuracy"), gender=row.data.get("gender"))
+        lib = reading_library.build(ctx, max(6, min(int(months), 24)), language)
+        life = None
+        try:
+            life = life_context.resolve_life_facts(life_context._fetch_chart_row(chart_id, supabase))
+        except Exception as _e:
+            print(f"[focus] life facts non-fatal: {_e}")
+        recent = []
+        try:
+            since = (date.today() - timedelta(days=30)).isoformat()
+            rows = supabase.table("prediction_claims").select("topic").eq("chart_id", chart_id).gte("created_at", since).limit(200).execute().data or []
+            recent = [r.get("topic") for r in rows if r.get("topic")]
+        except Exception as _e:
+            print(f"[focus] recent topics non-fatal: {_e}")
+        return focus_view.build(ctx, lib, life, recent, language, [p for p in pin.split(",") if p])
+
+    try:
+        out = await asyncio.to_thread(_run)
+    except Exception as e:
+        print(f"[focus] failed: {e}")
+        raise HTTPException(500, "focus unavailable")
+    if out is None:
+        raise HTTPException(404, "Chart not found")
+    return out
+
+
 @app.get("/api/v1/chart/{chart_id}/week")
 async def get_chart_week(chart_id: str, http_request: Request, language: str = "en", days: int = 7):
     """Week ahead as separate labelled lines: Vimshottari (+ Moon-based Gochara), Jaimini/book timed rules, Lal Kitab
