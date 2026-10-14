@@ -4614,6 +4614,33 @@ def _chart_row_for_forecast(chart_id: str):
             raise
 
 
+@app.get("/api/v1/chart/{chart_id}/week")
+async def get_chart_week(chart_id: str, language: str = "en", days: int = 7):
+    """Week ahead as separate labelled lines: Vimshottari (+ Moon-based Gochara), Jaimini/book timed rules, Lal Kitab
+    year. Deterministic; empty where no rule applies."""
+    def _run():
+        row = _chart_row_for_forecast(chart_id)
+        if not row.data:
+            return None
+        cd = row.data.get("chart_data") or {}
+        if isinstance(cd, str):
+            cd = json.loads(cd)
+        from antar_engine import rule_registry as rr, weekly_layer
+        vim = (get_dashas_for_chart(chart_id) or {}).get("vimsottari") or []
+        ctx = rr.Ctx(cd, row.data.get("birth_date") or cd.get("birth_date"), vim,
+                     birth_time_accuracy=row.data.get("birth_time_accuracy"), gender=row.data.get("gender"))
+        return weekly_layer.week(ctx, language, max(1, min(int(days), 14)))
+
+    try:
+        out = await asyncio.to_thread(_run)
+    except Exception as e:
+        print(f"[week] failed: {e}")
+        raise HTTPException(500, "week unavailable")
+    if out is None:
+        raise HTTPException(404, "Chart not found")
+    return out
+
+
 @app.get("/api/v1/chart/{chart_id}/astrologer")
 async def get_chart_astrologer(chart_id: str, question: str = "", subject: str = "", qword: str = "",
                                language: str = "en"):
