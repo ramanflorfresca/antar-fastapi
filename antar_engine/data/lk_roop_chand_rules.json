@@ -30777,6 +30777,1588 @@
 "remedy_es": null,
 "line": 20330,
 "clarity": "clear"
+},
+{
+"id": "SS.1",
+"kind": "natal",
+"planet": "Jupiter",
+"houses": [
+4
+],
+"annual_houses": null,
+"requires": [],
+"tone": "good",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "You tend to receive unexpected gains from lotteries, scholarships, inheritance and even hidden wealth.",
+"effect_es": "Sueles recibir ganancias inesperadas de loterías, becas, herencias e incluso riqueza oculta.",
+"ages": [],
+"remedy": null,
+"remedy_es": null,
+"line": 5486,
+"clarity": "clear"
+},
+{
+"id": "SS.2",
+"kind": "natal",
+"planet": "Jupiter",
+"houses": [
+5
+],
+"annual_houses": null,
+"requires": [],
+"tone": "good",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "A lottery, game of chance or risky money play can bring you real profit.",
+"effect_es": "Una lotería, un juego de azar o una jugada de riesgo pueden darte ganancia real.",
+"ages": [],
+"remedy": null,
+"remedy_es": null,
+"line": 5524,
+"clarity": "clear"
+},
+{
+"id": "SS.3",
+"kind": "natal",
+"planet": "Sun",
+"houses": [
+5
+],
+"annual_houses": null,
+"requires": [],
+"tone": "good",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "Money can come to you quickly through gambling, lotteries and risky money plays.",
+"effect_es": "El dinero puede llegarte rápido por el juego, las loterías y las jugadas de riesgo.",
+"ages": [],
+"remedy": null,
+"remedy_es": null,
+"line": 5932,
+"clarity": "clear"
+},
+{
+"id": "SS.4",
+"kind": "natal",
+"planet": "Venus",
+"houses": [
+5
+],
+"annual_houses": null,
+"requires": [],
+"tone": "good",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "Gambling, lotteries and risky money plays can bring you real gains.",
+"effect_es": "El juego, las loterías y las apuestas de riesgo pueden darte ganancias reales.",
+"ages": [],
+"remedy": null,
+"remedy_es": null,
+"line": 6730,
+"clarity": "clear"
+},
+{
+"id": "SS.5",
+"kind": "natal",
+"planet": "Moon",
+"houses": [
+8
+],
+"annual_houses": null,
+"requires": [],
+"tone": "bad",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "You are prone to a gambling habit, and it tends to cost you money.",
+"effect_es": "Eres propenso a un hábito de juego, y suele costarte dinero.",
+"ages": [],
+"remedy": "Stay away from gambling altogether.",
+"remedy_es": "Mantente completamente alejado del juego.",
+"line": 6450,
+"clarity": "clear"
+},
+{
+"id": "SS.6",
+"kind": "natal",
+"planet": "Mars",
+"houses": [
+5
+],
+"annual_houses": null,
+"requires": [],
+"tone": "bad",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "Gambling and risky money games tend to cost you, and so do trips.",
+"effect_es": "El juego y las apuestas de riesgo suelen costarte, y los viajes también.",
+"ages": [],
+"remedy": null,
+"remedy_es": null,
+"line": 7149,
+"clarity": "clear"
+},
+{
+"id": "SS.7",
+"kind": "natal",
+"planet": "Mercury",
+"houses": [
+2
+],
+"annual_houses": null,
+"requires": [],
+"tone": "bad",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "Speculating in shares and gambling brings you considerable losses.",
+"effect_es": "Especular con acciones y jugar te trae pérdidas considerables.",
+"ages": [],
+"remedy": null,
+"remedy_es": null,
+"line": 7431,
+"clarity": "clear"
+},
+{
+"id": "SS.8",
+"kind": "natal",
+"planet": "Mercury",
+"houses": [
+12
+],
+"annual_houses": null,
+"requires": [],
+"tone": "bad",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "You tend to lose in lotteries and games of chance.",
+"effect_es": "Sueles perder en loterías y juegos de azar.",
+"ages": [],
+"remedy": null,
+"remedy_es": null,
+"line": 7723,
+"clarity": "clear"
+},
+{
+"id": "SS.9",
+"kind": "natal",
+"planet": "Saturn",
+"houses": [
+2
+],
+"annual_houses": null,
+"requires": [],
+"tone": "mixed",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "You have a moderate interest in games of chance and risk-taking.",
+"effect_es": "Tienes un interés moderado en los juegos de azar y en correr riesgos.",
+"ages": [],
+"remedy": null,
+"remedy_es": null,
+"line": 7800,
+"clarity": "clear"
+},
+{
+"id": "SS.10",
+"kind": "natal",
+"planet": "Saturn",
+"houses": [
+9
+],
+"annual_houses": null,
+"requires": [],
+"tone": "bad",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "You are drawn to gambling, and it tends to end badly for you.",
+"effect_es": "Te atrae el juego, y suele terminar mal para ti.",
+"ages": [],
+"remedy": null,
+"remedy_es": null,
+"line": 8033,
+"clarity": "clear"
+},
+{
+"id": "SS.11",
+"kind": "natal",
+"planet": "Rahu",
+"houses": [
+2
+],
+"annual_houses": null,
+"requires": [],
+"tone": "bad",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "You may be pulled into gambling and risky money games, which tend to hurt you.",
+"effect_es": "Puedes verte arrastrado al juego y a las apuestas de riesgo, que suelen perjudicarte.",
+"ages": [],
+"remedy": null,
+"remedy_es": null,
+"line": 8197,
+"clarity": "clear"
+},
+{
+"id": "SS.12",
+"kind": "natal",
+"planet": "Rahu",
+"houses": [
+7
+],
+"annual_houses": null,
+"requires": [],
+"tone": "bad",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "Gambling and risky money plays tend to cost you money.",
+"effect_es": "El juego y las jugadas de riesgo suelen costarte dinero.",
+"ages": [],
+"remedy": null,
+"remedy_es": null,
+"line": 8340,
+"clarity": "clear"
+},
+{
+"id": "SS.13",
+"kind": "natal",
+"planet": "Rahu",
+"houses": [
+8
+],
+"annual_houses": null,
+"requires": [],
+"tone": "bad",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "Bad company can pull you into a gambling habit.",
+"effect_es": "Las malas compañías pueden arrastrarte a un hábito de juego.",
+"ages": [],
+"remedy": null,
+"remedy_es": null,
+"line": 8370,
+"clarity": "clear"
+},
+{
+"id": "SS.15",
+"kind": "natal",
+"planet": "Jupiter",
+"houses": [
+12
+],
+"annual_houses": null,
+"requires": [
+{
+"planet": "Jupiter",
+"with": "Venus"
+}
+],
+"tone": "bad",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "Gambling or speculating in shares tends to bring you unfavorable results.",
+"effect_es": "Jugar o especular con acciones suele darte resultados desfavorables.",
+"ages": [],
+"remedy": null,
+"remedy_es": null,
+"line": 9648,
+"clarity": "clear"
+},
+{
+"id": "SS.16",
+"kind": "natal",
+"planet": "Jupiter",
+"houses": [
+2
+],
+"annual_houses": null,
+"requires": [
+{
+"planet": "Jupiter",
+"with": "Mercury"
+}
+],
+"tone": "bad",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "You may be drawn into gambling and risky money games that waste family money.",
+"effect_es": "Puedes verte atraído al juego y a las apuestas de riesgo que malgastan el dinero de la familia.",
+"ages": [],
+"remedy": null,
+"remedy_es": null,
+"line": 9877,
+"clarity": "inferred"
+},
+{
+"id": "SS.17",
+"kind": "natal",
+"planet": "Jupiter",
+"houses": [
+12
+],
+"annual_houses": null,
+"requires": [
+{
+"planet": "Jupiter",
+"with": "Mercury"
+}
+],
+"tone": "bad",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "You tend to lose in lotteries and games of chance.",
+"effect_es": "Sueles perder en loterías y juegos de azar.",
+"ages": [],
+"remedy": null,
+"remedy_es": null,
+"line": 10033,
+"clarity": "clear"
+},
+{
+"id": "SS.18",
+"kind": "natal",
+"planet": "Jupiter",
+"houses": [
+9
+],
+"annual_houses": null,
+"requires": [
+{
+"planet": "Jupiter",
+"with": "Saturn"
+}
+],
+"tone": "bad",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "You are drawn to gambling, and it tends to end badly for you.",
+"effect_es": "Te atrae el juego, y suele terminar mal para ti.",
+"ages": [],
+"remedy": null,
+"remedy_es": null,
+"line": 10175,
+"clarity": "clear"
+},
+{
+"id": "SS.19",
+"kind": "natal",
+"planet": "Jupiter",
+"houses": [
+8
+],
+"annual_houses": null,
+"requires": [
+{
+"planet": "Jupiter",
+"with": "Rahu"
+}
+],
+"tone": "bad",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "Gambling pulls you in, and bad company makes your money troubles worse.",
+"effect_es": "El juego te atrae, y las malas compañías agravan tus problemas de dinero.",
+"ages": [],
+"remedy": null,
+"remedy_es": null,
+"line": 10379,
+"clarity": "inferred"
+},
+{
+"id": "SS.20",
+"kind": "natal",
+"planet": "Jupiter",
+"houses": [
+5
+],
+"annual_houses": null,
+"requires": [
+{
+"planet": "Jupiter",
+"with": "Ketu"
+}
+],
+"tone": "good",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "Business, games of chance and gambling can bring you profit.",
+"effect_es": "El negocio, los juegos de azar y el juego pueden darte ganancia.",
+"ages": [],
+"remedy": null,
+"remedy_es": null,
+"line": 10541,
+"clarity": "clear"
+},
+{
+"id": "SS.21",
+"kind": "natal",
+"planet": "Sun",
+"houses": [
+8
+],
+"annual_houses": null,
+"requires": [
+{
+"planet": "Sun",
+"with": "Moon"
+}
+],
+"tone": "bad",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "Gambling and jewelry dealing tend to bring you losses.",
+"effect_es": "El juego y el trato con joyas suelen traerte pérdidas.",
+"ages": [],
+"remedy": null,
+"remedy_es": null,
+"line": 10792,
+"clarity": "clear"
+},
+{
+"id": "SS.22",
+"kind": "natal",
+"planet": "Sun",
+"houses": [
+5
+],
+"annual_houses": null,
+"requires": [
+{
+"planet": "Sun",
+"with": "Venus"
+}
+],
+"tone": "good",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "Money can come to you quickly through gambling, lotteries and risky money plays.",
+"effect_es": "El dinero puede llegarte rápido por el juego, las loterías y las jugadas de riesgo.",
+"ages": [],
+"remedy": null,
+"remedy_es": null,
+"line": 10966,
+"clarity": "clear"
+},
+{
+"id": "SS.23",
+"kind": "natal",
+"planet": "Sun",
+"houses": [
+5
+],
+"annual_houses": null,
+"requires": [
+{
+"planet": "Sun",
+"with": "Mars"
+}
+],
+"tone": "mixed",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "Gambling and lotteries can bring big money, but they can also cost you heavily, so results swing.",
+"effect_es": "El juego y las loterías pueden darte mucho dinero, pero también costarte caro, así que los resultados oscilan.",
+"ages": [],
+"remedy": null,
+"remedy_es": null,
+"line": 11230,
+"clarity": "clear"
+},
+{
+"id": "SS.24",
+"kind": "natal",
+"planet": "Sun",
+"houses": [
+5
+],
+"annual_houses": null,
+"requires": [
+{
+"planet": "Sun",
+"with": "Mercury"
+}
+],
+"tone": "good",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "Gambling, lotteries and risky money plays can bring you real gains.",
+"effect_es": "El juego, las loterías y las apuestas de riesgo pueden darte ganancias reales.",
+"ages": [],
+"remedy": null,
+"remedy_es": null,
+"line": 11454,
+"clarity": "clear"
+},
+{
+"id": "SS.25",
+"kind": "natal",
+"planet": "Sun",
+"houses": [
+12
+],
+"annual_houses": null,
+"requires": [
+{
+"planet": "Sun",
+"with": "Mercury"
+}
+],
+"tone": "bad",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "You tend to lose in lotteries and games of chance.",
+"effect_es": "Sueles perder en loterías y juegos de azar.",
+"ages": [],
+"remedy": null,
+"remedy_es": null,
+"line": 11582,
+"clarity": "clear"
+},
+{
+"id": "SS.26",
+"kind": "natal",
+"planet": "Sun",
+"houses": [
+2
+],
+"annual_houses": null,
+"requires": [
+{
+"planet": "Sun",
+"with": "Saturn"
+}
+],
+"tone": "mixed",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "You enjoy gambling and games of chance, and the results are uncertain.",
+"effect_es": "Disfrutas del juego y los juegos de azar, y los resultados son inciertos.",
+"ages": [],
+"remedy": null,
+"remedy_es": null,
+"line": 11616,
+"clarity": "clear"
+},
+{
+"id": "SS.27",
+"kind": "natal",
+"planet": "Sun",
+"houses": [
+9
+],
+"annual_houses": null,
+"requires": [
+{
+"planet": "Sun",
+"with": "Saturn"
+}
+],
+"tone": "bad",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "You are drawn to gambling, and it tends to end badly for you.",
+"effect_es": "Te atrae el juego, y suele terminar mal para ti.",
+"ages": [],
+"remedy": null,
+"remedy_es": null,
+"line": 11747,
+"clarity": "clear"
+},
+{
+"id": "SS.28",
+"kind": "natal",
+"planet": "Sun",
+"houses": [
+2
+],
+"annual_houses": null,
+"requires": [
+{
+"planet": "Sun",
+"with": "Rahu"
+}
+],
+"tone": "bad",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "Gambling and risky money plays tend to cost you money.",
+"effect_es": "El juego y las jugadas de riesgo suelen costarte dinero.",
+"ages": [],
+"remedy": null,
+"remedy_es": null,
+"line": 11873,
+"clarity": "clear"
+},
+{
+"id": "SS.29",
+"kind": "natal",
+"planet": "Sun",
+"houses": [
+7
+],
+"annual_houses": null,
+"requires": [
+{
+"planet": "Sun",
+"with": "Rahu"
+}
+],
+"tone": "bad",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "Gambling and risky money plays tend to cost you money.",
+"effect_es": "El juego y las jugadas de riesgo suelen costarte dinero.",
+"ages": [],
+"remedy": null,
+"remedy_es": null,
+"line": 11971,
+"clarity": "clear"
+},
+{
+"id": "SS.30",
+"kind": "natal",
+"planet": "Sun",
+"houses": [
+5
+],
+"annual_houses": null,
+"requires": [
+{
+"planet": "Sun",
+"with": "Ketu"
+}
+],
+"tone": "good",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "Money can come to you quickly through gambling, lotteries and risky money plays.",
+"effect_es": "El dinero puede llegarte rápido por el juego, las loterías y las jugadas de riesgo.",
+"ages": [],
+"remedy": null,
+"remedy_es": null,
+"line": 12165,
+"clarity": "clear"
+},
+{
+"id": "SS.31",
+"kind": "natal",
+"planet": "Sun",
+"houses": [
+8
+],
+"annual_houses": null,
+"requires": [
+{
+"planet": "Sun",
+"with": "Ketu"
+}
+],
+"tone": "bad",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "A pull toward gambling can drain your money.",
+"effect_es": "La atracción por el juego puede drenar tu dinero.",
+"ages": [],
+"remedy": null,
+"remedy_es": null,
+"line": 12254,
+"clarity": "clear"
+},
+{
+"id": "SS.32",
+"kind": "natal",
+"planet": "Moon",
+"houses": [
+5
+],
+"annual_houses": null,
+"requires": [
+{
+"planet": "Moon",
+"with": "Venus"
+}
+],
+"tone": "good",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "Gambling, lotteries and risky money plays can bring you real gains.",
+"effect_es": "El juego, las loterías y las apuestas de riesgo pueden darte ganancias reales.",
+"ages": [],
+"remedy": null,
+"remedy_es": null,
+"line": 12420,
+"clarity": "clear"
+},
+{
+"id": "SS.33",
+"kind": "natal",
+"planet": "Moon",
+"houses": [
+5
+],
+"annual_houses": null,
+"requires": [
+{
+"planet": "Moon",
+"with": "Mars"
+}
+],
+"tone": "bad",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "Gambling and risky money plays tend to cost you money.",
+"effect_es": "El juego y las jugadas de riesgo suelen costarte dinero.",
+"ages": [],
+"remedy": null,
+"remedy_es": null,
+"line": 12708,
+"clarity": "clear"
+},
+{
+"id": "SS.34",
+"kind": "natal",
+"planet": "Moon",
+"houses": [
+2
+],
+"annual_houses": null,
+"requires": [
+{
+"planet": "Moon",
+"with": "Mercury"
+}
+],
+"tone": "bad",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "Gambling and risky money plays tend to cost you money.",
+"effect_es": "El juego y las jugadas de riesgo suelen costarte dinero.",
+"ages": [],
+"remedy": null,
+"remedy_es": null,
+"line": 12848,
+"clarity": "inferred"
+},
+{
+"id": "SS.35",
+"kind": "natal",
+"planet": "Moon",
+"houses": [
+12
+],
+"annual_houses": null,
+"requires": [
+{
+"planet": "Moon",
+"with": "Mercury"
+}
+],
+"tone": "bad",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "You tend to lose in lotteries and games of chance.",
+"effect_es": "Sueles perder en loterías y juegos de azar.",
+"ages": [],
+"remedy": null,
+"remedy_es": null,
+"line": 13039,
+"clarity": "clear"
+},
+{
+"id": "SS.36",
+"kind": "natal",
+"planet": "Moon",
+"houses": [
+2
+],
+"annual_houses": null,
+"requires": [
+{
+"planet": "Moon",
+"with": "Saturn"
+}
+],
+"tone": "mixed",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "You enjoy gambling and games of chance, and the results are uncertain.",
+"effect_es": "Disfrutas del juego y los juegos de azar, y los resultados son inciertos.",
+"ages": [],
+"remedy": null,
+"remedy_es": null,
+"line": 13079,
+"clarity": "clear"
+},
+{
+"id": "SS.37",
+"kind": "natal",
+"planet": "Moon",
+"houses": [
+8
+],
+"annual_houses": null,
+"requires": [
+{
+"planet": "Moon",
+"with": "Rahu"
+}
+],
+"tone": "bad",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "Gambling and bad company tend to cost you.",
+"effect_es": "El juego y las malas compañías suelen costarte.",
+"ages": [],
+"remedy": null,
+"remedy_es": null,
+"line": 13480,
+"clarity": "clear"
+},
+{
+"id": "SS.38",
+"kind": "natal",
+"planet": "Venus",
+"houses": [
+5
+],
+"annual_houses": null,
+"requires": [
+{
+"planet": "Venus",
+"with": "Mars"
+}
+],
+"tone": "mixed",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "Gambling and lotteries can bring big money, but they can also cost you heavily, so results swing.",
+"effect_es": "El juego y las loterías pueden darte mucho dinero, pero también costarte caro, así que los resultados oscilan.",
+"ages": [],
+"remedy": null,
+"remedy_es": null,
+"line": 13924,
+"clarity": "clear"
+},
+{
+"id": "SS.39",
+"kind": "natal",
+"planet": "Venus",
+"houses": [
+2
+],
+"annual_houses": null,
+"requires": [
+{
+"planet": "Venus",
+"with": "Saturn"
+}
+],
+"tone": "mixed",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "You enjoy gambling and games of chance, and the results are uncertain.",
+"effect_es": "Disfrutas del juego y los juegos de azar, y los resultados son inciertos.",
+"ages": [],
+"remedy": null,
+"remedy_es": null,
+"line": 14278,
+"clarity": "clear"
+},
+{
+"id": "SS.40",
+"kind": "natal",
+"planet": "Venus",
+"houses": [
+5
+],
+"annual_houses": null,
+"requires": [
+{
+"planet": "Venus",
+"with": "Saturn"
+}
+],
+"tone": "good",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "Risky money plays can earn you money.",
+"effect_es": "Las jugadas de riesgo pueden darte dinero.",
+"ages": [],
+"remedy": null,
+"remedy_es": null,
+"line": 14348,
+"clarity": "clear"
+},
+{
+"id": "SS.41",
+"kind": "natal",
+"planet": "Venus",
+"houses": [
+9
+],
+"annual_houses": null,
+"requires": [
+{
+"planet": "Venus",
+"with": "Saturn"
+}
+],
+"tone": "bad",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "You are drawn to gambling, and it tends to end badly for you.",
+"effect_es": "Te atrae el juego, y suele terminar mal para ti.",
+"ages": [],
+"remedy": null,
+"remedy_es": null,
+"line": 14445,
+"clarity": "clear"
+},
+{
+"id": "SS.42",
+"kind": "natal",
+"planet": "Venus",
+"houses": [
+2
+],
+"annual_houses": null,
+"requires": [
+{
+"planet": "Venus",
+"with": "Rahu"
+}
+],
+"tone": "bad",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "Gambling and risky money plays tend to cost you money.",
+"effect_es": "El juego y las jugadas de riesgo suelen costarte dinero.",
+"ages": [],
+"remedy": null,
+"remedy_es": null,
+"line": 14571,
+"clarity": "inferred"
+},
+{
+"id": "SS.43",
+"kind": "natal",
+"planet": "Venus",
+"houses": [
+5
+],
+"annual_houses": null,
+"requires": [
+{
+"planet": "Venus",
+"with": "Rahu"
+}
+],
+"tone": "good",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "Gambling, lotteries and risky money plays can bring you real gains.",
+"effect_es": "El juego, las loterías y las apuestas de riesgo pueden darte ganancias reales.",
+"ages": [],
+"remedy": null,
+"remedy_es": null,
+"line": 14652,
+"clarity": "clear"
+},
+{
+"id": "SS.44",
+"kind": "natal",
+"planet": "Venus",
+"houses": [
+2
+],
+"annual_houses": null,
+"requires": [
+{
+"planet": "Venus",
+"with": "Ketu"
+}
+],
+"tone": "bad",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "Gambling and bad company tend to cost you.",
+"effect_es": "El juego y las malas compañías suelen costarte.",
+"ages": [],
+"remedy": null,
+"remedy_es": null,
+"line": 14873,
+"clarity": "clear"
+},
+{
+"id": "SS.45",
+"kind": "natal",
+"planet": "Venus",
+"houses": [
+5
+],
+"annual_houses": null,
+"requires": [
+{
+"planet": "Venus",
+"with": "Ketu"
+}
+],
+"tone": "good",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "Gambling, lotteries and risky money plays can bring you real gains.",
+"effect_es": "El juego, las loterías y las apuestas de riesgo pueden darte ganancias reales.",
+"ages": [],
+"remedy": null,
+"remedy_es": null,
+"line": 14936,
+"clarity": "clear"
+},
+{
+"id": "SS.46",
+"kind": "natal",
+"planet": "Venus",
+"houses": [
+8
+],
+"annual_houses": null,
+"requires": [
+{
+"planet": "Venus",
+"with": "Ketu"
+}
+],
+"tone": "bad",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "A pull toward gambling can drain your money.",
+"effect_es": "La atracción por el juego puede drenar tu dinero.",
+"ages": [],
+"remedy": null,
+"remedy_es": null,
+"line": 15029,
+"clarity": "inferred"
+},
+{
+"id": "SS.47",
+"kind": "natal",
+"planet": "Mars",
+"houses": [
+2
+],
+"annual_houses": null,
+"requires": [
+{
+"planet": "Mars",
+"with": "Mercury"
+}
+],
+"tone": "bad",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "Money leaks away through gambling, risky money plays and share dealing.",
+"effect_es": "El dinero se escapa por el juego, las jugadas de riesgo y la compraventa de acciones.",
+"ages": [],
+"remedy": null,
+"remedy_es": null,
+"line": 15145,
+"clarity": "clear"
+},
+{
+"id": "SS.48",
+"kind": "natal",
+"planet": "Mars",
+"houses": [
+5
+],
+"annual_houses": null,
+"requires": [
+{
+"planet": "Mars",
+"with": "Mercury"
+}
+],
+"tone": "bad",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "Gambling and risky money plays tend to cost you money.",
+"effect_es": "El juego y las jugadas de riesgo suelen costarte dinero.",
+"ages": [],
+"remedy": null,
+"remedy_es": null,
+"line": 15202,
+"clarity": "clear"
+},
+{
+"id": "SS.49",
+"kind": "natal",
+"planet": "Mars",
+"houses": [
+12
+],
+"annual_houses": null,
+"requires": [
+{
+"planet": "Mars",
+"with": "Mercury"
+}
+],
+"tone": "bad",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "Gambling and risky money plays tend to cost you money.",
+"effect_es": "El juego y las jugadas de riesgo suelen costarte dinero.",
+"ages": [],
+"remedy": null,
+"remedy_es": null,
+"line": 15839,
+"clarity": "clear"
+},
+{
+"id": "SS.50",
+"kind": "natal",
+"planet": "Mars",
+"houses": [
+2
+],
+"annual_houses": null,
+"requires": [
+{
+"planet": "Mars",
+"with": "Rahu"
+}
+],
+"tone": "bad",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "Gambling and bad company tend to cost you.",
+"effect_es": "El juego y las malas compañías suelen costarte.",
+"ages": [],
+"remedy": null,
+"remedy_es": null,
+"line": 16170,
+"clarity": "clear"
+},
+{
+"id": "SS.51",
+"kind": "natal",
+"planet": "Mars",
+"houses": [
+5
+],
+"annual_houses": null,
+"requires": [
+{
+"planet": "Mars",
+"with": "Rahu"
+}
+],
+"tone": "bad",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "Gambling and risky money plays tend to cost you money.",
+"effect_es": "El juego y las jugadas de riesgo suelen costarte dinero.",
+"ages": [],
+"remedy": null,
+"remedy_es": null,
+"line": 16252,
+"clarity": "clear"
+},
+{
+"id": "SS.52",
+"kind": "natal",
+"planet": "Mars",
+"houses": [
+7
+],
+"annual_houses": null,
+"requires": [
+{
+"planet": "Mars",
+"with": "Rahu"
+}
+],
+"tone": "bad",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "Gambling and risky money plays tend to cost you money.",
+"effect_es": "El juego y las jugadas de riesgo suelen costarte dinero.",
+"ages": [],
+"remedy": null,
+"remedy_es": null,
+"line": 16287,
+"clarity": "clear"
+},
+{
+"id": "SS.53",
+"kind": "natal",
+"planet": "Mars",
+"houses": [
+8
+],
+"annual_houses": null,
+"requires": [
+{
+"planet": "Mars",
+"with": "Rahu"
+}
+],
+"tone": "bad",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "You are drawn to gambling, and it tends to end badly for you.",
+"effect_es": "Te atrae el juego, y suele terminar mal para ti.",
+"ages": [],
+"remedy": null,
+"remedy_es": null,
+"line": 16309,
+"clarity": "clear"
+},
+{
+"id": "SS.54",
+"kind": "natal",
+"planet": "Mars",
+"houses": [
+2
+],
+"annual_houses": null,
+"requires": [
+{
+"planet": "Mars",
+"with": "Ketu"
+}
+],
+"tone": "bad",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "You are drawn to gambling, and it tends to end badly for you.",
+"effect_es": "Te atrae el juego, y suele terminar mal para ti.",
+"ages": [],
+"remedy": null,
+"remedy_es": null,
+"line": 16475,
+"clarity": "clear"
+},
+{
+"id": "SS.55",
+"kind": "natal",
+"planet": "Mars",
+"houses": [
+5
+],
+"annual_houses": null,
+"requires": [
+{
+"planet": "Mars",
+"with": "Ketu"
+}
+],
+"tone": "bad",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "Gambling and risky money games tend to cost you, and so do trips.",
+"effect_es": "El juego y las apuestas de riesgo suelen costarte, y los viajes también.",
+"ages": [],
+"remedy": null,
+"remedy_es": null,
+"line": 16550,
+"clarity": "clear"
+},
+{
+"id": "SS.56",
+"kind": "natal",
+"planet": "Mercury",
+"houses": [
+9
+],
+"annual_houses": null,
+"requires": [
+{
+"planet": "Mercury",
+"with": "Saturn"
+}
+],
+"tone": "bad",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "You are drawn to gambling, and it tends to end badly for you.",
+"effect_es": "Te atrae el juego, y suele terminar mal para ti.",
+"ages": [],
+"remedy": null,
+"remedy_es": null,
+"line": 16867,
+"clarity": "clear"
+},
+{
+"id": "SS.57",
+"kind": "natal",
+"planet": "Mercury",
+"houses": [
+2
+],
+"annual_houses": null,
+"requires": [
+{
+"planet": "Mercury",
+"with": "Saturn"
+}
+],
+"tone": "mixed",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "You enjoy gambling and games of chance, and the results are uncertain.",
+"effect_es": "Disfrutas del juego y los juegos de azar, y los resultados son inciertos.",
+"ages": [],
+"remedy": null,
+"remedy_es": null,
+"line": 16923,
+"clarity": "inferred"
+},
+{
+"id": "SS.58",
+"kind": "natal",
+"planet": "Mercury",
+"houses": [
+2
+],
+"annual_houses": null,
+"requires": [
+{
+"planet": "Mercury",
+"with": "Rahu"
+}
+],
+"tone": "bad",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "Gambling and bad company tend to cost you.",
+"effect_es": "El juego y las malas compañías suelen costarte.",
+"ages": [],
+"remedy": null,
+"remedy_es": null,
+"line": 16977,
+"clarity": "clear"
+},
+{
+"id": "SS.59",
+"kind": "natal",
+"planet": "Mercury",
+"houses": [
+7
+],
+"annual_houses": null,
+"requires": [
+{
+"planet": "Mercury",
+"with": "Rahu"
+}
+],
+"tone": "bad",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "Gambling and risky money plays tend to cost you money.",
+"effect_es": "El juego y las jugadas de riesgo suelen costarte dinero.",
+"ages": [],
+"remedy": null,
+"remedy_es": null,
+"line": 17083,
+"clarity": "clear"
+},
+{
+"id": "SS.60",
+"kind": "natal",
+"planet": "Mercury",
+"houses": [
+8
+],
+"annual_houses": null,
+"requires": [
+{
+"planet": "Mercury",
+"with": "Rahu"
+}
+],
+"tone": "bad",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "Gambling pulls you in and brings losses, though without legal trouble.",
+"effect_es": "El juego te atrae y te trae pérdidas, aunque sin problemas legales.",
+"ages": [],
+"remedy": null,
+"remedy_es": null,
+"line": 17121,
+"clarity": "clear"
+},
+{
+"id": "SS.61",
+"kind": "natal",
+"planet": "Saturn",
+"houses": [
+2
+],
+"annual_houses": null,
+"requires": [
+{
+"planet": "Saturn",
+"with": "Rahu"
+}
+],
+"tone": "bad",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "You are drawn to gambling, and it tends to end badly for you.",
+"effect_es": "Te atrae el juego, y suele terminar mal para ti.",
+"ages": [],
+"remedy": null,
+"remedy_es": null,
+"line": 17553,
+"clarity": "clear"
+},
+{
+"id": "SS.62",
+"kind": "natal",
+"planet": "Saturn",
+"houses": [
+9
+],
+"annual_houses": null,
+"requires": [
+{
+"planet": "Saturn",
+"with": "Ketu"
+}
+],
+"tone": "bad",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "You are drawn to gambling, and it tends to end badly for you.",
+"effect_es": "Te atrae el juego, y suele terminar mal para ti.",
+"ages": [],
+"remedy": null,
+"remedy_es": null,
+"line": 17727,
+"clarity": "clear"
 }
 ]
 }

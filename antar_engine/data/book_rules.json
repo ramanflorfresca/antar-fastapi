@@ -2359,8 +2359,7 @@
 "activation": [],
 "tone": "bad",
 "topics": [
-"children",
-"money"
+"children"
 ],
 "effect": "You do not spend money even on your children.",
 "effect_es": "No gastas dinero ni siquiera en tus hijos.",
@@ -41747,37 +41746,6 @@
 "line": 3292
 },
 {
-"id": "BVJA.A.2",
-"book": "bv_raman_jaimini",
-"requires": [
-{
-"from": "AL",
-"houses": [
-11
-],
-"holds_any": [
-"Sun",
-"Mars",
-"Saturn",
-"Rahu",
-"Ketu"
-]
-}
-],
-"activation": [],
-"tone": "mixed",
-"topics": [
-"money"
-],
-"effect": "Money does come to you, but often through shaky or questionable routes.",
-"effect_es": "El dinero sí llega, pero con frecuencia por vías dudosas o poco claras.",
-"remedy": null,
-"remedy_es": null,
-"timing_note": "Book ties results to the sign-periods (Chara dasha) of the signs involved; not expressible here.",
-"clarity": "clear",
-"line": 3292
-},
-{
 "id": "BVJA.A.3",
 "book": "bv_raman_jaimini",
 "requires": [
@@ -43546,37 +43514,6 @@
 "timing_note": "Book ties results to the sign-periods (Chara dasha) of the signs involved; not expressible here.",
 "clarity": "clear",
 "line": 828
-},
-{
-"id": "BVJA.B.3",
-"book": "bv_raman_jaimini",
-"requires": [
-{
-"from": "AL",
-"houses": [
-11
-],
-"holds_any": [
-"Sun",
-"Mars",
-"Saturn",
-"Rahu",
-"Ketu"
-]
-}
-],
-"activation": [],
-"tone": "mixed",
-"topics": [
-"money"
-],
-"effect": "Your gains tend to come through wrong or questionable means.",
-"effect_es": "Tus ganancias tienden a llegar por medios incorrectos o cuestionables.",
-"remedy": null,
-"remedy_es": null,
-"timing_note": "Book ties results to the sign-periods (Chara dasha) of the signs involved; not expressible here.",
-"clarity": "clear",
-"line": 834
 },
 {
 "id": "BVJA.B.4",
@@ -121201,6 +121138,511 @@
 "timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
 "clarity": "clear",
 "line": 8620
+},
+{
+"id": "SPC.1",
+"book": "speculation_sweep",
+"requires": [
+{
+"planet": "Ketu",
+"in_houses": [
+2
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "Your wealth can be lost through theft, fire, lawsuits and gambling.",
+"effect_es": "Tu riqueza puede perderse por robo, incendio, litigios y juegos de azar.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 3014
+},
+{
+"id": "SPC.2",
+"book": "speculation_sweep",
+"requires": [
+{
+"planet": "L2",
+"in_houses": [
+5
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"speculation"
+],
+"effect": "Your money can come from family property, speculation and games of chance.",
+"effect_es": "Tu dinero puede venir de bienes de la familia, la especulación y los juegos de azar.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 2844
+},
+{
+"id": "SPC.3",
+"book": "speculation_sweep",
+"requires": [
+{
+"a": "L1",
+"b": "L2",
+"relation": "exchange"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "Riches can reach you without much effort.",
+"effect_es": "La riqueza puede llegarte sin mucho esfuerzo.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "inferred",
+"line": 2844
+},
+{
+"id": "SPC.5",
+"book": "speculation_sweep",
+"requires": [
+{
+"planet": "L2",
+"in_houses": [
+4
+]
+},
+{
+"planet": "L4",
+"in_houses": [
+4
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "Unexpected wealth can come to you through mining, lotteries, competitions and other surprise sources.",
+"effect_es": "Puede llegarte riqueza inesperada por la minería, las loterías, los concursos y otras fuentes sorpresa.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 3040
+},
+{
+"id": "SPC.6",
+"book": "speculation_sweep",
+"requires": [
+{
+"planet": "L11",
+"in_houses": [
+1
+]
+},
+{
+"planet": "L1",
+"in_houses": [
+2
+]
+},
+{
+"planet": "L2",
+"in_houses": [
+11
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "You are likely to come upon a treasure or hidden valuable.",
+"effect_es": "Es probable que encuentres un tesoro o un objeto de valor oculto.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Attributed by the book to Jathakathathwa; Jataka Parijata vol 3 gives two of the three links.",
+"clarity": "clear",
+"line": 4953
+},
+{
+"id": "SPC.7",
+"book": "speculation_sweep",
+"requires": [
+{
+"planet": "L1",
+"in_houses": [
+2
+]
+},
+{
+"planet": "L2",
+"in_houses": [
+11
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "You are likely to come into a treasure or other valuable property.",
+"effect_es": "Es probable que recibas un tesoro u otra propiedad de valor.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "inferred",
+"line": 925
+},
+{
+"id": "SPC.8",
+"book": "speculation_sweep",
+"requires": [
+{
+"planet": "L1",
+"in_houses": [
+2
+]
+},
+{
+"planet": "L11",
+"in_houses": [
+1
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "You are likely to come into a treasure or other valuable property.",
+"effect_es": "Es probable que recibas un tesoro u otra propiedad de valor.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "inferred",
+"line": 925
+},
+{
+"id": "SPC.9",
+"book": "speculation_sweep",
+"requires": [
+{
+"planet": "L2",
+"in_houses": [
+9
+]
+},
+{
+"planet": "L4",
+"in_houses": [
+9
+]
+},
+{
+"house": 9,
+"holds_any_benefic": true
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "You can come upon a treasure buried in the ground.",
+"effect_es": "Puedes encontrar un tesoro enterrado en la tierra.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book also asks that the sign be a benefic one; not expressible.",
+"clarity": "inferred",
+"line": 3013
+},
+{
+"id": "SPC.10",
+"book": "speculation_sweep",
+"requires": [
+{
+"planet": "L11",
+"in_houses": [
+4
+]
+},
+{
+"planet": "L2",
+"in_houses": [
+4
+]
+},
+{
+"a": "L4",
+"b": "Jupiter",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "You can come upon hidden treasure.",
+"effect_es": "Puedes encontrar un tesoro oculto.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book also asks that the fourth lord stand in a benefic sign; not expressible.",
+"clarity": "inferred",
+"line": 3013
+},
+{
+"id": "SPC.11",
+"book": "speculation_sweep",
+"requires": [
+{
+"planet": "L11",
+"in_houses": [
+4
+]
+},
+{
+"planet": "L2",
+"in_houses": [
+4
+]
+},
+{
+"a": "L4",
+"b": "Venus",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "You can come upon hidden treasure.",
+"effect_es": "Puedes encontrar un tesoro oculto.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book also asks that the fourth lord stand in a benefic sign; not expressible.",
+"clarity": "inferred",
+"line": 3013
+},
+{
+"id": "SPC.12",
+"book": "speculation_sweep",
+"requires": [
+{
+"planet": "L11",
+"in_houses": [
+4
+]
+},
+{
+"planet": "L2",
+"in_houses": [
+4
+]
+},
+{
+"a": "L4",
+"b": "Mercury",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "You can come upon hidden treasure.",
+"effect_es": "Puedes encontrar un tesoro oculto.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book also asks that the fourth lord stand in a benefic sign; not expressible.",
+"clarity": "inferred",
+"line": 3013
+},
+{
+"id": "SPC.18",
+"book": "speculation_sweep",
+"requires": [
+{
+"planet": "Mercury",
+"in_houses": [
+5
+]
+},
+{
+"a": "Jupiter",
+"b": "Mercury",
+"relation": "a_aspects_b"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "You can gain through speculation and through writing.",
+"effect_es": "Puedes ganar con la especulación y con la escritura.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "inferred",
+"line": 6583
+},
+{
+"id": "SPC.19",
+"book": "speculation_sweep",
+"requires": [
+{
+"planet": "Mars",
+"in_houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "mixed",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "You can be rash and drawn into speculation.",
+"effect_es": "Puedes ser impulsivo y verte atraído por la especulación.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 438
+},
+{
+"id": "SPC.20",
+"book": "speculation_sweep",
+"requires": [
+{
+"planet": "Jupiter",
+"in_houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "mixed",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "You have a speculative turn of mind.",
+"effect_es": "Tienes una mentalidad especulativa.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 451
+},
+{
+"id": "SPC.21",
+"book": "speculation_sweep",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+7
+]
+},
+{
+"a": "Mars",
+"b": "Venus",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "You can have a weakness for gambling.",
+"effect_es": "Puedes tener debilidad por el juego.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "inferred",
+"line": 517
+},
+{
+"id": "SPC.26",
+"book": "speculation_sweep",
+"requires": [
+{
+"planet": "L10",
+"in_houses": [
+5
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "You can do well as a broker and take part in speculation.",
+"effect_es": "Puedes destacar como corredor y participar en la especulación.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 6993
+},
+{
+"id": "SPC.35",
+"book": "speculation_sweep",
+"requires": [
+{
+"a": "Mercury",
+"b": "Rahu",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"speculation",
+"money"
+],
+"effect": "This stretch of life can bring losses when a speculative bubble bursts.",
+"effect_es": "Esta etapa puede traer pérdidas cuando una burbuja especulativa estalla.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Drawn from two worked charts; the book says this where Mercury has no relieving influence.",
+"clarity": "inferred",
+"line": 4896
 }
 ]
 }

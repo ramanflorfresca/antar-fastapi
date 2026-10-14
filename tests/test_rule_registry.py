@@ -299,3 +299,13 @@ def test_remedy_calendar_is_live_only_when_the_treated_planet_is_activated(monke
     monkeypatch.undo()
     assert rr.remedy_calendar(rr.Ctx(chart(9, SIGNS_A), "1975-11-26", [], TODAY), "en")["available"]
     assert rr.remedy_calendar(rr.Ctx({}, "1975-01-01", [], TODAY)) == {"available": False}
+
+
+def test_speculation_stance_counts_distinct_placements_not_repeats():
+    from antar_engine import rule_registry as rr
+    mk = lambda tone, planet, house, rid: rr.Evidence(rid, "x", ["speculation"], tone, "specific", {"en": rid}, {"en": ""}, planet=planet, house=house)
+    good2 = [mk("good", "Jupiter", 2, "a"), mk("good", "Jupiter", 2, "b"), mk("good", "Venus", 5, "c"), mk("good", "Mars", 3, "e"), mk("bad", "Moon", 8, "d")]
+    assert "supportive" in rr._spec_stance(good2, "en")
+    assert "both ways" in rr._spec_stance([mk("good", "Jupiter", 2, "a"), mk("bad", "Moon", 8, "d")], "en")
+    assert "costly" in rr._spec_stance([mk("bad", "Moon", 8, "a"), mk("bad", "Mars", 3, "b"), mk("good", "Jupiter", 2, "c")], "en")
+    assert rr._spec_stance([], "en") is None

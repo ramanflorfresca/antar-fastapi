@@ -91,6 +91,18 @@ def build(data_dir):
                 continue
             seen.add(key)
             out[frame_of(r, book)].append(rule)
+    # speculation: one statement per identical condition+tone (several books say the same thing about the same placement)
+    for fr in out:
+        seen_spec, kept = set(), []
+        for r in out[fr]:
+            if "speculation" in r["topics"]:
+                k = (json.dumps(r["requires"], sort_keys=True), json.dumps(r["activation"], sort_keys=True), r["tone"])
+                if k in seen_spec:
+                    st["speculation_duplicates"] = st.get("speculation_duplicates", 0) + 1
+                    continue
+                seen_spec.add(k)
+            kept.append(r)
+        out[fr] = kept
     # owner overrides survive rebuilds: antar_engine/data/rule_overrides.json {"overrides": {id: {drop|effect|effect_es|tone|topics|remedy|remedy_es}}}
     ov_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "antar_engine", "data", "rule_overrides.json")
     try:
