@@ -3848,32 +3848,6 @@
 "clarity": "clear"
 },
 {
-"id": "RC.A.463",
-"kind": "natal",
-"planet": "Mercury",
-"houses": [
-9
-],
-"annual_houses": null,
-"requires": [
-{
-"house": 1,
-"empty": true
-}
-],
-"tone": "bad",
-"topics": [
-"other"
-],
-"effect": "You tend to be quarrelsome.",
-"effect_es": "Tiendes a ser pendenciero o pendenciera.",
-"ages": [],
-"remedy": null,
-"remedy_es": null,
-"line": 3463,
-"clarity": "clear"
-},
-{
 "id": "RC.A.466",
 "kind": "natal",
 "planet": "Mercury",
@@ -5572,34 +5546,6 @@
 "clarity": "clear"
 },
 {
-"id": "RC.A.617",
-"kind": "natal",
-"planet": "Rahu",
-"houses": [
-1
-],
-"annual_houses": null,
-"requires": [
-{
-"planet": "Sun",
-"in": [
-11
-]
-}
-],
-"tone": "bad",
-"topics": [
-"fame"
-],
-"effect": "People who love justice are put off by your rude ego.",
-"effect_es": "Las personas que aman la justicia se alejan por tu ego grosero.",
-"ages": [],
-"remedy": null,
-"remedy_es": null,
-"line": 4148,
-"clarity": "clear"
-},
-{
 "id": "RC.A.618",
 "kind": "natal",
 "planet": "Rahu",
@@ -5690,27 +5636,6 @@
 "remedy_es": null,
 "line": 4212,
 "clarity": "clear"
-},
-{
-"id": "RC.A.624",
-"kind": "natal",
-"planet": "Rahu",
-"houses": [
-2
-],
-"annual_houses": null,
-"requires": [],
-"tone": "bad",
-"topics": [
-"money"
-],
-"effect": "You may be stingy or leave your home or state, and be blamed for something received in charity.",
-"effect_es": "Puedes ser tacaño o tacaña o dejar tu hogar o tu estado, y ser culpado o culpada por algo recibido en caridad.",
-"ages": [],
-"remedy": null,
-"remedy_es": null,
-"line": 4212,
-"clarity": "inferred"
 },
 {
 "id": "RC.A.628",
@@ -9708,27 +9633,6 @@
 "clarity": "clear"
 },
 {
-"id": "RC.B.42",
-"kind": "natal",
-"planet": "Sun",
-"houses": [
-4
-],
-"annual_houses": null,
-"requires": [],
-"tone": "bad",
-"topics": [
-"family"
-],
-"effect": "You tend to be ungrateful and quarrelsome, easily led by women, and you drift from a principled path.",
-"effect_es": "Tiendes a ser desagradecido y pendenciero, te dejas llevar por las mujeres y te alejas de un camino con principios.",
-"ages": [],
-"remedy": null,
-"remedy_es": null,
-"line": 8086,
-"clarity": "clear"
-},
-{
 "id": "RC.B.44",
 "kind": "natal",
 "planet": "Sun",
@@ -10816,27 +10720,6 @@
 "clarity": "clear"
 },
 {
-"id": "RC.B.127",
-"kind": "natal",
-"planet": "Mars",
-"houses": [
-10
-],
-"annual_houses": null,
-"requires": [],
-"tone": "bad",
-"topics": [
-"career"
-],
-"effect": "You are inclined to negative deeds and ungratefulness, and your effort goes in vain.",
-"effect_es": "Te inclinas a las malas acciones y a la ingratitud, y tu esfuerzo se pierde en vano.",
-"ages": [],
-"remedy": null,
-"remedy_es": null,
-"line": 8192,
-"clarity": "clear"
-},
-{
 "id": "RC.B.128",
 "kind": "natal",
 "planet": "Mars",
@@ -11889,27 +11772,6 @@
 ],
 "effect": "You gain great acclaim.",
 "effect_es": "Obtienes gran reconocimiento.",
-"ages": [],
-"remedy": null,
-"remedy_es": null,
-"line": 8326,
-"clarity": "clear"
-},
-{
-"id": "RC.B.196",
-"kind": "natal",
-"planet": "Jupiter",
-"houses": [
-12
-],
-"annual_houses": null,
-"requires": [],
-"tone": "bad",
-"topics": [
-"other"
-],
-"effect": "You tend to be rebellious and jealous, take from others and hold airy wishes.",
-"effect_es": "Tiendes a ser rebelde y celoso, a quitarle a otros y a tener deseos vanos.",
 "ages": [],
 "remedy": null,
 "remedy_es": null,
@@ -13795,35 +13657,6 @@
 "ages": [
 34
 ],
-"remedy": null,
-"remedy_es": null,
-"line": 11808,
-"clarity": "clear"
-},
-{
-"id": "RC.B.445",
-"kind": "natal",
-"planet": "Mars",
-"houses": [
-1
-],
-"annual_houses": null,
-"requires": [
-{
-"lagna_sign": "Cancer"
-},
-{
-"planet": "Mars",
-"with": "Mercury"
-}
-],
-"tone": "bad",
-"topics": [
-"other"
-],
-"effect": "You tend to be jealous and conspiratorial.",
-"effect_es": "Tiendes a ser celoso y conspirador.",
-"ages": [],
 "remedy": null,
 "remedy_es": null,
 "line": 11808,
@@ -25998,47 +25831,6 @@
 "remedy": null,
 "remedy_es": null,
 "line": 18152,
-"clarity": "inferred"
-},
-{
-"id": "RC.D.286",
-"kind": "annual",
-"planet": "Mars",
-"houses": null,
-"annual_houses": [
-1
-],
-"requires": [
-{
-"planet": "Mars",
-"in": [
-4
-]
-},
-{
-"planet": "Saturn",
-"in": [
-4
-]
-},
-{
-"planet": "Saturn",
-"in": [
-1
-],
-"chart": "annual"
-}
-],
-"tone": "bad",
-"topics": [
-"other"
-],
-"effect": "This year you tend to turn deceitful toward others.",
-"effect_es": "Este año tiendes a volverte engañoso o engañosa con los demás.",
-"ages": [],
-"remedy": null,
-"remedy_es": null,
-"line": 18157,
 "clarity": "inferred"
 },
 {
