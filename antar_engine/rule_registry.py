@@ -719,12 +719,12 @@ def _windows(ctx: Ctx, subject: str, lang: str):
 
 _WHEN_AGREE = {"en": "Strongest stretches:", "es": "Los periodos más fuertes:"}
 _SPEC_STANCE = {
-    "en": {"good": "Overall your chart leans supportive toward speculation.",
-           "bad": "Overall your chart leans costly toward speculation; take extra care.",
-           "mixed": "Overall your chart swings both ways on speculation: gains can come, and so can losses."},
-    "es": {"good": "En general tu carta se inclina a favor de la especulación.",
-           "bad": "En general tu carta se inclina a que la especulación te cueste; ten más cuidado.",
-           "mixed": "En general tu carta oscila en la especulación: pueden llegar ganancias y también pérdidas."}}
+    "en": {"good": "Overall this leans supportive for you on speculation.",
+           "bad": "Overall this leans costly for you on speculation; take extra care.",
+           "mixed": "Overall it swings both ways on speculation: gains can come, and so can losses."},
+    "es": {"good": "En general esto se inclina a tu favor en la especulación.",
+           "bad": "En general esto se inclina a costarte en la especulación; ten más cuidado.",
+           "mixed": "En general oscila en la especulación: pueden llegar ganancias y también pérdidas."}}
 
 
 def _spec_stance(evs, lang: str) -> Optional[str]:
