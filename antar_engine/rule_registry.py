@@ -717,6 +717,35 @@ def _windows(ctx: Ctx, subject: str, lang: str):
     return []
 
 
+_SPEC_STANCE = {
+    "en": {"good": "Overall your chart leans supportive toward speculation.",
+           "bad": "Overall your chart leans costly toward speculation; take extra care.",
+           "mixed": "Overall your chart swings both ways on speculation: gains can come, and so can losses."},
+    "es": {"good": "En general tu carta se inclina a favor de la especulación.",
+           "bad": "En general tu carta se inclina a que la especulación te cueste; ten más cuidado.",
+           "mixed": "En general tu carta oscila en la especulación: pueden llegar ganancias y también pérdidas."}}
+
+
+def _spec_stance(evs, lang: str) -> Optional[str]:
+    """One verdict for speculation from the distinct placements that speak to it (a placement counts once, however many
+    books or lists repeat it); 2:1 wins, otherwise the chart swings."""
+    groups: Dict[tuple, set] = {}
+    for e in evs:
+        if e.tone in ("good", "bad"):
+            groups.setdefault((e.planet, e.house, tuple(sorted(e.signs))) if e.planet else (e.rule_id,), set()).add(e.tone)
+    g = sum(t == {"good"} for t in groups.values())
+    b = sum(t == {"bad"} for t in groups.values())
+    m = sum(len(t) == 2 for t in groups.values())
+    tx = _SPEC_STANCE.get(lang, _SPEC_STANCE["en"])
+    if not (g or b or m):
+        return None
+    if g and g >= 2 * (b + m):
+        return tx["good"]
+    if b and b >= 2 * (g + m):
+        return tx["bad"]
+    return tx["mixed"]
+
+
 def answer(ctx: Ctx, subject: Optional[str], qword: str = "what", lang: str = "en") -> dict:
     lang = lang if lang in T else "en"
     tx = T[lang]
@@ -802,6 +831,10 @@ def answer(ctx: Ctx, subject: Optional[str], qword: str = "what", lang: str = "e
         plan = [r for k in ("this_month", "six_months", "this_year") for r in calendar.get(k, [])]
     elif qword in ("what", "why"):
         ev_on = (qword == "why")
+        if subject == "speculation":
+            st_line = _spec_stance(evs, lang)
+            if st_line:
+                lines.append(st_line)
         blocks = [(tx["challenges"], bad), (tx["strengths"], good)] if ev_on else [(tx["strengths"], good), (tx["challenges"], bad)]
         for title, items in blocks:
             if items:
