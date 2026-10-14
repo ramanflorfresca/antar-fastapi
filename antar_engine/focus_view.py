@@ -11,7 +11,7 @@ import re
 from datetime import date, timedelta
 from typing import Dict, List, Optional
 
-from antar_engine import public_view, rule_registry as rr, when_engine
+from antar_engine import focus_plan, public_view, rule_registry as rr, when_engine
 
 AREAS = [  # key, subjects, label en/es, one-line empty-state hint is not needed: empty areas are skipped
     ("money", ("money", "funding"), {"en": "Money and funding", "es": "Dinero y financiamiento"}),
@@ -47,10 +47,14 @@ MANTRA_PLANET = {"money": "Jupiter", "business": "Mercury", "work": "Saturn", "p
                  "learning": "Mercury", "home": "Moon", "health": "Sun", "inner": "Jupiter"}
 LABELS_EXTRA = {"en": {"focus_title": "for the next 3 to 6 months, focus on", "goal": "Your goal", "bring": "What the next months bring",
                        "do": "Do", "avoid": "Avoid", "instead": "Instead", "remedies": "Remedies", "mantra": "Mantra", "when": "When",
-                       "best_window": "Best window", "avoid_window": "Take care"},
+                       "best_window": "Best window", "avoid_window": "Take care", "plan_months": "Month by month",
+                       "plan_chapters": "Chapters in these months", "plan_turns": "Turning points", "supports": "Touches this topic",
+                       "quiet": "Quiet for this", "tone_good": "Supportive", "tone_mixed": "Mixed", "tone_bad": "Careful"},
                 "es": {"focus_title": "en los próximos 3 a 6 meses, enfócate en", "goal": "Tu meta", "bring": "Lo que traen los próximos meses",
                        "do": "Haz", "avoid": "Evita", "instead": "En su lugar", "remedies": "Remedios", "mantra": "Mantra", "when": "Cuándo",
-                       "best_window": "Mejor ventana", "avoid_window": "Cuidado"}}
+                       "best_window": "Mejor ventana", "avoid_window": "Cuidado", "plan_months": "Mes a mes",
+                       "plan_chapters": "Capítulos de estos meses", "plan_turns": "Puntos de giro", "supports": "Toca este tema",
+                       "quiet": "Tranquilo para esto", "tone_good": "Favorable", "tone_mixed": "Mixto", "tone_bad": "Con cuidado"}}
 LABELS = {"en": {"pattern": "Your pattern", "season": "Your season", "move": "Your move", "watch": "Watch",
                  "support": "Do this to support it", "care": "Keep your body steady", "window": "Window", "take_care": "Take care"},
           "es": {"pattern": "Tu patrón", "season": "Tu temporada", "move": "Tu paso", "watch": "Ojo con",
@@ -202,7 +206,7 @@ def _also_hint(card: dict, focus_cards: list) -> Optional[str]:
     return None if text in shown else text
 
 
-def _detail(ctx, library: dict, life: Optional[dict], lang: str, area: str, cards: list, card: dict) -> dict:
+def _detail(ctx, library: dict, life: Optional[dict], lang: str, area: str, cards: list, card: dict, months: int = 6) -> dict:
     """The one page for ONE topic: goal, what the next months bring, what to do, what to avoid (with what to do instead),
     remedies, mantra and the windows. Only statements that belong to this topic; nothing from other areas."""
     subjects = next((a[1] for a in _areas(life) if a[0] == area), ())
@@ -246,8 +250,14 @@ def _detail(ctx, library: dict, life: Optional[dict], lang: str, area: str, card
     windows = {"best": ({"start": season.get("start"), "end": season.get("end"), "peaks": season.get("peaks") or []}
                         if season.get("start") else None),
                "avoid": [{"start": a["start"], "end": a["end"]} for a in avoid if a.get("start") and a.get("end")]}
+    try:
+        plan = {"months": focus_plan.months_strip(ctx, subjects, months, lang, (card.get("season") or {}).get("peaks")),
+                "chapters": focus_plan.chapters(ctx, subjects, months, lang),
+                "turns": focus_plan.turning_points(ctx, card["label"], subjects, months, lang)}
+    except Exception:
+        plan = None
     return {"area": area, "label": card["label"], "goal": GOAL.get(area, {}).get(lang), "window": card.get("window"),
-            "bring": bring, "do": do, "avoid": avoid, "remedies": remedies, "mantra": mantra, "windows": windows}
+            "bring": bring, "do": do, "avoid": avoid, "remedies": remedies, "mantra": mantra, "windows": windows, "plan": plan}
 
 
 def build(ctx, library: dict, life: Optional[dict] = None, recent_topics: Optional[List[str]] = None,
@@ -299,7 +309,7 @@ def build(ctx, library: dict, life: Optional[dict] = None, recent_topics: Option
     if area in ("money", "work") and (life or {}).get("employed") is False:
         area = "business"                          # the circles say Money / Career; a founder's one card is Business and money
     want = next((c for c in cards if c["area"] == area), None) if area else None
-    detail = _detail(ctx, library, life, lang, area, cards, want) if want else None
+    detail = _detail(ctx, library, life, lang, area, cards, want, horizon_months) if want else None
     return {"labels": _labels(lang), "horizon_months": horizon_months, "detail": detail, "care": _care(library), "focus": [clean(c) for c in focus],
             "card": clean(want) if want else None,
             "also": [{"area": c["area"], "label": c["label"], "window": c.get("window"), "hint": _also_hint(c, [f for f in focus])} for c in also],
