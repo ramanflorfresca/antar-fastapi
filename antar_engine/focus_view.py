@@ -106,7 +106,7 @@ def _care(library: dict) -> Optional[dict]:
 
 def build(ctx, library: dict, life: Optional[dict] = None, recent_topics: Optional[List[str]] = None,
           lang: str = "en", pinned: Optional[List[str]] = None, kp: Optional[Dict[str, dict]] = None,
-          horizon_months: int = 6) -> dict:
+          horizon_months: int = 6, area: Optional[str] = None) -> dict:
     lang = "es" if lang == "es" else "en"
     share = _recent_share(recent_topics or [])
     cards, used_remedies = [], set()
@@ -145,7 +145,9 @@ def build(ctx, library: dict, life: Optional[dict] = None, recent_topics: Option
     focus_keys = {c["area"] for c in focus}
     also = [c for c in cards if c["area"] not in focus_keys]
     clean = lambda c: {k: v for k, v in c.items() if k != "_score"}
+    want = next((c for c in cards if c["area"] == area), None) if area else None
     return {"labels": LABELS[lang], "horizon_months": horizon_months, "care": _care(library), "focus": [clean(c) for c in focus],
+            "card": clean(want) if want else None,
             "also": [{"area": c["area"], "label": c["label"],
                       "hint": (c["season"] or {}).get("text") or (c["pattern"] or {}).get("text")} for c in also],
             "horizon": library.get("horizon")}

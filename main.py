@@ -4621,10 +4621,11 @@ def _is_admin_request(http_request) -> bool:
 
 
 @app.get("/api/v1/chart/{chart_id}/focus")
-async def get_chart_focus(chart_id: str, http_request: Request, language: str = "en", months: int = 6, pin: str = ""):
+async def get_chart_focus(chart_id: str, http_request: Request, language: str = "en", months: int = 6, pin: str = "", area: str = ""):
     """Focus around the person (default: the next 6 months): up to 2 life areas that matter NOW (their recent questions > their situation > how strongly a
     window runs), each merged into one card (pattern, season, move, watch); the rest fold under `also`. One voice: no method,
-    book or rule names. `pin` = comma list of area keys the user chose to focus on."""
+    book or rule names. `pin` = comma list of area keys the user chose to focus on. `area` (money|work|partnership|family|learning|home|health|inner)
+    also returns that area's full card as `card` (null when the chart has nothing for it), used when a topic is tapped."""
     def _run():
         row = _chart_row_for_forecast(chart_id)
         if not row.data:
@@ -4650,7 +4651,7 @@ async def get_chart_focus(chart_id: str, http_request: Request, language: str = 
             recent = [r.get("topic") for r in rows if r.get("topic")]
         except Exception as _e:
             print(f"[focus] recent topics non-fatal: {_e}")
-        return focus_view.build(ctx, lib, life, recent, language, [p for p in pin.split(",") if p], None, _m)
+        return focus_view.build(ctx, lib, life, recent, language, [p for p in pin.split(",") if p], None, _m, area or None)
 
     try:
         out = await asyncio.to_thread(_run)

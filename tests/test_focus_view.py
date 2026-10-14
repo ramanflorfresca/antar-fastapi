@@ -59,3 +59,16 @@ def test_card_carries_a_support_remedy_and_top_level_care_line(monkeypatch):
     assert c["support"]["text"].startswith("Offer water") and c["support"]["ref"]
     assert out["care"]["text"] == "Eat lighter now and then." and out["horizon_months"] == 6
     assert out["labels"]["support"] == "Do this to support it"
+
+
+def test_area_param_returns_that_areas_full_card_even_when_not_in_focus(monkeypatch):
+    out = _run(monkeypatch, recent=["money"])
+    assert out["card"] is None                                      # no area asked for
+    from tests.test_rule_registry import ctx
+    monkeypatch.setattr(fv.rr, "applicable", lambda c: [])
+    monkeypatch.setattr(fv.rr, "_windows", lambda c, s, l: [])
+    monkeypatch.setattr(fv.rr, "remedy_calendar", lambda c, l, s=None: {})
+    monkeypatch.setattr(when_engine, "_lk_year", lambda c, s: None)
+    out = fv.build(ctx(), _lib(), None, ["money"], "en", None, None, 6, "partnership")
+    assert out["card"]["area"] == "partnership" and out["card"]["season"]["text"] == "Partnership takes shape."
+    assert fv.build(ctx(), _lib(), None, ["money"], "en", None, None, 6, "inner")["card"] is None
