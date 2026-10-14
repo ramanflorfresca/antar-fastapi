@@ -23,11 +23,44 @@ AREAS = [  # key, subjects, label en/es, one-line empty-state hint is not needed
     ("health", ("health",), {"en": "Health and energy", "es": "Salud y energía"}),
     ("inner", ("spirituality",), {"en": "Inner life", "es": "Vida interior"}),
 ]
+BUSINESS = ("business", ("money", "funding", "career", "job", "business"), {"en": "Business and money", "es": "Negocio y dinero"})
+
+
+def _areas(life: Optional[dict]) -> list:
+    """Astrology reads income, funding, business and career from different parts of the chart, but a person who runs their own
+    business acts on ONE goal: so for them these merge into one 'business' area (the engines underneath stay separate)."""
+    if (life or {}).get("employed") is False:
+        return [BUSINESS] + [a for a in AREAS if a[0] not in ("money", "work")]
+    return list(AREAS)
+
+
+GOAL = {"money": {"en": "Grow your income", "es": "Hacer crecer tus ingresos"},
+        "business": {"en": "Grow the business: clients, pricing and funding", "es": "Hacer crecer el negocio: clientes, precios y financiamiento"},
+        "work": {"en": "Move your career forward", "es": "Avanzar en tu carrera"},
+        "partnership": {"en": "Build a lasting partnership", "es": "Construir una pareja duradera"},
+        "family": {"en": "Look after your family", "es": "Cuidar a tu familia"},
+        "learning": {"en": "Learn and finish what you started", "es": "Aprender y terminar lo que empezaste"},
+        "home": {"en": "Settle your home and travel plans", "es": "Ordenar tu hogar y tus viajes"},
+        "health": {"en": "Rebuild your energy", "es": "Recuperar tu energía"},
+        "inner": {"en": "Deepen your inner practice", "es": "Profundizar tu práctica interior"}}
+MANTRA_PLANET = {"money": "Jupiter", "business": "Mercury", "work": "Saturn", "partnership": "Venus", "family": "Jupiter",
+                 "learning": "Mercury", "home": "Moon", "health": "Sun", "inner": "Jupiter"}
+LABELS_EXTRA = {"en": {"focus_title": "for the next 3 to 6 months, focus on", "goal": "Your goal", "bring": "What the next months bring",
+                       "do": "Do", "avoid": "Avoid", "instead": "Instead", "remedies": "Remedies", "mantra": "Mantra", "when": "When",
+                       "best_window": "Best window", "avoid_window": "Take care"},
+                "es": {"focus_title": "en los próximos 3 a 6 meses, enfócate en", "goal": "Tu meta", "bring": "Lo que traen los próximos meses",
+                       "do": "Haz", "avoid": "Evita", "instead": "En su lugar", "remedies": "Remedios", "mantra": "Mantra", "when": "Cuándo",
+                       "best_window": "Mejor ventana", "avoid_window": "Cuidado"}}
 LABELS = {"en": {"pattern": "Your pattern", "season": "Your season", "move": "Your move", "watch": "Watch",
                  "support": "Do this to support it", "care": "Keep your body steady", "window": "Window", "take_care": "Take care"},
           "es": {"pattern": "Tu patrón", "season": "Tu temporada", "move": "Tu paso", "watch": "Ojo con",
                  "support": "Haz esto para apoyarlo", "care": "Mantén tu cuerpo estable", "window": "Ventana", "take_care": "Cuidado"}}
-TOPIC_WORDS = {"money": ("money", "fund", "income", "dinero", "financ", "invest", "speculat"),
+def _labels(lang: str) -> dict:
+    return {**LABELS[lang], **LABELS_EXTRA[lang]}
+
+
+TOPIC_WORDS = {"business": ("money", "fund", "income", "dinero", "financ", "invest", "speculat", "career", "job", "work", "business", "client", "startup", "carrera", "empleo", "negocio", "trabajo"),
+               "money": ("money", "fund", "income", "dinero", "financ", "invest", "speculat"),
                "work": ("career", "job", "work", "business", "client", "carrera", "empleo", "negocio", "trabajo"),
                "partnership": ("love", "marri", "relation", "partner", "amor", "matrimonio", "pareja"),
                "family": ("child", "family", "hijo", "famil"), "learning": ("educat", "study", "estudi"),
@@ -65,8 +98,10 @@ def _recent_share(recent_topics: List[str]) -> Dict[str, float]:
 def _life_fit(area: str, life: Optional[dict]) -> float:
     life = life or {}
     f = 0.0
+    if area == "business":
+        f += 1.5                                  # runs their own business: income, funding and clients are the live questions
     if area in ("money", "work") and life.get("employed") is False:
-        f += 1.0                                  # self-employed: income and work are the live questions
+        f += 1.0
     if area == "work" and life.get("employed") is True:
         f += 1.0
     if area == "partnership":
@@ -167,13 +202,61 @@ def _also_hint(card: dict, focus_cards: list) -> Optional[str]:
     return None if text in shown else text
 
 
+def _detail(ctx, library: dict, life: Optional[dict], lang: str, area: str, cards: list, card: dict) -> dict:
+    """The one page for ONE topic: goal, what the next months bring, what to do, what to avoid (with what to do instead),
+    remedies, mantra and the windows. Only statements that belong to this topic; nothing from other areas."""
+    subjects = next((a[1] for a in _areas(life) if a[0] == area), ())
+    lean = [i for ln in ("vimshottari", "jaimini") for i in library[ln]["lean_in"] if i.get("subject") in subjects and _gate_ok(i.get("text"), life)]
+    watch = [i for ln in ("vimshottari", "jaimini") for i in library[ln]["watch"] if i.get("subject") in subjects and _gate_ok(i.get("text"), life)]
+    seen = set()
+
+    def _once(items):
+        out = []
+        for i in items:
+            if i["text"] not in seen:
+                seen.add(i["text"])
+                out.append(i)
+        return out
+    bring = [{"text": i["text"], "ref": public_view.ref_for(i["rule_id"])} for i in _once(lean)][:3]
+    avoid = [{"text": i["text"], "instead": i.get("do"), "ref": public_view.ref_for(i["rule_id"]),
+              "start": i.get("start"), "end": i.get("end")} for i in _once(watch)][:3]
+    do = [card["move"]] if card.get("move") else []
+    remedies = []
+    try:
+        seen_r = set()
+        for sj in subjects:
+            cal = rr.remedy_calendar(ctx, lang, sj)
+            for it in list(cal.get("this_month", [])) + list(cal.get("six_months", [])):
+                steps = it.get("steps") or []
+                if steps and it.get("rule_id") not in seen_r and len(remedies) < 3:
+                    seen_r.add(it.get("rule_id"))
+                    remedies.append({"text": steps[0], "duration": it.get("duration"), "why": it.get("problem"),
+                                     "ref": public_view.ref_for(it.get("rule_id"))})
+    except Exception:
+        pass
+    mantra = None
+    try:
+        from antar_engine.remedies import PLANET_MANTRAS
+        m = PLANET_MANTRAS.get(MANTRA_PLANET.get(area))
+        if m:
+            mantra = {"text": m["simple"], "count": m.get("count"), "day": m.get("recommended_day"), "purpose": m.get("purpose")}
+    except Exception:
+        pass
+    season = card.get("season") or {}
+    windows = {"best": ({"start": season.get("start"), "end": season.get("end"), "peaks": season.get("peaks") or []}
+                        if season.get("start") else None),
+               "avoid": [{"start": a["start"], "end": a["end"]} for a in avoid if a.get("start") and a.get("end")]}
+    return {"area": area, "label": card["label"], "goal": GOAL.get(area, {}).get(lang), "window": card.get("window"),
+            "bring": bring, "do": do, "avoid": avoid, "remedies": remedies, "mantra": mantra, "windows": windows}
+
+
 def build(ctx, library: dict, life: Optional[dict] = None, recent_topics: Optional[List[str]] = None,
           lang: str = "en", pinned: Optional[List[str]] = None, kp: Optional[Dict[str, dict]] = None,
           horizon_months: int = 6, area: Optional[str] = None) -> dict:
     lang = "es" if lang == "es" else "en"
     share = _recent_share(recent_topics or [])
     cards, used_remedies = [], set()
-    for key, subjects, label in AREAS:
+    for key, subjects, label in _areas(life):
         lean = [i for ln in ("vimshottari", "jaimini") for i in library[ln]["lean_in"] if i.get("subject") in subjects]
         watch = [i for ln in ("vimshottari", "jaimini") for i in library[ln]["watch"] if i.get("subject") in subjects]
         lean = [i for i in lean if _gate_ok(i.get("text"), life)]
@@ -213,8 +296,11 @@ def build(ctx, library: dict, life: Optional[dict] = None, recent_topics: Option
     focus_keys = {c["area"] for c in focus}
     also = [c for c in cards if c["area"] not in focus_keys]
     clean = lambda c: {k: v for k, v in c.items() if k != "_score"}
+    if area in ("money", "work") and (life or {}).get("employed") is False:
+        area = "business"                          # the circles say Money / Career; a founder's one card is Business and money
     want = next((c for c in cards if c["area"] == area), None) if area else None
-    return {"labels": LABELS[lang], "horizon_months": horizon_months, "care": _care(library), "focus": [clean(c) for c in focus],
+    detail = _detail(ctx, library, life, lang, area, cards, want) if want else None
+    return {"labels": _labels(lang), "horizon_months": horizon_months, "detail": detail, "care": _care(library), "focus": [clean(c) for c in focus],
             "card": clean(want) if want else None,
             "also": [{"area": c["area"], "label": c["label"], "window": c.get("window"), "hint": _also_hint(c, [f for f in focus])} for c in also],
             "horizon": library.get("horizon")}
