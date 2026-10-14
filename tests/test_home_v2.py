@@ -16,7 +16,7 @@ def test_houses_ruled_for_a_capricorn_rising_chart():
 
 def test_chart_read_tone_combines_the_generic_nature_with_the_rising_sign():
     r = SE.chart_read("Jupiter", "Capricorn", None, "supportive", "en")            # generic: supportive; for Capricorn rising: a strain
-    assert r["tone"] == "mixed" and r["houses"] == [3, 12] and "rules your 3rd and 12th houses" in r["note"] and "come with a cost" in r["note"]
+    assert r["tone"] == "mixed" and r["houses"] == [3, 12] and "effort and communication" in r["note"] and "come with a cost" in r["note"]
     assert SE.chart_read("Jupiter", "Aries", None, "supportive", "en")["tone"] == "supportive"
     assert SE.chart_read("Saturn", "Aries", None, "testing", "en")["tone"] == "testing"
 
@@ -24,7 +24,7 @@ def test_chart_read_tone_combines_the_generic_nature_with_the_rising_sign():
 def test_nodes_act_through_the_sign_lord_where_they_sit():
     cd = {"planets": {"Rahu": {"sign": "Aries"}}}
     r = SE.chart_read("Rahu", "Capricorn", cd, "testing", "en")
-    assert r["houses"] == [4, 11] and "no house of its own" in r["note"]
+    assert r["houses"] == [4, 11] and "home and peace" in r["note"]
     assert SE.chart_read("Rahu", "Capricorn", {}, "testing", "en")["houses"] == []
 
 
@@ -106,3 +106,18 @@ def test_generic_windows_can_be_hidden_without_touching_the_rest():
 def test_home_generic_windows_key_is_registered_off_by_default():
     from antar_engine import app_config as AC
     assert AC.ALLOWED_KEYS["home_generic_windows"]["default"] == "off" and AC.ALLOWED_KEYS["home_generic_windows"]["kind"] == "bool"
+
+
+def test_season_text_and_payload_carry_no_jargon_or_internal_names():
+    import json, re
+    cd = {"planets": {"Rahu": {"sign": "Aries"}}}
+    for lg in ("en", "es"):
+        for planet, nature in (("Rahu", "testing"), ("Jupiter", "supportive"), ("Saturn", "testing")):
+            note = SE.chart_read(planet, "Capricorn", cd, nature, lg)["note"]
+            assert not re.search(r"\b(planet|house|houses|rising|ascend|casa|casas|ascendente|planeta)\b|\b\d+(st|nd|rd|th)\b|\d\.º", note, re.I), note
+    phase = {"available": True, "chapter": {"plain_name": "Ambition", "end": "2044-08-13", "line": "x"},
+             "shift": {"planet": "Rahu", "plain_name": "Ambition", "start": "2026-08-13", "end": "2029-04-25", "nature": "testing", "line": "a", "helps": "b", "watch": "c"},
+             "upcoming_shifts": []}
+    r = SE.build(phase, {"lagna": {"sign": "Capricorn"}, "planets": {"Rahu": {"sign": "Aries"}}}, "en", T)
+    blob = json.dumps(r)
+    assert "Rahu" not in blob and '"planet"' not in blob and '"houses"' not in blob
