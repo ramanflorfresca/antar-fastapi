@@ -48,6 +48,11 @@ def clause(c: dict) -> str:
         return f"transiting {t['a']} and {t['b']} are {t['aspect']} (orb {t.get('orb',8)})"
     if "age_year" in c:
         return f"running year of life is {c['age_year']}"
+    if "chain" in c:
+        who = c.get("planet") or f"the {c.get('lord_level','sub_sub_lord').replace('_',' ')} of cusp {c.get('cusp')}"
+        layers = "; ".join(f"its {k.replace('_',' ')}" + (f" is linked to cusps {_hs(v['links_to_cusps'])}" if "links_to_cusps" in v else "")
+                           + (f" signifies {_hs(v['signifies'])}" if "signifies" in v else "") for k, v in c["chain"].items())
+        return f"{fr}{who}: {layers}"
     if "cusp" in c:
         parts = [f"{fr}cusp {c['cusp']}"]
         for k in ("sub_lord_signifies", "sub_lord_star_lord_signifies"):

@@ -74,3 +74,24 @@ def test_question_time_rules_wait_for_a_question_moment():
     rule = {"id": "Q", "requires": [], "activation": [], "asked_at_judgement": True}
     assert kp_rules.applying(kp_rules.kp_state(ch), None, [rule]) == []
     assert kp_rules.applying(kp_rules.kp_state(ch, ruling={"Venus"}), None, [rule]) == [rule]
+
+
+def test_chain_clause_follows_the_planets_own_star_sub_and_sub_sub_lords():
+    ch = kl.enrich(_chart())
+    st = kp_rules.kp_state(ch, "male")
+    c7 = ch["cusps"][7]["sub_sub_lord"]
+    pl = ch["planets"][c7]
+    all12 = list(range(1, 13))
+    ok = {"frame": "kp", "cusp": 7, "lord_level": "sub_sub_lord",
+          "chain": {"star_lord": {"links_to_cusps": all12, "mode": "any", "via": ["sign", "star", "sub", "sub_sub"]},
+                    "sub_lord": {"links_to_cusps": all12, "mode": "any"},
+                    "sub_sub_lord": {"links_to_cusps": all12, "mode": "any"}}}
+    assert kp_rules.holds(ok, st)                                    # every lord of the 12 cusps is linked somewhere? at least star lord is a sign lord
+    bad = {**ok, "chain": {"star_lord": {"links_to_cusps": [], "mode": "any"}}}
+    assert not kp_rules.holds(bad, st)
+    sig = sorted(st["sig"].get(pl["sub_lord"], []))
+    if sig:
+        assert kp_rules.holds({"frame": "kp", "planet": c7, "chain": {"sub_lord": {"signifies": sig, "mode": "all"}}}, st)
+    assert not kp_rules.holds({"frame": "kp", "cusp": 99, "chain": {"star_lord": {"links_to_cusps": [1]}}}, st)
+    from antar_engine.rule_describe import clause
+    assert "its sub lord" in clause({"frame": "kp", "planet": "Venus", "chain": {"sub_lord": {"links_to_cusps": [2, 11]}}})
