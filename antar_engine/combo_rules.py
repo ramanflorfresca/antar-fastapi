@@ -4,7 +4,14 @@ where their conditions hold in the chart. Each combination was written as machin
 read from the lagna with whole signs and the standard Parashari lords. Rules whose condition needs strength,
 navamsa, degrees, sign types or counts of signs were dropped when the data was built, not guessed.
 
-State: {"lagna": 0-11, "signs": {planet: 0-11}, "gender": "male"|"female"|None}
+State: {"lagna": 0-11, "signs": {planet: 0-11}, "gender": "male"|"female"|None,
+        optional Jaimini data: "karakas": {"AK": planet, "AmK": ..., "BK", "MK", "PK", "GK", "DK"},
+                               "points": {"AL": sign, "UL": sign, "A7": sign, "KL": sign}}
+
+Entities: planet names, "L<k>" (lord of house k), the seven karakas "AK".."DK", and sign points "AL" (arudha lagna),
+"UL" (upapada), "A7" (darapada), "KL" (karakamsha), "lagna". Extra clauses for Jaimini rules:
+  {"point": "AL", "house_from": "lagna", "in": [10, 11]}     house of a sign point (or planet's sign) counted from another
+  {"planet": "AmK", "touches": "AL"}                          planet is in that sign or aspects it (rasi drishti)
 """
 import json
 import os
@@ -37,10 +44,15 @@ def load_rules(path: str = DATA_PATH) -> List[dict]:
     return rules
 
 
+KARAKAS = ("AK", "AmK", "BK", "MK", "PK", "GK", "DK")
+
+
 def _planet(state: dict, ent) -> Optional[str]:
-    """ENTITY -> planet name ('Moon', 'L5' = lord of the 5th, 'L1' = lagna lord)."""
+    """ENTITY -> planet name ('Moon', 'L5' = lord of the 5th, 'L1' = lagna lord, 'AK' = the atmakaraka)."""
     if isinstance(ent, str) and ent in PLANETS:
         return ent
+    if isinstance(ent, str) and ent in KARAKAS:
+        return (state.get("karakas") or {}).get(ent)
     m = re.fullmatch(r"L(\d{1,2})", str(ent))
     if m and 1 <= int(m.group(1)) <= 12:
         return LORD[(state["lagna"] + int(m.group(1)) - 1) % 12]
@@ -50,6 +62,8 @@ def _planet(state: dict, ent) -> Optional[str]:
 def _sign(state: dict, ent) -> Optional[int]:
     if ent == "lagna":
         return state["lagna"]
+    if isinstance(ent, str) and ent in (state.get("points") or {}):
+        return state["points"][ent]
     p = _planet(state, ent)
     return state["signs"].get(p) if p else None
 
@@ -74,8 +88,8 @@ def _signs_in_house(state: dict, h: int) -> int:
 
 
 def holds(c: dict, state: dict) -> bool:
-    if "unparsed" in c:
-        return False
+    if "unparsed" in c or c.get("frame") in ("kp", "varsha"):
+        return False            # KP and solar-return clauses have their own evaluators
     if "chart" in c and len(c) == 1:
         return state.get("gender") == c["chart"]
     signs = state["signs"]
@@ -104,6 +118,16 @@ def holds(c: dict, state: dict) -> bool:
         listed = c.get("holds_any") or c.get("holds_none_of")
         there = any(signs.get(p) in targets for p in listed)
         return there if "holds_any" in c else not there
+    if "point" in c and "house_from" in c and "in" in c:
+        a, b = _sign(state, c["point"]), _sign(state, c["house_from"])
+        return a is not None and b is not None and ((a - b) % 12 + 1) in c["in"]
+    if "planet" in c and "touches" in c:
+        p = _planet(state, c["planet"])
+        tgt = _sign(state, c["touches"])
+        if not p or p not in signs or tgt is None:
+            return False
+        from antar_engine.jaimini_engine import get_rashi_drishti
+        return signs[p] == tgt or tgt in get_rashi_drishti(signs[p])
     if "a" in c and "b" in c and "relation" in c:
         a, b = _planet(state, c["a"]), _planet(state, c["b"])
         if not a or not b or a not in signs or b not in signs:
@@ -149,3 +173,36 @@ def applies(rule: dict, state: dict) -> bool:
 def applying(state: dict, rules: Optional[List[dict]] = None) -> List[dict]:
     rules = load_rules() if rules is None else rules
     return [r for r in rules if applies(r, state)]
+
+
+def act_holds(a: dict, state: dict) -> bool:
+    """Activation clause at a date. state also carries 'periods' {md, ad, pd, sd}, 'transit' {planet: sign}, 'age_year'."""
+    if "unparsed" in a or a.get("frame") in ("kp", "varsha"):
+        return False
+    if "dasha" in a:
+        d = a["dasha"]
+        lord = (state.get("periods") or {}).get(d.get("level"))
+        if not lord:
+            return False
+        wanted = {_planet(state, e) for e in d.get("lords", [])}
+        return lord in wanted
+    if "transit" in a:
+        t = a["transit"]
+        ts = (state.get("transit") or {}).get(t.get("planet"))
+        ref = _sign(state, t.get("from", "lagna"))
+        if ts is None or ref is None:
+            return False
+        return ((ts - ref) % 12 + 1) in t.get("houses", [])
+    if "transit_conj" in a:
+        t = a["transit_conj"]
+        ts = (state.get("transit") or {}).get(t.get("planet"))
+        tgt = _sign(state, t.get("with"))
+        return ts is not None and tgt is not None and ts == tgt
+    if "age_year" in a:
+        return state.get("age_year") in a["age_year"]
+    return False
+
+
+def timed_ok(rule: dict, state: dict) -> bool:
+    """Natal requires AND every activation clause hold (state carries the date's periods and transits)."""
+    return applies(rule, state) and all(act_holds(a, state) for a in rule.get("activation", []))
