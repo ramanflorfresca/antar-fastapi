@@ -144,3 +144,45 @@ def test_pattern_never_uses_a_year_level_statement(monkeypatch):
     monkeypatch.setattr(fv.rr, "applicable", lambda c: ev)
     monkeypatch.setattr(fv.rr, "for_subject", lambda evs, s: evs)
     assert fv._pattern(ctx(), ("love",), "en", {"partnered": False})["text"] == "You value steady partnership."
+
+
+def _lib2():
+    mk = lambda subj, text, rid, start="2026-10-14", end="2027-01-01": {"rule_id": rid, "text": text, "subject": subj, "start": start, "end": end, "tendency": False}
+    return {"horizon": ["a", "b"], "agree": [],
+            "vimshottari": {"lean_in": [mk("money", "Income opens up.", "BK.A"), mk("marriage", "Partnership takes shape.", "BK.B"),
+                                        mk("career", "Clients come in.", "BK.D")],
+                            "watch": [{**mk("money", "Big commitments can backfire.", "BK.C", "2027-02-01", "2027-03-01"), "do": "Check the numbers twice."},
+                                      {**mk("marriage", "Rush into promises.", "BK.E"), "do": "Slow down."}]},
+            "jaimini": {"lean_in": [], "watch": []}}
+
+
+def _run2(monkeypatch, life, area=None):
+    from tests.test_rule_registry import ctx
+    monkeypatch.setattr(fv.rr, "applicable", lambda c: [])
+    monkeypatch.setattr(fv.rr, "remedy_calendar", lambda c, l, s=None: {"six_months": [
+        {"steps": ["Bury barley under heavy weights."], "duration": "43 days", "problem": "p", "rule_id": "RM.1"}]} if s == "money" else {})
+    monkeypatch.setattr(fv.rr, "_windows", lambda c, s, l: [{"action": "Line up your asks.", "start": "2026-10-14", "end": "2027-02-01", "both_systems": True}]
+                        if s in ("money", "career") else [])
+    monkeypatch.setattr(when_engine, "_lk_year", lambda c, s: None)
+    return fv.build(ctx(), _lib2(), life, ["money", "business"], "en", None, None, 6, area)
+
+
+def test_a_founder_gets_one_business_and_money_card_others_keep_money_and_work_apart(monkeypatch):
+    out = _run2(monkeypatch, {"employed": False})
+    keys = [c["area"] for c in out["focus"]] + [a["area"] for a in out["also"]]
+    assert "business" in keys and "money" not in keys and "work" not in keys
+    emp = _run2(monkeypatch, {"employed": True})
+    keys2 = [c["area"] for c in emp["focus"]] + [a["area"] for a in emp["also"]]
+    assert "money" in keys2 and "work" in keys2 and "business" not in keys2
+
+
+def test_detail_has_only_this_topics_statements_and_everything_in_one_place(monkeypatch):
+    out = _run2(monkeypatch, {"employed": False}, area="money")          # circle says Money; a founder's card is business
+    d = out["detail"]
+    assert d["area"] == "business" and d["goal"].startswith("Grow the business")
+    texts = [b["text"] for b in d["bring"]] + [a["text"] for a in d["avoid"]]
+    assert "Income opens up." in texts and "Clients come in." in texts and "Partnership takes shape." not in texts and "Rush into promises." not in texts
+    assert d["do"] == ["Line up your asks."] and d["avoid"][0]["instead"] == "Check the numbers twice."
+    assert d["remedies"][0]["text"].startswith("Bury barley") and d["mantra"]["text"] == "Om Budhaya Namaha"
+    assert d["windows"]["avoid"] == [{"start": "2027-02-01", "end": "2027-03-01"}] and d["windows"]["best"]["start"] == "2026-10-14"
+    assert out["labels"]["focus_title"].startswith("for the next 3 to 6 months") and out["labels"]["do"] == "Do"
