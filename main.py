@@ -4614,8 +4614,14 @@ def _chart_row_for_forecast(chart_id: str):
             raise
 
 
+def _is_admin_request(http_request) -> bool:
+    """Internal view (method names, book labels, rule ids) only with the admin key; every user surface gets the one-voice view."""
+    _admin = os.getenv("ADMIN_EXPORT_KEY")
+    return bool(_admin) and http_request.headers.get("X-Admin-Key") == _admin
+
+
 @app.get("/api/v1/chart/{chart_id}/week")
-async def get_chart_week(chart_id: str, language: str = "en", days: int = 7):
+async def get_chart_week(chart_id: str, http_request: Request, language: str = "en", days: int = 7):
     """Week ahead as separate labelled lines: Vimshottari (+ Moon-based Gochara), Jaimini/book timed rules, Lal Kitab
     year. Deterministic; empty where no rule applies."""
     def _run():
@@ -4638,11 +4644,14 @@ async def get_chart_week(chart_id: str, language: str = "en", days: int = 7):
         raise HTTPException(500, "week unavailable")
     if out is None:
         raise HTTPException(404, "Chart not found")
+    if not _is_admin_request(http_request):
+        from antar_engine import public_view
+        return public_view.week(out)
     return out
 
 
 @app.get("/api/v1/chart/{chart_id}/astrologer")
-async def get_chart_astrologer(chart_id: str, question: str = "", subject: str = "", qword: str = "",
+async def get_chart_astrologer(chart_id: str, http_request: Request, question: str = "", subject: str = "", qword: str = "",
                                language: str = "en"):
     """Deterministic astrologer: applies the registered book rules that hold in this chart and answers
     what / why / when / how / where / which for a subject (money, funding, career, job, business, love,
@@ -4692,11 +4701,14 @@ async def get_chart_astrologer(chart_id: str, question: str = "", subject: str =
         raise HTTPException(500, "astrologer unavailable")
     if out is None:
         raise HTTPException(404, "Chart not found")
+    if not _is_admin_request(http_request):
+        from antar_engine import public_view
+        return public_view.answer(out)
     return out
 
 
 @app.get("/api/v1/chart/{chart_id}/reading")
-async def get_chart_reading(chart_id: str, language: str = "en", months: int = 24):
+async def get_chart_reading(chart_id: str, http_request: Request, language: str = "en", months: int = 24):
     """Plain-language 24-month decision calendar (money, career, relationships, learning)
     composed deterministically from the Jaimini + Parashari + D-10 + Lal Kitab engines.
     No LLM; contains no technical terms. Locales: en, es."""
@@ -4734,6 +4746,11 @@ async def get_chart_reading(chart_id: str, language: str = "en", months: int = 2
         raise HTTPException(500, "reading unavailable")
     if out is None:
         raise HTTPException(404, "Chart not found")
+    if not _is_admin_request(http_request):
+        from antar_engine import public_view
+        out = dict(out)
+        out.pop("periods_now", None)                       # internal, never for display
+        out["library"] = public_view.library(out.get("library"))
     return out
 
 

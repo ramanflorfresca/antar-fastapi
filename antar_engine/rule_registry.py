@@ -717,7 +717,7 @@ def _windows(ctx: Ctx, subject: str, lang: str):
     return []
 
 
-_WHEN_AGREE = {"en": "Where independent timing signals agree:", "es": "Donde coinciden señales de tiempo independientes:"}
+_WHEN_AGREE = {"en": "Strongest stretches:", "es": "Los periodos más fuertes:"}
 _SPEC_STANCE = {
     "en": {"good": "Overall your chart leans supportive toward speculation.",
            "bad": "Overall your chart leans costly toward speculation; take extra care.",
@@ -852,7 +852,7 @@ def answer(ctx: Ctx, subject: Optional[str], qword: str = "what", lang: str = "e
             lines.append(tx["wake"].format(age=w["age"]))
         tl = timeline(ctx, subject, 24, lang) if ctx.vim_rows else []
         for sg in tl:
-            lines.append(f'{sg["start"][:7]} to {sg["end"][:7]}: {sg["tone_label"]}' + (" (both timing systems)" if sg["both"] and lang == "en" else ""))
+            lines.append(f'{sg["start"][:7]} to {sg["end"][:7]}: {sg["tone_label"]}')
             used += sg["ids"]
         try:
             from antar_engine import when_engine
@@ -862,8 +862,8 @@ def answer(ctx: Ctx, subject: Optional[str], qword: str = "what", lang: str = "e
         if wc and wc["agree"]:
             lines.append(_WHEN_AGREE[lang if lang in _WHEN_AGREE else "en"])
             for w in wc["agree"][:3]:
-                lines.append(f'- {w["start"][:7]} to {w["end"][:7]} ({w["strength"]}): ' + ", ".join(w["line_names"])
-                             + (" - " + ("most of all " if lang != "es" else "sobre todo ") + ", ".join(f'{p["start"][:10]} to {p["end"][:10]}' for p in w["peaks"][:2]) if w.get("peaks") else ""))
+                lines.append(f'- {w["start"][:7]} to {w["end"][:7]} ({w["strength"]})'
+                             + (": " + ("most of all " if lang != "es" else "sobre todo ") + ", ".join(f'{p["start"][:10]} to {p["end"][:10]}' for p in w["peaks"][:2]) if w.get("peaks") else ""))
         when_combined = wc
         if not wins and not wake and not tl and not (wc and wc["agree"]):
             lines.append(tx["none_when"].format(s=label))
