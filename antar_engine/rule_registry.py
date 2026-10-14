@@ -33,7 +33,7 @@ from antar_engine import combo_rules as cb
 from antar_engine import lk_remedies as lkr
 from antar_engine import vim_levels as vl
 from antar_engine import book_rules as br
-from antar_engine.transit_signs import transit_signs
+from antar_engine.transit_signs import transit_signs, transit_longitudes, transit_longitudes_tropical
 from antar_engine.varshaphal_table import get_annual_house
 from antar_engine.lal_kitab_events import lal_kitab_profile, AGE_TRIGGERS, MATURITY
 
@@ -404,6 +404,8 @@ def timed_book_evidence(ctx: Ctx, when: date) -> List[Evidence]:
     st = dict(ctx.chart_state())
     st["periods"] = ctx.periods_at(when)
     st["transit"] = transit_signs(when)
+    st["transit_lon"] = transit_longitudes(when)
+    st["transit_lon_trop"] = transit_longitudes_tropical(when)
     return [_book_evidence(r) for r in ctx.timed_book_rules() if all(cb.act_holds(a, st) for a in r["activation"])]
 
 
@@ -572,6 +574,16 @@ def timeline(ctx: Ctx, subject: str, months: int = 24, lang: str = "en"):
         d = ctx.today + timedelta(days=30 * k)
         rr_, _ = running_rules(ctx, d, subject)
         tones = {e.tone for e, _ in rr_ if e.tone in ("good", "bad")}
+        # library rules timed by dasha/transit: many fire at once, so they vote (2:1 wins, else mixed) instead of every rule counting
+        bk = [e for e in for_subject(timed_book_evidence(ctx, d), subject) if e.tone in ("good", "bad")]
+        g, b = sum(e.tone == "good" for e in bk), sum(e.tone == "bad" for e in bk)
+        if g and g >= 2 * b:
+            tones.add("good")
+        elif b and b >= 2 * g:
+            tones.add("bad")
+        elif g and b:
+            tones |= {"good", "bad"}
+        rr_ = list(rr_) + [(e, ["book"]) for e in bk]
         tone = "mixed" if tones == {"good", "bad"} else ("good" if tones == {"good"} else ("bad" if tones == {"bad"} else None))
         two = any(len(sy) == 2 for _, sy in rr_)
         ids = tuple(sorted(e.rule_id for e, _ in rr_ if e.tone in ("good", "bad")))

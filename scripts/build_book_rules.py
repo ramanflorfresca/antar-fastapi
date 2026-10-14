@@ -35,12 +35,12 @@ def frame_of(rule):
 
 
 def build(data_dir):
-    files = sorted(glob.glob(os.path.join(data_dir, "RULES_book_*_2026-10-13.json")))
+    files = sorted(glob.glob(os.path.join(data_dir, "RULES_book_*_2026-10-1[34].json")))
     st = {"files": len(files), "raw": 0}
     out = {"main": [], "kp": [], "varsha": []}
     seen = set()
     for f in files:
-        book = os.path.basename(f)[len("RULES_book_"):-len("_2026-10-13.json")]
+        book = os.path.basename(f)[len("RULES_book_"):-len("_2026-10-13.json")]       # both dates have the same length
         for r in json.load(open(f)).get("rules", []):
             st["raw"] += 1
             en = (r.get("effect_en") or "").strip()
@@ -70,7 +70,10 @@ def build(data_dir):
             rem_es = (r.get("remedy_es") or "").strip() or None
             if rem and (PLANET_RE.search(rem) or JARGON_RE.search(rem)):
                 rem = rem_es = None
-            rule = {"id": r["id"], "book": book, "requires": r.get("requires", []), "activation": r.get("activation", []),
+            acts = r.get("activation", [])
+            if r.get("zodiac") == "tropical":          # Butaney: his positions are tropical; mark each clause so the engine uses them
+                acts = [{**a, "zodiac": "tropical"} if any(k.startswith("transit_") for k in a) else a for a in acts]
+            rule = {"id": r["id"], "book": book, "requires": r.get("requires", []), "activation": acts,
                     "tone": r.get("tone", "info"), "topics": r.get("topics") or ["other"], "effect": en,
                     "effect_es": es or None, "remedy": rem, "remedy_es": rem_es if rem else None,
                     "timing_note": r.get("timing_note"), "clarity": r.get("clarity", "clear"), "line": r.get("line")}
@@ -80,6 +83,27 @@ def build(data_dir):
                 continue
             seen.add(key)
             out[frame_of(r)].append(rule)
+    # owner overrides survive rebuilds: antar_engine/data/rule_overrides.json {"overrides": {id: {drop|effect|effect_es|tone|topics|remedy|remedy_es}}}
+    ov_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "antar_engine", "data", "rule_overrides.json")
+    try:
+        ov = json.load(open(ov_path)).get("overrides", {})
+    except Exception:
+        ov = {}
+    if ov:
+        n_drop = n_edit = 0
+        for fr in out:
+            kept = []
+            for r in out[fr]:
+                o = ov.get(r["id"])
+                if o and o.get("drop"):
+                    n_drop += 1
+                    continue
+                if o:
+                    r = {**r, **{k: v for k, v in o.items() if k in ("effect", "effect_es", "tone", "topics", "remedy", "remedy_es")}}
+                    n_edit += 1
+                kept.append(r)
+            out[fr] = kept
+        st["overrides_dropped"], st["overrides_edited"] = n_drop, n_edit
     # same conditions + same topic + good AND bad = contradiction: remove that topic from the clashing rules
     for fr, rules in out.items():
         def gk(r):

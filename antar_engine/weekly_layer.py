@@ -14,10 +14,14 @@ from antar_engine import rule_registry as rr
 
 
 def _book_lines(ctx, start: date, days: int, language: str) -> list:
+    from antar_engine import book_rules, combo_rules
+    by_id = {r["id"]: r for r in book_rules.load_rules()}
     seen, out = {}, []
     for i in range(days):
         d = start + timedelta(days=i)
         for ev in rr.timed_book_evidence(ctx, d):
+            if combo_rules.is_impersonal(by_id.get(ev.rule_id[3:] if ev.rule_id.startswith("BK.") else ev.rule_id) or {}):
+                continue                                  # same for everyone: not shown in the personal week
             if ev.rule_id in seen:
                 seen[ev.rule_id]["days"].append(d.isoformat())
                 continue
@@ -176,4 +180,9 @@ def week(ctx, language: str = "en", days: int = 7, start: Optional[date] = None)
            "jaimini": _book_lines(ctx, start, days, language),
            "lal_kitab": _lk_line(ctx, language)}
     out.update(_blocks(out, language))
+    try:
+        from antar_engine import reading_library
+        out["wellness"] = reading_library.wellness(ctx, start, max(days, 30), language)
+    except Exception:
+        out["wellness"] = None
     return out

@@ -38,7 +38,7 @@ def test_weekly_layer_three_labelled_lines():
     from antar_engine import weekly_layer
     c = ctx()
     out = weekly_layer.week(c, "en", 7)
-    assert set(out) == {"start", "days", "vimshottari", "jaimini", "lal_kitab", "lean_in", "watch", "watch_more"}
+    assert set(out) == {"start", "days", "vimshottari", "jaimini", "lal_kitab", "lean_in", "watch", "watch_more", "wellness"}
     assert out["vimshottari"]["gochara"]["background"]
     assert isinstance(out["jaimini"], list) and "year_lord" in out["lal_kitab"]
 
