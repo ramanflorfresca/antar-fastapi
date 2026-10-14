@@ -76,6 +76,31 @@ def holds(c: dict, st: dict) -> bool:
             return False
         have = set(kl.links(ch_, who, tuple(c.get("via", ("sign", "star", "sub", "sub_sub")))))
         return _mode_ok(have, c["links_to_cusps"], mode)
+    if "chain" in c and ("planet" in c or "cusp" in c):
+        # the book's three-layer reading: take the planet (or the cusp's `lord_level` lord), then test ITS OWN star lord, sub lord and
+        # sub-sub lord, each for cusp links and/or signified houses. All listed layers must hold.
+        if "planet" in c:
+            who = c["planet"]
+        else:
+            cu_ = ch_["cusps"].get(c["cusp"])
+            if not cu_:
+                return False
+            who = cu_.get(c.get("lord_level", "sub_sub_lord"))
+        pl_ = ch_["planets"].get(who)
+        if not pl_:
+            return False
+        for layer, spec in c["chain"].items():            # layer: star_lord | sub_lord | sub_sub_lord | sign_lord
+            lord = pl_.get(layer)
+            if not lord:
+                return False
+            m = spec.get("mode", "any")
+            if "links_to_cusps" in spec:
+                have = set(kl.links(ch_, lord, tuple(spec.get("via", ("sign", "star", "sub", "sub_sub")))))
+                if not _mode_ok(have, spec["links_to_cusps"], m):
+                    return False
+            if "signifies" in spec and not _mode_ok(set(st["sig"].get(lord, [])), spec["signifies"], m):
+                return False
+        return True
     if "retrograde" in c and "planet" in c:
         pl_ = ch_["planets"].get(c["planet"])
         return bool(pl_) and bool(pl_.get("retrograde")) == bool(c["retrograde"])
