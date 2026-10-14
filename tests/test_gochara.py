@@ -38,7 +38,7 @@ def test_weekly_layer_three_labelled_lines():
     from antar_engine import weekly_layer
     c = ctx()
     out = weekly_layer.week(c, "en", 7)
-    assert set(out) == {"start", "days", "vimshottari", "jaimini", "lal_kitab"}
+    assert set(out) == {"start", "days", "vimshottari", "jaimini", "lal_kitab", "lean_in", "watch", "watch_more"}
     assert out["vimshottari"]["gochara"]["background"]
     assert isinstance(out["jaimini"], list) and "year_lord" in out["lal_kitab"]
 
@@ -60,3 +60,22 @@ def test_character_labels_and_vague_spans_removed():
         for r in json.load(open(f"antar_engine/data/{f}.json"))["rules"]:
             assert not LABEL_RE.search(r.get("effect") or ""), r["id"]
     assert not any(re.search("pin down", r["effect"]) for r in json.load(open("antar_engine/data/book_rules.json"))["rules"])
+
+
+def test_watch_block_has_action_or_is_hidden():
+    from antar_engine import weekly_layer as wl
+    out = {"jaimini": [
+        {"rule_id": "BK.X", "book": "K.N. Rao", "tone": "bad", "subjects": ["money"], "text": "t", "days": ["d"]},
+        {"rule_id": "BK.Y", "book": "K.N. Rao", "tone": "bad", "subjects": ["other"], "text": "u", "days": ["d"]},
+        {"rule_id": "BK.Z", "book": "K.N. Rao", "tone": "good", "subjects": ["money"], "text": "g", "days": ["d"]}],
+        "lal_kitab": {"rules": []}, "vimshottari": {"gochara": None}}
+    b = wl._blocks(out, "en")
+    assert [w["rule_id"] for w in b["watch"]] == ["BK.X"] and b["watch"][0]["do"]
+    assert [l["rule_id"] for l in b["lean_in"]] == ["BK.Z"]
+
+
+def test_every_topic_step_is_plain_and_bilingual():
+    from antar_engine import weekly_layer as wl
+    from scripts.build_rc_rules import PLANET_RE, JARGON_RE, LABEL_RE
+    for en, es in wl.STEPS.values():
+        assert en and es and not (PLANET_RE.search(en) or JARGON_RE.search(en) or LABEL_RE.search(en))
