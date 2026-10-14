@@ -94,3 +94,14 @@ def test_folded_areas_get_a_hint_only_when_it_is_a_dated_season_line_not_seen_el
     assert fv._also_hint({"area": "partnership", "season": None, "pattern": {"text": "Flattering trait."}}, focus) is None
     assert fv._also_hint({"area": "partnership", "season": {"text": "Strong support through Apr 2027."}}, focus) is None   # already shown
     assert fv._also_hint({"area": "partnership", "season": {"text": "Oct 2026 to Jun 2027 favours partnership."}}, focus) == "Oct 2026 to Jun 2027 favours partnership."
+
+
+def test_every_card_and_folded_row_carries_a_window_status(monkeypatch):
+    out = _run(monkeypatch, recent=["money"])
+    c = out["focus"][0]
+    assert c["window"]["kind"] == "window" and c["window"]["start"] and c["window"]["end"]
+    assert out["labels"]["window"] == "Window" and out["labels"]["take_care"] == "Take care"
+    assert all("window" in a for a in out["also"])
+    assert fv._window(None, {"text": "x"}) == {"kind": "care", "start": None, "end": None}
+    assert fv._window({"start": "2026-10-14", "end": "2027-01-01", "strength": "possible"}, {"text": "x"})["kind"] == "care"
+    assert fv._window(None, None) is None
