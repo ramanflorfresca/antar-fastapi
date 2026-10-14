@@ -98,7 +98,7 @@ def test_answers_are_deterministic_plain_and_bilingual():
 def test_silence_when_no_rule_applies():
     c = ctx({"Sun": 0, "Moon": 0, "Mars": 0, "Mercury": 0, "Jupiter": 0, "Venus": 0, "Saturn": 0, "Rahu": 0, "Ketu": 6})
     a = rr.answer(c, "children", "what", "en")
-    assert a["applicable"] is False and "no rule" in a["text"]
+    assert a["applicable"] is False and "nothing to predict" in a["text"]
 
 
 def test_remedies_attach_to_straining_placements_and_name_no_planet():
