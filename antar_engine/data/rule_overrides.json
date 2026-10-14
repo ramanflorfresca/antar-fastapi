@@ -1,1 +1,9 @@
-{"about": "Owner edits to library rules; survive rebuilds. Key = rule id. Use {\"drop\": true} to remove, or any of effect, effect_es, tone, topics, remedy, remedy_es to change it. Then run scripts/build_book_rules.py.", "overrides": {}}
+{
+ "about": "Owner edits to library rules; survive rebuilds. Key = rule id. Use {\"drop\": true} to remove, or any of effect, effect_es, tone, topics, remedy, remedy_es to change it. Then run scripts/build_book_rules.py.",
+ "overrides": {
+  "BVJ1.20": {
+   "effect": "You are drawn to uncertain, high-stakes situations, and you do best when you turn that pull into calculated risk.",
+   "effect_es": "Te atraen las situaciones inciertas y de alto riesgo, y te va mejor cuando conviertes esa atracción en riesgo calculado."
+  }
+ }
+}
