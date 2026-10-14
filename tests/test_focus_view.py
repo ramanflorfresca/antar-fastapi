@@ -113,3 +113,26 @@ def test_window_prefers_the_strongest_stretch_and_keeps_the_end_of_support():
     assert w == {"kind": "window", "start": "2026-10-14", "end": "2026-11-26", "through": "2027-04-14"}
     w2 = fv._window({"start": "2026-10-14", "end": "2027-04-14", "strength": "good", "peaks": []}, None)
     assert w2["start"] == "2026-10-14" and w2["end"] == "2027-04-14" and w2["through"] == "2027-04-14"
+
+
+def test_no_present_tense_spouse_or_children_claims_unless_known():
+    assert fv._gate_ok("Your spouse comes from a high-standing family.", {"partnered": False}) is False
+    assert fv._gate_ok("Your spouse comes from a high-standing family.", {"partnered": None}) is False
+    assert fv._gate_ok("Your spouse comes from a high-standing family.", {"partnered": True}) is True
+    assert fv._gate_ok("You are attached to your children.", {"has_children": False}) is False
+    assert fv._gate_ok("You are attached to your children.", {"has_children": True}) is True
+    assert fv._gate_ok("Partnership takes shape.", {}) is True and fv._gate_ok(None, {}) is True
+
+
+def test_focus_pattern_skips_spouse_lines_for_someone_who_is_not_partnered(monkeypatch):
+    from tests.test_rule_registry import ctx
+    ev = [rr_ev("Your spouse comes from a high-standing family.", "A"), rr_ev("You value steady partnership.", "B")]
+    monkeypatch.setattr(fv.rr, "applicable", lambda c: ev)
+    monkeypatch.setattr(fv.rr, "for_subject", lambda evs, s: evs)
+    p = fv._pattern(ctx(), ("love",), "en", {"partnered": False, "marital": "divorced"})
+    assert p["text"] == "You value steady partnership."
+    assert fv._pattern(ctx(), ("love",), "en", {"partnered": True})["text"] in ("Your spouse comes from a high-standing family.", "You value steady partnership.")
+
+
+def rr_ev(text, rid):
+    return fv.rr.Evidence(rid, "x", ["love"], "good", "specific", {"en": text}, {"en": ""})
