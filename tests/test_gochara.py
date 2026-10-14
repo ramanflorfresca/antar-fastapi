@@ -95,3 +95,19 @@ def test_wellness_never_repeats_the_same_habit_on_two_shown_themes(monkeypatch):
     w = rl.wellness(ctx(), language="en")
     remedies = [t["remedy"] for t in w["themes"] if t["remedy"]]
     assert len(remedies) == len(set(remedies)) and "Use neem." in remedies and len(w["themes"]) == 3
+
+
+def test_week_never_repeats_a_practical_step_and_never_carries_year_level_rules():
+    from antar_engine import weekly_layer as wl
+    out = {"jaimini": [
+        {"rule_id": "BK.A", "book": "x", "tone": "bad", "subjects": ["career"], "text": "Caution one.", "days": ["d"]},
+        {"rule_id": "BK.B", "book": "x", "tone": "bad", "subjects": ["career"], "text": "Caution two.", "days": ["d"]},
+        {"rule_id": "BK.C", "book": "x", "tone": "bad", "subjects": ["money"], "text": "Caution three.", "days": ["d"]}],
+        "lal_kitab": {"rules": [{"rule_id": "RC.1", "tone": "bad", "text": "This year all hopes come to nothing.", "subjects": ["money"]},
+                                 {"rule_id": "RC.2", "tone": "good", "text": "A favourable year for a wedding.", "subjects": ["love"]}]},
+        "vimshottari": {"gochara": None}}
+    b = wl._blocks(out, "en")
+    dos = [w["do"] for w in b["watch"]]
+    assert len(dos) == len(set(dos)) and len(b["watch"]) == 2 and len(b["watch_more"]) == 1
+    txt = " ".join(i["text"] for i in b["lean_in"] + b["watch"] + b["watch_more"])
+    assert "This year" not in txt and "wedding" not in txt

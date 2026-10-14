@@ -144,14 +144,7 @@ def _blocks(out: dict, language: str) -> dict:
             act = _action(row["subjects"], remedy, language)
             if act:
                 watch.append({**item, "do": act})
-    for r in out["lal_kitab"]["rules"]:
-        item = {"line": "lal_kitab", "source": "Lal Kitab", "text": r["text"], "rule_id": r["rule_id"]}
-        if r["tone"] == "good":
-            lean.append(item)
-        elif r["tone"] == "bad":
-            act = _action(r.get("subjects"), None, language)
-            if act:
-                watch.append({**item, "do": act})
+    # The Lal Kitab annual rules describe the YEAR, not this week: they live in the year view (focus / season), never in the week.
     g = (out["vimshottari"].get("gochara") or {})
     for l in g.get("background", []) + g.get("this_month", []):
         item = {"line": "vimshottari", "source": "Raman, transits", "text": l["text"], "rule_id": "GOCHARA." + l["planet_key"]}
@@ -166,7 +159,15 @@ def _blocks(out: dict, language: str) -> dict:
                       "text": "Slower days this week: " + ", ".join(g["slow_days"]) if language != "es"
                       else "Días más lentos esta semana: " + ", ".join(g["slow_days"]),
                       "days": g["slow_days"], "do": _lang(MOON_STEP, language)})
-    return {"lean_in": lean, "watch": watch[:MAX_WATCH], "watch_more": watch[MAX_WATCH:]}
+    seen_do, uniq, extra = set(), [], []
+    for w in watch:
+        d = w.get("do")
+        if d in seen_do:
+            extra.append(w)               # same practical step as a caution already shown: held back, not repeated
+        else:
+            seen_do.add(d)
+            uniq.append(w)
+    return {"lean_in": lean, "watch": uniq[:MAX_WATCH], "watch_more": uniq[MAX_WATCH:] + extra}
 
 
 def week(ctx, language: str = "en", days: int = 7, start: Optional[date] = None) -> dict:
