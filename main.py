@@ -4703,6 +4703,8 @@ async def get_chart_reading(chart_id: str, language: str = "en", months: int = 2
                            birth_time_accuracy=row.data.get("birth_time_accuracy"), gender=row.data.get("gender"))
             out["remedy_calendar"] = _rr.remedy_calendar(_ctx, language)
             out["periods_now"] = _ctx.periods_at(_ctx.today)    # internal, not for display
+            from antar_engine import reading_library as _rl
+            out["library"] = _rl.build(_ctx, min(months, 24), language)
         except Exception as _e:
             print(f"[reading] remedy calendar non-fatal: {_e}")
         return out
