@@ -33,6 +33,8 @@ def resolve_ref(ref: str) -> Optional[str]:
             ids += [r["id"] for r in rc_rules.load_rules()]
             ids += [r["id"] for r in combo_rules.load_rules()]
             ids += ["BK." + r["id"] for r in kp_rules.load_rules()]
+            from antar_engine import lk_remedies
+            ids += [r["id"] for r in lk_remedies.load_remedies()]
         except Exception:
             pass
         _index = {ref_for(i): i for i in ids}
