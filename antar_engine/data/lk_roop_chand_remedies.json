@@ -1,0 +1,2005 @@
+{
+"source": "Pt. Roop Chand Joshi, Text Book of Lal Kitab: remedies, decomposed 2026-10-13",
+"remedies": [
+{
+"id": "RM.A.1",
+"line": 5655,
+"requires": [
+{
+"planet": "Jupiter",
+"with": "Moon"
+}
+],
+"topics": [
+"family",
+"other"
+],
+"problem": "Your parents and close family suffer and your efforts bring distress however hard you work.",
+"problem_es": "Tus padres y tu familia cercana sufren y tus esfuerzos te traen angustia por mucho que trabajes.",
+"steps": [
+"Wear a two-coloured stone or a turmeric root on your body, around the neck or on another limb."
+],
+"steps_es": [
+"Lleva sobre el cuerpo una piedra de dos colores o una raíz de cúrcuma, en el cuello o en otra parte del cuerpo."
+],
+"duration": null,
+"duration_es": null
+},
+{
+"id": "RM.A.2",
+"line": 6003,
+"requires": [
+{
+"planet": "Jupiter",
+"with": "Rahu"
+}
+],
+"topics": [
+"money",
+"other"
+],
+"problem": "Your earnings get split and lost, and working twice as hard still does not give normal returns.",
+"problem_es": "Tus ingresos se dividen y se pierden, y trabajar el doble no te da ni los resultados normales.",
+"steps": [
+"Wash barley in milk and keep it; for 43 days regularly, flow some of that barley into a running stream."
+],
+"steps_es": [
+"Lava cebada con leche y guárdala; durante 43 días seguidos, echa un poco de esa cebada a una corriente de agua."
+],
+"duration": "43 days",
+"duration_es": "43 días"
+},
+{
+"id": "RM.A.3",
+"line": 6287,
+"requires": [
+{
+"planet": "Sun",
+"with": "Saturn"
+}
+],
+"topics": [
+"family",
+"career",
+"other"
+],
+"problem": "Authority and hard work pull against each other, so you face setbacks with officials and your peace at home suffers.",
+"problem_es": "La autoridad y el trabajo duro se contraponen, así que enfrentas contratiempos con autoridades y tu paz en casa se resiente.",
+"steps": [
+"Flow coconut and almonds down a running stream during the hours of a solar eclipse.",
+"Keep green flowering plants, singing birds and flowering pots at home.",
+"Bury blue flowers and glass beads in a lonely, quiet spot."
+],
+"steps_es": [
+"Echa coco y almendras a una corriente de agua durante las horas de un eclipse solar.",
+"Ten en casa plantas verdes con flores, aves que canten y macetas con flores.",
+"Entierra flores azules y cuentas de vidrio en un lugar solitario y tranquilo."
+],
+"duration": null,
+"duration_es": null
+},
+{
+"id": "RM.A.4",
+"line": 6412,
+"requires": [
+{
+"planet": "Sun",
+"with": "Rahu"
+}
+],
+"topics": [
+"money",
+"other"
+],
+"problem": "You are exposed to theft and to losses and pointless expenses, and officials treat you badly.",
+"problem_es": "Estás expuesto a robos, a pérdidas y gastos inútiles, y las autoridades te tratan mal.",
+"steps": [
+"Bury barley under heavy weights in a dark place."
+],
+"steps_es": [
+"Entierra cebada bajo pesos grandes en un lugar oscuro."
+],
+"duration": null,
+"duration_es": null
+},
+{
+"id": "RM.A.6",
+"line": 6668,
+"requires": [
+{
+"planet": "Moon",
+"with": "Saturn"
+}
+],
+"topics": [
+"money",
+"other"
+],
+"problem": "Your mind and money pull in opposite directions: money you earn is taken by others or brings you a bad name, and your judgement wavers.",
+"problem_es": "Tu mente y tu dinero van en direcciones opuestas: el dinero que ganas lo toman otros o te trae mala fama, y tu criterio vacila.",
+"steps": [
+"Put milk at the place where snakes live.",
+"Flow almonds and coconut down a running stream during the hours of a lunar eclipse."
+],
+"steps_es": [
+"Deja leche en el lugar donde viven las serpientes.",
+"Echa almendras y coco a una corriente de agua durante las horas de un eclipse lunar."
+],
+"duration": null,
+"duration_es": null
+},
+{
+"id": "RM.A.7",
+"line": 6726,
+"requires": [
+{
+"planet": "Moon",
+"with": "Rahu"
+}
+],
+"topics": [
+"children"
+],
+"problem": "Obstacles stand in the way of having children.",
+"problem_es": "Hay obstáculos para tener hijos.",
+"steps": [
+"Heat a gold stick, quench it in milk, and repeat 11 times; then drink that cooled milk, every day without a break."
+],
+"steps_es": [
+"Calienta una varilla de oro y templa en leche; repite 11 veces; luego bebe esa leche ya fría, todos los días sin interrupción."
+],
+"duration": "43 days, continuous",
+"duration_es": "43 días, sin interrupción"
+},
+{
+"id": "RM.A.8",
+"line": 6781,
+"requires": [
+{
+"planet": "Moon",
+"with": "Ketu"
+}
+],
+"topics": [
+"education"
+],
+"problem": "Your studies stall: you cannot finish them, or cannot get started.",
+"problem_es": "Tus estudios se estancan: no logras terminarlos o no logras comenzarlos.",
+"steps": [
+"Take three plantains to a religious place every day without missing a day."
+],
+"steps_es": [
+"Lleva tres plátanos a un lugar religioso cada día sin faltar ningún día."
+],
+"duration": "48 days, without a gap",
+"duration_es": "48 días, sin faltar ninguno"
+},
+{
+"id": "RM.A.9",
+"line": 6781,
+"requires": [
+{
+"planet": "Moon",
+"with": "Ketu"
+}
+],
+"topics": [
+"children",
+"family"
+],
+"problem": "Around the birth of a child, strain at home weighs on the child and the mother.",
+"problem_es": "Alrededor del nacimiento de un hijo, la tensión en casa pesa sobre el niño y sobre la madre.",
+"steps": [
+"Keep your wife and your mother apart for 40 to 43 days before and the same period after your child is born.",
+"Do not drink milk at night."
+],
+"steps_es": [
+"Mantén separadas a tu esposa y a tu madre durante 40 a 43 días antes y el mismo periodo después del nacimiento de tu hijo.",
+"No tomes leche por la noche."
+],
+"duration": "40-43 days before and after the birth",
+"duration_es": "40 a 43 días antes y después del nacimiento"
+},
+{
+"id": "RM.A.13",
+"line": 7008,
+"requires": [
+{
+"planet": "Venus",
+"with": "Rahu"
+}
+],
+"topics": [
+"marriage",
+"money"
+],
+"problem": "Your respect and wealth look good on the surface but feel hollow, and your partner has a hard time.",
+"problem_es": "Tu respeto y tu riqueza se ven bien por fuera pero se sienten vacíos, y tu pareja la pasa mal.",
+"steps": [
+"Keep rice grains washed in milk, or a piece of silver, in your locker.",
+"At a religious place, offer butter in milk and a coconut with water.",
+"Have your spouse wear a pure silver ring on the ring finger or little finger."
+],
+"steps_es": [
+"Guarda en tu caja fuerte arroz lavado con leche, o una pieza de plata.",
+"En un lugar religioso, ofrece mantequilla en leche y un coco con agua.",
+"Haz que tu pareja use un anillo de plata pura en el dedo anular o en el meñique."
+],
+"duration": null,
+"duration_es": null
+},
+{
+"id": "RM.A.15",
+"line": 7193,
+"requires": [
+{
+"planet": "Mars",
+"with": "Saturn"
+}
+],
+"topics": [
+"money"
+],
+"problem": "Your money is at risk of being lost, especially through lending for interest or hasty dealings.",
+"problem_es": "Tu dinero corre el riesgo de perderse, sobre todo por prestar con intereses o por tratos apresurados.",
+"steps": [
+"If you lend money, do it only with proper documents and a substantial pawn.",
+"Be careful and alert in money transactions.",
+"Collect the first milk of a mare after she delivers a colt and keep it at home."
+],
+"steps_es": [
+"Si prestas dinero, hazlo solo con documentos en regla y una prenda sustancial en garantía.",
+"Sé cuidadoso y estate atento en las transacciones de dinero.",
+"Recoge la primera leche de una yegua después de que haya parido a su potro y guárdala en casa."
+],
+"duration": null,
+"duration_es": null
+},
+{
+"id": "RM.A.20",
+"line": 7270,
+"requires": [
+{
+"planet": "Mars",
+"with": "Rahu"
+}
+],
+"topics": [
+"family",
+"other"
+],
+"problem": "Misfortune keeps following your efforts, and the pressure shows in your body and home.",
+"problem_es": "La mala suerte sigue a tus esfuerzos, y la presión se nota en tu cuerpo y en tu hogar.",
+"steps": [
+"Cook and eat in the same place in your home."
+],
+"steps_es": [
+"Cocina y come en el mismo lugar de tu casa."
+],
+"duration": null,
+"duration_es": null
+},
+{
+"id": "RM.A.21",
+"line": 7270,
+"requires": [
+{
+"planet": "Mars",
+"with": "Rahu"
+},
+{
+"planet": "Mars",
+"in": [
+10
+]
+},
+{
+"planet": "Ketu",
+"in": [
+4
+]
+},
+{
+"planet": "Sun",
+"in": [
+6
+]
+}
+],
+"topics": [
+"children"
+],
+"problem": "You worry about having a son and about his wellbeing.",
+"problem_es": "Te preocupa tener un hijo varón y su bienestar.",
+"steps": [
+"Fill a clay pot with barley and flow it down a running stream, making sure nothing spills as you put it in."
+],
+"steps_es": [
+"Llena una olla de barro con cebada y échala a una corriente de agua, cuidando de que no se derrame nada al ponerla."
+],
+"duration": null,
+"duration_es": null
+},
+{
+"id": "RM.A.22",
+"line": 7320,
+"requires": [
+{
+"planet": "Mars",
+"with": "Ketu"
+}
+],
+"topics": [
+"family",
+"other"
+],
+"problem": "Two opposing forces in you keep fighting, and good efforts turn out bitter.",
+"problem_es": "Dos fuerzas opuestas en ti pelean sin parar y tus buenos esfuerzos terminan amargos.",
+"steps": [
+"Keep two pet dogs, one male and one female, both white or both black."
+],
+"steps_es": [
+"Ten dos perros como mascotas, un macho y una hembra, ambos blancos o ambos negros."
+],
+"duration": null,
+"duration_es": null
+},
+{
+"id": "RM.A.23",
+"line": 7392,
+"requires": [
+{
+"planet": "Mercury",
+"with": "Rahu"
+}
+],
+"topics": [
+"money",
+"career"
+],
+"problem": "Unexpected troubles and cash expenses with no clear cause drain your money and your business.",
+"problem_es": "Problemas inesperados y gastos de dinero sin causa clara agotan tu dinero y tu negocio.",
+"steps": [
+"Wear a seamless steel finger ring."
+],
+"steps_es": [
+"Usa un anillo de acero sin soldadura en el dedo."
+],
+"duration": null,
+"duration_es": null
+},
+{
+"id": "RM.A.26",
+"line": 8814,
+"requires": [
+{
+"planet": "Jupiter",
+"in": [
+1
+]
+}
+],
+"topics": [
+"other",
+"family"
+],
+"problem": "Your luck, your wisdom and the support of teachers and elders feel weak, and your standing with them may suffer.",
+"problem_es": "Tu suerte, tu sabiduría y el apoyo de maestros y mayores se sienten débiles, y tu posición ante ellos puede resentirse.",
+"steps": [
+"Seek the blessings of saints and pious, respected people."
+],
+"steps_es": [
+"Busca la bendición de santos y de personas piadosas y respetables."
+],
+"duration": null,
+"duration_es": null
+},
+{
+"id": "RM.A.27",
+"line": 8814,
+"requires": [
+{
+"planet": "Jupiter",
+"in": [
+2
+]
+}
+],
+"topics": [
+"other",
+"family"
+],
+"problem": "Your luck, your wisdom and the support of teachers and elders feel weak, and your standing with them may suffer.",
+"problem_es": "Tu suerte, tu sabiduría y el apoyo de maestros y mayores se sienten débiles, y tu posición ante ellos puede resentirse.",
+"steps": [
+"Do acts of generosity and kindness for others."
+],
+"steps_es": [
+"Haz actos de generosidad y bondad hacia los demás."
+],
+"duration": null,
+"duration_es": null
+},
+{
+"id": "RM.A.28",
+"line": 8814,
+"requires": [
+{
+"planet": "Jupiter",
+"in": [
+3
+]
+}
+],
+"topics": [
+"other",
+"family"
+],
+"problem": "Your luck, your wisdom and the support of teachers and elders feel weak, and your standing with them may suffer.",
+"problem_es": "Tu suerte, tu sabiduría y el apoyo de maestros y mayores se sienten débiles, y tu posición ante ellos puede resentirse.",
+"steps": [
+"Feed young girls generously."
+],
+"steps_es": [
+"Da de comer generosamente a niñas pequeñas."
+],
+"duration": null,
+"duration_es": null
+},
+{
+"id": "RM.A.29",
+"line": 8814,
+"requires": [
+{
+"planet": "Jupiter",
+"in": [
+4
+]
+}
+],
+"topics": [
+"other",
+"family"
+],
+"problem": "Your luck, your wisdom and the support of teachers and elders feel weak, and your standing with them may suffer.",
+"problem_es": "Tu suerte, tu sabiduría y el apoyo de maestros y mayores se sienten débiles, y tu posición ante ellos puede resentirse.",
+"steps": [
+"Donate milk at temples."
+],
+"steps_es": [
+"Dona leche en los templos."
+],
+"duration": null,
+"duration_es": null
+},
+{
+"id": "RM.A.30",
+"line": 8814,
+"requires": [
+{
+"planet": "Jupiter",
+"in": [
+5
+]
+}
+],
+"topics": [
+"other",
+"family"
+],
+"problem": "Your luck, your wisdom and the support of teachers and elders feel weak, and your standing with them may suffer.",
+"problem_es": "Tu suerte, tu sabiduría y el apoyo de maestros y mayores se sienten débiles, y tu posición ante ellos puede resentirse.",
+"steps": [
+"Donate cow's milk mixed with turmeric."
+],
+"steps_es": [
+"Dona leche de vaca mezclada con cúrcuma."
+],
+"duration": null,
+"duration_es": null
+},
+{
+"id": "RM.A.31",
+"line": 8814,
+"requires": [
+{
+"planet": "Jupiter",
+"in": [
+6
+]
+}
+],
+"topics": [
+"other",
+"family"
+],
+"problem": "Your luck, your wisdom and the support of teachers and elders feel weak, and your standing with them may suffer.",
+"problem_es": "Tu suerte, tu sabiduría y el apoyo de maestros y mayores se sienten débiles, y tu posición ante ellos puede resentirse.",
+"steps": [
+"Feed a cow ripe yellow bananas, or give dogs milk with turmeric dissolved in it."
+],
+"steps_es": [
+"Dale a una vaca plátanos amarillos maduros, o da a los perros leche con cúrcuma disuelta."
+],
+"duration": null,
+"duration_es": null
+},
+{
+"id": "RM.A.32",
+"line": 8814,
+"requires": [
+{
+"planet": "Jupiter",
+"in": [
+7
+]
+}
+],
+"topics": [
+"other",
+"family"
+],
+"problem": "Your luck, your wisdom and the support of teachers and elders feel weak, and your standing with them may suffer.",
+"problem_es": "Tu suerte, tu sabiduría y el apoyo de maestros y mayores se sienten débiles, y tu posición ante ellos puede resentirse.",
+"steps": [
+"Donate yellow clothing, gold, saffron and other yellow things at temples."
+],
+"steps_es": [
+"Dona ropa amarilla, oro, azafrán y otras cosas amarillas en los templos."
+],
+"duration": null,
+"duration_es": null
+},
+{
+"id": "RM.A.33",
+"line": 8814,
+"requires": [
+{
+"planet": "Jupiter",
+"in": [
+8
+]
+}
+],
+"topics": [
+"other",
+"family"
+],
+"problem": "Your luck, your wisdom and the support of teachers and elders feel weak, and your standing with them may suffer.",
+"problem_es": "Tu suerte, tu sabiduría y el apoyo de maestros y mayores se sienten débiles, y tu posición ante ellos puede resentirse.",
+"steps": [
+"Wear gold on your body.",
+"Massage yourself with mustard oil, then bathe in clean running water, daily."
+],
+"steps_es": [
+"Lleva oro puesto sobre el cuerpo.",
+"Date un masaje con aceite de mostaza y luego báñate en agua corriente limpia, todos los días."
+],
+"duration": "43 days for the bath",
+"duration_es": "43 días para el baño"
+},
+{
+"id": "RM.A.34",
+"line": 8814,
+"requires": [
+{
+"planet": "Jupiter",
+"in": [
+9
+]
+}
+],
+"topics": [
+"other",
+"family"
+],
+"problem": "Your luck, your wisdom and the support of teachers and elders feel weak, and your standing with them may suffer.",
+"problem_es": "Tu suerte, tu sabiduría y el apoyo de maestros y mayores se sienten débiles, y tu posición ante ellos puede resentirse.",
+"steps": [
+"Bury gold in the ground of your home premises."
+],
+"steps_es": [
+"Entierra oro en el terreno de tu vivienda."
+],
+"duration": null,
+"duration_es": null
+},
+{
+"id": "RM.A.35",
+"line": 8814,
+"requires": [
+{
+"planet": "Jupiter",
+"in": [
+10
+]
+}
+],
+"topics": [
+"other",
+"family"
+],
+"problem": "Your luck, your wisdom and the support of teachers and elders feel weak, and your standing with them may suffer.",
+"problem_es": "Tu suerte, tu sabiduría y el apoyo de maestros y mayores se sienten débiles, y tu posición ante ellos puede resentirse.",
+"steps": [
+"Float a copper coin in running water every day without a break."
+],
+"steps_es": [
+"Echa una moneda de cobre en agua corriente cada día sin interrupción."
+],
+"duration": "43 days, uninterrupted",
+"duration_es": "43 días, sin interrupción"
+},
+{
+"id": "RM.A.36",
+"line": 8814,
+"requires": [
+{
+"planet": "Jupiter",
+"in": [
+11
+]
+}
+],
+"topics": [
+"other",
+"family"
+],
+"problem": "Your luck, your wisdom and the support of teachers and elders feel weak, and your standing with them may suffer.",
+"problem_es": "Tu suerte, tu sabiduría y el apoyo de maestros y mayores se sienten débiles, y tu posición ante ellos puede resentirse.",
+"steps": [
+"Regularly and liberally donate yellow things, such as gold, saffron and yellow cloth, to temples."
+],
+"steps_es": [
+"Dona con regularidad y generosidad cosas amarillas, como oro, azafrán y tela amarilla, a los templos."
+],
+"duration": null,
+"duration_es": null
+},
+{
+"id": "RM.A.37",
+"line": 8814,
+"requires": [
+{
+"planet": "Jupiter",
+"in": [
+12
+]
+}
+],
+"topics": [
+"other",
+"family"
+],
+"problem": "Your luck, your wisdom and the support of teachers and elders feel weak, and your standing with them may suffer.",
+"problem_es": "Tu suerte, tu sabiduría y el apoyo de maestros y mayores se sienten débiles, y tu posición ante ellos puede resentirse.",
+"steps": [
+"Take aniseed with milk."
+],
+"steps_es": [
+"Toma anís con leche."
+],
+"duration": null,
+"duration_es": null
+},
+{
+"id": "RM.A.49",
+"line": 10232,
+"requires": [
+{
+"house": 10,
+"empty": true
+},
+{
+"houses": [
+4
+],
+"holds_any": [
+"Sun",
+"Moon",
+"Mars",
+"Mercury",
+"Jupiter",
+"Venus",
+"Saturn",
+"Rahu",
+"Ketu"
+]
+}
+],
+"topics": [
+"family",
+"other"
+],
+"problem": "The good things in your home and comfort bring you no real benefit.",
+"problem_es": "Lo bueno de tu hogar y tu comodidad no te trae un beneficio real.",
+"steps": [
+"Stay in earnest contact with your parents and take their blessings.",
+"Feed ten blind people a meal (give food, not money)."
+],
+"steps_es": [
+"Mantente en contacto sincero con tus padres y recibe su bendición.",
+"Da de comer a diez personas ciegas (da comida, no dinero)."
+],
+"duration": null,
+"duration_es": null
+},
+{
+"id": "RM.A.64",
+"line": 13176,
+"requires": [
+{
+"planet": "Ketu",
+"in": [
+1,
+8
+]
+}
+],
+"topics": [
+"family",
+"other"
+],
+"problem": "Friends turn cold for no visible reason, and your good name falls suddenly after a time of success.",
+"problem_es": "Los amigos se alejan sin razón visible, y tu buen nombre cae de repente tras una época de éxito.",
+"steps": [
+"Buy goods, such as herbal medicines, from a visiting trader from another place, paying with family funds, and do not take the money back."
+],
+"steps_es": [
+"Compra productos, como medicinas herbales, a un comerciante de otro lugar que te visite, pagando con fondos de la familia, y no recuperes ese dinero."
+],
+"duration": null,
+"duration_es": null
+},
+{
+"id": "RM.A.65",
+"line": 13204,
+"requires": [
+{
+"planet": "Moon",
+"in": [
+3,
+6
+]
+}
+],
+"topics": [
+"money",
+"family"
+],
+"problem": "Your earnings fall short of expenses, savings vanish, and your good work brings you little credit.",
+"problem_es": "Tus ingresos no alcanzan para los gastos, los ahorros se esfuman y tu buen trabajo te da poco reconocimiento.",
+"steps": [
+"Take yellow natural sea-shells, as many as there are people in your family, burn them to ash, and flow the ash down clean running water."
+],
+"steps_es": [
+"Toma caracolas naturales amarillas, tantas como personas haya en tu familia, quémalas hasta hacerlas ceniza y echa la ceniza a agua corriente limpia."
+],
+"duration": null,
+"duration_es": null
+},
+{
+"id": "RM.A.66",
+"line": 13231,
+"requires": [
+{
+"planet": "Sun",
+"in": [
+10,
+11
+]
+},
+{
+"planet": "Moon",
+"in": [
+10,
+11
+]
+},
+{
+"planet": "Mars",
+"in": [
+10,
+11
+]
+}
+],
+"topics": [
+"property",
+"education",
+"family"
+],
+"problem": "Deals fall through at the last minute, your home is repeatedly disturbed for no clear reason, and a bright child fails exams.",
+"problem_es": "Los tratos se caen a último momento, tu hogar sufre contratiempos repetidos sin razón clara y un hijo inteligente reprueba los exámenes.",
+"steps": [
+"Feed 100 black fish, with food weighing as much as your family's food, or feed 100 laborers on a Saturday."
+],
+"steps_es": [
+"Da de comer a 100 peces negros con comida que pese lo mismo que la comida de tu familia, o da de comer a 100 trabajadores un sábado."
+],
+"duration": "One day (a Saturday for the laborers)",
+"duration_es": "Un día (un sábado en el caso de los trabajadores)"
+},
+{
+"id": "RM.A.67",
+"line": 13262,
+"requires": [
+{
+"planet": "Sun",
+"in": [
+12
+]
+},
+{
+"planet": "Venus",
+"in": [
+12
+]
+},
+{
+"planet": "Mars",
+"in": [
+12
+]
+}
+],
+"topics": [
+"money",
+"family"
+],
+"problem": "Plans started with good intent end in big losses, sleep is disturbed, and the whole family keeps hitting setbacks.",
+"problem_es": "Los planes que empiezas con buena intención terminan en grandes pérdidas, duermes mal y toda la familia sufre contratiempos.",
+"steps": [
+"Get as many coconuts as there are people in your family, and have everyone flow one coconut each down running water together on the same day."
+],
+"steps_es": [
+"Consigue tantos cocos como personas haya en tu familia, y que todos echen un coco cada uno a agua corriente juntos el mismo día."
+],
+"duration": "One day, all together",
+"duration_es": "Un día, todos juntos"
+},
+{
+"id": "RM.A.74",
+"line": 13802,
+"requires": [
+{
+"planet": "Mercury",
+"in": [
+12
+]
+},
+{
+"houses": [
+4
+],
+"holds_none_of": [
+"Moon"
+]
+}
+],
+"topics": [
+"career",
+"money"
+],
+"problem": "Your day's business and your night's sleep both suffer, and help does not come when you need it.",
+"problem_es": "Tu negocio del día y tu sueño de la noche se resienten, y la ayuda no llega cuando la necesitas.",
+"steps": [
+"Float unused baked clay pitchers down a running stream, every day."
+],
+"steps_es": [
+"Echa a una corriente de agua jarras de barro cocido sin usar, todos los días."
+],
+"duration": "12 days, continuous",
+"duration_es": "12 días, seguidos"
+},
+{
+"id": "RM.A.75",
+"line": 13809,
+"requires": [
+{
+"planet": "Saturn",
+"in": [
+5
+]
+}
+],
+"topics": [
+"children",
+"money"
+],
+"problem": "Children and money do not come as they should; results in both are poor.",
+"problem_es": "Los hijos y el dinero no llegan como deberían; los resultados en ambos son pobres.",
+"steps": [
+"On a Saturday, take 10 almonds; offer 5 of them at a temple and keep the other 5 wrapped in cloth in a dark place at home."
+],
+"steps_es": [
+"Un sábado, toma 10 almendras; ofrece 5 en un templo y guarda las otras 5 envueltas en tela en un lugar oscuro de tu casa."
+],
+"duration": "Saturday",
+"duration_es": "Sábado"
+},
+{
+"id": "RM.A.76",
+"line": 13816,
+"requires": [
+{
+"house": 2,
+"empty": true
+}
+],
+"topics": [
+"money",
+"family"
+],
+"problem": "Your money and your sense of calm are not growing as they could.",
+"problem_es": "Tu dinero y tu tranquilidad no crecen como podrían.",
+"steps": [
+"Take a plain, four-sided piece of pure silver from your mother as her blessing, wash it with rice milk, carry it in your bag, and then keep it in a lidded silver box at home."
+],
+"steps_es": [
+"Recibe de tu madre, como bendición suya, una pieza de plata pura, lisa y de cuatro lados; lávala con leche de arroz, llévala en tu bolso y luego guárdala en una caja de plata con tapa en casa."
+],
+"duration": null,
+"duration_es": null
+},
+{
+"id": "RM.A.77",
+"line": 13816,
+"requires": [
+{
+"planet": "Moon",
+"in": [
+2
+]
+}
+],
+"topics": [
+"money",
+"family"
+],
+"problem": "Your money and your sense of calm are not growing as they could.",
+"problem_es": "Tu dinero y tu tranquilidad no crecen como podrían.",
+"steps": [
+"Take a plain, four-sided piece of pure silver from your mother as her blessing, wash it with rice milk, carry it in your bag, and then keep it in a lidded silver box at home."
+],
+"steps_es": [
+"Recibe de tu madre, como bendición suya, una pieza de plata pura, lisa y de cuatro lados; lávala con leche de arroz, llévala en tu bolso y luego guárdala en una caja de plata con tapa en casa."
+],
+"duration": null,
+"duration_es": null
+},
+{
+"id": "RM.A.78",
+"line": 13822,
+"requires": [
+{
+"planet": "Sun",
+"with": "Saturn"
+}
+],
+"topics": [
+"other"
+],
+"problem": "Two opposing forces, authority and hard work, clash and your results come out poor.",
+"problem_es": "Dos fuerzas opuestas, la autoridad y el trabajo duro, chocan y tus resultados salen pobres.",
+"steps": [
+"Keep whole, unbroken green lentil grains in a small cloth pouch at home."
+],
+"steps_es": [
+"Guarda en casa granos de lenteja verde enteros, sin romper, en una bolsita de tela."
+],
+"duration": null,
+"duration_es": null
+},
+{
+"id": "RM.A.79",
+"line": 13828,
+"requires": [
+{
+"planet": "Sun",
+"in": [
+6
+]
+}
+],
+"topics": [
+"career",
+"other"
+],
+"problem": "Your sense of authority and recognition feels weak.",
+"problem_es": "Sientes débil tu autoridad y tu reconocimiento.",
+"steps": [
+"Feed monkeys jaggery and wheat grains."
+],
+"steps_es": [
+"Dale a los monos azúcar de caña sin refinar (jaggery) y granos de trigo."
+],
+"duration": null,
+"duration_es": null
+},
+{
+"id": "RM.A.82",
+"line": 13888,
+"requires": [
+{
+"planet": "Rahu",
+"in": [
+7
+]
+}
+],
+"topics": [
+"family"
+],
+"problem": "Peace at home is disturbed.",
+"problem_es": "La paz de tu hogar se ve perturbada.",
+"steps": [
+"Take an iron bucket, cut a square piece from its bottom and solder it back; keep that bucket filled with water at home."
+],
+"steps_es": [
+"Toma un balde de hierro, corta un cuadrado de su fondo y suéldalo de nuevo; mantén ese balde lleno de agua dentro de la casa."
+],
+"duration": null,
+"duration_es": null
+},
+{
+"id": "RM.A.84",
+"line": 13885,
+"requires": [
+{
+"planet": "Sun",
+"with": "Mercury"
+},
+{
+"planet": "Sun",
+"with": "Saturn"
+}
+],
+"topics": [
+"money",
+"property"
+],
+"problem": "You want to strengthen your money and property gains, which are held back.",
+"problem_es": "Quieres fortalecer tus ganancias de dinero y propiedades, que están frenadas.",
+"steps": [
+"Take three morsels from your own food and feed them to a cow, a dog and a crow."
+],
+"steps_es": [
+"Separa tres bocados de tu propia comida y dáselos a una vaca, a un perro y a un cuervo."
+],
+"duration": null,
+"duration_es": null
+},
+{
+"id": "RM.A.85",
+"line": 13885,
+"requires": [
+{
+"planet": "Venus",
+"with": "Mercury"
+},
+{
+"planet": "Venus",
+"with": "Saturn"
+}
+],
+"topics": [
+"money",
+"property"
+],
+"problem": "You want to strengthen your money and property gains, which are held back.",
+"problem_es": "Quieres fortalecer tus ganancias de dinero y propiedades, que están frenadas.",
+"steps": [
+"Take three morsels from your own food and feed them to a cow, a dog and a crow."
+],
+"steps_es": [
+"Separa tres bocados de tu propia comida y dáselos a una vaca, a un perro y a un cuervo."
+],
+"duration": null,
+"duration_es": null
+},
+{
+"id": "RM.B.14",
+"line": 19316,
+"requires": [
+{
+"planet": "Venus",
+"in": [
+6
+]
+},
+{
+"chart": "female"
+}
+],
+"topics": [
+"marriage"
+],
+"problem": "Comfort and partnership in your marriage may struggle to settle.",
+"problem_es": "Es posible que la comodidad y la pareja en tu matrimonio cuesten trabajo en asentarse.",
+"steps": [
+"At the wedding, your father gives you a specially made hair-clip, which you wear now and then."
+],
+"steps_es": [
+"En la boda, tu padre te regala un broche para el cabello hecho especialmente para ti, que usas de vez en cuando."
+],
+"duration": null,
+"duration_es": null
+},
+{
+"id": "RM.B.15",
+"line": 19320,
+"requires": [
+{
+"chart": "female"
+}
+],
+"topics": [
+"marriage",
+"family"
+],
+"problem": "You want a smooth, easy family life after marriage.",
+"problem_es": "Quieres una vida familiar tranquila y fácil después del matrimonio.",
+"steps": [
+"At the wedding, your father gives you a rectangular piece of gold as a solemn gift, and you keep it safely with you."
+],
+"steps_es": [
+"En la boda, tu padre te regala una pieza rectangular de oro como regalo solemne, y tú la guardas con cuidado."
+],
+"duration": null,
+"duration_es": null
+},
+{
+"id": "RM.B.16.1",
+"line": 19326,
+"requires": [
+{
+"planet": "Venus",
+"with": "Rahu"
+},
+{
+"planet": "Rahu",
+"in": [
+2
+]
+}
+],
+"topics": [
+"marriage"
+],
+"problem": "Comfort and partnership in your marriage may be under strain.",
+"problem_es": "La comodidad y la pareja en tu matrimonio pueden estar bajo tensión.",
+"steps": [
+"At the wedding, when the bride's hand is given, have a block of pure silver given to the bride to keep."
+],
+"steps_es": [
+"En la boda, cuando se entrega la mano de la novia, entrega a la novia un bloque de plata pura para que lo conserve."
+],
+"duration": null,
+"duration_es": null
+},
+{
+"id": "RM.B.16.2",
+"line": 19326,
+"requires": [
+{
+"planet": "Venus",
+"with": "Sun"
+},
+{
+"planet": "Venus",
+"in": [
+3
+]
+}
+],
+"topics": [
+"marriage"
+],
+"problem": "Comfort and partnership in your marriage may be under strain.",
+"problem_es": "La comodidad y la pareja en tu matrimonio pueden estar bajo tensión.",
+"steps": [
+"At the wedding, when the bride's hand is given, have a block of pure silver given to the bride to keep."
+],
+"steps_es": [
+"En la boda, cuando se entrega la mano de la novia, entrega a la novia un bloque de plata pura para que lo conserve."
+],
+"duration": null,
+"duration_es": null
+},
+{
+"id": "RM.B.16.3",
+"line": 19326,
+"requires": [
+{
+"planet": "Venus",
+"with": "Moon"
+}
+],
+"topics": [
+"marriage"
+],
+"problem": "Comfort and partnership in your marriage may be under strain.",
+"problem_es": "La comodidad y la pareja en tu matrimonio pueden estar bajo tensión.",
+"steps": [
+"At the wedding, when the bride's hand is given, have a block of pure silver given to the bride to keep."
+],
+"steps_es": [
+"En la boda, cuando se entrega la mano de la novia, entrega a la novia un bloque de plata pura para que lo conserve."
+],
+"duration": null,
+"duration_es": null
+},
+{
+"id": "RM.B.16.4",
+"line": 19326,
+"requires": [
+{
+"planet": "Venus",
+"in": [
+4
+]
+},
+{
+"houses": [
+4
+],
+"holds_any": [
+"Sun",
+"Moon",
+"Mars",
+"Mercury",
+"Jupiter",
+"Saturn",
+"Rahu",
+"Ketu"
+]
+}
+],
+"topics": [
+"marriage"
+],
+"problem": "Comfort and partnership in your marriage may be under strain.",
+"problem_es": "La comodidad y la pareja en tu matrimonio pueden estar bajo tensión.",
+"steps": [
+"At the wedding, when the bride's hand is given, have a block of pure silver given to the bride to keep."
+],
+"steps_es": [
+"En la boda, cuando se entrega la mano de la novia, entrega a la novia un bloque de plata pura para que lo conserve."
+],
+"duration": null,
+"duration_es": null
+},
+{
+"id": "RM.B.16.5",
+"line": 19326,
+"requires": [
+{
+"planet": "Rahu",
+"in": [
+1,
+5,
+7,
+11
+]
+}
+],
+"topics": [
+"marriage"
+],
+"problem": "Comfort and partnership in your marriage may be under strain.",
+"problem_es": "La comodidad y la pareja en tu matrimonio pueden estar bajo tensión.",
+"steps": [
+"At the wedding, when the bride's hand is given, have a block of pure silver given to the bride to keep."
+],
+"steps_es": [
+"En la boda, cuando se entrega la mano de la novia, entrega a la novia un bloque de plata pura para que lo conserve."
+],
+"duration": null,
+"duration_es": null
+},
+{
+"id": "RM.B.16.6",
+"line": 19326,
+"requires": [
+{
+"planet": "Ketu",
+"in": [
+8
+]
+},
+{
+"houses": [
+8
+],
+"holds_none_of": [
+"Sun",
+"Moon",
+"Mars",
+"Mercury",
+"Jupiter",
+"Venus",
+"Saturn",
+"Rahu"
+]
+},
+{
+"planet": "Saturn",
+"in": [
+5,
+9,
+10
+]
+}
+],
+"topics": [
+"marriage"
+],
+"problem": "Comfort and partnership in your marriage may be under strain.",
+"problem_es": "La comodidad y la pareja en tu matrimonio pueden estar bajo tensión.",
+"steps": [
+"At the wedding, when the bride's hand is given, have a block of pure silver given to the bride to keep."
+],
+"steps_es": [
+"En la boda, cuando se entrega la mano de la novia, entrega a la novia un bloque de plata pura para que lo conserve."
+],
+"duration": null,
+"duration_es": null
+},
+{
+"id": "RM.B.16.7",
+"line": 19326,
+"requires": [
+{
+"planet": "Ketu",
+"with": "Mars"
+}
+],
+"topics": [
+"marriage"
+],
+"problem": "Comfort and partnership in your marriage may be under strain.",
+"problem_es": "La comodidad y la pareja en tu matrimonio pueden estar bajo tensión.",
+"steps": [
+"At the wedding, when the bride's hand is given, have a block of pure silver given to the bride to keep.",
+"Or give a woolen blanket at a place of worship."
+],
+"steps_es": [
+"En la boda, cuando se entrega la mano de la novia, entrega a la novia un bloque de plata pura para que lo conserve.",
+"O regala una manta de lana en un lugar de culto."
+],
+"duration": null,
+"duration_es": null
+},
+{
+"id": "RM.B.16.8",
+"line": 19326,
+"requires": [
+{
+"planet": "Ketu",
+"with": "Moon"
+}
+],
+"topics": [
+"marriage"
+],
+"problem": "Comfort and partnership in your marriage may be under strain.",
+"problem_es": "La comodidad y la pareja en tu matrimonio pueden estar bajo tensión.",
+"steps": [
+"At the wedding, when the bride's hand is given, have a block of pure silver given to the bride to keep.",
+"Or give a woolen blanket at a place of worship."
+],
+"steps_es": [
+"En la boda, cuando se entrega la mano de la novia, entrega a la novia un bloque de plata pura para que lo conserve.",
+"O regala una manta de lana en un lugar de culto."
+],
+"duration": null,
+"duration_es": null
+},
+{
+"id": "RM.B.16.9",
+"line": 19326,
+"requires": [
+{
+"planet": "Ketu",
+"with": "Sun"
+}
+],
+"topics": [
+"marriage"
+],
+"problem": "Comfort and partnership in your marriage may be under strain.",
+"problem_es": "La comodidad y la pareja en tu matrimonio pueden estar bajo tensión.",
+"steps": [
+"At the wedding, when the bride's hand is given, have a block of pure silver given to the bride to keep.",
+"Or give a woolen blanket at a place of worship."
+],
+"steps_es": [
+"En la boda, cuando se entrega la mano de la novia, entrega a la novia un bloque de plata pura para que lo conserve.",
+"O regala una manta de lana en un lugar de culto."
+],
+"duration": null,
+"duration_es": null
+},
+{
+"id": "RM.B.16.10",
+"line": 19326,
+"requires": [
+{
+"planet": "Ketu",
+"with": "Mercury"
+}
+],
+"topics": [
+"marriage"
+],
+"problem": "Comfort and partnership in your marriage may be under strain.",
+"problem_es": "La comodidad y la pareja en tu matrimonio pueden estar bajo tensión.",
+"steps": [
+"At the wedding, when the bride's hand is given, have a block of pure silver given to the bride to keep.",
+"Or give a woolen blanket at a place of worship."
+],
+"steps_es": [
+"En la boda, cuando se entrega la mano de la novia, entrega a la novia un bloque de plata pura para que lo conserve.",
+"O regala una manta de lana en un lugar de culto."
+],
+"duration": null,
+"duration_es": null
+},
+{
+"id": "RM.B.17",
+"line": 19344,
+"requires": [
+{
+"planet": "Venus",
+"in": [
+4
+]
+}
+],
+"topics": [
+"marriage"
+],
+"problem": "Your marriage may be pulled toward a second partnership.",
+"problem_es": "Tu matrimonio podría inclinarse hacia una segunda unión.",
+"steps": [
+"Hold the wedding rites again in full, together as a couple, two months after your first wedding."
+],
+"steps_es": [
+"Celebren de nuevo todos los ritos de la boda, juntos como pareja, dos meses después de la primera boda."
+],
+"duration": "2 months after the wedding",
+"duration_es": "2 meses después de la boda"
+},
+{
+"id": "RM.B.18",
+"line": 19348,
+"requires": [
+{
+"chart": "female"
+}
+],
+"topics": [
+"marriage"
+],
+"problem": "You want more ease and wellbeing for your husband.",
+"problem_es": "Quieres más tranquilidad y bienestar para tu esposo.",
+"steps": [
+"Wear a 0.5 g yellow sapphire set in a gold or silver ring on the right index finger.",
+"Keep a Thursday fast, wearing yellow clothes and eating yellow foods."
+],
+"steps_es": [
+"Usa un zafiro amarillo de 0.5 g engastado en un anillo de oro o plata en el dedo índice derecho.",
+"Haz ayuno los jueves, vistiendo ropa amarilla y comiendo alimentos amarillos."
+],
+"duration": "ongoing",
+"duration_es": "de forma continua"
+},
+{
+"id": "RM.B.25",
+"line": 19400,
+"requires": [],
+"topics": [
+"marriage"
+],
+"problem": "Obstacles keep getting in the way of your wedding.",
+"problem_es": "Los obstáculos siguen interponiéndose en tu boda.",
+"steps": [
+"On a Monday, pour water and milk over a Shiva lingam, then wrap a red worship thread around it 7 times."
+],
+"steps_es": [
+"Un lunes, vierte agua y leche sobre un Shiva lingam y luego envuelve un hilo rojo de culto alrededor 7 veces."
+],
+"duration": null,
+"duration_es": null
+},
+{
+"id": "RM.B.26",
+"line": 19403,
+"requires": [
+{
+"chart": "female"
+}
+],
+"topics": [
+"marriage"
+],
+"problem": "A man has seen you as a prospective match but has not said yes.",
+"problem_es": "Un hombre te ha visto como posible pareja pero no ha dado el sí.",
+"steps": [
+"Take his photograph, sit facing east and contemplate it while incense burns nearby.",
+"Recite the mantra 'Om hrim kumaraye namah' for 10 rounds of the rosary, if you wish this match."
+],
+"steps_es": [
+"Toma su fotografía, siéntate mirando al este y contémplala mientras se quema incienso cerca.",
+"Recita el mantra 'Om hrim kumaraye namah' durante 10 vueltas del rosario, si deseas esta unión."
+],
+"duration": "as needed",
+"duration_es": "según sea necesario"
+},
+{
+"id": "RM.B.27.1",
+"line": 19408,
+"requires": [
+{
+"planet": "Venus",
+"with": "Sun"
+}
+],
+"topics": [
+"marriage"
+],
+"problem": "Comfort and partnership in your marriage may be under strain.",
+"problem_es": "La comodidad y la pareja en tu matrimonio pueden estar bajo tensión.",
+"steps": [
+"Feed curds with potatoes to a black cow."
+],
+"steps_es": [
+"Da yogur con papas a una vaca negra."
+],
+"duration": "once",
+"duration_es": "una vez"
+},
+{
+"id": "RM.B.27.2",
+"line": 19408,
+"requires": [
+{
+"planet": "Venus",
+"with": "Moon"
+}
+],
+"topics": [
+"marriage"
+],
+"problem": "Comfort and partnership in your marriage may be under strain.",
+"problem_es": "La comodidad y la pareja en tu matrimonio pueden estar bajo tensión.",
+"steps": [
+"Feed curds with potatoes to a black cow."
+],
+"steps_es": [
+"Da yogur con papas a una vaca negra."
+],
+"duration": "once",
+"duration_es": "una vez"
+},
+{
+"id": "RM.B.27.3",
+"line": 19408,
+"requires": [
+{
+"planet": "Venus",
+"with": "Rahu"
+}
+],
+"topics": [
+"marriage"
+],
+"problem": "Comfort and partnership in your marriage may be under strain.",
+"problem_es": "La comodidad y la pareja en tu matrimonio pueden estar bajo tensión.",
+"steps": [
+"Feed curds with potatoes to a black cow."
+],
+"steps_es": [
+"Da yogur con papas a una vaca negra."
+],
+"duration": "once",
+"duration_es": "una vez"
+},
+{
+"id": "RM.B.28",
+"line": 15192,
+"requires": [],
+"topics": [
+"marriage"
+],
+"problem": "Marriage matches for you or your child keep falling through or getting stuck.",
+"problem_es": "Las propuestas de matrimonio para ti o tu hijo/a siguen fallando o estancándose.",
+"steps": [
+"A boy wears a ring set with red coral; a girl wears a ring set with moonstone or pearl."
+],
+"steps_es": [
+"Un joven usa un anillo con coral rojo; una joven usa un anillo con piedra lunar o perla."
+],
+"duration": "before the engagement",
+"duration_es": "antes del compromiso"
+},
+{
+"id": "RM.B.29",
+"line": 15179,
+"requires": [
+{
+"chart": "female"
+}
+],
+"topics": [
+"marriage"
+],
+"problem": "Your marriage match is taking a very long time to settle.",
+"problem_es": "Tu compromiso matrimonial está tardando mucho en concretarse.",
+"steps": [
+"Boil 7 dry dates on a Friday night and flow them in running water the next day, Saturday; repeat for 8 Saturdays.",
+"Or: have your own hand touch 49 almonds, go to a cremation ground, stand with your back to it and throw the almonds in (you or your brother or father may do it).",
+"Or: fill 11 clay mugs with jaggery-water and place them at the center of a temple.",
+"Or: on a Thursday tie two turmeric roots in a yellow cloth on your right arm, and the same day flow the cloth with the turmeric in running water."
+],
+"steps_es": [
+"Hierve 7 dátiles secos un viernes por la noche y échalos a agua corriente el sábado siguiente; repite durante 8 sábados.",
+"O: toca con tu mano 49 almendras, ve a un crematorio, párate de espaldas a él y arrójalas (puedes hacerlo tú, tu hermano o tu padre).",
+"O: llena 11 vasos de barro con agua de piloncillo (jaggery) y colócalos en el centro de un templo.",
+"O: un jueves ata dos raíces de cúrcuma en una tela amarilla en tu brazo derecho, y ese mismo día echa la tela con la cúrcuma en agua corriente."
+],
+"duration": "as listed",
+"duration_es": "según lo indicado"
+},
+{
+"id": "RM.B.31",
+"line": 14002,
+"requires": [],
+"topics": [
+"education"
+],
+"problem": "You want to do well in an important exam.",
+"problem_es": "Quieres que te vaya bien en un examen importante.",
+"steps": [
+"Use a red pen with a golden cap (the ink may be any color).",
+"On the way to the exam, offer a 0.5 liter sachet of milk at a religious place.",
+"Before starting to write, remember Ganesh with respect and say 'Om gam Ganapataye namah' 3 times.",
+"Wear a red-thread garland with two five-faced rudraksha beads and a six-faced rudraksha between them, charged by reciting 'Om namah Shivaya' 108 times on a Monday in the bright fortnight while touching it to a Shiva lingam."
+],
+"steps_es": null,
+"duration": "during the exam period",
+"duration_es": "durante el periodo de exámenes"
+},
+{
+"id": "RM.B.32",
+"line": 14015,
+"requires": [],
+"topics": [
+"education"
+],
+"problem": "You want a steady, lucky exam period.",
+"problem_es": "Quieres un periodo de exámenes estable y afortunado.",
+"steps": [
+"Write the Krishna mantra 17 times in red ink on good paper at an auspicious time such as the Pushya star, and keep the paper in your pocket or pencil box."
+],
+"steps_es": [
+"Escribe el mantra de Krishna 17 veces con tinta roja en papel de buena calidad, en un momento auspicioso como el nakshatra Pushya, y guarda el papel en tu bolsillo o estuche."
+],
+"duration": "through the exam period",
+"duration_es": "durante el periodo de exámenes"
+},
+{
+"id": "RM.B.34",
+"line": 14026,
+"requires": [],
+"topics": [
+"education"
+],
+"problem": "You want good grades in your exams.",
+"problem_es": "Quieres buenas calificaciones en tus exámenes.",
+"steps": [
+"On a Thursday before the exams begin, tie 7 turmeric roots and 7 gram-flour sweets in a cloth and flow it down running water, praying seven times: 'May I get good grades and my wish be fulfilled.'"
+],
+"steps_es": [
+"Un jueves antes de que empiecen los exámenes, ata 7 raíces de cúrcuma y 7 dulces de harina de garbanzo en una tela y échala a agua corriente, rezando siete veces: 'Que obtenga buenas calificaciones y se cumpla mi deseo.'"
+],
+"duration": "once, before exams begin",
+"duration_es": "una vez, antes de los exámenes"
+},
+{
+"id": "RM.B.35",
+"line": 14031,
+"requires": [],
+"topics": [
+"education"
+],
+"problem": "You get distracted from studying.",
+"problem_es": "Te distraes de tus estudios.",
+"steps": [
+"Tie a blank copper square on your body with a white cord."
+],
+"steps_es": [
+"Ata un cuadrado de cobre sin marcas en tu cuerpo con un cordón blanco."
+],
+"duration": "as needed",
+"duration_es": "según sea necesario"
+},
+{
+"id": "RM.B.36",
+"line": 15026,
+"requires": [
+{
+"chart": "female"
+}
+],
+"topics": [
+"children"
+],
+"problem": "You are expecting a child and want to protect the baby's early years.",
+"problem_es": "Estás esperando un bebé y quieres proteger sus primeros años.",
+"steps": [
+"From the time the pregnancy is known, tie a red thread on your arm; later tie the same thread on the newborn's wrist."
+],
+"steps_es": [
+"Desde que se conoce el embarazo, ata un hilo rojo en tu brazo; después ata ese mismo hilo en la muñeca del recién nacido."
+],
+"duration": "until the child is 18 months old",
+"duration_es": "hasta que el niño cumpla 18 meses"
+},
+{
+"id": "RM.B.38.1",
+"line": 15049,
+"requires": [],
+"topics": [
+"family",
+"children"
+],
+"problem": "You want goodness and harmony for your family and children.",
+"problem_es": "Quieres bienestar y armonía para tu familia y tus hijos.",
+"steps": [
+"Set aside a morsel from every main meal for a crow, a dog and a cow, and feed them."
+],
+"steps_es": [
+"Aparta un bocado de cada comida principal para un cuervo, un perro y una vaca, y aliméntalos."
+],
+"duration": "ongoing",
+"duration_es": "de forma continua"
+},
+{
+"id": "RM.B.38.2",
+"line": 15049,
+"requires": [
+{
+"planet": "Mars",
+"with": "Rahu"
+}
+],
+"topics": [
+"family"
+],
+"problem": "Tension and friction keep arising in your home.",
+"problem_es": "La tensión y la fricción surgen una y otra vez en tu hogar.",
+"steps": [
+"Have the family eat its meals in the kitchen."
+],
+"steps_es": [
+"Que la familia coma sus comidas en la cocina."
+],
+"duration": "ongoing",
+"duration_es": "de forma continua"
+},
+{
+"id": "RM.B.38.3",
+"line": 15049,
+"requires": [],
+"topics": [
+"family",
+"money"
+],
+"problem": "Needless expenses and quarrels keep hitting your family.",
+"problem_es": "Los gastos innecesarios y las discusiones siguen afectando a tu familia.",
+"steps": [
+"Count the guests who come in a calendar month, make that many chapattis plus four, and feed them to street animals."
+],
+"steps_es": [
+"Cuenta los invitados que llegan en un mes, haz esa cantidad de chapatis más cuatro y dáselos a los animales de la calle."
+],
+"duration": "monthly",
+"duration_es": "mensual"
+},
+{
+"id": "RM.B.39",
+"line": 15076,
+"requires": [],
+"topics": [
+"children"
+],
+"problem": "You want to ward off poor influences for a small child.",
+"problem_es": "Quieres alejar las malas influencias de un niño pequeño.",
+"steps": [
+"Hang a 0.9 g moonstone pendant around the small child's neck."
+],
+"steps_es": [
+"Cuelga un colgante de piedra lunar de 0.9 g al cuello del niño pequeño."
+],
+"duration": null,
+"duration_es": null
+},
+{
+"id": "RM.B.49",
+"line": 15145,
+"requires": [],
+"topics": [
+"family"
+],
+"problem": "There is unrest and disharmony in your home.",
+"problem_es": "Hay inquietud y desarmonía en tu hogar.",
+"steps": [
+"Keep a small piece of Ashoka tree root in a clean place at home and wave a lit lamp and incense stick around it."
+],
+"steps_es": [
+"Guarda un pequeño trozo de raíz de árbol Ashoka en un lugar limpio de tu casa y mueve a su alrededor una lámpara encendida y una varilla de incienso."
+],
+"duration": "as needed",
+"duration_es": "según sea necesario"
+},
+{
+"id": "RM.B.52",
+"line": 15196,
+"requires": [],
+"topics": [
+"children"
+],
+"problem": "You are trying for a child and it is not happening.",
+"problem_es": "Estás intentando tener un hijo y no llega.",
+"steps": [
+"Keep a black pet dog and care for it well, calling it 'dog-king'.",
+"Or keep as a pet a male puppy that you find alone.",
+"Worship Ganesh."
+],
+"steps_es": [
+"Ten un perro negro como mascota y cuídalo bien, llamándolo 'rey de los perros'.",
+"O ten como mascota un cachorro macho que encuentres solo.",
+"Rinde culto a Ganesh."
+],
+"duration": "ongoing",
+"duration_es": "de forma continua"
+},
+{
+"id": "RM.B.53",
+"line": 15193,
+"requires": [
+{
+"chart": "male"
+}
+],
+"topics": [
+"children"
+],
+"problem": "You are trying for a child and it is not happening.",
+"problem_es": "Estás intentando tener un hijo y no llega.",
+"steps": [
+"Sleep on the bed your wife brought, ideally from the time of marriage."
+],
+"steps_es": [
+"Duerme en la cama que trajo tu esposa, idealmente desde el matrimonio."
+],
+"duration": "ongoing",
+"duration_es": "de forma continua"
+},
+{
+"id": "RM.B.57.1",
+"line": 15436,
+"requires": [],
+"topics": [
+"career"
+],
+"problem": "You keep being transferred in your job.",
+"problem_es": "Te transfieren una y otra vez en tu trabajo.",
+"steps": [
+"On a Sunday, flow 10 yellow lemons in clean running water."
+],
+"steps_es": [
+"Un domingo, echa 10 limones amarillos en agua corriente limpia."
+],
+"duration": "once",
+"duration_es": "una vez"
+},
+{
+"id": "RM.B.57.2",
+"line": 15436,
+"requires": [],
+"topics": [
+"career"
+],
+"problem": "You want to stop an unwanted job transfer that is coming.",
+"problem_es": "Quieres evitar una transferencia laboral no deseada que se aproxima.",
+"steps": [
+"On a Thursday after sunrise, wear a 0.5 g cat's eye stone on a silver chain around your neck."
+],
+"steps_es": [
+"Un jueves después del amanecer, usa al cuello una piedra ojo de gato de 0.5 g en una cadena de plata."
+],
+"duration": null,
+"duration_es": null
+},
+{
+"id": "RM.B.58",
+"line": 15441,
+"requires": [],
+"topics": [
+"career"
+],
+"problem": "Your work and livelihood are not improving.",
+"problem_es": "Tu trabajo y tu sustento no mejoran.",
+"steps": [
+"Fill a bowl with forest-flame (palash) leaves and red rose petals and leaves, and flow it in running water in the evening."
+],
+"steps_es": [
+"Llena un cuenco con hojas de palash (llama del bosque) y pétalos y hojas de rosa roja, y échalo a agua corriente al atardecer."
+],
+"duration": "once",
+"duration_es": "una vez"
+},
+{
+"id": "RM.B.60",
+"line": 15878,
+"requires": [],
+"topics": [
+"money"
+],
+"problem": "Your income is good but savings do not build up.",
+"problem_es": "Tus ingresos son buenos pero los ahorros no se acumulan.",
+"steps": [
+"On a Tuesday, tie a red rose in a new red cloth with two red cords and cotton wool, and keep it in your cash vault.",
+"Or, on a Tuesday only, keep sandal scrapings in a red cloth in your safe.",
+"Or keep an iron vessel of honey with a four-sided silver plank in it in a safe place."
+],
+"steps_es": [
+"Un martes, ata una rosa roja en una tela roja nueva con dos cordones rojos y algodón, y guárdala en tu caja fuerte.",
+"O, solo un martes, guarda raspaduras de sándalo en una tela roja en tu caja fuerte.",
+"O guarda en un lugar seguro una vasija de hierro con miel y una placa de plata de cuatro lados dentro."
+],
+"duration": "change every 6 months",
+"duration_es": "cambia cada 6 meses"
+},
+{
+"id": "RM.B.61",
+"line": 15891,
+"requires": [],
+"topics": [
+"money"
+],
+"problem": "Money you lent is not coming back.",
+"problem_es": "El dinero que prestaste no regresa.",
+"steps": [
+"Count the beds in the debtor's premises, burn that many cloves on smoldering coals, and while they burn picture the money being returned; continue until all cloves are burnt."
+],
+"steps_es": [
+"Cuenta las camas en el local de quien te debe, quema esa cantidad de clavos de olor sobre brasas y, mientras se queman, imagina que el dinero es devuelto; continúa hasta que todos se quemen."
+],
+"duration": "until the cloves burn out",
+"duration_es": "hasta que los clavos se consuman"
+},
+{
+"id": "RM.B.67",
+"line": 16363,
+"requires": [],
+"topics": [
+"career",
+"other"
+],
+"problem": "A rival or an aggressive superior is making things hard for you.",
+"problem_es": "Un rival o un superior agresivo te está haciendo la vida difícil.",
+"steps": [
+"Recite the couplet 'Hanuman angad ran gaje, Hank sunat rajani-char bhage' 7 times, make a tight fist, bring up your inner anger, then open the fist. You need not be in front of the person."
+],
+"steps_es": [
+"Recita el pareado 'Hanuman angad ran gaje, Hank sunat rajani-char bhage' 7 veces, aprieta el puño con fuerza, trae tu enojo interno y luego abre el puño. No necesitas estar frente a la persona."
+],
+"duration": "as needed",
+"duration_es": "según sea necesario"
+}
+]
+}

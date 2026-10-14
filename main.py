@@ -4637,6 +4637,7 @@ async def get_chart_astrologer(chart_id: str, question: str = "", subject: str =
         qw = qword or qw
         out = rr.answer(ctx, subj, qw, language)
         out["parsed"] = {"subject": subj, "qword": qw}
+        out["periods_now"] = ctx.periods_at(ctx.today)          # internal: Vimshottari major/sub/pratyantara/sookshma lords
         return out
 
     try:
@@ -4668,7 +4669,16 @@ async def get_chart_reading(chart_id: str, language: str = "en", months: int = 2
         vim = (get_dashas_for_chart(chart_id) or {}).get("vimsottari") or []
         fc = build_forecast(cd, row.data.get("birth_date") or cd.get("birth_date"), vim, months=months,
                             birth_time_accuracy=row.data.get("birth_time_accuracy"), gender=row.data.get("gender"))
-        return compose(fc, language)
+        out = compose(fc, language)
+        try:
+            from antar_engine import rule_registry as _rr
+            _ctx = _rr.Ctx(cd, row.data.get("birth_date") or cd.get("birth_date"), vim,
+                           birth_time_accuracy=row.data.get("birth_time_accuracy"), gender=row.data.get("gender"))
+            out["remedy_calendar"] = _rr.remedy_calendar(_ctx, language)
+            out["periods_now"] = _ctx.periods_at(_ctx.today)    # internal, not for display
+        except Exception as _e:
+            print(f"[reading] remedy calendar non-fatal: {_e}")
+        return out
 
     try:
         out = await asyncio.to_thread(_run)
