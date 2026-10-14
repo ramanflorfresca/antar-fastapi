@@ -4665,6 +4665,14 @@ async def get_chart_astrologer(chart_id: str, question: str = "", subject: str =
         out = rr.answer(ctx, subj, qw, language)
         out["parsed"] = {"subject": subj, "qword": qw}
         out["periods_now"] = ctx.periods_at(ctx.today)          # internal: Vimshottari major/sub/pratyantara/sookshma lords
+        if subj == "speculation":
+            try:
+                from antar_engine import kp_speculation as _kps
+                if _kps.enabled_for(supabase, chart_id):          # EXPERIMENTAL flag, off by default
+                    _ll = supabase.table("charts").select("latitude,longitude,chart_data").eq("id", chart_id).single().execute().data
+                    out["kp_speculation"] = _kps.build(_ll, language, ctx.today)
+            except Exception as _e:
+                print(f"[astrologer] kp_speculation non-fatal: {_e}")
         return out
 
     try:

@@ -54,6 +54,12 @@ ALLOWED_KEYS: Dict[str, dict] = {
                 "Off by default: they are the same for everyone at one place, so they are not personal. Turn on only until a personal window "
                 "(panchang + chart + running dasha) is validated.",
     },
+    "kp_speculation": {
+        "default": "off", "kind": "str", "choices": None,
+        "help": "EXPERIMENTAL. 'off', 'all', or a comma-separated list of chart ids. Adds a low-confidence KP read "
+                "(verdict + a few dated windows) to the astrologer answer for speculation questions only. KP is not "
+                "validated against outcomes; try it on your own chart first.",
+    },
     "narration_audit_strict": {
         "default": "off", "kind": "bool", "choices": ["on", "off"],
         "help": "If on, a jargon/broken/incoherent daily card is regenerated "
