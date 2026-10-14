@@ -11323,55 +11323,6 @@
 "line": 3918
 },
 {
-"id": "BUT.382",
-"book": "butaney_prices",
-"requires": [],
-"activation": [
-{
-"transit_aspect": {
-"a": "Mars",
-"b": "Saturn",
-"aspect": "conjunct",
-"orb": 6
-},
-"zodiac": "tropical"
-},
-{
-"transit_sign": {
-"planet": "Mars",
-"signs": [
-"Scorpio",
-"Sagittarius",
-"Pisces"
-]
-},
-"zodiac": "tropical"
-},
-{
-"transit_sign": {
-"planet": "Saturn",
-"signs": [
-"Scorpio",
-"Sagittarius",
-"Pisces"
-]
-},
-"zodiac": "tropical"
-}
-],
-"tone": "good",
-"topics": [
-"speculation"
-],
-"effect": "Oil-seeds tend to rise sharply in this stretch.",
-"effect_es": "Las semillas oleaginosas tienden a subir bruscamente en este período.",
-"remedy": null,
-"remedy_es": null,
-"timing_note": null,
-"clarity": "inferred",
-"line": 3919
-},
-{
 "id": "BUT.383",
 "book": "butaney_prices",
 "requires": [],
@@ -15783,33 +15734,6 @@
 "line": 4886
 },
 {
-"id": "BUT.554",
-"book": "butaney_prices",
-"requires": [],
-"activation": [
-{
-"transit_deg": {
-"planet": "Venus",
-"sign": "Leo",
-"from_deg": 10,
-"to_deg": 23
-},
-"zodiac": "tropical"
-}
-],
-"tone": "bad",
-"topics": [
-"speculation"
-],
-"effect": "Cotton tends to fall in this stretch.",
-"effect_es": "El algodón tiende a bajar en este período.",
-"remedy": null,
-"remedy_es": null,
-"timing_note": null,
-"clarity": "clear",
-"line": 4891
-},
-{
 "id": "BUT.555",
 "book": "butaney_prices",
 "requires": [],
@@ -18473,56 +18397,6 @@
 "line": 5595
 },
 {
-"id": "BUT.656",
-"book": "butaney_prices",
-"requires": [],
-"activation": [
-{
-"transit_nakshatra": {
-"planet": "Mercury",
-"nakshatra": "Ashlesha"
-},
-"zodiac": "tropical"
-}
-],
-"tone": "bad",
-"topics": [
-"speculation"
-],
-"effect": "Cotton, shares and all commodities tend to fall in this stretch.",
-"effect_es": "El algodón, las acciones y todas las materias primas tienden a bajar en este período.",
-"remedy": null,
-"remedy_es": null,
-"timing_note": null,
-"clarity": "clear",
-"line": 5598
-},
-{
-"id": "BUT.657",
-"book": "butaney_prices",
-"requires": [],
-"activation": [
-{
-"transit_nakshatra": {
-"planet": "Venus",
-"nakshatra": "Ashlesha"
-},
-"zodiac": "tropical"
-}
-],
-"tone": "bad",
-"topics": [
-"speculation"
-],
-"effect": "Cotton, shares and all commodities tend to fall in this stretch.",
-"effect_es": "El algodón, las acciones y todas las materias primas tienden a bajar en este período.",
-"remedy": null,
-"remedy_es": null,
-"timing_note": null,
-"clarity": "clear",
-"line": 5598
-},
-{
 "id": "BUT.658",
 "book": "butaney_prices",
 "requires": [],
@@ -19333,50 +19207,6 @@
 "line": 5651
 },
 {
-"id": "BUT.687",
-"book": "butaney_prices",
-"requires": [],
-"activation": [
-{
-"transit_sign": {
-"planet": "Jupiter",
-"signs": [
-"Aries",
-"Gemini",
-"Leo",
-"Libra",
-"Aquarius"
-]
-},
-"zodiac": "tropical"
-},
-{
-"transit_sign": {
-"planet": "Saturn",
-"signs": [
-"Aries",
-"Gemini",
-"Leo",
-"Libra",
-"Aquarius"
-]
-},
-"zodiac": "tropical"
-}
-],
-"tone": "bad",
-"topics": [
-"speculation"
-],
-"effect": "Shares tend to fall in this stretch.",
-"effect_es": "Las acciones tienden a bajar en este período.",
-"remedy": null,
-"remedy_es": null,
-"timing_note": null,
-"clarity": "clear",
-"line": 5929
-},
-{
 "id": "BUT.688",
 "book": "butaney_prices",
 "requires": [],
@@ -19793,33 +19623,6 @@
 "line": 6210
 },
 {
-"id": "BUT.703",
-"book": "butaney_prices",
-"requires": [],
-"activation": [
-{
-"transit_sign": {
-"planet": "Jupiter",
-"signs": [
-"Pisces"
-]
-},
-"zodiac": "tropical"
-}
-],
-"tone": "good",
-"topics": [
-"speculation"
-],
-"effect": "Oil-seeds tend to rise well in this stretch.",
-"effect_es": "Las semillas oleaginosas tienden a subir con firmeza en este período.",
-"remedy": null,
-"remedy_es": null,
-"timing_note": null,
-"clarity": "clear",
-"line": 6210
-},
-{
 "id": "BUT.704",
 "book": "butaney_prices",
 "requires": [],
@@ -20171,51 +19974,6 @@
 "line": 6287
 },
 {
-"id": "BUT.721",
-"book": "butaney_prices",
-"requires": [],
-"activation": [
-{
-"transit_aspect": {
-"a": "Mars",
-"b": "Saturn",
-"aspect": "conjunct",
-"orb": 6
-},
-"zodiac": "tropical"
-},
-{
-"transit_sign": {
-"planet": "Mars",
-"signs": [
-"Cancer"
-]
-},
-"zodiac": "tropical"
-},
-{
-"transit_sign": {
-"planet": "Saturn",
-"signs": [
-"Cancer"
-]
-},
-"zodiac": "tropical"
-}
-],
-"tone": "good",
-"topics": [
-"speculation"
-],
-"effect": "Gold and silver tend to rise in this stretch.",
-"effect_es": "El oro y la plata tienden a subir en este período.",
-"remedy": null,
-"remedy_es": null,
-"timing_note": "Book hedges with 'probably'.",
-"clarity": "inferred",
-"line": 6363
-},
-{
 "id": "BUT.722",
 "book": "butaney_prices",
 "requires": [],
@@ -20396,51 +20154,6 @@
 "line": 6363
 },
 {
-"id": "BUT.726",
-"book": "butaney_prices",
-"requires": [],
-"activation": [
-{
-"transit_aspect": {
-"a": "Mars",
-"b": "Saturn",
-"aspect": "conjunct",
-"orb": 6
-},
-"zodiac": "tropical"
-},
-{
-"transit_sign": {
-"planet": "Mars",
-"signs": [
-"Gemini"
-]
-},
-"zodiac": "tropical"
-},
-{
-"transit_sign": {
-"planet": "Saturn",
-"signs": [
-"Gemini"
-]
-},
-"zodiac": "tropical"
-}
-],
-"tone": "bad",
-"topics": [
-"speculation"
-],
-"effect": "Gold and silver tend to fall in this stretch.",
-"effect_es": "El oro y la plata tienden a bajar en este período.",
-"remedy": null,
-"remedy_es": null,
-"timing_note": "Book hedges with 'probably'.",
-"clarity": "inferred",
-"line": 6363
-},
-{
 "id": "BUT.727",
 "book": "butaney_prices",
 "requires": [],
@@ -20572,100 +20285,6 @@
 "remedy": null,
 "remedy_es": null,
 "timing_note": "Book hedges with 'probably'.",
-"clarity": "inferred",
-"line": 6363
-},
-{
-"id": "BUT.730",
-"book": "butaney_prices",
-"requires": [],
-"activation": [
-{
-"transit_aspect": {
-"a": "Mars",
-"b": "Saturn",
-"aspect": "opposition",
-"orb": 6
-},
-"zodiac": "tropical"
-},
-{
-"transit_sign": {
-"planet": "Mars",
-"signs": [
-"Aries",
-"Libra"
-]
-},
-"zodiac": "tropical"
-},
-{
-"transit_sign": {
-"planet": "Saturn",
-"signs": [
-"Aries",
-"Libra"
-]
-},
-"zodiac": "tropical"
-}
-],
-"tone": "bad",
-"topics": [
-"speculation"
-],
-"effect": "Gold and silver tend to fall in this stretch.",
-"effect_es": "El oro y la plata tienden a bajar en este período.",
-"remedy": null,
-"remedy_es": null,
-"timing_note": null,
-"clarity": "inferred",
-"line": 6363
-},
-{
-"id": "BUT.732",
-"book": "butaney_prices",
-"requires": [],
-"activation": [
-{
-"transit_aspect": {
-"a": "Mars",
-"b": "Saturn",
-"aspect": "opposition",
-"orb": 6
-},
-"zodiac": "tropical"
-},
-{
-"transit_sign": {
-"planet": "Mars",
-"signs": [
-"Leo",
-"Aquarius"
-]
-},
-"zodiac": "tropical"
-},
-{
-"transit_sign": {
-"planet": "Saturn",
-"signs": [
-"Leo",
-"Aquarius"
-]
-},
-"zodiac": "tropical"
-}
-],
-"tone": "bad",
-"topics": [
-"speculation"
-],
-"effect": "Gold and silver tend to fall in this stretch.",
-"effect_es": "El oro y la plata tienden a bajar en este período.",
-"remedy": null,
-"remedy_es": null,
-"timing_note": null,
 "clarity": "inferred",
 "line": 6363
 },

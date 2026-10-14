@@ -84,7 +84,7 @@ JARGON_RE = re.compile(r"\b(dasha|lagna|lagan|karaka|yoga|pakka|cell|house|nativ
 LABEL_RE = re.compile(r"\b(perverse|vile|thie(f|ves)|cheat\w*|liar|lies|lying|immoral|criminal|wicked|evil|sinful|lustful|"
                       r"debauch\w*|rogue|rascal|scoundrel|cruel\w*|selfish|blasphem\w*|ill[- ]intent\w*|ill-intended|"
                       r"degenerate|pervert\w*|shameless|lazy|greedy|avaricious|miser\w*|hypocrit\w*|fraud\w*|"
-                      r"defame\w*|disgrace\w*|barbar\w*|stupid|fool\w*|ugly|mean-minded|stingy|rude|arrogant|quarrelsome|dishonest|deceit\w*|unscrupulous|vain|jealous|cunning|crooked|haughty|questionable|shady|dubious)\b", re.I)
+                      r"defame\w*|disgrace\w*|barbar\w*|stupid|fool\w*|ugly|mean-minded|stingy|rude|arrogant|quarrelsome|dishonest|deceit\w*|unscrupulous|vain|jealous|cunning|crooked|haughty|questionable|shady|dubious|nagging|moody|temperamental)\b", re.I)
 
 
 def apply_effects(final, data_dir):

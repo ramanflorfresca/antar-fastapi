@@ -19994,30 +19994,6 @@
 "line": 5565
 },
 {
-"id": "BVJ2.281",
-"book": "bv_raman_how_to_judge_2",
-"requires": [
-{
-"planet": "Rahu",
-"in_houses": [
-9
-]
-}
-],
-"activation": [],
-"tone": "bad",
-"topics": [
-"marriage"
-],
-"effect": "You have a nagging and domineering partner.",
-"effect_es": "Tienes una pareja regañona y dominante.",
-"remedy": null,
-"remedy_es": null,
-"timing_note": null,
-"clarity": "clear",
-"line": 5568
-},
-{
 "id": "BVJ2.282",
 "book": "bv_raman_how_to_judge_2",
 "requires": [
@@ -107822,6 +107798,43 @@
 "timing_note": "Book: marriage tends to fall in the period of a planet aspected by the upapada sign (also its dispositor, not tested); held in 75% of 40 charts. Planet in the same sign is counted too.",
 "clarity": "inferred",
 "line": 6027
+},
+{
+"id": "KP2C.144",
+"book": "kp2_basics",
+"requires": [
+{
+"chart": "female"
+},
+{
+"planet": "Mars",
+"in_houses": [
+1,
+5,
+9
+]
+},
+{
+"planet": "Venus",
+"in_houses": [
+1,
+5,
+9
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "Tension and quarrels with your partner are likely.",
+"effect_es": "Son probables la tensión y las discusiones con tu pareja.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: worse if the partnership area is troubled or its lord badly placed (not expressible); a remark on Mars or Venus ruling the partnership area is ambiguous and not written.",
+"clarity": "inferred",
+"line": 10063
 },
 {
 "id": "KPNP.14",
