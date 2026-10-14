@@ -23,13 +23,15 @@ Policies (see answer()):
 """
 import re
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime
 from typing import Callable, Dict, Iterable, List, Optional
 
 from antar_engine.jaimini_engine import SIGN_NAMES
 from antar_engine import jaimini_rao_events as jre
 from antar_engine import rc_rules as rc
 from antar_engine import combo_rules as cb
+from antar_engine import lk_remedies as lkr
+from antar_engine import vim_levels as vl
 from antar_engine.varshaphal_table import get_annual_house
 from antar_engine.lal_kitab_events import lal_kitab_profile, AGE_TRIGGERS, MATURITY
 
@@ -49,6 +51,7 @@ SUBJECTS: Dict[str, dict] = {
     "spirituality": {"houses": {9, 12}, "area": None,           "label": {"en": "your spiritual path", "es": "tu camino espiritual"}},
     "speculation":  {"houses": {5, 8}, "area": None,            "label": {"en": "speculation", "es": "especulación"}},
     "health":       {"houses": {6, 1}, "area": None,            "label": {"en": "health", "es": "salud"}},
+    "remedies":     {"houses": set(), "area": None,             "label": {"en": "remedies", "es": "remedios"}},
 }
 # a question about a child subject also draws on its parent subject's rules
 PARENTS = {"funding": ["money"], "job": ["career"], "business": ["career", "money"], "marriage": ["love"],
@@ -81,8 +84,10 @@ ALIASES = {
     "speculation": ["stock", "stocks", "trading", "~gambl", "lottery", "bet", "crypto", "casino", "bolsa", "apuesta",
                     "lotería", "loteria", "satta"],
     "health": ["health", "illness", "salud", "saúde", "swasthya"],
+    "remedies": ["remedy", "remedies", "cure", "upay", "upaya", "upaye", "remedio", "remedios", "solución", "solucion",
+                 "~fix"],
 }
-SUBJECT_PRIORITY = ["funding", "speculation", "marriage", "love", "children", "job", "business", "career", "education",
+SUBJECT_PRIORITY = ["remedies", "funding", "speculation", "marriage", "love", "children", "job", "business", "career", "education",
                     "property", "foreign", "spirituality", "money", "health"]
 QWORDS = {
     "when": ["when", "cuándo", "cuando", "quando", "kab"],
@@ -150,11 +155,11 @@ T = {
            "rc_why_chart": "It follows from how your chart is arranged, which the traditional text addresses directly.",
            "combo_why": "The planets in your chart relate to each other in a combination the classical text describes.",
            "none": "The chart gives no rule on {s}, so there is nothing to predict here.",
-           "head_what": "What your chart says about {s}", "head_why": "Why your chart reads this way about {s}",
+           "head_remedies": "Remedies from the traditional text that fit your chart", "head_what": "What your chart says about {s}", "head_why": "Why your chart reads this way about {s}",
            "head_when": "When {s} is most active", "head_how": "How to work with {s}",
            "head_where": "Where {s} points", "head_which": "Which part of your chart leads on {s}",
            "none_when": "No window for {s} stands out in the next 24 months.",
-           "windows": "Windows", "remedies": "Practical remedies", "strengths": "Working for you", "lean_on": "Lean on", "worth_knowing": "Worth knowing",
+           "windows": "Windows", "remedies": "Practical remedies", "strengths": "Working for you", "lean_on": "Lean on", "worth_knowing": "Worth knowing", "for_days": "Keep it up for {d}.", "timing_note": "Timing: {d}.",
            "challenges": "To handle with care", "tone_only": "This reading only says whether it helps or strains; the books give no more detail.",
            "spec": "Treat speculation with caution: size any bet to what you can afford to lose. This is a caution, not a call on any trade.",
            "step": "First step: {a}", "wake": "A dormant area wakes around age {age}.", "lead": "The strongest lead is {x}."},
@@ -170,11 +175,11 @@ T = {
            "rc_why_chart": "Se deriva de cómo está dispuesta tu carta, algo que el texto tradicional aborda directamente.",
            "combo_why": "Los planetas de tu carta se relacionan entre sí en una combinación que describe el texto clásico.",
            "none": "La carta no da ninguna regla sobre {s}, así que no hay nada que predecir aquí.",
-           "head_what": "Lo que dice tu carta sobre {s}", "head_why": "Por qué tu carta se lee así sobre {s}",
+           "head_remedies": "Remedios del texto tradicional que corresponden a tu carta", "head_what": "Lo que dice tu carta sobre {s}", "head_why": "Por qué tu carta se lee así sobre {s}",
            "head_when": "Cuándo {s} está más activo", "head_how": "Cómo trabajar con {s}",
            "head_where": "Hacia dónde apunta {s}", "head_which": "Qué parte de tu carta lidera en {s}",
            "none_when": "Ninguna ventana para {s} destaca en los próximos 24 meses.",
-           "windows": "Ventanas", "remedies": "Remedios prácticos", "strengths": "A tu favor", "lean_on": "Apóyate en", "worth_knowing": "Conviene saber",
+           "windows": "Ventanas", "remedies": "Remedios prácticos", "strengths": "A tu favor", "lean_on": "Apóyate en", "worth_knowing": "Conviene saber", "for_days": "Mantenlo durante {d}.", "timing_note": "Momento: {d}.",
            "challenges": "Para manejar con cuidado", "tone_only": "Esta lectura solo dice si ayuda o presiona; los libros no dan más detalle.",
            "spec": "Trata la especulación con cautela: limita cualquier apuesta a lo que puedas perder. Es una precaución, no una indicación sobre ninguna operación.",
            "step": "Primer paso: {a}", "wake": "Un área latente despierta hacia los {age} años.", "lead": "La pista más fuerte es {x}."},
@@ -204,6 +209,24 @@ class Ctx:
         self.j = jre.Chart(self.lagna, self.lagna_lon, self.planets) if self.ok else None
         self._forecast = None
         self._reading = None
+        self._vim = None
+
+    @property
+    def vim(self) -> List[dict]:
+        """Parsed Vimshottari MD/AD rows. Computed from the Moon when none are stored, so pratyantara and sookshma
+        are always available."""
+        if self._vim is None:
+            rows = vl.parse_rows(self.vim_rows)
+            if not rows and self.ok and self.birth_date and "Moon" in self.planets:
+                b = vl._dt(self.birth_date)
+                if b:
+                    rows = vl.rows_from_moon(self.planets["Moon"].degree, b.replace(hour=12))
+            self._vim = rows
+        return self._vim
+
+    def periods_at(self, when: date) -> dict:
+        """Running Vimshottari major, sub, pratyantara and sookshma lords on a date (internal names)."""
+        return vl.running_lords(self.vim, datetime(when.year, when.month, when.day))
 
     def lk_house(self, planet: str) -> int:
         return self.planets[planet].sign + 1          # fixed frame: Aries = house 1
@@ -455,6 +478,8 @@ def dasha_state(ctx: Ctx, when: date) -> dict:
                 vmd = lord
             elif lvl in ("2", "antardasha", "bhukti"):
                 vad = lord
+    lv = ctx.periods_at(when)
+    vmd, vad = lv["md"] or vmd, lv["ad"] or vad
     cmd = cad = None
     for md in ctx._chara:
         if md.start_date <= w < md.end_date:
@@ -462,13 +487,14 @@ def dasha_state(ctx: Ctx, when: date) -> dict:
             for ad in md.sub_periods:
                 if ad.start_date <= w < ad.end_date:
                     cad = ad.sign
-    return {"vim_md": vmd, "vim_ad": vad, "chara_md": cmd, "chara_ad": cad}
+    return {"vim_md": vmd, "vim_ad": vad, "vim_pd": lv["pd"], "vim_sd": lv["sd"], "chara_md": cmd, "chara_ad": cad}
 
 
-def running(ctx: Ctx, e: Evidence, st: dict) -> List[str]:
-    """Which timing systems run this rule on that date. [] = the rule is dormant."""
+def running(ctx: Ctx, e: Evidence, st: dict, levels=("vim_md", "vim_ad")) -> List[str]:
+    """Which timing systems run this rule on that date. [] = the rule is dormant. Pass levels=("vim_md", "vim_ad",
+    "vim_pd", "vim_sd") for week- and day-level questions."""
     out = []
-    if any(p in (st["vim_md"], st["vim_ad"]) for p in e.planets):
+    if any(p in tuple(st.get(l) for l in levels) for p in e.planets):
         out.append("vimshottari")
     cad = st["chara_ad"]
     if cad is not None:
@@ -518,6 +544,105 @@ def timeline(ctx: Ctx, subject: str, months: int = 24, lang: str = "en"):
     return segs
 
 
+def remedy_plan(ctx: Ctx, subject: Optional[str], lang: str, limit: int = 3) -> List[dict]:
+    """Roop Chand remedies whose chart condition holds, for this subject (or all when subject is 'remedies')."""
+    state = ctx.rc_state()
+    want = None if subject in (None, "remedies") else {subject, *PARENTS.get(subject, [])}
+    out = []
+    for r in lkr.applying(state):
+        if want is not None and not (want & set(lkr.subjects_of(r))):
+            continue
+        if want is None and not r.get("requires"):
+            continue            # a remedy with no chart condition is offered only when the user asks about its topic
+        item = lkr.render(r, lang)
+        if item:
+            out.append(item)
+        if len(out) >= limit:
+            break
+    return out
+
+
+_REM_REASON = {
+    "en": {"month": "A phase tied to this remedy is running right now.",
+           "six_months": "A phase tied to this remedy runs within the next six months.",
+           "year": "This year's chart brings this area into play.",
+           "ease": "To ease it", "strengthen": "To strengthen it",
+           "none": "No remedy is called for in this window: nothing the text treats is being activated."},
+    "es": {"month": "Una fase ligada a este remedio está en marcha ahora mismo.",
+           "six_months": "Una fase ligada a este remedio ocurre en los próximos seis meses.",
+           "year": "La carta de este año pone esta área en juego.",
+           "ease": "Para aliviarlo", "strengthen": "Para fortalecerlo",
+           "none": "Ningún remedio es necesario en esta ventana: no se activa nada de lo que trata el texto."},
+}
+_STRENGTHEN_WORDS = ("want", "wish", "more ease", "wellbeing", "do well", "success", "improve")
+
+
+def _remedy_planets(remedy: dict) -> set:
+    """Planets named in a remedy's chart condition: the planets whose activation makes it relevant."""
+    out = set()
+    for c in remedy.get("requires", []):
+        for k in ("planet", "with"):
+            if isinstance(c.get(k), str) and c[k] in rc.PLANETS:
+                out.add(c[k])
+    return out
+
+
+def remedy_calendar(ctx: Ctx, lang: str = "en", subject: Optional[str] = None) -> dict:
+    """Which Roop Chand remedies are live now, in the next six months, and this year, and why.
+    A remedy is live in a window when a planet its chart condition names is activated in that window:
+      this month   : that planet rules a Vimshottari pratyantara or sookshma running within 30 days
+      six months   : that planet rules a major, sub or pratyantara period within 183 days
+      this year    : that planet is the year lord or is named by a bad annual rule applying this year
+    A remedy with no named planet (no chart condition) is never live by timing; it is offered only on its topic.
+    Remedies mostly ease a trouble; one is marked 'strengthen' only when its own problem text is about gaining ease or success."""
+    lang = lang if lang in _REM_REASON else "en"
+    tx = _REM_REASON[lang]
+    if not ctx.ok:
+        return {"available": False}
+    from datetime import datetime as _dtm, timedelta as _td
+    rows = ctx.vim
+    now = _dtm(ctx.today.year, ctx.today.month, ctx.today.day)
+    month_planets = vl.lords_in_window(rows, now, now + _td(days=30), levels=("pd", "sd"), step_days=1) if rows else set()
+    six_planets = vl.lords_in_window(rows, now, now + _td(days=183), levels=("md", "ad", "pd"), step_days=3) if rows else set()
+    year_planets = set()
+    state = ctx.rc_state()
+    if state.get("annual"):
+        yl = None
+        try:
+            from antar_engine.lk_year_lord import year_lord_by_age
+            yl = year_lord_by_age(ctx.birth_date, ctx.today)
+        except Exception:
+            pass
+        year_planets = {yl} if yl else set()
+        year_planets |= {r["planet"] for r in rc.applying(state, kind="annual") if r["tone"] == "bad" and r.get("planet")}
+    want = None if subject in (None, "remedies") else {subject, *PARENTS.get(subject, [])}
+    buckets = {"this_month": [], "six_months": [], "this_year": []}
+    placed = set()
+    for r in lkr.applying(state):
+        planets = _remedy_planets(r)
+        if not planets:
+            continue
+        if want is not None and not (want & set(lkr.subjects_of(r))):
+            continue
+        item = lkr.render(r, lang)
+        if not item:
+            continue
+        low = (r.get("problem") or "").lower()
+        item["purpose"] = tx["strengthen"] if any(w in low for w in _STRENGTHEN_WORDS) else tx["ease"]
+        for key, pset, why in (("this_month", month_planets, "month"), ("six_months", six_planets, "six_months"),
+                               ("this_year", year_planets, "year")):
+            if planets & pset and r["id"] not in placed:
+                buckets[key].append({**item, "why_now": tx[why]})
+                placed.add(r["id"])
+    return {"available": True, "language": lang, "principle": rc_principle(lang), **buckets,
+            "none": tx["none"] if not placed else None}
+
+
+def rc_principle(lang: str) -> str:
+    from antar_engine.lk_annual_forecast import PRINCIPLE
+    return PRINCIPLE.get(lang, PRINCIPLE["en"])
+
+
 # ----------------------------------------------------------------------------- the astrologer
 def _windows(ctx: Ctx, subject: str, lang: str):
     area = SUBJECTS[subject]["area"]
@@ -546,6 +671,7 @@ def answer(ctx: Ctx, subject: Optional[str], qword: str = "what", lang: str = "e
     bad = [e for e in evs if e.tone == "bad"]
     lines, used = [], []
     rem = remedies_for(bad, lang=lang)
+    plan = remedy_plan(ctx, subject, lang, 8 if subject == 'remedies' else 3)
     wins = _windows(ctx, subject, lang)
     wake = []
     if ctx.age is not None:
@@ -574,8 +700,47 @@ def answer(ctx: Ctx, subject: Optional[str], qword: str = "what", lang: str = "e
                 lines.append(("- " if evidence else "") + txt)
                 used.append(e.rule_id)
 
-    head = tx["head_" + qword].format(s=label)
-    if qword in ("what", "why"):
+    head = (tx["head_remedies"] if subject == "remedies" else tx["head_" + qword].format(s=label))
+
+    def add_remedies():
+        shown = rem + plan
+        if not shown:
+            return
+        lines.append(tx["remedies"] + ":")
+        for r in shown:
+            if r.get("problem"):
+                lines.append(r["problem"])
+                for st in r.get("steps", []):
+                    lines.append("- " + st)
+                if r.get("duration"):
+                    d = r["duration"]
+                    lines.append("- " + (tx["for_days"].format(d=d) if re.match(r"\s*\d", d) else tx["timing_note"].format(d=d)))
+            else:
+                lines.append(r["do"] + (f' ({r["timing"]}, {r["duration"]})' if r["timing"] or r["duration"] else ""))
+            used.append(r["rule_id"])
+
+    if subject == "remedies":
+        calendar = remedy_calendar(ctx, lang, subject)
+        titles = {"this_month": {"en": "This month", "es": "Este mes"}, "six_months": {"en": "Next six months", "es": "Próximos seis meses"},
+                  "this_year": {"en": "This year", "es": "Este año"}}
+        for key in ("this_month", "six_months", "this_year"):
+            items = calendar.get(key, [])[:3]
+            if not items:
+                continue
+            lines.append(titles[key][lang] + ":")
+            for r in items:
+                lines.append(r["problem"] + " (" + r["purpose"] + ")")
+                for st in r.get("steps", []):
+                    lines.append("- " + st)
+                if r.get("duration"):
+                    d = r["duration"]
+                    lines.append("- " + (tx["for_days"].format(d=d) if re.match(r"\s*\d", d) else tx["timing_note"].format(d=d)))
+                lines.append(r["why_now"])
+                used.append(r["rule_id"])
+        if lines:
+            lines.append(calendar["principle"])
+        plan = [r for k in ("this_month", "six_months", "this_year") for r in calendar.get(k, [])]
+    elif qword in ("what", "why"):
         ev_on = (qword == "why")
         blocks = [(tx["challenges"], bad), (tx["strengths"], good)] if ev_on else [(tx["strengths"], good), (tx["challenges"], bad)]
         for title, items in blocks:
@@ -584,10 +749,7 @@ def answer(ctx: Ctx, subject: Optional[str], qword: str = "what", lang: str = "e
                 add(items, evidence=ev_on)
         if any(e.precision == "tone" for e in evs):
             lines.append(tx["tone_only"])
-        if rem:
-            lines.append(tx["remedies"] + ":")
-            for r in rem:
-                lines.append(r["do"] + (f' ({r["timing"]}, {r["duration"]})' if r["timing"] or r["duration"] else ""))
+        add_remedies()
     elif qword == "when":
         for w in wins:
             lines.append(f'{w["label"]} ({w["strength_label"]}): {w["headline"]}. {w["why"]}')
@@ -611,11 +773,7 @@ def answer(ctx: Ctx, subject: Optional[str], qword: str = "what", lang: str = "e
         if note:
             lines.append(tx["worth_knowing"] + ":")
             add(note, cap=3)
-        if rem:
-            lines.append(tx["remedies"] + ":")
-            for r in rem:
-                lines.append(r["do"] + (f' ({r["timing"]}, {r["duration"]})' if r["timing"] or r["duration"] else ""))
-                used.append(r["rule_id"])
+        add_remedies()
     elif qword == "where":
         foreign = [e for e in applicable(ctx) if {"foreign", "spirituality"} & set(e.subjects)] if subject in ("foreign", "spirituality") else evs
         add(foreign)
@@ -629,10 +787,11 @@ def answer(ctx: Ctx, subject: Optional[str], qword: str = "what", lang: str = "e
             add(lead)
     if subject == "speculation":
         lines.append(tx["spec"])
-    applicable_any = bool(evs or wins or wake or subject == "speculation")
+    applicable_any = bool(evs or wins or wake or plan or subject == "speculation")
     if not applicable_any:
         lines = [tx["none"].format(s=label)]
     return {"available": True, "subject": subject, "subject_label": label, "qword": qword, "language": lang,
             "headline": head, "lines": lines, "rules_used": sorted(set(used)), "windows": wins,
-            "remedies": rem if qword in ("how", "what", "why") else [], "applicable": applicable_any,
+            "remedies": (rem + plan) if (qword in ("how", "what", "why") or subject == "remedies") else [],
+            "applicable": applicable_any,
             "text": head + "\n" + "\n".join(lines)}

@@ -19,7 +19,10 @@ SMALL = [
 
 @pytest.fixture(autouse=True)
 def small_rules(monkeypatch):
+    from antar_engine import combo_rules as _cb, lk_remedies as _lkr
     monkeypatch.setattr(rc, "_cache", SMALL)
+    monkeypatch.setattr(_cb, "_cache", [])                      # isolate the tests from the shipped data files
+    monkeypatch.setattr(_lkr, "_cache", [])
     yield
 
 SIGNS = ["Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo", "Libra", "Scorpio", "Sagittarius",
@@ -233,3 +236,64 @@ def test_capped_answers_draw_from_every_book():
     lines = rr.answer(c4, "money", "what", "en")["lines"]
     assert any("Combination line." in l for l in lines)
     assert any("Lal Kitab line" in l for l in lines)
+
+
+def test_remedies_apply_only_where_their_condition_holds_and_are_bilingual(monkeypatch):
+    from antar_engine import lk_remedies as lkr
+    monkeypatch.setattr(lkr, "_cache", [
+        {"id": "R1", "requires": [{"planet": "Moon", "in": [12]}], "topics": ["money"], "problem": "Spending outruns income.",
+         "problem_es": "El gasto supera el ingreso.", "steps": ["Flow a coconut in a running stream."],
+         "steps_es": ["Echa un coco a un arroyo corriente."], "duration": "43 days", "duration_es": "43 días"},
+        {"id": "R2", "requires": [{"planet": "Moon", "in": [4]}], "topics": ["money"], "problem": "Never shown.",
+         "steps": ["x"], "steps_es": None, "duration": None, "duration_es": None},
+        {"id": "R3", "requires": [], "topics": ["marriage"], "problem": "Wedding delays.", "steps": ["Feed ten people."],
+         "steps_es": None, "duration": None, "duration_es": None}])
+    c = ctx()                                                    # Moon in Pisces = Lal Kitab house 12
+    a = rr.answer(c, "money", "how", "en")
+    assert any("Spending outruns income." in l for l in a["lines"]) and any("Flow a coconut" in l for l in a["lines"])
+    assert not any("Never shown." in l for l in a["lines"]) and not any("Wedding delays." in l for l in a["lines"])
+    assert any("43 days" in l for l in a["lines"])
+    es = rr.answer(c, "money", "how", "es")
+    assert any("El gasto supera" in l for l in es["lines"]) and any("43 días" in l for l in es["lines"])
+    allr = rr.answer(ctx_v(), "remedies", "how", "en")                  # Moon periods run, so the Moon remedy is live
+    assert allr["headline"].startswith("Remedies") and "Spending outruns income." in " ".join(allr["lines"])
+    assert "Wedding delays." not in " ".join(allr["lines"])        # unconditional: only when its topic is asked
+    assert rr.parse_question("What remedies can I do for money?")[0] == "remedies"
+
+
+def test_unconditional_remedies_only_when_the_topic_is_asked_and_durations_read_naturally(monkeypatch):
+    from antar_engine import lk_remedies as lkr
+    monkeypatch.setattr(lkr, "_cache", [
+        {"id": "U1", "requires": [], "topics": ["marriage"], "problem": "Wedding delays.", "steps": ["Feed ten people."],
+         "steps_es": None, "duration": "once", "duration_es": None},
+        {"id": "C1", "requires": [{"planet": "Moon", "in": [12]}], "topics": ["money"], "problem": "Spending runs ahead.",
+         "steps": ["Flow a coconut."], "steps_es": None, "duration": "43 days", "duration_es": None}])
+    c = ctx()
+    allr = rr.answer(ctx_v(), "remedies", "how", "en")["lines"]
+    assert any("Spending runs ahead." in l for l in allr) and not any("Wedding delays." in l for l in allr)
+    mar = rr.answer(c, "marriage", "how", "en")["lines"]
+    assert any("Wedding delays." in l for l in mar)
+    assert any("Timing: once." in l for l in mar) and not any("Keep it up for once" in l for l in mar)
+    assert any("Keep it up for 43 days." in l for l in rr.answer(c, "money", "how", "en")["lines"])
+
+
+def test_remedy_calendar_is_live_only_when_the_treated_planet_is_activated(monkeypatch):
+    from antar_engine import lk_remedies as lkr
+    monkeypatch.setattr(lkr, "_cache", [
+        {"id": "M1", "requires": [{"planet": "Moon", "in": [12]}], "topics": ["money"], "problem": "Spending runs ahead.",
+         "problem_es": "El gasto va por delante.", "steps": ["Flow a coconut."], "steps_es": ["Echa un coco."],
+         "duration": "43 days", "duration_es": "43 días"},
+        {"id": "M2", "requires": [{"planet": "Saturn", "in": [3]}], "topics": ["career"], "problem": "Work stalls and you want more ease.",
+         "steps": ["Offer ten almonds."], "steps_es": None, "duration": None, "duration_es": None}])
+    monkeypatch.setattr(rr.vl, "lords_in_window", lambda rows, a, b, levels=("md", "ad", "pd"), step_days=3: {"Moon"})
+    cal = rr.remedy_calendar(ctx_v(), "en")                    # only the Moon is activated in every window
+    live = [r["rule_id"] for k in ("this_month", "six_months", "this_year") for r in cal[k]]
+    assert "LKR.M1" in live and "LKR.M2" not in live           # Saturn is natal in house 3 but not being activated
+    one = next(r for k in ("this_month", "six_months", "this_year") for r in cal[k] if r["rule_id"] == "LKR.M1")
+    assert one["purpose"] == "To ease it" and one["why_now"]
+    assert "43" in cal["principle"]
+    es = rr.remedy_calendar(ctx_v(), "es")
+    assert any(r["rule_id"] == "LKR.M1" for k in ("this_month", "six_months", "this_year") for r in es[k])
+    monkeypatch.undo()
+    assert rr.remedy_calendar(rr.Ctx(chart(9, SIGNS_A), "1975-11-26", [], TODAY), "en")["available"]
+    assert rr.remedy_calendar(rr.Ctx({}, "1975-01-01", [], TODAY)) == {"available": False}
