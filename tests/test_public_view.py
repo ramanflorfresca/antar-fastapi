@@ -69,3 +69,13 @@ def test_answer_text_has_no_method_names():
     t = rr.answer(ctx(), "money", "when", "en")["text"]
     for w in ("KP", "Jaimini", "Vimshottari", "Lal Kitab", "timing methods", "both timing systems"):
         assert w not in t, w
+
+
+def test_answer_strings_do_not_explain_the_mechanism():
+    import re
+    from antar_engine import rule_registry as rr
+    bad = re.compile(r"traditional|classical|\bbooks?\b|\btext\b|planet|Saturn|Mercury|benefic|12th|texto|libros?|planeta|tradicional|clásico|Saturno|Mercurio|benéfic", re.I)
+    for lang, d in rr.T.items():
+        for k, v in d.items():
+            if isinstance(v, str):
+                assert not bad.search(v), (lang, k, v)
