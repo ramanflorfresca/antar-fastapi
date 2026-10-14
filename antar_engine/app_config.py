@@ -60,6 +60,11 @@ ALLOWED_KEYS: Dict[str, dict] = {
                 "(verdict + a few dated windows) to the astrologer answer for speculation questions only. KP is not "
                 "validated against outcomes; try it on your own chart first.",
     },
+    "kp_when": {
+        "default": "off", "kind": "str", "choices": None,
+        "help": "EXPERIMENTAL. 'off', 'all', or a comma-separated list of chart ids. Adds KP period + transit windows as one more "
+                "independent timing line in the combined 'when will X happen' answer. KP is internal until approved.",
+    },
     "narration_audit_strict": {
         "default": "off", "kind": "bool", "choices": ["on", "off"],
         "help": "If on, a jargon/broken/incoherent daily card is regenerated "

@@ -717,6 +717,7 @@ def _windows(ctx: Ctx, subject: str, lang: str):
     return []
 
 
+_WHEN_AGREE = {"en": "Where independent timing signals agree:", "es": "Donde coinciden señales de tiempo independientes:"}
 _SPEC_STANCE = {
     "en": {"good": "Overall your chart leans supportive toward speculation.",
            "bad": "Overall your chart leans costly toward speculation; take extra care.",
@@ -759,6 +760,7 @@ def answer(ctx: Ctx, subject: Optional[str], qword: str = "what", lang: str = "e
     good = [e for e in evs if e.tone in ("good", "info")]
     bad = [e for e in evs if e.tone == "bad"]
     lines, used = [], []
+    when_combined = None
     rem = remedies_for(bad, lang=lang)
     plan = remedy_plan(ctx, subject, lang, 8 if subject == 'remedies' else 3)
     wins = _windows(ctx, subject, lang)
@@ -852,7 +854,18 @@ def answer(ctx: Ctx, subject: Optional[str], qword: str = "what", lang: str = "e
         for sg in tl:
             lines.append(f'{sg["start"][:7]} to {sg["end"][:7]}: {sg["tone_label"]}' + (" (both timing systems)" if sg["both"] and lang == "en" else ""))
             used += sg["ids"]
-        if not wins and not wake and not tl:
+        try:
+            from antar_engine import when_engine
+            wc = when_engine.build(ctx, subject, lang, kp=getattr(ctx, "kp_when", None))
+        except Exception:
+            wc = None
+        if wc and wc["agree"]:
+            lines.append(_WHEN_AGREE[lang if lang in _WHEN_AGREE else "en"])
+            for w in wc["agree"][:3]:
+                lines.append(f'- {w["start"][:7]} to {w["end"][:7]} ({w["strength"]}): ' + ", ".join(w["line_names"])
+                             + (" - " + ("most of all " if lang != "es" else "sobre todo ") + ", ".join(f'{p["start"][:10]} to {p["end"][:10]}' for p in w["peaks"][:2]) if w.get("peaks") else ""))
+        when_combined = wc
+        if not wins and not wake and not tl and not (wc and wc["agree"]):
             lines.append(tx["none_when"].format(s=label))
         used += [f"WINDOW.{subject}"] if wins else []
     elif qword == "how":
@@ -900,5 +913,5 @@ def answer(ctx: Ctx, subject: Optional[str], qword: str = "what", lang: str = "e
     return {"available": True, "subject": subject, "subject_label": label, "qword": qword, "language": lang,
             "headline": head, "lines": lines, "rules_used": sorted(set(used)), "windows": wins,
             "remedies": (rem + plan) if (qword in ("how", "what", "why") or subject == "remedies") else [],
-            "applicable": applicable_any,
+            "applicable": applicable_any, "when_combined": when_combined,
             "text": head + "\n" + "\n".join(lines)}

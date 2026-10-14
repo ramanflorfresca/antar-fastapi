@@ -4662,6 +4662,16 @@ async def get_chart_astrologer(chart_id: str, question: str = "", subject: str =
         subj, qw = rr.parse_question(question) if question else (None, "what")
         subj = subject or subj
         qw = qword or qw
+        if qw == "when" and subj:
+            try:
+                from antar_engine import kp_when as _kpw
+                if _kpw.enabled_for(supabase, chart_id):          # EXPERIMENTAL flag, off by default
+                    from antar_engine.kp.kp_service import _build_chart
+                    _ll = supabase.table("charts").select("latitude,longitude,chart_data").eq("id", chart_id).single().execute().data
+                    _kc = _build_chart(_ll)
+                    ctx.kp_when = _kpw.windows(_kc, subj, ctx.today) if _kc else None
+            except Exception as _e:
+                print(f"[astrologer] kp_when non-fatal: {_e}")
         out = rr.answer(ctx, subj, qw, language)
         out["parsed"] = {"subject": subj, "qword": qw}
         out["periods_now"] = ctx.periods_at(ctx.today)          # internal: Vimshottari major/sub/pratyantara/sookshma lords
