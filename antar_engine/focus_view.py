@@ -7,6 +7,7 @@ The areas the person cares about NOW lead (`focus`, at most 2); the rest fold un
 Relevance = what they have been asking (last 30 days) > their situation (work, partner, children, studying) > how strongly a window is running.
 Method, book and rule names never appear; each statement carries only an opaque `ref`.
 """
+import re
 from datetime import date, timedelta
 from typing import Dict, List, Optional
 
@@ -33,6 +34,20 @@ TOPIC_WORDS = {"money": ("money", "fund", "income", "dinero", "financ", "invest"
                "home": ("property", "home", "foreign", "travel", "abroad", "propiedad", "viaje", "extranjero"),
                "health": ("health", "salud"), "inner": ("spirit", "espirit")}
 MAX_FOCUS = 2
+_NEEDS_PARTNER = re.compile(r"\b(spouse|husband|wife|in-laws?|your partner|tu esposo|tu esposa|tu pareja|tu cónyuge|tu marido)\b", re.I)
+_NEEDS_KIDS = re.compile(r"\byour (children|child|kids?|sons?|daughters?)\b|\btus? (hij[oa]s?)\b", re.I)
+
+
+def _gate_ok(text: Optional[str], life: Optional[dict]) -> bool:
+    """Never state a present-tense fact about a spouse or children the person is not known to have (same rule as the narration layer)."""
+    if not text:
+        return True
+    life = life or {}
+    if _NEEDS_PARTNER.search(text) and life.get("partnered") is not True:
+        return False
+    if _NEEDS_KIDS.search(text) and life.get("has_children") is not True:
+        return False
+    return True
 
 
 def _recent_share(recent_topics: List[str]) -> Dict[str, float]:
@@ -86,13 +101,13 @@ def _season_sentence(season: dict, lang: str) -> str:
     return s
 
 
-def _pattern(ctx, subjects, lang) -> Optional[dict]:
+def _pattern(ctx, subjects, lang, life=None) -> Optional[dict]:
     evs = rr.for_subject(rr.applicable(ctx), subjects[0]) if subjects else []
     for s in subjects[1:]:
         evs += rr.for_subject(rr.applicable(ctx), s)
     best = None
     for e in evs:
-        if e.tone in ("good", "info") and e.plain.get(lang) and (best is None or (e.precision == "specific", e.tone == "good") > (best.precision == "specific", best.tone == "good")):
+        if e.tone in ("good", "info") and e.plain.get(lang) and _gate_ok(e.plain.get(lang), life) and (best is None or (e.precision == "specific", e.tone == "good") > (best.precision == "specific", best.tone == "good")):
             best = e
     return {"text": best.plain[lang], "ref": public_view.ref_for(best.rule_id)} if best else None
 
@@ -160,12 +175,14 @@ def build(ctx, library: dict, life: Optional[dict] = None, recent_topics: Option
     for key, subjects, label in AREAS:
         lean = [i for ln in ("vimshottari", "jaimini") for i in library[ln]["lean_in"] if i.get("subject") in subjects]
         watch = [i for ln in ("vimshottari", "jaimini") for i in library[ln]["watch"] if i.get("subject") in subjects]
+        lean = [i for i in lean if _gate_ok(i.get("text"), life)]
+        watch = [i for i in watch if _gate_ok(i.get("text"), life)]
         wins = []
         for s in subjects:
             w = when_engine.build(ctx, s, lang, kp=(kp or {}).get(s), horizon_months=horizon_months)
             wins += w["agree"]
         wins.sort(key=lambda w: (-w["signals"], w["start"]))
-        pattern = _pattern(ctx, subjects, lang)
+        pattern = _pattern(ctx, subjects, lang, life)
         move = None
         for s in subjects:
             ww = rr._windows(ctx, s, lang)
