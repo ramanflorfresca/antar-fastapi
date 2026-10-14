@@ -57,6 +57,9 @@ def build(data_dir):
             if re.search(r"\bsuit(s)? (you|your)\b", en) and "," in en:  # industry lists: vertical study closed negative
                 st["dropped_vertical_list"] = st.get("dropped_vertical_list", 0) + 1
                 continue
+            if re.search(r"pin down|for (about|around|nearly) [\w\- ]+ years", en, re.I):  # vague multi-year spans
+                st["dropped_vague_span"] = st.get("dropped_vague_span", 0) + 1
+                continue
             if not clauses:
                 st["dropped_no_condition"] = st.get("dropped_no_condition", 0) + 1
                 continue

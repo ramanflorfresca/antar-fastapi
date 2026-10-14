@@ -41,3 +41,22 @@ def test_weekly_layer_three_labelled_lines():
     assert set(out) == {"start", "days", "vimshottari", "jaimini", "lal_kitab"}
     assert out["vimshottari"]["gochara"]["background"]
     assert isinstance(out["jaimini"], list) and "year_lord" in out["lal_kitab"]
+
+
+def test_week_shows_one_rule_per_topic_and_tone(monkeypatch):
+    from antar_engine import weekly_layer, book_rules
+    monkeypatch.setattr(book_rules, "load_rules", lambda: [
+        {"id": "A", "requires": [1], "activation": []}, {"id": "B", "requires": [1, 2], "activation": [1]}])
+    rows = [{"rule_id": "A", "book": "x", "tone": "good", "subjects": ["love"], "text": "a", "days": []},
+            {"rule_id": "B", "book": "x", "tone": "good", "subjects": ["love"], "text": "b", "days": []}]
+    out = weekly_layer._one_per_topic(rows)
+    assert [r["rule_id"] for r in out] == ["B"] and out[0]["more"][0]["rule_id"] == "A"
+
+
+def test_character_labels_and_vague_spans_removed():
+    import json, re
+    from scripts.build_rc_rules import LABEL_RE
+    for f in ("book_rules", "lk_roop_chand_rules"):
+        for r in json.load(open(f"antar_engine/data/{f}.json"))["rules"]:
+            assert not LABEL_RE.search(r.get("effect") or ""), r["id"]
+    assert not any(re.search("pin down", r["effect"]) for r in json.load(open("antar_engine/data/book_rules.json"))["rules"])

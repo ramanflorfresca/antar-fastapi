@@ -15507,30 +15507,6 @@
 "line": 477
 },
 {
-"id": "BVJ2.96",
-"book": "bv_raman_how_to_judge_2",
-"requires": [
-{
-"planet": "Ketu",
-"in_houses": [
-7
-]
-}
-],
-"activation": [],
-"tone": "bad",
-"topics": [
-"marriage"
-],
-"effect": "You have an unhappy marriage with a quarrelsome partner.",
-"effect_es": "Tienes un matrimonio infeliz con una pareja pendenciera.",
-"remedy": null,
-"remedy_es": null,
-"timing_note": null,
-"clarity": "clear",
-"line": 480
-},
-{
 "id": "BVJ2.97",
 "book": "bv_raman_how_to_judge_2",
 "requires": [
@@ -15799,35 +15775,6 @@
 "timing_note": "book requires the 7th lord to be fortified",
 "clarity": "inferred",
 "line": 644
-},
-{
-"id": "BVJ2.105",
-"book": "bv_raman_how_to_judge_2",
-"requires": [
-{
-"a": "L7",
-"b": "L6",
-"relation": "conjunct"
-},
-{
-"planet": "L7",
-"in_houses": [
-6
-]
-}
-],
-"activation": [],
-"tone": "bad",
-"topics": [
-"money"
-],
-"effect": "You can lose money through theft or deceit and face trouble from lawsuits and debts.",
-"effect_es": "Puedes perder dinero por robo o engaño y enfrentar problemas por demandas y deudas.",
-"remedy": null,
-"remedy_es": null,
-"timing_note": "mitigated if benefics are present",
-"clarity": "clear",
-"line": 654
 },
 {
 "id": "BVJ2.106",
@@ -20515,32 +20462,6 @@
 "timing_note": "results attributed to the main period; sub-periods give them to a lesser degree",
 "clarity": "inferred",
 "line": 5659
-},
-{
-"id": "BVJ2.297",
-"book": "bv_raman_how_to_judge_2",
-"requires": [],
-"activation": [
-{
-"dasha": {
-"level": "md",
-"lords": [
-"Rahu"
-]
-}
-}
-],
-"tone": "bad",
-"topics": [
-"family"
-],
-"effect": "You have unhappiness at home and become stingy and rude.",
-"effect_es": "Tienes infelicidad en el hogar y te vuelves tacaño y rudo.",
-"remedy": null,
-"remedy_es": null,
-"timing_note": "results attributed to the main period; sub-periods give them to a lesser degree",
-"clarity": "inferred",
-"line": 5662
 },
 {
 "id": "BVJ2.298",
@@ -53469,35 +53390,6 @@
 "timing_note": "Book: if Jupiter and Moon are in trine the overspending is curtailed.",
 "clarity": "inferred",
 "line": 7630
-},
-{
-"id": "KPNP.61",
-"book": "kp_basics_nakshatra_padhathi",
-"requires": [],
-"activation": [
-{
-"transit": {
-"planet": "Saturn",
-"from": "Moon",
-"houses": [
-12,
-1,
-2
-]
-}
-}
-],
-"tone": "bad",
-"topics": [
-"other"
-],
-"effect": "For about seven and a half years you may face pressures that are hard to pin down.",
-"effect_es": "Durante unos siete años y medio podrías enfrentar presiones difíciles de identificar.",
-"remedy": null,
-"remedy_es": null,
-"timing_note": "Book: some astrologers hold that transit Saturn over the natal Moon is very important, from the twelfth to the third sign from the Moon (line 763-765); marital disharmony in this phase is shown in worked cases (lines 5461-5467, 10091-10094). The book gives 7.5 years and ends at the third sign; coded as the twelfth, first and second.",
-"clarity": "inferred",
-"line": 760
 },
 {
 "id": "KPND.A.30",

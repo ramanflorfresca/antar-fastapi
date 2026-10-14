@@ -25,7 +25,31 @@ def _book_lines(ctx, start: date, days: int, language: str) -> list:
                    "text": ev.plain.get(language) or ev.plain.get("en"), "days": [d.isoformat()]}
             seen[ev.rule_id] = row
             out.append(row)
-    return out
+    return _one_per_topic(out)
+
+
+def _specificity(row: dict, rules_by_id: dict) -> int:
+    r = rules_by_id.get(row["rule_id"]) or {}
+    return len(r.get("requires", [])) + len(r.get("activation", []))
+
+
+def _one_per_topic(rows: list) -> list:
+    """Show the most specific rule per (subject, tone); the rest ride along under `more` so nothing is hidden."""
+    from antar_engine import book_rules
+    by_id = {r["id"]: r for r in book_rules.load_rules()}
+    best = {}
+    for row in rows:
+        for subj in (row["subjects"] or ["other"]):
+            k = (subj, row["tone"])
+            if k not in best or _specificity(row, by_id) > _specificity(best[k], by_id):
+                best[k] = row
+    keep = {id(v) for v in best.values()}
+    shown = [r for r in rows if id(r) in keep]
+    hidden = [r for r in rows if id(r) not in keep]
+    for r in shown:
+        r["more"] = [{"rule_id": h["rule_id"], "book": h["book"], "text": h["text"]}
+                     for h in hidden if h["tone"] == r["tone"] and set(h["subjects"]) & set(r["subjects"])]
+    return shown
 
 
 def _lk_line(ctx, language: str) -> dict:
