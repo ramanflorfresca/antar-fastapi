@@ -10,7 +10,8 @@ from typing import List, Optional
 DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "book_rules.json")
 _cache: Optional[List[dict]] = None
 BOOK_LABEL = {"kn_rao": "K.N. Rao", "bv_raman": "B.V. Raman", "jaimini_sutras": "Jaimini Sutras",
-              "jataka_parijata": "Jataka Parijata"}
+              "jataka_parijata": "Jataka Parijata",
+              "chatterjee_medical": "Medical astrology (Chatterjee)", "butaney_prices": "Butaney, market timing"}
 
 
 def load_rules(path: str = DATA_PATH) -> List[dict]:

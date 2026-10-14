@@ -11,7 +11,7 @@ import json
 from datetime import date, timedelta
 from typing import Dict, List, Optional
 
-from antar_engine import book_rules, rule_registry as rr, weekly_layer as wl
+from antar_engine import book_rules, combo_rules as cb, rule_registry as rr, weekly_layer as wl
 from antar_engine.reading_composer import _fmt
 
 JAIMINI_KEYS = ('"AK"', '"AmK"', '"BK"', '"MK"', '"PK"', '"GK"', '"DK"', '"AL"', '"UL"', '"A7"', '"KL"', '"touches"')
@@ -139,8 +139,8 @@ def build(ctx, months: int = 6, language: str = "en", start: Optional[date] = No
     for rid, sp in spans.items():
         ev = sp["ev"]
         rule = by_id.get(rid[3:] if rid.startswith("BK.") else rid) or {}
-        if ev.tone not in ("good", "bad") or rid in conflicts:
-            continue
+        if ev.tone not in ("good", "bad") or rid in conflicts or cb.is_impersonal(rule):
+            continue                                      # impersonal (same for everyone) rules answer speculation questions only
         line = line_of(rule)
         spec = len(rule.get("requires", [])) + len(rule.get("activation", []))
         text = ev.plain.get(lang) or ev.plain.get("en")
@@ -170,5 +170,47 @@ def build(ctx, months: int = 6, language: str = "en", start: Optional[date] = No
     for line in ("vimshottari", "jaimini"):
         for blk in out[line].values():
             blk.sort(key=lambda i: i["start"])
+    out["wellness"] = wellness(ctx, start, min(int(months * 30.4), 150), language)
     out["horizon"] = [start.isoformat(), (start + timedelta(days=int(months * 30.4))).isoformat()]
     return out
+
+
+WELLNESS_LINE = {"en": "These are themes to look after, not a diagnosis, and not a substitute for medical care. If something worries you, book a check-up.",
+                 "es": "Son temas de cuidado, no un diagnóstico ni un sustituto de la atención médica. Si algo te preocupa, agenda un chequeo."}
+MAX_WELLNESS = 3
+
+
+def wellness(ctx, start: Optional[date] = None, horizon_days: int = 120, language: str = "en") -> dict:
+    """Health care themes that apply to this chart now or in the coming weeks/months (Chatterjee and any rule with the
+    health topic). Timed rules whose period is running or about to begin come first, then standing themes. Each carries
+    the book's own remedy (diet, habit, ritual) when it has one. Never a diagnosis; the care line is always attached."""
+    lang = "es" if language == "es" else "en"
+    start = start or ctx.today
+    by_id = {r["id"]: r for r in book_rules.load_rules()}
+    items, seen_text = [], set()
+    spans = _spans(ctx, start, horizon_days)
+    for rid, sp in spans.items():
+        ev = sp["ev"]
+        if "health" not in (ev.subjects or []):
+            continue
+        text = ev.plain.get(lang) or ev.plain.get("en")
+        if text in seen_text:
+            continue
+        seen_text.add(text)
+        rule = by_id.get(rid[3:] if rid.startswith("BK.") else rid) or {}
+        items.append({"rule_id": rid, "source": ev.book, "text": text, "start": sp["start"].isoformat(), "end": sp["end"].isoformat(),
+                      "label": _fmt(lang, sp["start"].isoformat(), sp["end"].isoformat()), "timing": "now" if sp["start"] <= start else "soon",
+                      "remedy": (ev.remedy or {}).get(lang) or (ev.remedy or {}).get("en"), "_s": len(rule.get("requires", []))})
+    for ev in rr._book_family(ctx):
+        if "health" not in (ev.subjects or []):
+            continue
+        text = ev.plain.get(lang) or ev.plain.get("en")
+        if text in seen_text:
+            continue
+        seen_text.add(text)
+        items.append({"rule_id": ev.rule_id, "source": ev.book, "text": text, "start": None, "end": None, "label": None, "timing": "standing",
+                      "remedy": (ev.remedy or {}).get(lang) or (ev.remedy or {}).get("en"), "_s": 0})
+    order = {"now": 0, "soon": 1, "standing": 2}
+    items.sort(key=lambda i: (order[i["timing"]], -i["_s"], bool(i["remedy"]) is False))
+    top = [{k: v for k, v in i.items() if k != "_s"} for i in items[:MAX_WELLNESS]]
+    return {"themes": top, "more": max(0, len(items) - len(top)), "note": WELLNESS_LINE[lang]}

@@ -1,0 +1,1 @@
+{"about": "Owner edits to library rules; survive rebuilds. Key = rule id. Use {\"drop\": true} to remove, or any of effect, effect_es, tone, topics, remedy, remedy_es to change it. Then run scripts/build_book_rules.py.", "overrides": {}}
