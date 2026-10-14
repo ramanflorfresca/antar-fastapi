@@ -25,6 +25,21 @@ def _has(clauses, key):
     return any(key in c or key in json.dumps(c) for c in clauses)
 
 
+BOOK_CITE_RE = re.compile(r"\b(the|this) (book|text)\b|\bwhich the book\b", re.I)
+
+
+def _no_planet_word(t, es=False):
+    """The generic word 'planet' is mechanism talk: say 'influence' (same meaning in these sentences)."""
+    if not t:
+        return t
+    if es:
+        for a, b in (("los planetas", "las influencias"), ("del planeta", "de la influencia"), ("el planeta", "la influencia"),
+                     ("un planeta", "una influencia"), ("este planeta", "esta influencia"), ("planetas", "influencias"), ("planeta", "influencia")):
+            t = re.sub(r"\b" + a + r"\b", b, t, flags=re.I)
+        return t
+    return re.sub(r"\bplanets\b", "influences", re.sub(r"\bplanet\b", "influence", t, flags=re.I), flags=re.I)
+
+
 HYPE_RE = re.compile(r"\b(regal|royal|royalty|kingdom|throne|emperor|monarch|millionaires?|billionaires?|lakhs?|crores?|sovereign)\b|rule over", re.I)
 SPEC_RE = re.compile(r"specul|gambl|lotter|games? of chance|betting|\bwager|sudden (gain|wealth)|windfall", re.I)
 MARKET_BOOKS = ("butaney",)          # same-for-everyone market timing: stored, not applied (owner: personal logic only)
@@ -67,6 +82,10 @@ def build(data_dir):
             if re.search(r"\bsuit(s)? (you|your)\b", en) and "," in en:  # industry lists: vertical study closed negative
                 st["dropped_vertical_list"] = st.get("dropped_vertical_list", 0) + 1
                 continue
+            if BOOK_CITE_RE.search(en):                              # cites its own source: never in the product voice
+                st["dropped_cites_book"] = st.get("dropped_cites_book", 0) + 1
+                continue
+            en = _no_planet_word(en)
             if HYPE_RE.search(en):                                  # over-the-top promises (regal power, millionaire): not our voice
                 st["dropped_hype"] = st.get("dropped_hype", 0) + 1
                 continue
@@ -76,7 +95,7 @@ def build(data_dir):
             if not clauses:
                 st["dropped_no_condition"] = st.get("dropped_no_condition", 0) + 1
                 continue
-            es = (r.get("effect_es") or "").strip()
+            es = _no_planet_word((r.get("effect_es") or "").strip(), es=True)
             if es and PLANET_RE.search(es):
                 es = ""
             rem = (r.get("remedy_en") or "").strip() or None

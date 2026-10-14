@@ -112,7 +112,8 @@ def answer(a: Optional[dict]) -> Optional[dict]:
            if k in a}
     out["windows"] = [{k: w[k] for k in ("start", "end", "label", "strength", "strength_label", "headline", "why", "action") if k in w}
                       for w in a.get("windows", [])]
-    out["remedies"] = a.get("remedies", [])
+    out["remedies"] = [{**{k: v for k, v in r.items() if k not in ("rule_id", "id")}, "ref": ref_for(r.get("rule_id") or r.get("id"))}
+                       for r in a.get("remedies", [])]
     out["when"] = when(a.get("when_combined"))
     out["refs"] = [r for r in dict.fromkeys(ref_for(i) for i in a.get("rules_used", [])) if r][:12]
     for k in ("kp_speculation",):

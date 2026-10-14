@@ -79,3 +79,19 @@ def test_answer_strings_do_not_explain_the_mechanism():
         for k, v in d.items():
             if isinstance(v, str):
                 assert not bad.search(v), (lang, k, v)
+
+
+def test_remedies_in_the_public_answer_carry_no_rule_ids():
+    a = {"available": True, "subject": "money", "qword": "how", "lines": [], "text": "t", "applicable": True, "windows": [],
+         "remedies": [{"rule_id": "LK.RC.D.361", "do": "Keep two red cloths.", "timing": "", "duration": ""},
+                      {"rule_id": "LKR.RM.A.13", "problem": "p", "steps": ["s"]}]}
+    out = pv.answer(a)
+    assert "rule_id" not in json.dumps(out) and all(r["ref"] for r in out["remedies"]) and out["remedies"][0]["do"] == "Keep two red cloths."
+
+
+def test_library_text_never_says_planet_or_cites_the_book():
+    import re
+    from antar_engine import book_rules, kp_rules
+    for r in book_rules.load_rules() + kp_rules.load_rules():
+        for t in (r.get("effect") or "", r.get("effect_es") or ""):
+            assert not re.search(r"\bplanets?\b|\bplanetas?\b|\b(the|this) (book|text)\b", t, re.I), (r["id"], t)
