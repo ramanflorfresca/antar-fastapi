@@ -85,6 +85,8 @@ def build(data_dir):
                     "timing_note": r.get("timing_note"), "clarity": r.get("clarity", "clear"), "line": r.get("line")}
             if SPEC_RE.search(en) and "speculation" not in rule["topics"]:    # personal gambling / speculation statements answer speculation questions
                 rule["topics"] = list(rule["topics"]) + ["speculation"]
+            if r.get("asked_at_judgement"):                  # KP question-time rules: applied only when a question moment is supplied
+                rule["asked_at_judgement"] = True
             key = (json.dumps(rule["requires"], sort_keys=True), json.dumps(rule["activation"], sort_keys=True), rule["tone"], en)
             if key in seen:
                 st["duplicates"] = st.get("duplicates", 0) + 1
