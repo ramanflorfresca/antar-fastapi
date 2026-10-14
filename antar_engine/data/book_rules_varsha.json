@@ -1,4 +1,3485 @@
 {
 "source": "astrology library, decomposed 2026-10-13 (see BOOK_INVENTORY)",
-"rules": []
+"rules": [
+{
+"id": "MSMV.1",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "MUNTHA",
+"in_houses": [
+1
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "You come out ahead of those who oppose or compete with you this year.",
+"effect_es": "Este año sales adelante frente a quienes se te oponen o compiten contigo.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2645
+},
+{
+"id": "MSMV.2",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "MUNTHA",
+"in_houses": [
+1
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "Your standing rises, or a new job opens up for you this year.",
+"effect_es": "Este año mejora tu posición o se te abre un nuevo empleo.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2645
+},
+{
+"id": "MSMV.3",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "MUNTHA",
+"in_houses": [
+1
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "People in authority look on you with favour this year.",
+"effect_es": "Este año las personas con autoridad te miran con buenos ojos.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2645
+},
+{
+"id": "MSMV.4",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "MUNTHA",
+"in_houses": [
+1
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "Your income and savings grow this year.",
+"effect_es": "Este año crecen tus ingresos y tus ahorros.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2645
+},
+{
+"id": "MSMV.5",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "MUNTHA",
+"in_houses": [
+1
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"health"
+],
+"effect": "Your health is good this year.",
+"effect_es": "Este año tu salud es buena.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2645
+},
+{
+"id": "MSMV.6",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "MUNTHA",
+"in_houses": [
+1
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"fame"
+],
+"effect": "You earn a good name and wider recognition this year.",
+"effect_es": "Este año ganas buena reputación y mayor reconocimiento.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2646
+},
+{
+"id": "MSMV.7",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "MUNTHA",
+"in_houses": [
+2
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "Your income rises and money comes to you more easily this year.",
+"effect_es": "Este año suben tus ingresos y el dinero te llega con más facilidad.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2669
+},
+{
+"id": "MSMV.8",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "MUNTHA",
+"in_houses": [
+2
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "You enjoy comfort, good food and general contentment this year.",
+"effect_es": "Este año disfrutas de comodidad, buena comida y bienestar general.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2670
+},
+{
+"id": "MSMV.9",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "MUNTHA",
+"in_houses": [
+2
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career",
+"fame"
+],
+"effect": "You gain honour and the backing of people in authority this year.",
+"effect_es": "Este año ganas honra y el respaldo de personas con autoridad.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2673
+},
+{
+"id": "MSMV.10",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "MUNTHA",
+"in_houses": [
+3
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "You prevail over your opponents this year.",
+"effect_es": "Este año te impones a tus oponentes.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2700
+},
+{
+"id": "MSMV.11",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "MUNTHA",
+"in_houses": [
+3
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"family"
+],
+"effect": "Your brothers and sisters help you or prosper this year.",
+"effect_es": "Este año tus hermanos te ayudan o prosperan.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2700
+},
+{
+"id": "MSMV.12",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "MUNTHA",
+"in_houses": [
+3
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "Your wealth and happiness improve this year.",
+"effect_es": "Este año mejoran tu riqueza y tu felicidad.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2701
+},
+{
+"id": "MSMV.13",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "MUNTHA",
+"in_houses": [
+3
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"spiritual"
+],
+"effect": "You visit holy places this year.",
+"effect_es": "Este año visitas lugares sagrados.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2703
+},
+{
+"id": "MSMV.14",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "MUNTHA",
+"in_houses": [
+3
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "Short trips and your writing bring you profit this year.",
+"effect_es": "Este año los viajes cortos y tus escritos te dan ganancias.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2703
+},
+{
+"id": "MSMV.15",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "MUNTHA",
+"in_houses": [
+4
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"family"
+],
+"effect": "Misunderstandings with your relatives arise this year.",
+"effect_es": "Este año surgen malentendidos con tus familiares.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2730
+},
+{
+"id": "MSMV.16",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "MUNTHA",
+"in_houses": [
+4
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"other"
+],
+"effect": "Your peace of mind is disturbed this year.",
+"effect_es": "Este año se altera tu tranquilidad mental.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2730
+},
+{
+"id": "MSMV.17",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "MUNTHA",
+"in_houses": [
+4
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"other"
+],
+"effect": "You feel threatened by rivals or opponents this year.",
+"effect_es": "Este año te sientes amenazado por rivales u opositores.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2731
+},
+{
+"id": "MSMV.18",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "MUNTHA",
+"in_houses": [
+4
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"money"
+],
+"effect": "You lose money this year.",
+"effect_es": "Este año pierdes dinero.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2731
+},
+{
+"id": "MSMV.20",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "MUNTHA",
+"in_houses": [
+5
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"children"
+],
+"effect": "A child may be born to you this year.",
+"effect_es": "Este año puede nacer un hijo o una hija.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2733
+},
+{
+"id": "MSMV.21",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "MUNTHA",
+"in_houses": [
+5
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"children"
+],
+"effect": "Your children prosper this year.",
+"effect_es": "Este año tus hijos prosperan.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2733
+},
+{
+"id": "MSMV.22",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "MUNTHA",
+"in_houses": [
+5
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"spiritual",
+"education"
+],
+"effect": "You make progress in religious learning this year.",
+"effect_es": "Este año avanzas en el estudio religioso.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2734
+},
+{
+"id": "MSMV.23",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "MUNTHA",
+"in_houses": [
+5
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "The government and people in authority favour you this year.",
+"effect_es": "Este año el gobierno y las personas con autoridad te favorecen.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2734
+},
+{
+"id": "MSMV.24",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "MUNTHA",
+"in_houses": [
+5
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"other",
+"fame"
+],
+"effect": "You enjoy happiness, relaxation and honours this year.",
+"effect_es": "Este año disfrutas de felicidad, descanso y reconocimientos.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2735
+},
+{
+"id": "MSMV.25",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "MUNTHA",
+"in_houses": [
+6
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"money"
+],
+"effect": "You risk losing money or belongings to theft this year.",
+"effect_es": "Este año corres el riesgo de perder dinero o pertenencias por un robo.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2737
+},
+{
+"id": "MSMV.26",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "MUNTHA",
+"in_houses": [
+6
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"other"
+],
+"effect": "Enemies and rivals give you trouble this year.",
+"effect_es": "Este año enemigos y rivales te dan problemas.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2737
+},
+{
+"id": "MSMV.27",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "MUNTHA",
+"in_houses": [
+6
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"money"
+],
+"effect": "You fall into debt this year.",
+"effect_es": "Este año caes en deudas.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2737
+},
+{
+"id": "MSMV.28",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "MUNTHA",
+"in_houses": [
+6
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"other"
+],
+"effect": "You are drawn into legal disputes this year.",
+"effect_es": "Este año te ves envuelto en disputas legales.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2738
+},
+{
+"id": "MSMV.29",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "MUNTHA",
+"in_houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "You have misunderstandings with your spouse this year.",
+"effect_es": "Este año tienes malentendidos con tu pareja.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2740
+},
+{
+"id": "MSMV.30",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "MUNTHA",
+"in_houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"money"
+],
+"effect": "A partnership brings you losses this year.",
+"effect_es": "Este año una sociedad te trae pérdidas.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2741
+},
+{
+"id": "MSMV.31",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "MUNTHA",
+"in_houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"other"
+],
+"effect": "Your efforts end in failure this year.",
+"effect_es": "Este año tus esfuerzos terminan en fracaso.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2741
+},
+{
+"id": "MSMV.32",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "MUNTHA",
+"in_houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"other"
+],
+"effect": "Worry weighs on your mind this year.",
+"effect_es": "Este año la preocupación te pesa en la mente.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2741
+},
+{
+"id": "MSMV.33",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "MUNTHA",
+"in_houses": [
+8
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"other"
+],
+"effect": "You face court cases and legal disputes this year.",
+"effect_es": "Este año enfrentas casos judiciales y disputas legales.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2799
+},
+{
+"id": "MSMV.34",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "MUNTHA",
+"in_houses": [
+8
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"money"
+],
+"effect": "You suffer losses, including losses to theft, this year.",
+"effect_es": "Este año sufres pérdidas, incluso por robo.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2799
+},
+{
+"id": "MSMV.36",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "MUNTHA",
+"in_houses": [
+8
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"money"
+],
+"effect": "Your wealth and your moral standing suffer this year.",
+"effect_es": "Este año sufren tu patrimonio y tu integridad moral.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2800
+},
+{
+"id": "MSMV.37",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "MUNTHA",
+"in_houses": [
+8
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"other"
+],
+"effect": "Difficulties pile up for you this year.",
+"effect_es": "Este año se te acumulan las dificultades.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2800
+},
+{
+"id": "MSMV.38",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "MUNTHA",
+"in_houses": [
+9
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "Luck is on your side this year.",
+"effect_es": "Este año la suerte está de tu lado.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2827
+},
+{
+"id": "MSMV.39",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "MUNTHA",
+"in_houses": [
+9
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You make financial gains this year.",
+"effect_es": "Este año tienes ganancias económicas.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2827
+},
+{
+"id": "MSMV.40",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "MUNTHA",
+"in_houses": [
+9
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"foreign"
+],
+"effect": "Travel this year proves fruitful.",
+"effect_es": "Los viajes de este año resultan fructíferos.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2827
+},
+{
+"id": "MSMV.41",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "MUNTHA",
+"in_houses": [
+9
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"fame",
+"money"
+],
+"effect": "You gain fame and prosperity this year.",
+"effect_es": "Este año ganas fama y prosperidad.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2828
+},
+{
+"id": "MSMV.42",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "MUNTHA",
+"in_houses": [
+10
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "You rise to a high position this year.",
+"effect_es": "Este año alcanzas una posición elevada.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2830
+},
+{
+"id": "MSMV.43",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "MUNTHA",
+"in_houses": [
+10
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "Your ambitions are fulfilled this year.",
+"effect_es": "Este año se cumplen tus ambiciones.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2831
+},
+{
+"id": "MSMV.44",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "MUNTHA",
+"in_houses": [
+10
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"fame"
+],
+"effect": "You gain name and recognition this year.",
+"effect_es": "Este año ganas nombre y reconocimiento.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2831
+},
+{
+"id": "MSMV.45",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "MUNTHA",
+"in_houses": [
+10
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "Prosperity comes to you this year.",
+"effect_es": "Este año te llega la prosperidad.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2830
+},
+{
+"id": "MSMV.46",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "MUNTHA",
+"in_houses": [
+11
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You gain money and happiness this year.",
+"effect_es": "Este año ganas dinero y felicidad.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2833
+},
+{
+"id": "MSMV.47",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "MUNTHA",
+"in_houses": [
+11
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "Friends and benefactors help you this year.",
+"effect_es": "Este año te ayudan amigos y benefactores.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2833
+},
+{
+"id": "MSMV.48",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "MUNTHA",
+"in_houses": [
+11
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "You succeed in public and political life this year.",
+"effect_es": "Este año tienes éxito en la vida pública y política.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2834
+},
+{
+"id": "MSMV.49",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "MUNTHA",
+"in_houses": [
+11
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "Your wishes are fulfilled this year.",
+"effect_es": "Este año se cumplen tus deseos.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2834
+},
+{
+"id": "MSMV.50",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "MUNTHA",
+"in_houses": [
+12
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"money"
+],
+"effect": "You spend heavily this year.",
+"effect_es": "Este año gastas mucho.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2836
+},
+{
+"id": "MSMV.51",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "MUNTHA",
+"in_houses": [
+12
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"money"
+],
+"effect": "Money is wasted this year.",
+"effect_es": "Este año se desperdicia dinero.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2837
+},
+{
+"id": "MSMV.52",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "MUNTHESH",
+"dignity": [
+"exalted",
+"own"
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "The year tends to bring good results.",
+"effect_es": "El año tiende a traer buenos resultados.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2619
+},
+{
+"id": "MSMV.53",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"a": "MUNTHA",
+"b": "Jupiter",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "Results this year come out favourable.",
+"effect_es": "Los resultados de este año salen favorables.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life. Book also lists 'aspected by benefics' as an alternative; only the conjunction form is written here.",
+"clarity": "clear",
+"line": 2620
+},
+{
+"id": "MSMV.54",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"a": "MUNTHA",
+"b": "Venus",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "Results this year come out favourable.",
+"effect_es": "Los resultados de este año salen favorables.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life. Book also lists 'aspected by benefics' as an alternative; only the conjunction form is written here.",
+"clarity": "clear",
+"line": 2620
+},
+{
+"id": "MSMV.55",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"a": "MUNTHA",
+"b": "Mercury",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "Results this year come out favourable.",
+"effect_es": "Los resultados de este año salen favorables.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life. Book also lists 'aspected by benefics' as an alternative; only the conjunction form is written here.",
+"clarity": "clear",
+"line": 2620
+},
+{
+"id": "MSMV.56",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "MUNTHA",
+"in_houses": [
+2,
+9,
+10,
+11
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You prosper financially this year.",
+"effect_es": "Este año prosperas económicamente.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2622
+},
+{
+"id": "MSMV.57",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "MUNTHA",
+"in_houses": [
+2,
+9,
+10,
+11
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "Your career does well this year.",
+"effect_es": "Este año tu carrera va bien.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2622
+},
+{
+"id": "MSMV.58",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "MUNTHA",
+"in_houses": [
+1,
+3,
+5
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "You may get a new job this year.",
+"effect_es": "Este año puedes conseguir un nuevo empleo.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2624
+},
+{
+"id": "MSMV.59",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "MUNTHA",
+"in_houses": [
+1,
+3,
+5
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "Your own efforts bring good results this year.",
+"effect_es": "Este año tus propios esfuerzos dan buenos resultados.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2626
+},
+{
+"id": "MSMV.60",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "MUNTHA",
+"in_houses": [
+4,
+6,
+7,
+8,
+12
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"other"
+],
+"effect": "The year mostly goes against you.",
+"effect_es": "El año, en su mayor parte, te resulta adverso.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2629
+},
+{
+"id": "MSMV.61",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"a": "MUNTHESH",
+"b": "L6",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"other"
+],
+"effect": "The year does not deliver the benefits you hope for.",
+"effect_es": "El año no te da los beneficios que esperas.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2631
+},
+{
+"id": "MSMV.62",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"a": "MUNTHESH",
+"b": "L8",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"other"
+],
+"effect": "The year does not deliver the benefits you hope for.",
+"effect_es": "El año no te da los beneficios que esperas.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2631
+},
+{
+"id": "MSMV.63",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"a": "MUNTHESH",
+"b": "L12",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"other"
+],
+"effect": "The year does not deliver the benefits you hope for.",
+"effect_es": "El año no te da los beneficios que esperas.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2631
+},
+{
+"id": "MSMV.64",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "MUNTHESH",
+"dignity": [
+"debilitated"
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"other"
+],
+"effect": "The year does not deliver the benefits you hope for.",
+"effect_es": "El año no te da los beneficios que esperas.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2633
+},
+{
+"id": "MSMV.65",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"a": "MUNTHA",
+"b": "Sun",
+"relation": "conjunct"
+},
+{
+"frame": "varsha",
+"planet": "Sun",
+"dignity": [
+"own"
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "High standing and the favour of the authorities come to you this year.",
+"effect_es": "Este año te llegan una posición elevada y el favor de las autoridades.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life. Written for the case the book names explicitly: Muntha in the Sun's own sign with the Sun; the book adds 'if the Sun is well placed' for the general case.",
+"clarity": "clear",
+"line": 2873
+},
+{
+"id": "MSMV.66",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"a": "MUNTHA",
+"b": "Sun",
+"relation": "conjunct"
+},
+{
+"frame": "varsha",
+"planet": "Sun",
+"dignity": [
+"own"
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "You succeed in politics and public life this year.",
+"effect_es": "Este año tienes éxito en la política y en la vida pública.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life. Written for the case the book names explicitly: Muntha in the Sun's own sign with the Sun; the book adds 'if the Sun is well placed' for the general case.",
+"clarity": "clear",
+"line": 2873
+},
+{
+"id": "MSMV.67",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"a": "MUNTHA",
+"b": "Sun",
+"relation": "conjunct"
+},
+{
+"frame": "varsha",
+"planet": "Sun",
+"dignity": [
+"own"
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money",
+"fame"
+],
+"effect": "Your wealth and status grow this year.",
+"effect_es": "Este año crecen tu riqueza y tu estatus.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life. Written for the case the book names explicitly: Muntha in the Sun's own sign with the Sun; the book adds 'if the Sun is well placed' for the general case.",
+"clarity": "clear",
+"line": 2874
+},
+{
+"id": "MSMV.68",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"a": "MUNTHA",
+"b": "Moon",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "Wealth and happiness come to you this year.",
+"effect_es": "Este año te llegan riqueza y felicidad.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2882
+},
+{
+"id": "MSMV.69",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"a": "MUNTHA",
+"b": "Moon",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"marriage"
+],
+"effect": "Romance enters your life this year.",
+"effect_es": "Este año el romance entra en tu vida.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2883
+},
+{
+"id": "MSMV.70",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"a": "MUNTHA",
+"b": "Moon",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"fame"
+],
+"effect": "You grow more popular and your public relations improve this year.",
+"effect_es": "Este año ganas popularidad y mejoran tus relaciones públicas.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2883
+},
+{
+"id": "MSMV.71",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"a": "MUNTHA",
+"b": "Mars",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"money"
+],
+"effect": "You risk losing money to theft this year.",
+"effect_es": "Este año corres el riesgo de perder dinero por un robo.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2888
+},
+{
+"id": "MSMV.72",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"a": "MUNTHA",
+"b": "Mercury",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"education"
+],
+"effect": "You achieve well in studies and learning this year.",
+"effect_es": "Este año te va bien en los estudios y el aprendizaje.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2891
+},
+{
+"id": "MSMV.73",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"a": "MUNTHA",
+"b": "Mercury",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "You succeed in art or in trade this year.",
+"effect_es": "Este año tienes éxito en el arte o en el comercio.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2891
+},
+{
+"id": "MSMV.74",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"a": "MUNTHA",
+"b": "Mercury",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "Your wealth grows this year.",
+"effect_es": "Este año crece tu riqueza.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2892
+},
+{
+"id": "MSMV.75",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"a": "MUNTHA",
+"b": "Mercury",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "People of the opposite sex look on you with favour this year.",
+"effect_es": "Este año las personas del sexo opuesto te miran con buenos ojos.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2892
+},
+{
+"id": "MSMV.76",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"a": "MUNTHA",
+"b": "Jupiter",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"children"
+],
+"effect": "Children bring you joy this year.",
+"effect_es": "Este año los hijos te dan alegría.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2897
+},
+{
+"id": "MSMV.77",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"a": "MUNTHA",
+"b": "Jupiter",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "You are happy this year.",
+"effect_es": "Este año eres feliz.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2897
+},
+{
+"id": "MSMV.78",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"a": "MUNTHA",
+"b": "Jupiter",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "You succeed this year.",
+"effect_es": "Este año tienes éxito.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2898
+},
+{
+"id": "MSMV.79",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"a": "MUNTHA",
+"b": "Jupiter",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "Your wealth grows this year.",
+"effect_es": "Este año crece tu riqueza.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2898
+},
+{
+"id": "MSMV.80",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"a": "MUNTHA",
+"b": "Venus",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"marriage"
+],
+"effect": "Marriage may come to you this year.",
+"effect_es": "Este año puede llegar el matrimonio.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2900
+},
+{
+"id": "MSMV.81",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"a": "MUNTHA",
+"b": "Venus",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"marriage"
+],
+"effect": "You do well in romance this year.",
+"effect_es": "Este año te va bien en el romance.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "inferred",
+"line": 2900
+},
+{
+"id": "MSMV.82",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"a": "MUNTHA",
+"b": "Venus",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"fame"
+],
+"effect": "You gain a good name this year.",
+"effect_es": "Este año ganas buen nombre.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2900
+},
+{
+"id": "MSMV.83",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"a": "MUNTHA",
+"b": "Venus",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "Your wealth grows this year.",
+"effect_es": "Este año crece tu riqueza.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2900
+},
+{
+"id": "MSMV.84",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"a": "MUNTHA",
+"b": "Saturn",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"property"
+],
+"effect": "You risk losing property this year.",
+"effect_es": "Este año corres el riesgo de perder propiedades.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2904
+},
+{
+"id": "MSMV.85",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"a": "MUNTHA",
+"b": "Saturn",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"money"
+],
+"effect": "You may suffer losses from theft or fire this year.",
+"effect_es": "Este año puedes sufrir pérdidas por robo o incendio.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2905
+},
+{
+"id": "MSMV.86",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"a": "MUNTHA",
+"b": "Ketu",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"money"
+],
+"effect": "You suffer losses and setbacks this year.",
+"effect_es": "Este año sufres pérdidas y reveses.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2932
+},
+{
+"id": "MSMV.87",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"a": "MUNTHA",
+"b": "Ketu",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"other"
+],
+"effect": "You suffer deep mental distress this year.",
+"effect_es": "Este año sufres un profundo malestar mental.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2934
+},
+{
+"id": "MSMV.88",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "MUNTHESH",
+"in_houses": [
+4,
+6,
+8,
+12
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"money"
+],
+"effect": "You lose money this year.",
+"effect_es": "Este año pierdes dinero.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2947
+},
+{
+"id": "MSMV.89",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"a": "MUNTHESH",
+"b": "L8",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"other"
+],
+"effect": "The year turns against you and its results are poor.",
+"effect_es": "El año se vuelve en tu contra y sus resultados son malos.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 2952
+},
+{
+"id": "MSMV.91",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planets_in_houses": [
+"Sun",
+"Moon",
+"Mars",
+"Mercury",
+"Jupiter",
+"Venus",
+"Saturn"
+],
+"houses": [
+1,
+2,
+4,
+5,
+7,
+8,
+10,
+11
+],
+"at_least": 7
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "The year turns out good and fortunate for you.",
+"effect_es": "El año resulta bueno y afortunado para ti.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life. Pattern of all seven planets in the angle and money houses. Book also requires a strong lagna lord, which cannot be written.",
+"clarity": "inferred",
+"line": 5362
+},
+{
+"id": "MSMV.92",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planets_in_houses": [
+"Sun",
+"Moon",
+"Mars",
+"Mercury",
+"Jupiter",
+"Venus",
+"Saturn"
+],
+"houses": [
+3,
+6,
+9,
+12
+],
+"at_least": 7
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"other"
+],
+"effect": "The year brings ill fortune.",
+"effect_es": "El año trae mala fortuna.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life. Book says not to follow this blindly because malefics do well in the third and sixth.",
+"clarity": "inferred",
+"line": 5396
+},
+{
+"id": "MSMV.93",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "Sun",
+"in_houses": [
+1,
+4,
+5,
+7,
+9,
+10
+]
+},
+{
+"frame": "varsha",
+"planet": "Moon",
+"in_houses": [
+1,
+4,
+5,
+7,
+9,
+10
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "The year tends to go well for you.",
+"effect_es": "El año tiende a irte bien.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life. Book adds 'well associated or aspected', which cannot be written.",
+"clarity": "inferred",
+"line": 8665
+},
+{
+"id": "MSMV.94",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "Saturn",
+"in_houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"other"
+],
+"effect": "Disputes and humiliation come your way this year.",
+"effect_es": "Este año te llegan disputas y humillaciones.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 7740
+},
+{
+"id": "MSMV.95",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "MUNTHA",
+"in_houses": [
+7
+]
+},
+{
+"frame": "varsha",
+"a": "MUNTHA",
+"b": "Sun",
+"relation": "conjunct"
+},
+{
+"frame": "varsha",
+"a": "MUNTHA",
+"b": "Mars",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage",
+"family"
+],
+"effect": "Quarrels and trouble arise with your spouse and children this year.",
+"effect_es": "Este año surgen peleas y problemas con tu pareja y tus hijos.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 7766
+},
+{
+"id": "MSMV.96",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "Saturn",
+"in_houses": [
+4
+]
+},
+{
+"frame": "varsha",
+"planet": "Mars",
+"in_houses": [
+4
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"family"
+],
+"effect": "Your parents carry worries this year.",
+"effect_es": "Este año tus padres cargan con preocupaciones.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 7600
+},
+{
+"id": "MSMV.97",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"a": "Saturn",
+"b": "L4",
+"relation": "conjunct"
+},
+{
+"frame": "varsha",
+"a": "Mars",
+"b": "L4",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"family"
+],
+"effect": "Your parents carry worries this year.",
+"effect_es": "Este año tus padres cargan con preocupaciones.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 7600
+},
+{
+"id": "MSMV.98",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"a": "Moon",
+"b": "Saturn",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"family"
+],
+"effect": "Strain develops between you and your mother this year.",
+"effect_es": "Este año surge tensión entre tú y tu madre.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "inferred",
+"line": 7584
+},
+{
+"id": "MSMV.99",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "L4",
+"in_houses": [
+4
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"family"
+],
+"effect": "Your parents take special joy in you this year.",
+"effect_es": "Este año tus padres se alegran especialmente contigo.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "inferred",
+"line": 7586
+},
+{
+"id": "MSMV.100",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"house": 3,
+"holds_any_malefic": true
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"family"
+],
+"effect": "Your brothers and sisters are unhappy this year.",
+"effect_es": "Este año tus hermanos están descontentos.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life. Conflicts with the book's own statement that harsh planets do well in the third house; see ledger.",
+"clarity": "clear",
+"line": 7562
+},
+{
+"id": "MSMV.101",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "L1",
+"in_houses": [
+9
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"family"
+],
+"effect": "You quarrel with your brothers and sisters this year.",
+"effect_es": "Este año te peleas con tus hermanos.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 7568
+},
+{
+"id": "MSMV.102",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "VARSHESH",
+"in_houses": [
+9
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"family"
+],
+"effect": "You quarrel with your brothers and sisters this year.",
+"effect_es": "Este año te peleas con tus hermanos.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 7571
+},
+{
+"id": "MSMV.103",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "Moon",
+"in_houses": [
+5
+]
+},
+{
+"frame": "varsha",
+"planet": "Moon",
+"dignity": [
+"own",
+"exalted"
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"children"
+],
+"effect": "The birth of a son is likely this year.",
+"effect_es": "Este año es probable el nacimiento de un hijo varón.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 7636
+},
+{
+"id": "MSMV.104",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "Venus",
+"in_houses": [
+5
+]
+},
+{
+"frame": "varsha",
+"planet": "Venus",
+"dignity": [
+"own",
+"exalted"
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"children"
+],
+"effect": "The birth of a son is likely this year.",
+"effect_es": "Este año es probable el nacimiento de un hijo varón.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 7636
+},
+{
+"id": "MSMV.105",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "Jupiter",
+"in_houses": [
+5
+]
+},
+{
+"frame": "varsha",
+"planet": "Jupiter",
+"dignity": [
+"own",
+"exalted"
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"children"
+],
+"effect": "The birth of a son is likely this year.",
+"effect_es": "Este año es probable el nacimiento de un hijo varón.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 7636
+},
+{
+"id": "MSMV.112",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Sun",
+"in_houses": [
+1
+]
+},
+{
+"frame": "varsha",
+"planet": "Sun",
+"in_houses": [
+2
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "Wealth and a comfortable life come to you this year.",
+"effect_es": "Este año te llegan riqueza y una vida cómoda.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life. Sun is in the first house of the BIRTH chart and in the second house of the return chart.",
+"clarity": "clear",
+"line": 7511
+},
+{
+"id": "MSMV.113",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "Saturn",
+"in_houses": [
+2
+]
+},
+{
+"frame": "varsha",
+"planet": "Jupiter",
+"not_in_houses": [
+2
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"money"
+],
+"effect": "You lose money this year.",
+"effect_es": "Este año pierdes dinero.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "inferred",
+"line": 7513
+},
+{
+"id": "MSMV.114",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "Saturn",
+"in_houses": [
+2
+]
+},
+{
+"frame": "varsha",
+"planet": "Jupiter",
+"in_houses": [
+2
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"family",
+"money"
+],
+"effect": "Prosperity and comfort reach you through your brothers and sisters this year.",
+"effect_es": "Este año te llegan prosperidad y comodidad por medio de tus hermanos.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "inferred",
+"line": 7514
+},
+{
+"id": "MSMV.115",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "Sun",
+"in_houses": [
+10
+]
+},
+{
+"frame": "varsha",
+"planet": "Sun",
+"dignity": [
+"own"
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "You benefit from the backing of people in authority this year.",
+"effect_es": "Este año te beneficias del respaldo de personas con autoridad.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 7837
+},
+{
+"id": "MSMV.116",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "Moon",
+"in_houses": [
+12
+]
+},
+{
+"frame": "varsha",
+"planet": "Mars",
+"in_houses": [
+12
+]
+},
+{
+"frame": "varsha",
+"house": 12,
+"holds_any": [
+"Sun",
+"Saturn",
+"Rahu",
+"Ketu"
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"other"
+],
+"effect": "Mental tension troubles you this year.",
+"effect_es": "Este año te inquieta la tensión mental.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 7882
+},
+{
+"id": "MSMV.117",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "Moon",
+"in_houses": [
+12
+]
+},
+{
+"frame": "varsha",
+"planet": "Mars",
+"in_houses": [
+12
+]
+},
+{
+"frame": "varsha",
+"house": 12,
+"holds_any": [
+"Sun",
+"Saturn",
+"Rahu",
+"Ketu"
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"money"
+],
+"effect": "You suffer financial losses this year.",
+"effect_es": "Este año sufres pérdidas económicas.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 7882
+},
+{
+"id": "MSMV.118",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "Sun",
+"in_houses_from": "MUNTHA",
+"houses": [
+3,
+6,
+11
+]
+},
+{
+"frame": "varsha",
+"planet": "Mars",
+"in_houses_from": "MUNTHA",
+"houses": [
+3,
+6,
+11
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "Troubles you would otherwise expect this year are washed away and results turn favourable.",
+"effect_es": "Los problemas que esperarías este año se disipan y los resultados te resultan favorables.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 7171
+},
+{
+"id": "MSMV.119",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planets_in_houses": [
+"Jupiter",
+"Venus",
+"Mercury"
+],
+"houses": [
+1,
+4,
+5,
+7,
+9,
+10
+],
+"at_least": 3
+},
+{
+"frame": "varsha",
+"planets_in_houses": [
+"Sun",
+"Mars",
+"Saturn"
+],
+"houses": [
+3,
+6,
+11
+],
+"at_least": 3
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You prosper this year.",
+"effect_es": "Este año prosperas.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life. Book says 'benefics in angle and trine houses, harsh planets in 3, 6, 11'; read here as all three of each group.",
+"clarity": "inferred",
+"line": 7158
+},
+{
+"id": "MSMV.120",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planets_in_houses": [
+"Jupiter",
+"Venus",
+"Mercury"
+],
+"houses": [
+1,
+4,
+5,
+7,
+9,
+10
+],
+"at_least": 3
+},
+{
+"frame": "varsha",
+"planets_in_houses": [
+"Sun",
+"Mars",
+"Saturn"
+],
+"houses": [
+3,
+6,
+11
+],
+"at_least": 3
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"fame"
+],
+"effect": "You gain fame this year.",
+"effect_es": "Este año ganas fama.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life. Book says 'benefics in angle and trine houses, harsh planets in 3, 6, 11'; read here as all three of each group.",
+"clarity": "inferred",
+"line": 7158
+},
+{
+"id": "MSMV.121",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "Moon",
+"in_houses": [
+12
+]
+},
+{
+"frame": "varsha",
+"planet": "Saturn",
+"in_houses": [
+12
+]
+},
+{
+"frame": "varsha",
+"house": 6,
+"holds_any_benefic": true
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"money"
+],
+"effect": "You lose money this year.",
+"effect_es": "Este año pierdes dinero.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life.",
+"clarity": "clear",
+"line": 7083
+},
+{
+"id": "MSMV.122",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "L1",
+"in_houses": [
+1
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"health"
+],
+"effect": "Your health, confidence and general well-being are strong this year.",
+"effect_es": "Este año tu salud, tu confianza y tu bienestar general son sólidos.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life. Book: 'a house flourishes if it holds its own lord'; the effect wording is the matters that house stands for. Houses 6, 8 and 12 not written.",
+"clarity": "inferred",
+"line": 5305
+},
+{
+"id": "MSMV.123",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"house": 1,
+"holds_any_benefic": true
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"health"
+],
+"effect": "Your health, confidence and general well-being are strong this year.",
+"effect_es": "Este año tu salud, tu confianza y tu bienestar general son sólidos.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life. Book: a house flourishes when benefic planets influence it by position (or aspect); only position is written. Houses 6, 8 and 12 not written.",
+"clarity": "inferred",
+"line": 5307
+},
+{
+"id": "MSMV.124",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "L2",
+"in_houses": [
+2
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money",
+"family"
+],
+"effect": "Your finances and family life flourish this year.",
+"effect_es": "Este año prosperan tus finanzas y tu vida familiar.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life. Book: 'a house flourishes if it holds its own lord'; the effect wording is the matters that house stands for. Houses 6, 8 and 12 not written.",
+"clarity": "inferred",
+"line": 5305
+},
+{
+"id": "MSMV.125",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"house": 2,
+"holds_any_benefic": true
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money",
+"family"
+],
+"effect": "Your finances and family life flourish this year.",
+"effect_es": "Este año prosperan tus finanzas y tu vida familiar.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life. Book: a house flourishes when benefic planets influence it by position (or aspect); only position is written. Houses 6, 8 and 12 not written.",
+"clarity": "inferred",
+"line": 5307
+},
+{
+"id": "MSMV.126",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "L3",
+"in_houses": [
+3
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"family"
+],
+"effect": "Your courage, your siblings and your short ventures flourish this year.",
+"effect_es": "Este año florecen tu valentía, tus hermanos y tus iniciativas cortas.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life. Book: 'a house flourishes if it holds its own lord'; the effect wording is the matters that house stands for. Houses 6, 8 and 12 not written.",
+"clarity": "inferred",
+"line": 5305
+},
+{
+"id": "MSMV.127",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"house": 3,
+"holds_any_benefic": true
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"family"
+],
+"effect": "Your courage, your siblings and your short ventures flourish this year.",
+"effect_es": "Este año florecen tu valentía, tus hermanos y tus iniciativas cortas.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life. Book: a house flourishes when benefic planets influence it by position (or aspect); only position is written. Houses 6, 8 and 12 not written.",
+"clarity": "inferred",
+"line": 5307
+},
+{
+"id": "MSMV.128",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "L4",
+"in_houses": [
+4
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"property",
+"family"
+],
+"effect": "Your home, property and peace of mind flourish this year.",
+"effect_es": "Este año prosperan tu hogar, tus propiedades y tu tranquilidad.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life. Book: 'a house flourishes if it holds its own lord'; the effect wording is the matters that house stands for. Houses 6, 8 and 12 not written.",
+"clarity": "clear",
+"line": 5305
+},
+{
+"id": "MSMV.129",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"house": 4,
+"holds_any_benefic": true
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"property",
+"family"
+],
+"effect": "Your home, property and peace of mind flourish this year.",
+"effect_es": "Este año prosperan tu hogar, tus propiedades y tu tranquilidad.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life. Book: a house flourishes when benefic planets influence it by position (or aspect); only position is written. Houses 6, 8 and 12 not written.",
+"clarity": "inferred",
+"line": 5307
+},
+{
+"id": "MSMV.130",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "L5",
+"in_houses": [
+5
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"children",
+"education"
+],
+"effect": "Your children, studies and creativity flourish this year.",
+"effect_es": "Este año florecen tus hijos, tus estudios y tu creatividad.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life. Book: 'a house flourishes if it holds its own lord'; the effect wording is the matters that house stands for. Houses 6, 8 and 12 not written.",
+"clarity": "inferred",
+"line": 5305
+},
+{
+"id": "MSMV.131",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"house": 5,
+"holds_any_benefic": true
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"children",
+"education"
+],
+"effect": "Your children, studies and creativity flourish this year.",
+"effect_es": "Este año florecen tus hijos, tus estudios y tu creatividad.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life. Book: a house flourishes when benefic planets influence it by position (or aspect); only position is written. Houses 6, 8 and 12 not written.",
+"clarity": "inferred",
+"line": 5307
+},
+{
+"id": "MSMV.132",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "L7",
+"in_houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"marriage"
+],
+"effect": "Your marriage and partnerships flourish this year.",
+"effect_es": "Este año florecen tu matrimonio y tus sociedades.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life. Book: 'a house flourishes if it holds its own lord'; the effect wording is the matters that house stands for. Houses 6, 8 and 12 not written.",
+"clarity": "inferred",
+"line": 5305
+},
+{
+"id": "MSMV.133",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"house": 7,
+"holds_any_benefic": true
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"marriage"
+],
+"effect": "Your marriage and partnerships flourish this year.",
+"effect_es": "Este año florecen tu matrimonio y tus sociedades.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life. Book: a house flourishes when benefic planets influence it by position (or aspect); only position is written. Houses 6, 8 and 12 not written.",
+"clarity": "inferred",
+"line": 5307
+},
+{
+"id": "MSMV.134",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "L9",
+"in_houses": [
+9
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"education",
+"foreign"
+],
+"effect": "Your luck, travel and higher learning flourish this year.",
+"effect_es": "Este año florecen tu suerte, tus viajes y tus estudios superiores.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life. Book: 'a house flourishes if it holds its own lord'; the effect wording is the matters that house stands for. Houses 6, 8 and 12 not written.",
+"clarity": "inferred",
+"line": 5305
+},
+{
+"id": "MSMV.135",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"house": 9,
+"holds_any_benefic": true
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"education",
+"foreign"
+],
+"effect": "Your luck, travel and higher learning flourish this year.",
+"effect_es": "Este año florecen tu suerte, tus viajes y tus estudios superiores.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life. Book: a house flourishes when benefic planets influence it by position (or aspect); only position is written. Houses 6, 8 and 12 not written.",
+"clarity": "inferred",
+"line": 5307
+},
+{
+"id": "MSMV.136",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "L10",
+"in_houses": [
+10
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "Your career and standing flourish this year.",
+"effect_es": "Este año florecen tu carrera y tu posición.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life. Book: 'a house flourishes if it holds its own lord'; the effect wording is the matters that house stands for. Houses 6, 8 and 12 not written.",
+"clarity": "inferred",
+"line": 5305
+},
+{
+"id": "MSMV.137",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"house": 10,
+"holds_any_benefic": true
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "Your career and standing flourish this year.",
+"effect_es": "Este año florecen tu carrera y tu posición.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life. Book: a house flourishes when benefic planets influence it by position (or aspect); only position is written. Houses 6, 8 and 12 not written.",
+"clarity": "inferred",
+"line": 5307
+},
+{
+"id": "MSMV.138",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"planet": "L11",
+"in_houses": [
+11
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "Your gains and friendships flourish this year.",
+"effect_es": "Este año florecen tus ganancias y tus amistades.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life. Book: 'a house flourishes if it holds its own lord'; the effect wording is the matters that house stands for. Houses 6, 8 and 12 not written.",
+"clarity": "inferred",
+"line": 5305
+},
+{
+"id": "MSMV.139",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"frame": "varsha",
+"house": 11,
+"holds_any_benefic": true
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "Your gains and friendships flourish this year.",
+"effect_es": "Este año florecen tus ganancias y tus amistades.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life. Book: a house flourishes when benefic planets influence it by position (or aspect); only position is written. Houses 6, 8 and 12 not written.",
+"clarity": "inferred",
+"line": 5307
+}
+]
 }

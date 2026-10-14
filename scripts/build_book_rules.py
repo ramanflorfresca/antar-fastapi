@@ -54,6 +54,9 @@ def build(data_dir):
             if PLANET_RE.search(en) or JARGON_RE.search(en) or LABEL_RE.search(en):
                 st["dropped_wording"] = st.get("dropped_wording", 0) + 1
                 continue
+            if re.search(r"\bsuit(s)? (you|your)\b", en) and "," in en:  # industry lists: vertical study closed negative
+                st["dropped_vertical_list"] = st.get("dropped_vertical_list", 0) + 1
+                continue
             if not clauses:
                 st["dropped_no_condition"] = st.get("dropped_no_condition", 0) + 1
                 continue

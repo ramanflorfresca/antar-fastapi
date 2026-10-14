@@ -6810,30 +6810,6 @@
 "line": 4120
 },
 {
-"id": "BVJ1.318",
-"book": "bv_raman_how_to_judge_1",
-"requires": [
-{
-"planet": "Sun",
-"in_houses": [
-3
-]
-}
-],
-"activation": [],
-"tone": "bad",
-"topics": [
-"fame"
-],
-"effect": "You may suffer discredit through letters.",
-"effect_es": "Puedes sufrir descrédito a través de cartas.",
-"remedy": null,
-"remedy_es": null,
-"timing_note": null,
-"clarity": "clear",
-"line": 4122
-},
-{
 "id": "BVJ1.319",
 "book": "bv_raman_how_to_judge_1",
 "requires": [
@@ -8914,30 +8890,6 @@
 "timing_note": null,
 "clarity": "clear",
 "line": 5185
-},
-{
-"id": "BVJ1.408",
-"book": "bv_raman_how_to_judge_1",
-"requires": [
-{
-"planet": "Sun",
-"in_houses": [
-4
-]
-}
-],
-"activation": [],
-"tone": "bad",
-"topics": [
-"career"
-],
-"effect": "Success in politics is difficult.",
-"effect_es": "El éxito en la política es difícil.",
-"remedy": null,
-"remedy_es": null,
-"timing_note": null,
-"clarity": "clear",
-"line": 5187
 },
 {
 "id": "BVJ1.409",
@@ -15132,7 +15084,6 @@
 "activation": [],
 "tone": "good",
 "topics": [
-"marriage",
 "money"
 ],
 "effect": "You marry early, to a wealthy partner.",
@@ -30890,30 +30841,6 @@
 "line": 11769
 },
 {
-"id": "BVJ2.653",
-"book": "bv_raman_how_to_judge_2",
-"requires": [
-{
-"planet": "Venus",
-"in_houses": [
-12
-]
-}
-],
-"activation": [],
-"tone": "bad",
-"topics": [
-"money"
-],
-"effect": "You may lose money through scandals or blackmail.",
-"effect_es": "Puedes perder dinero por escándalos o chantaje.",
-"remedy": null,
-"remedy_es": null,
-"timing_note": null,
-"clarity": "clear",
-"line": 11771
-},
-{
 "id": "BVJ2.654",
 "book": "bv_raman_how_to_judge_2",
 "requires": [
@@ -31540,7 +31467,6 @@
 "tone": "good",
 "topics": [
 "money",
-"children",
 "career"
 ],
 "effect": "You are fortunate in matters concerning wealth, children, career and gains.",
@@ -31622,30 +31548,6 @@
 "timing_note": null,
 "clarity": "clear",
 "line": 12021
-},
-{
-"id": "BVJ2.688",
-"book": "bv_raman_how_to_judge_2",
-"requires": [
-{
-"planet": "Venus",
-"in_houses": [
-12
-]
-}
-],
-"activation": [],
-"tone": "bad",
-"topics": [
-"money"
-],
-"effect": "You long for comforts without success and suffer shortage of money.",
-"effect_es": "Anhelas comodidades sin lograrlas y sufres escasez de dinero.",
-"remedy": null,
-"remedy_es": null,
-"timing_note": null,
-"clarity": "clear",
-"line": 12035
 },
 {
 "id": "BVJ2.689",
@@ -55328,30 +55230,6 @@
 "line": 4894
 },
 {
-"id": "KPR12.A.9",
-"book": "kp_reader_1_2_basics",
-"requires": [
-{
-"planet": "Rahu",
-"in_houses": [
-6
-]
-}
-],
-"activation": [],
-"tone": "bad",
-"topics": [
-"money"
-],
-"effect": "You tend to waste money.",
-"effect_es": "Tiendes a malgastar el dinero.",
-"remedy": null,
-"remedy_es": null,
-"timing_note": "Book attributes this to the Hindu sages and reads the node by the house it occupies; written here as a whole-sign house reading.",
-"clarity": "clear",
-"line": 4894
-},
-{
 "id": "KPR12.A.10",
 "book": "kp_reader_1_2_basics",
 "requires": [
@@ -55736,30 +55614,6 @@
 "timing_note": "Book attributes this to the Hindu sages and reads the node by the house it occupies; written here as a whole-sign house reading.",
 "clarity": "clear",
 "line": 4930
-},
-{
-"id": "KPR12.A.26",
-"book": "kp_reader_1_2_basics",
-"requires": [
-{
-"planet": "Ketu",
-"in_houses": [
-4
-]
-}
-],
-"activation": [],
-"tone": "good",
-"topics": [
-"money"
-],
-"effect": "You tend to hold wealth and jewellery.",
-"effect_es": "Tiendes a poseer riqueza y joyas.",
-"remedy": null,
-"remedy_es": null,
-"timing_note": "Book attributes this to the Hindu sages and reads the node by the house it occupies; written here as a whole-sign house reading.",
-"clarity": "clear",
-"line": 4933
 },
 {
 "id": "KPR12.A.27",
@@ -61565,6 +61419,4471 @@
 "timing_note": "Book credits Brihat Parashara Hora Shastra and Phaladeepika; classic transit-from-lagna table.",
 "clarity": "clear",
 "line": 6149
+},
+{
+"id": "MSMV.90",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"point": "VARSHA_LAGNA",
+"house_from": "lagna",
+"in": [
+1
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"other"
+],
+"effect": "This year brings losses and setbacks.",
+"effect_es": "Este año trae pérdidas y reveses.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book itself warns against predicting this when the birth chart and its running periods are good. Clause: the return-chart rising sign equals the birth rising sign.",
+"clarity": "clear",
+"line": 7195
+},
+{
+"id": "MSMV.106",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"point": "VARSHA_LAGNA",
+"house_from": "Jupiter",
+"in": [
+1
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"children"
+],
+"effect": "The birth of a son is likely this year.",
+"effect_es": "Este año es probable el nacimiento de un hijo varón.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life. Clause compares the return-chart rising sign with the sign the named planet held in the BIRTH chart.",
+"clarity": "clear",
+"line": 7628
+},
+{
+"id": "MSMV.107",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"point": "VARSHA_LAGNA",
+"house_from": "Mercury",
+"in": [
+1
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"children"
+],
+"effect": "The birth of a son is likely this year.",
+"effect_es": "Este año es probable el nacimiento de un hijo varón.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life. Clause compares the return-chart rising sign with the sign the named planet held in the BIRTH chart.",
+"clarity": "clear",
+"line": 7628
+},
+{
+"id": "MSMV.108",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"point": "VARSHA_LAGNA",
+"house_from": "Venus",
+"in": [
+1
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"children"
+],
+"effect": "The birth of a son is likely this year.",
+"effect_es": "Este año es probable el nacimiento de un hijo varón.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life. Clause compares the return-chart rising sign with the sign the named planet held in the BIRTH chart.",
+"clarity": "clear",
+"line": 7628
+},
+{
+"id": "MSMV.109",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"point": "VARSHA_LAGNA",
+"house_from": "Mars",
+"in": [
+1,
+9
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"children"
+],
+"effect": "The birth of a son is likely this year.",
+"effect_es": "Este año es probable el nacimiento de un hijo varón.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life. Sign of the named point at birth falls in the first or fifth place of the return chart (rising sign is 1st or 9th from it).",
+"clarity": "inferred",
+"line": 7630
+},
+{
+"id": "MSMV.110",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"point": "VARSHA_LAGNA",
+"house_from": "Saturn",
+"in": [
+1,
+9
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"children"
+],
+"effect": "The birth of a son is likely this year.",
+"effect_es": "Este año es probable el nacimiento de un hijo varón.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life. Sign of the named point at birth falls in the first or fifth place of the return chart (rising sign is 1st or 9th from it).",
+"clarity": "inferred",
+"line": 7630
+},
+{
+"id": "MSMV.111",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"point": "VARSHA_LAGNA",
+"house_from": "lagna",
+"in": [
+1,
+9
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"children"
+],
+"effect": "The birth of a son is likely this year.",
+"effect_es": "Este año es probable el nacimiento de un hijo varón.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read in the solar-return chart of the year being judged; the effect belongs to that one year of life. Sign of the named point at birth falls in the first or fifth place of the return chart (rising sign is 1st or 9th from it).",
+"clarity": "inferred",
+"line": 7630
+},
+{
+"id": "MSMV.140",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "L9",
+"in_houses": [
+1,
+4,
+5,
+7,
+9,
+10
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career",
+"fame"
+],
+"effect": "You rise from ordinary beginnings to great heights.",
+"effect_es": "Te elevas desde orígenes comunes hasta grandes alturas.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book says 'a favourable ninth lord in an angle or trine'; 'favourable' is not defined, so only the placement is written.",
+"clarity": "inferred",
+"line": 1434
+},
+{
+"id": "MSMV.141",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"a": "L5",
+"b": "L9",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"spiritual"
+],
+"effect": "You carry a strong spiritual promise in your life.",
+"effect_es": "Llevas una fuerte promesa espiritual en tu vida.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book says the fifth and ninth 'combination' is the spiritual promise; read here as the two lords joined.",
+"clarity": "inferred",
+"line": 1441
+},
+{
+"id": "MSMV.142",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"house": 6,
+"holds_any": [
+"Sun",
+"Mars",
+"Saturn",
+"Rahu"
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "You are strong in competition and overcome those who oppose you.",
+"effect_es": "Eres fuerte en la competencia y superas a quienes se te oponen.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book, on the sixth house: harsh planets there are strong and give good results in fighting enemies.",
+"clarity": "clear",
+"line": 1357
+},
+{
+"id": "MSMV.143",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Jupiter",
+"in_houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"marriage"
+],
+"effect": "Your marriage is well protected.",
+"effect_es": "Tu matrimonio está bien protegido.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8259
+},
+{
+"id": "MSMV.144",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Moon",
+"in_houses": [
+1
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "You are fond of travel.",
+"effect_es": "Te gusta viajar.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 7919
+},
+{
+"id": "MSMV.145",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Moon",
+"in_houses": [
+1
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"fame"
+],
+"effect": "Your life is lived in the public eye.",
+"effect_es": "Tu vida transcurre a la vista del público.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 7919
+},
+{
+"id": "MSMV.146",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Moon",
+"in_houses": [
+1
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"education"
+],
+"effect": "You have a talent for writing.",
+"effect_es": "Tienes talento para escribir.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 7923
+},
+{
+"id": "MSMV.147",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+1
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "You are drawn to music, art, dance and the stage.",
+"effect_es": "Te atraen la música, el arte, la danza y el teatro.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 7947
+},
+{
+"id": "MSMV.148",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Saturn",
+"in_houses": [
+1
+]
+},
+{
+"planet": "Saturn",
+"dignity": [
+"own",
+"exalted"
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money",
+"property"
+],
+"effect": "You become wealthy and content, with land of your own.",
+"effect_es": "Llegas a ser rico y estar a gusto, con tierras propias.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "inferred",
+"line": 7952
+},
+{
+"id": "MSMV.149",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Rahu",
+"in_houses": [
+1
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "You act with courage.",
+"effect_es": "Actúas con valentía.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 7958
+},
+{
+"id": "MSMV.150",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Moon",
+"in_houses": [
+2
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You tend to be wealthy.",
+"effect_es": "Tiendes a ser adinerado.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 7970
+},
+{
+"id": "MSMV.151",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Moon",
+"in_houses": [
+2
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "You have artistic talent.",
+"effect_es": "Tienes talento artístico.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 7970
+},
+{
+"id": "MSMV.152",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Mars",
+"in_houses": [
+2
+]
+},
+{
+"planet": "Mars",
+"dignity": [
+"own",
+"exalted"
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You succeed through your own enterprise and may receive an inheritance.",
+"effect_es": "Triunfas con tu propia iniciativa y puedes recibir una herencia.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 7976
+},
+{
+"id": "MSMV.153",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Mars",
+"in_houses": [
+2
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"family"
+],
+"effect": "You quarrel with your family.",
+"effect_es": "Tienes discusiones con tu familia.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 7974
+},
+{
+"id": "MSMV.154",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Mercury",
+"in_houses": [
+2
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You tend to be wealthy.",
+"effect_es": "Tiendes a ser adinerado.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 7979
+},
+{
+"id": "MSMV.155",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Mercury",
+"in_houses": [
+2
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"education"
+],
+"effect": "You speak well and have a flair for writing.",
+"effect_es": "Hablas bien y tienes talento para la escritura.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 7979
+},
+{
+"id": "MSMV.156",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Jupiter",
+"in_houses": [
+2
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You are rich.",
+"effect_es": "Eres rico.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 7984
+},
+{
+"id": "MSMV.157",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Jupiter",
+"in_houses": [
+2
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "You have a gift for poetry and pleasant, concise speech.",
+"effect_es": "Tienes don para la poesía y un hablar agradable y conciso.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 7984
+},
+{
+"id": "MSMV.158",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+2
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You tend to be wealthy.",
+"effect_es": "Tiendes a ser adinerado.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 7987
+},
+{
+"id": "MSMV.159",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Saturn",
+"in_houses": [
+2
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"money"
+],
+"effect": "You struggle with poverty.",
+"effect_es": "Luchas contra la pobreza.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 7992
+},
+{
+"id": "MSMV.160",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Saturn",
+"in_houses": [
+2
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"family"
+],
+"effect": "You are separated from your family.",
+"effect_es": "Estás separado de tu familia.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 7992
+},
+{
+"id": "MSMV.161",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Rahu",
+"in_houses": [
+2
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"family"
+],
+"effect": "You have strife and discord with relatives.",
+"effect_es": "Tienes conflictos y desacuerdos con tus parientes.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 7996
+},
+{
+"id": "MSMV.162",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Rahu",
+"in_houses": [
+2
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"career"
+],
+"effect": "Success comes only after a hard struggle.",
+"effect_es": "El éxito llega solo tras una lucha dura.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 7997
+},
+{
+"id": "MSMV.163",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Ketu",
+"in_houses": [
+2
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"money"
+],
+"effect": "You lose money through penalties from the authorities.",
+"effect_es": "Pierdes dinero por sanciones de las autoridades.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 7999
+},
+{
+"id": "MSMV.164",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Sun",
+"in_houses": [
+3
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You tend to be wealthy.",
+"effect_es": "Tiendes a ser adinerado.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8004
+},
+{
+"id": "MSMV.166",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Jupiter",
+"in_houses": [
+3
+]
+},
+{
+"planet": "Jupiter",
+"dignity": [
+"own",
+"exalted"
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You are wealthy.",
+"effect_es": "Eres rico.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8036
+},
+{
+"id": "MSMV.167",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Jupiter",
+"in_houses": [
+3
+]
+},
+{
+"planet": "Jupiter",
+"dignity": [
+"own",
+"exalted"
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "You do well as a teacher or lecturer.",
+"effect_es": "Te va bien como maestro o conferencista.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8038
+},
+{
+"id": "MSMV.168",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+3
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "Your marriage is delayed or strained by strife.",
+"effect_es": "Tu matrimonio se retrasa o se tensa por conflictos.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8040
+},
+{
+"id": "MSMV.169",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Rahu",
+"in_houses": [
+3
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "You are courageous.",
+"effect_es": "Eres valiente.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8054
+},
+{
+"id": "MSMV.170",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Rahu",
+"in_houses": [
+3
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You are fortunate and wealthy.",
+"effect_es": "Eres afortunado y adinerado.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8054
+},
+{
+"id": "MSMV.171",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Rahu",
+"in_houses": [
+3
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "Dealings with neighbours, journeys and writing bring you success.",
+"effect_es": "Los tratos con vecinos, los viajes y la escritura te traen éxito.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8055
+},
+{
+"id": "MSMV.173",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Sun",
+"in_houses": [
+4
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"other"
+],
+"effect": "You are restless and your mind is disturbed by worry.",
+"effect_es": "Estás inquieto y tu mente se perturba por preocupaciones.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8064
+},
+{
+"id": "MSMV.174",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Moon",
+"in_houses": [
+4
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"property"
+],
+"effect": "You gain property.",
+"effect_es": "Adquieres propiedades.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8070
+},
+{
+"id": "MSMV.175",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Moon",
+"in_houses": [
+4
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "People in authority bring you happiness and favour.",
+"effect_es": "Las personas con autoridad te traen felicidad y favor.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8070
+},
+{
+"id": "MSMV.176",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Moon",
+"in_houses": [
+4
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "You become a leader.",
+"effect_es": "Te conviertes en líder.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8071
+},
+{
+"id": "MSMV.177",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Moon",
+"in_houses": [
+4
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"foreign"
+],
+"effect": "You travel to a foreign country.",
+"effect_es": "Viajas a un país extranjero.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8071
+},
+{
+"id": "MSMV.178",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Mars",
+"in_houses": [
+4
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"other"
+],
+"effect": "You have no peace of mind.",
+"effect_es": "No tienes paz mental.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8073
+},
+{
+"id": "MSMV.179",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Mars",
+"in_houses": [
+4
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"family"
+],
+"effect": "You quarrel with your mother, relatives and friends.",
+"effect_es": "Discutes con tu madre, tus parientes y tus amigos.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8074
+},
+{
+"id": "MSMV.180",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Mercury",
+"in_houses": [
+4
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"foreign"
+],
+"effect": "You travel to other countries.",
+"effect_es": "Viajas a otros países.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8077
+},
+{
+"id": "MSMV.181",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Mercury",
+"in_houses": [
+4
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"education"
+],
+"effect": "You get a good education.",
+"effect_es": "Recibes una buena educación.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8078
+},
+{
+"id": "MSMV.182",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Mercury",
+"in_houses": [
+4
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"property"
+],
+"effect": "You have vehicles and a taste for music and fine arts.",
+"effect_es": "Tienes vehículos y gusto por la música y las bellas artes.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8078
+},
+{
+"id": "MSMV.183",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Jupiter",
+"in_houses": [
+4
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career",
+"fame"
+],
+"effect": "People in power favour you and others respect you.",
+"effect_es": "Quienes tienen poder te favorecen y los demás te respetan.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8081
+},
+{
+"id": "MSMV.184",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Jupiter",
+"in_houses": [
+4
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"family"
+],
+"effect": "Your home life is peaceful.",
+"effect_es": "Tu vida en casa es tranquila.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8082
+},
+{
+"id": "MSMV.185",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+4
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"property"
+],
+"effect": "You gain houses and friends.",
+"effect_es": "Obtienes casas y amistades.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8084
+},
+{
+"id": "MSMV.186",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+4
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"family"
+],
+"effect": "Your domestic life is peaceful and happy.",
+"effect_es": "Tu vida doméstica es pacífica y feliz.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8084
+},
+{
+"id": "MSMV.187",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Saturn",
+"in_houses": [
+4
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"other"
+],
+"effect": "You live a secluded and unhappy life.",
+"effect_es": "Llevas una vida apartada e infeliz.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8088
+},
+{
+"id": "MSMV.188",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Rahu",
+"in_houses": [
+4
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"education"
+],
+"effect": "Your early education is interrupted.",
+"effect_es": "Tu educación temprana se ve interrumpida.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8091
+},
+{
+"id": "MSMV.189",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Rahu",
+"in_houses": [
+4
+]
+},
+{
+"chart": "female"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "You are unhappy in your marriage.",
+"effect_es": "Eres infeliz en tu matrimonio.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8092
+},
+{
+"id": "MSMV.190",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Ketu",
+"in_houses": [
+4
+]
+}
+],
+"activation": [],
+"tone": "mixed",
+"topics": [
+"foreign"
+],
+"effect": "You have a link with foreign lands.",
+"effect_es": "Tienes un vínculo con tierras extranjeras.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8096
+},
+{
+"id": "MSMV.192",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Moon",
+"in_houses": [
+5
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You tend to be rich.",
+"effect_es": "Tiendes a ser rico.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8108
+},
+{
+"id": "MSMV.193",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Moon",
+"in_houses": [
+5
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "You are accomplished in the fine arts.",
+"effect_es": "Eres hábil en las bellas artes.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8110
+},
+{
+"id": "MSMV.194",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Moon",
+"in_houses": [
+5
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"children"
+],
+"effect": "Your children are obedient.",
+"effect_es": "Tus hijos son obedientes.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8112
+},
+{
+"id": "MSMV.195",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Mercury",
+"in_houses": [
+5
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"education"
+],
+"effect": "You are well educated and write well.",
+"effect_es": "Tienes buena educación y escribes bien.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8124
+},
+{
+"id": "MSMV.196",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+5
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"education"
+],
+"effect": "You are well educated and artistic.",
+"effect_es": "Tienes buena educación y sensibilidad artística.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8129
+},
+{
+"id": "MSMV.197",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+5
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You become rich.",
+"effect_es": "Te vuelves rico.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8129
+},
+{
+"id": "MSMV.198",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Jupiter",
+"in_houses": [
+5
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"education"
+],
+"effect": "You are intelligent and well educated.",
+"effect_es": "Eres inteligente y con buena educación.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8132
+},
+{
+"id": "MSMV.199",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Jupiter",
+"in_houses": [
+5
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You become rich.",
+"effect_es": "Te vuelves rico.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8132
+},
+{
+"id": "MSMV.200",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Ketu",
+"in_houses": [
+5
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"spiritual"
+],
+"effect": "You gain spiritual power through devotional practice.",
+"effect_es": "Obtienes poder espiritual mediante la práctica devocional.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8142
+},
+{
+"id": "MSMV.201",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Sun",
+"in_houses": [
+6
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"fame",
+"career"
+],
+"effect": "You become well known and may enter politics.",
+"effect_es": "Te haces conocido y puedes entrar en la política.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8144
+},
+{
+"id": "MSMV.202",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Sun",
+"in_houses": [
+6
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "You succeed in all your ventures.",
+"effect_es": "Tienes éxito en todas tus empresas.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8145
+},
+{
+"id": "MSMV.203",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Sun",
+"in_houses": [
+6
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You are protected against enemies and debt.",
+"effect_es": "Estás protegido contra enemigos y deudas.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8147
+},
+{
+"id": "MSMV.204",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Mars",
+"in_houses": [
+6
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "You overcome opposition.",
+"effect_es": "Superas la oposición.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8162
+},
+{
+"id": "MSMV.205",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Mars",
+"in_houses": [
+6
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "You win legal cases and sporting contests.",
+"effect_es": "Ganas casos legales y competencias deportivas.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8163
+},
+{
+"id": "MSMV.206",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Mars",
+"in_houses": [
+6
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "You make an able administrator.",
+"effect_es": "Eres un administrador capaz.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8162
+},
+{
+"id": "MSMV.207",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+6
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"money"
+],
+"effect": "Heavy spending leads you into poverty and debt.",
+"effect_es": "Los gastos excesivos te llevan a la pobreza y las deudas.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8184
+},
+{
+"id": "MSMV.208",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+6
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "You have no enemies.",
+"effect_es": "No tienes enemigos.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8185
+},
+{
+"id": "MSMV.209",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Saturn",
+"in_houses": [
+6
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "You are fearless in front of enemies and authority.",
+"effect_es": "No temes a los enemigos ni a la autoridad.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8192
+},
+{
+"id": "MSMV.210",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Saturn",
+"in_houses": [
+6
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You hold wealth in livestock.",
+"effect_es": "Tienes riqueza en ganado.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8194
+},
+{
+"id": "MSMV.211",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Saturn",
+"in_houses": [
+6
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "You complete difficult assignments through hard work.",
+"effect_es": "Cumples tareas difíciles con trabajo duro.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8194
+},
+{
+"id": "MSMV.212",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Rahu",
+"in_houses": [
+6
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "You defeat your enemies.",
+"effect_es": "Derrotas a tus enemigos.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8199
+},
+{
+"id": "MSMV.213",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Rahu",
+"in_houses": [
+6
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"foreign"
+],
+"effect": "You go abroad.",
+"effect_es": "Te vas al extranjero.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8201
+},
+{
+"id": "MSMV.215",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Ketu",
+"in_houses": [
+6
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"fame"
+],
+"effect": "You earn a name and fame.",
+"effect_es": "Te ganas nombre y fama.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8206
+},
+{
+"id": "MSMV.216",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Ketu",
+"in_houses": [
+6
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "You do well in debates and discussions.",
+"effect_es": "Te va bien en debates y discusiones.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8207
+},
+{
+"id": "MSMV.217",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Ketu",
+"in_houses": [
+6
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money",
+"career"
+],
+"effect": "You make financial gains and may become a high officer.",
+"effect_es": "Obtienes ganancias económicas y puedes llegar a ser un alto funcionario.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8209
+},
+{
+"id": "MSMV.218",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Sun",
+"in_houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "Your relations with your spouse are strained.",
+"effect_es": "Tus relaciones con tu pareja están tensas.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8224
+},
+{
+"id": "MSMV.219",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Sun",
+"in_houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"money"
+],
+"effect": "Your business brings little profit.",
+"effect_es": "Tu negocio da poca ganancia.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8225
+},
+{
+"id": "MSMV.220",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Sun",
+"in_houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "Your marriage is delayed.",
+"effect_es": "Tu matrimonio se retrasa.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8227
+},
+{
+"id": "MSMV.221",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Mars",
+"in_houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"other"
+],
+"effect": "You face troublesome opponents.",
+"effect_es": "Enfrentas oponentes problemáticos.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8241
+},
+{
+"id": "MSMV.222",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Mars",
+"in_houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "mixed",
+"topics": [
+"foreign"
+],
+"effect": "You live abroad.",
+"effect_es": "Vives en el extranjero.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8242
+},
+{
+"id": "MSMV.224",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Jupiter",
+"in_houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career",
+"fame"
+],
+"effect": "You reach a high status in life.",
+"effect_es": "Alcanzas una posición elevada en la vida.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8254
+},
+{
+"id": "MSMV.225",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Jupiter",
+"in_houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You are rich and generous.",
+"effect_es": "Eres rico y generoso.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8255
+},
+{
+"id": "MSMV.226",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Jupiter",
+"in_houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"marriage"
+],
+"effect": "Your spouse is affectionate and charming.",
+"effect_es": "Tu pareja es cariñosa y encantadora.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8256
+},
+{
+"id": "MSMV.227",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"marriage"
+],
+"effect": "Your spouse is loyal and attractive.",
+"effect_es": "Tu pareja es leal y atractiva.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8262
+},
+{
+"id": "MSMV.228",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"marriage",
+"money"
+],
+"effect": "You gain socially and financially through marriage.",
+"effect_es": "Ganas en lo social y lo económico gracias al matrimonio.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8265
+},
+{
+"id": "MSMV.229",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"marriage"
+],
+"effect": "You marry early.",
+"effect_es": "Te casas joven.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8266
+},
+{
+"id": "MSMV.230",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "Your partnerships succeed.",
+"effect_es": "Tus sociedades tienen éxito.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8267
+},
+{
+"id": "MSMV.231",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Saturn",
+"in_houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "mixed",
+"topics": [
+"marriage"
+],
+"effect": "You marry late and may find your spouse much older or younger.",
+"effect_es": "Te casas tarde y tu pareja puede tener una gran diferencia de edad contigo.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 1383
+},
+{
+"id": "MSMV.232",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Saturn",
+"in_houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"money"
+],
+"effect": "You are denied a charming partner, good friends and wealth for a long time.",
+"effect_es": "Por mucho tiempo no tienes una pareja encantadora, buenos amigos ni riqueza.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8274
+},
+{
+"id": "MSMV.233",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Rahu",
+"in_houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "Trouble reaches you through your partner.",
+"effect_es": "Te llegan problemas por medio de tu pareja.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8283
+},
+{
+"id": "MSMV.234",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Rahu",
+"in_houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"other"
+],
+"effect": "Strife, opposition and hindrance mark your life.",
+"effect_es": "Tu vida está marcada por conflictos, oposición y obstáculos.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8284
+},
+{
+"id": "MSMV.235",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Ketu",
+"in_houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "You find little happiness with your partner.",
+"effect_es": "Encuentras poca felicidad con tu pareja.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8287
+},
+{
+"id": "MSMV.236",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Ketu",
+"in_houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"money"
+],
+"effect": "You lose money.",
+"effect_es": "Pierdes dinero.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8289
+},
+{
+"id": "MSMV.237",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Ketu",
+"in_houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "Your partner may leave you.",
+"effect_es": "Tu pareja puede dejarte.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "inferred",
+"line": 8291
+},
+{
+"id": "MSMV.238",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Sun",
+"in_houses": [
+8
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"other"
+],
+"effect": "Your life is hard and difficult.",
+"effect_es": "Tu vida es dura y difícil.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8301
+},
+{
+"id": "MSMV.239",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Sun",
+"in_houses": [
+8
+]
+}
+],
+"activation": [],
+"tone": "mixed",
+"topics": [
+"foreign"
+],
+"effect": "You travel widely.",
+"effect_es": "Viajas mucho.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8301
+},
+{
+"id": "MSMV.240",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Mercury",
+"in_houses": [
+8
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money",
+"fame"
+],
+"effect": "You gain wealth and fame, and a good reputation.",
+"effect_es": "Ganas riqueza, fama y buena reputación.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8329
+},
+{
+"id": "MSMV.241",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Mercury",
+"in_houses": [
+8
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"property"
+],
+"effect": "You hold land and property.",
+"effect_es": "Posees tierras y propiedades.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8331
+},
+{
+"id": "MSMV.242",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+8
+]
+}
+],
+"activation": [],
+"tone": "mixed",
+"topics": [
+"money"
+],
+"effect": "You gain profit only after hard effort.",
+"effect_es": "Obtienes ganancias solo tras un gran esfuerzo.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8353
+},
+{
+"id": "MSMV.243",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+8
+]
+}
+],
+"activation": [],
+"tone": "mixed",
+"topics": [
+"career"
+],
+"effect": "Victory comes late.",
+"effect_es": "La victoria llega tarde.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8354
+},
+{
+"id": "MSMV.244",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+8
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"property"
+],
+"effect": "You become a landlord.",
+"effect_es": "Te conviertes en propietario de tierras.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8355
+},
+{
+"id": "MSMV.245",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Saturn",
+"in_houses": [
+8
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"money"
+],
+"effect": "You suffer great loss of wealth.",
+"effect_es": "Sufres una gran pérdida de riqueza.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8361
+},
+{
+"id": "MSMV.246",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Saturn",
+"in_houses": [
+8
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"family"
+],
+"effect": "You are suddenly separated from your own people.",
+"effect_es": "Te separas de repente de los tuyos.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8361
+},
+{
+"id": "MSMV.247",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Saturn",
+"in_houses": [
+8
+]
+}
+],
+"activation": [],
+"tone": "mixed",
+"topics": [
+"foreign"
+],
+"effect": "You live in a foreign land.",
+"effect_es": "Vives en tierra extranjera.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8366
+},
+{
+"id": "MSMV.248",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Rahu",
+"in_houses": [
+8
+]
+}
+],
+"activation": [],
+"tone": "mixed",
+"topics": [
+"foreign"
+],
+"effect": "You make a journey to foreign countries.",
+"effect_es": "Haces un viaje a países extranjeros.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8369
+},
+{
+"id": "MSMV.249",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Rahu",
+"in_houses": [
+8
+]
+}
+],
+"activation": [],
+"tone": "mixed",
+"topics": [
+"money"
+],
+"effect": "You gain some wealth from the government and then lose it.",
+"effect_es": "Obtienes algo de riqueza del gobierno y luego la pierdes.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8369
+},
+{
+"id": "MSMV.250",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Rahu",
+"in_houses": [
+8
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"career"
+],
+"effect": "You are unpopular with your bosses.",
+"effect_es": "No eres popular con tus jefes.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8369
+},
+{
+"id": "MSMV.251",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Moon",
+"in_houses": [
+9
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You are wealthy and generous.",
+"effect_es": "Eres rico y generoso.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8386
+},
+{
+"id": "MSMV.252",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Moon",
+"in_houses": [
+9
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"education"
+],
+"effect": "You gain a high education.",
+"effect_es": "Obtienes una educación superior.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8386
+},
+{
+"id": "MSMV.253",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Moon",
+"in_houses": [
+9
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"fame"
+],
+"effect": "You gain fame and success from early youth.",
+"effect_es": "Ganas fama y éxito desde la juventud.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8387
+},
+{
+"id": "MSMV.254",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Moon",
+"in_houses": [
+9
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"spiritual"
+],
+"effect": "You go on a holy pilgrimage.",
+"effect_es": "Haces una peregrinación sagrada.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8390
+},
+{
+"id": "MSMV.255",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Moon",
+"in_houses": [
+9
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"foreign"
+],
+"effect": "You travel abroad and make sea voyages.",
+"effect_es": "Viajas al extranjero y haces viajes por mar.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8393
+},
+{
+"id": "MSMV.256",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Moon",
+"in_houses": [
+9
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"marriage"
+],
+"effect": "You have a beautiful and charming partner.",
+"effect_es": "Tienes una pareja hermosa y encantadora.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8389
+},
+{
+"id": "MSMV.257",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Mars",
+"in_houses": [
+9
+]
+},
+{
+"planet": "Mars",
+"dignity": [
+"own",
+"exalted"
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"fame",
+"money"
+],
+"effect": "You become famous, rich and powerful.",
+"effect_es": "Te vuelves famoso, rico y poderoso.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8399
+},
+{
+"id": "MSMV.258",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Mercury",
+"in_houses": [
+9
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money",
+"education"
+],
+"effect": "You are very intelligent and rich.",
+"effect_es": "Eres muy inteligente y rico.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8411
+},
+{
+"id": "MSMV.259",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Mercury",
+"in_houses": [
+9
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"education"
+],
+"effect": "You have a scientific bent and a talent for invention.",
+"effect_es": "Tienes inclinación científica y talento para inventar.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8412
+},
+{
+"id": "MSMV.260",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Mercury",
+"in_houses": [
+9
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"fame"
+],
+"effect": "You are popular and fortunate.",
+"effect_es": "Eres popular y afortunado.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8413
+},
+{
+"id": "MSMV.261",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Jupiter",
+"in_houses": [
+9
+]
+},
+{
+"a": "Jupiter",
+"b": "Venus",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money",
+"property"
+],
+"effect": "You become very wealthy and own much property.",
+"effect_es": "Te vuelves muy rico y posees muchas propiedades.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8416
+},
+{
+"id": "MSMV.262",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Jupiter",
+"in_houses": [
+9
+]
+},
+{
+"a": "Jupiter",
+"b": "Mercury",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money",
+"property"
+],
+"effect": "You become very wealthy and own much property.",
+"effect_es": "Te vuelves muy rico y posees muchas propiedades.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8416
+},
+{
+"id": "MSMV.263",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Jupiter",
+"in_houses": [
+9
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"spiritual"
+],
+"effect": "You are religious, charitable and intellectual.",
+"effect_es": "Eres religioso, caritativo e intelectual.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8417
+},
+{
+"id": "MSMV.264",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Jupiter",
+"in_houses": [
+9
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"family"
+],
+"effect": "Your relations with your father are good.",
+"effect_es": "Tu relación con tu padre es buena.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8418
+},
+{
+"id": "MSMV.265",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Rahu",
+"in_houses": [
+9
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"education",
+"foreign"
+],
+"effect": "You become proficient in at least one foreign language.",
+"effect_es": "Dominas al menos un idioma extranjero.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8424
+},
+{
+"id": "MSMV.266",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Rahu",
+"in_houses": [
+9
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money",
+"fame"
+],
+"effect": "You become wealthy and famous.",
+"effect_es": "Te vuelves rico y famoso.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8422
+},
+{
+"id": "MSMV.267",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Ketu",
+"in_houses": [
+9
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You have a good spouse and children, and you save money.",
+"effect_es": "Tienes buena pareja e hijos, y ahorras dinero.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8429
+},
+{
+"id": "MSMV.268",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Sun",
+"in_houses": [
+10
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "You do well in your profession and in your vocation.",
+"effect_es": "Te va bien en tu profesión y en tu vocación.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8438
+},
+{
+"id": "MSMV.269",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Sun",
+"in_houses": [
+10
+]
+},
+{
+"planet": "Sun",
+"dignity": [
+"own",
+"exalted"
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"fame",
+"money"
+],
+"effect": "You gain fame, wealth and honours.",
+"effect_es": "Ganas fama, riqueza y honores.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8444
+},
+{
+"id": "MSMV.270",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Sun",
+"in_houses": [
+10
+]
+},
+{
+"planet": "Sun",
+"dignity": [
+"own",
+"exalted"
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "Powerful people support you and the government holds you in favour.",
+"effect_es": "Personas poderosas te apoyan y el gobierno te tiene en buena estima.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8449
+},
+{
+"id": "MSMV.271",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Moon",
+"in_houses": [
+10
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You succeed and become rich.",
+"effect_es": "Tienes éxito y te vuelves rico.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8455
+},
+{
+"id": "MSMV.272",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Moon",
+"in_houses": [
+10
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"fame"
+],
+"effect": "You gain public recognition and popularity.",
+"effect_es": "Ganas reconocimiento público y popularidad.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8457
+},
+{
+"id": "MSMV.273",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Moon",
+"in_houses": [
+10
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"foreign"
+],
+"effect": "You travel a lot.",
+"effect_es": "Viajas mucho.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8458
+},
+{
+"id": "MSMV.274",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Mars",
+"in_houses": [
+10
+]
+},
+{
+"planet": "Mars",
+"dignity": [
+"own",
+"exalted"
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"fame",
+"career"
+],
+"effect": "You become famous and successful, and you defeat your opponents.",
+"effect_es": "Te vuelves famoso y exitoso, y derrotas a tus oponentes.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8469
+},
+{
+"id": "MSMV.275",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Mars",
+"in_houses": [
+10
+]
+},
+{
+"planet": "Mars",
+"dignity": [
+"own",
+"exalted"
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "You rise to command and leadership.",
+"effect_es": "Asciendes a posiciones de mando y liderazgo.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8472
+},
+{
+"id": "MSMV.276",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Mercury",
+"in_houses": [
+10
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You become rich.",
+"effect_es": "Te vuelves rico.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8485
+},
+{
+"id": "MSMV.277",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Mercury",
+"in_houses": [
+10
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"property"
+],
+"effect": "You gain inheritance and property.",
+"effect_es": "Obtienes herencia y propiedades.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8485
+},
+{
+"id": "MSMV.278",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Mercury",
+"in_houses": [
+10
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "You succeed from the very start of any undertaking.",
+"effect_es": "Tienes éxito desde el comienzo de cualquier empresa.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8488
+},
+{
+"id": "MSMV.279",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Jupiter",
+"in_houses": [
+10
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"fame"
+],
+"effect": "You become a celebrity recognised by those in power.",
+"effect_es": "Te conviertes en una celebridad reconocida por quienes tienen poder.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8491
+},
+{
+"id": "MSMV.280",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Jupiter",
+"in_houses": [
+10
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "You gain favour and gains through your superiors.",
+"effect_es": "Ganas favor y beneficios por medio de tus superiores.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8506
+},
+{
+"id": "MSMV.281",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Jupiter",
+"in_houses": [
+1,
+4,
+10
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You gain a great deal of wealth.",
+"effect_es": "Obtienes una gran riqueza.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8501
+},
+{
+"id": "MSMV.282",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Jupiter",
+"in_houses": [
+10
+]
+},
+{
+"a": "Jupiter",
+"b": "Sun",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "Wealth reaches you through your father.",
+"effect_es": "La riqueza te llega por medio de tu padre.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8499
+},
+{
+"id": "MSMV.283",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Jupiter",
+"in_houses": [
+10
+]
+},
+{
+"a": "Jupiter",
+"b": "Moon",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "Wealth reaches you through your mother.",
+"effect_es": "La riqueza te llega por medio de tu madre.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8500
+},
+{
+"id": "MSMV.284",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Jupiter",
+"in_houses": [
+10
+]
+},
+{
+"a": "Jupiter",
+"b": "Mercury",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "Wealth reaches you through a friend.",
+"effect_es": "La riqueza te llega por medio de un amigo.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8500
+},
+{
+"id": "MSMV.285",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Jupiter",
+"in_houses": [
+10
+]
+},
+{
+"a": "Jupiter",
+"b": "Mars",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "Wealth reaches you through a rival.",
+"effect_es": "La riqueza te llega por medio de un rival.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8501
+},
+{
+"id": "MSMV.286",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Jupiter",
+"in_houses": [
+10
+]
+},
+{
+"a": "Jupiter",
+"b": "Saturn",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "Wealth reaches you through someone who works for you.",
+"effect_es": "La riqueza te llega por medio de alguien que trabaja para ti.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8501
+},
+{
+"id": "MSMV.287",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+10
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You become wealthy and well liked.",
+"effect_es": "Te vuelves rico y querido.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8509
+},
+{
+"id": "MSMV.288",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+10
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"property"
+],
+"effect": "You own vehicles and jewellery.",
+"effect_es": "Posees vehículos y joyas.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8511
+},
+{
+"id": "MSMV.289",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+10
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "You rise to a senior position in government.",
+"effect_es": "Asciendes a un puesto elevado en el gobierno.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8512
+},
+{
+"id": "MSMV.290",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+10
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"family",
+"fame"
+],
+"effect": "You have a happy home and receive honours.",
+"effect_es": "Tienes un hogar feliz y recibes honores.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8514
+},
+{
+"id": "MSMV.291",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Sun",
+"in_houses": [
+11
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You gain wealth.",
+"effect_es": "Obtienes riqueza.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8547
+},
+{
+"id": "MSMV.292",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Sun",
+"in_houses": [
+11
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "You hold a high government job.",
+"effect_es": "Ocupas un alto puesto en el gobierno.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8547
+},
+{
+"id": "MSMV.293",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Sun",
+"in_houses": [
+11
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "Success comes easily to you.",
+"effect_es": "El éxito te llega con facilidad.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8548
+},
+{
+"id": "MSMV.295",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Moon",
+"in_houses": [
+11
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money",
+"property"
+],
+"effect": "You gain wealth and land.",
+"effect_es": "Obtienes riqueza y tierras.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8555
+},
+{
+"id": "MSMV.296",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Moon",
+"in_houses": [
+11
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"fame"
+],
+"effect": "You earn a good reputation.",
+"effect_es": "Ganas buena reputación.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8556
+},
+{
+"id": "MSMV.298",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Mars",
+"in_houses": [
+11
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career",
+"fame"
+],
+"effect": "You become influential and gain high status.",
+"effect_es": "Te vuelves influyente y alcanzas un estatus elevado.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8559
+},
+{
+"id": "MSMV.299",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Mars",
+"in_houses": [
+11
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"property",
+"money"
+],
+"effect": "You gain landed property and wealth.",
+"effect_es": "Obtienes propiedades y riqueza.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8560
+},
+{
+"id": "MSMV.301",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Mercury",
+"in_houses": [
+11
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money",
+"education"
+],
+"effect": "You are learned and sharp, and you become rich.",
+"effect_es": "Eres culto y agudo, y te vuelves rico.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8563
+},
+{
+"id": "MSMV.303",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Jupiter",
+"in_houses": [
+11
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You gain from many different sources and grow very rich.",
+"effect_es": "Obtienes ganancias de muchas fuentes y te vuelves muy rico.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8567
+},
+{
+"id": "MSMV.304",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Jupiter",
+"in_houses": [
+11
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "You have many friends.",
+"effect_es": "Tienes muchos amigos.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8568
+},
+{
+"id": "MSMV.305",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+11
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money",
+"fame"
+],
+"effect": "You become wealthy and popular.",
+"effect_es": "Te vuelves rico y popular.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8570
+},
+{
+"id": "MSMV.307",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Saturn",
+"in_houses": [
+11
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "Many people work under you.",
+"effect_es": "Mucha gente trabaja bajo tu mando.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8575
+},
+{
+"id": "MSMV.308",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Saturn",
+"in_houses": [
+11
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money",
+"property"
+],
+"effect": "You earn through government work and gain land and immovable property.",
+"effect_es": "Ganas por trabajo en el gobierno y obtienes tierras y bienes inmuebles.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8576
+},
+{
+"id": "MSMV.309",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Saturn",
+"in_houses": [
+11
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"education"
+],
+"effect": "Your education is interrupted.",
+"effect_es": "Tu educación se interrumpe.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8577
+},
+{
+"id": "MSMV.310",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Rahu",
+"in_houses": [
+11
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"fame",
+"money"
+],
+"effect": "You become famous, wealthy and learned.",
+"effect_es": "Te vuelves famoso, rico y culto.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8580
+},
+{
+"id": "MSMV.311",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Rahu",
+"in_houses": [
+11
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"foreign",
+"money"
+],
+"effect": "You gain wealth in foreign countries.",
+"effect_es": "Obtienes riqueza en países extranjeros.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8581
+},
+{
+"id": "MSMV.312",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Ketu",
+"in_houses": [
+11
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You receive a windfall through a lottery or speculation.",
+"effect_es": "Recibes una ganancia inesperada por lotería o especulación.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8584
+},
+{
+"id": "MSMV.313",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Ketu",
+"in_houses": [
+11
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"foreign"
+],
+"effect": "You travel to many places in comfort.",
+"effect_es": "Viajas a muchos lugares con comodidad.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8586
+},
+{
+"id": "MSMV.314",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Moon",
+"in_houses": [
+12
+]
+}
+],
+"activation": [],
+"tone": "mixed",
+"topics": [
+"foreign"
+],
+"effect": "You travel abroad.",
+"effect_es": "Viajas al extranjero.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8596
+},
+{
+"id": "MSMV.315",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Mercury",
+"in_houses": [
+12
+]
+}
+],
+"activation": [],
+"tone": "mixed",
+"topics": [
+"foreign"
+],
+"effect": "You travel abroad.",
+"effect_es": "Viajas al extranjero.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8601
+},
+{
+"id": "MSMV.316",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Mercury",
+"in_houses": [
+12
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"money"
+],
+"effect": "You lose money.",
+"effect_es": "Pierdes dinero.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8602
+},
+{
+"id": "MSMV.317",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Jupiter",
+"in_houses": [
+12
+]
+}
+],
+"activation": [],
+"tone": "mixed",
+"topics": [
+"spiritual"
+],
+"effect": "You turn to spiritual life later on.",
+"effect_es": "Te vuelcas a la vida espiritual más adelante.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8604
+},
+{
+"id": "MSMV.319",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+12
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"foreign"
+],
+"effect": "You gain wealth and foreign travel.",
+"effect_es": "Obtienes riqueza y viajes al extranjero.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8607
+},
+{
+"id": "MSMV.320",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Saturn",
+"in_houses": [
+12
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"money"
+],
+"effect": "You suffer financial losses.",
+"effect_es": "Sufres pérdidas económicas.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8610
+},
+{
+"id": "MSMV.321",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Rahu",
+"in_houses": [
+12
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You are financially well off.",
+"effect_es": "Estás bien económicamente.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8614
+},
+{
+"id": "MSMV.322",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Ketu",
+"in_houses": [
+12
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"spiritual"
+],
+"effect": "You move toward spiritual liberation.",
+"effect_es": "Avanzas hacia la liberación espiritual.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8618
+},
+{
+"id": "MSMV.323",
+"book": "mehta_varshaphala",
+"requires": [
+{
+"planet": "Ketu",
+"in_houses": [
+12
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"money"
+],
+"effect": "You are restless and wander, and you suffer financial losses.",
+"effect_es": "Eres inquieto, vagas de un lugar a otro y sufres pérdidas económicas.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General planet-in-house result from the book's Parashari chapter; the book says it also applies to the annual chart, but it is recorded here against the birth chart.",
+"clarity": "clear",
+"line": 8620
 }
 ]
 }
