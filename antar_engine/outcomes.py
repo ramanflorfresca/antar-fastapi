@@ -23,7 +23,7 @@ OUTCOMES = ("yes", "partly", "no", "not_sure")
 # Only these sources get a check-in. Migrated life-arc rows are THEMES ("current
 # chapter", "sub-theme"), often in astrology wording ("Saturn is asking…") — not
 # events a person can answer yes/no to. They stay stored, never asked about.
-CHECKABLE_SOURCES = ("ask_explore", "ask_yesno", "decoy")
+CHECKABLE_SOURCES = ("ask_explore", "ask_yesno", "library", "decoy")
 CHECKIN_DELAY_DAYS = 3
 _VERDICTS_TRACKED = {"LIKELY", "NOT_YET", "YES", "NO", "LEAN_YES", "LEAN_NO", "MIXED"}
 
@@ -215,6 +215,30 @@ def _table_missing(e) -> bool:
     return "pgrst205" in m or "could not find the table" in m or "does not exist" in m
 
 
+def build_library_claim(chart_id: str, rule_id: str, ref: str, text: str, start: Optional[str], end: Optional[str],
+                        topic: Optional[str], language: str = "en", now: Optional[datetime] = None) -> Optional[dict]:
+    """A prediction_claims row for one statement the person chose to follow (tapped 'why am I seeing this'). The rule id stays in
+    `engines` (internal); the app only ever holds the opaque ref. The check-in is due the day after the window ends."""
+    text = (text or "").strip()
+    if not (chart_id and rule_id and ref and text):
+        return None
+    now = now or datetime.now(timezone.utc)
+    try:
+        ws = date.fromisoformat(str(start)[:10]) if start else now.date()
+        we = date.fromisoformat(str(end)[:10]) if end else ws + timedelta(days=14)
+    except ValueError:
+        return None
+    if we < ws:
+        we = ws
+    topic = (topic or "other").lower()[:40]
+    return {"chart_id": chart_id, "source": "library", "topic": topic, "claim_type": "window",
+            "window_start": ws.isoformat(), "window_end": we.isoformat(), "text_shown": text[:500], "question": None,
+            "language": (language or "en")[:2], "channel": "app", "verdict": "WINDOW", "confidence_word": None,
+            "engines": {"rule": rule_id}, "dedupe_key": f"{chart_id}|{topic}|library|{ref}|{ws.isoformat()}|{we.isoformat()}",
+            "checkin_due_at": datetime(we.year, we.month, we.day, 9, tzinfo=timezone.utc).isoformat()
+            if we >= now.date() else now.isoformat()}
+
+
 def record_claim(sb, claim: Optional[dict]) -> Optional[str]:
     """Upsert on dedupe_key (the same topic + window is one claim, however often
     it was repeated). Returns the claim id, or None. Never raises."""
@@ -288,7 +312,7 @@ def checkin_text(claim: dict) -> str:
     noun = _TOPIC_NOUN.get(lang, {}).get(topic)
     # quote only what Ask said (plain-language by construction); never old texts
     said = ((claim.get("text_shown") or "").strip()
-            if claim.get("source") in ("ask_explore", "ask_yesno") else "")
+            if claim.get("source") in ("ask_explore", "ask_yesno", "library") else "")
     head = said_t.format(said=said) if said and not sensitive else ""
     if claim.get("source") == "decoy" and claim.get("text_shown"):
         # no prediction was made — name the period, then the SAME question a real
