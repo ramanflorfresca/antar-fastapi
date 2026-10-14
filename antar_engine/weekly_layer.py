@@ -111,6 +111,16 @@ PLANET_STEP_SUBJECT = {"Jupiter": "money", "Saturn": "career", "Sun": "career", 
                        "Venus": "love", "Moon": None}
 MOON_STEP = ("Keep the day light: fewer commitments, no big decisions.", "Mantén el día ligero: menos compromisos, sin decisiones grandes.")
 MAX_WATCH = 3
+SUBJECT_AREA = {"money": "money", "funding": "money", "speculation": "money", "career": "work", "job": "work", "business": "work",
+                "love": "partnership", "marriage": "partnership", "children": "family", "education": "learning",
+                "property": "home", "foreign": "home", "health": "health", "spirituality": "inner"}
+
+
+def _area(subjects) -> Optional[str]:
+    for s_ in subjects or []:
+        if s_ in SUBJECT_AREA:
+            return SUBJECT_AREA[s_]
+    return None
 
 
 def _lang(pair, language):
@@ -135,7 +145,7 @@ def _blocks(out: dict, language: str) -> dict:
     for row in out["jaimini"]:
         rid = row["rule_id"][3:] if row["rule_id"].startswith("BK.") else row["rule_id"]
         item = {"line": "jaimini" if row["book"] == "K.N. Rao" else "book", "source": row["book"], "text": row["text"],
-                "rule_id": row["rule_id"], "days": row["days"], "more": row.get("more", [])}
+                "rule_id": row["rule_id"], "days": row["days"], "more": row.get("more", []), "area": _area(row.get("subjects"))}
         if row["tone"] == "good":
             lean.append(item)
         elif row["tone"] == "bad":
@@ -147,7 +157,8 @@ def _blocks(out: dict, language: str) -> dict:
     # The Lal Kitab annual rules describe the YEAR, not this week: they live in the year view (focus / season), never in the week.
     g = (out["vimshottari"].get("gochara") or {})
     for l in g.get("background", []) + g.get("this_month", []):
-        item = {"line": "vimshottari", "source": "Raman, transits", "text": l["text"], "rule_id": "GOCHARA." + l["planet_key"]}
+        item = {"line": "vimshottari", "source": "Raman, transits", "text": l["text"], "rule_id": "GOCHARA." + l["planet_key"],
+                "area": _area([PLANET_STEP_SUBJECT.get(l["planet_key"])])}
         if l["state"] == "good":
             lean.append(item)
         else:

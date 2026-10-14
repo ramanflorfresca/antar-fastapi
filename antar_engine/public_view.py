@@ -47,7 +47,7 @@ def _conf(item: dict) -> str:
 
 def _item(i: dict, rid_key="rule_id") -> dict:
     out = {"ref": ref_for(i.get(rid_key)), "text": i.get("text"), "confidence": _conf(i)}
-    for k in ("start", "end", "label", "days", "do", "timing", "remedy"):
+    for k in ("start", "end", "label", "days", "do", "timing", "remedy", "area"):
         if i.get(k) is not None:
             out[k] = i[k]
     return out

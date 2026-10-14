@@ -34,6 +34,7 @@ TOPIC_WORDS = {"money": ("money", "fund", "income", "dinero", "financ", "invest"
                "home": ("property", "home", "foreign", "travel", "abroad", "propiedad", "viaje", "extranjero"),
                "health": ("health", "salud"), "inner": ("spirit", "espirit")}
 MAX_FOCUS = 2
+_YEAR_LEVEL = re.compile(r"\b(this|a favou?rable|an? \w+) year\b", re.I)          # year-scale statements are a season, not a standing pattern
 _NEEDS_PARTNER = re.compile(r"\b(spouse|husband|wife|in-laws?|your partner|tu esposo|tu esposa|tu pareja|tu cónyuge|tu marido)\b", re.I)
 _NEEDS_KIDS = re.compile(r"\byour (children|child|kids?|sons?|daughters?)\b|\btus? (hij[oa]s?)\b", re.I)
 
@@ -107,7 +108,7 @@ def _pattern(ctx, subjects, lang, life=None) -> Optional[dict]:
         evs += rr.for_subject(rr.applicable(ctx), s)
     best = None
     for e in evs:
-        if e.tone in ("good", "info") and e.plain.get(lang) and _gate_ok(e.plain.get(lang), life) and (best is None or (e.precision == "specific", e.tone == "good") > (best.precision == "specific", best.tone == "good")):
+        if e.tone in ("good", "info") and e.plain.get(lang) and _gate_ok(e.plain.get(lang), life) and not _YEAR_LEVEL.search(e.plain.get(lang)) and (best is None or (e.precision == "specific", e.tone == "good") > (best.precision == "specific", best.tone == "good")):
             best = e
     return {"text": best.plain[lang], "ref": public_view.ref_for(best.rule_id)} if best else None
 
