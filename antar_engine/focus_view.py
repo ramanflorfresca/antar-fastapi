@@ -22,8 +22,10 @@ AREAS = [  # key, subjects, label en/es, one-line empty-state hint is not needed
     ("health", ("health",), {"en": "Health and energy", "es": "Salud y energía"}),
     ("inner", ("spirituality",), {"en": "Inner life", "es": "Vida interior"}),
 ]
-LABELS = {"en": {"pattern": "Your pattern", "season": "Your season", "move": "Your move", "watch": "Watch"},
-          "es": {"pattern": "Tu patrón", "season": "Tu temporada", "move": "Tu paso", "watch": "Ojo con"}}
+LABELS = {"en": {"pattern": "Your pattern", "season": "Your season", "move": "Your move", "watch": "Watch",
+                 "support": "Do this to support it", "care": "Keep your body steady"},
+          "es": {"pattern": "Tu patrón", "season": "Tu temporada", "move": "Tu paso", "watch": "Ojo con",
+                 "support": "Haz esto para apoyarlo", "care": "Mantén tu cuerpo estable"}}
 TOPIC_WORDS = {"money": ("money", "fund", "income", "dinero", "financ", "invest", "speculat"),
                "work": ("career", "job", "work", "business", "client", "carrera", "empleo", "negocio", "trabajo"),
                "partnership": ("love", "marri", "relation", "partner", "amor", "matrimonio", "pareja"),
@@ -74,17 +76,46 @@ def _pattern(ctx, subjects, lang) -> Optional[dict]:
     return {"text": best.plain[lang], "ref": public_view.ref_for(best.rule_id)} if best else None
 
 
+def _support(ctx, subjects, lang, used: Optional[set] = None) -> Optional[dict]:
+    """One practical remedy for the area, from the remedies live now or within six months (what to do to support it)."""
+    try:
+        cal = rr.remedy_calendar(ctx, lang, subjects[0])
+        items = list(cal.get("this_month", [])) + list(cal.get("six_months", []))
+        for s in subjects[1:]:
+            c2 = rr.remedy_calendar(ctx, lang, s)
+            items += list(c2.get("this_month", [])) + list(c2.get("six_months", []))
+        for it in items:
+            steps = it.get("steps") or []
+            if steps and (used is None or it.get("rule_id") not in used):
+                if used is not None:
+                    used.add(it.get("rule_id"))               # two cards never get the same remedy
+                return {"text": steps[0], "duration": it.get("duration"), "purpose": it.get("purpose"),
+                        "ref": public_view.ref_for(it.get("rule_id"))}
+    except Exception:
+        pass
+    return None
+
+
+def _care(library: dict) -> Optional[dict]:
+    """One body-care habit (diet / routine) to keep you steady while you push: the best wellness theme that carries a remedy."""
+    for t in ((library.get("wellness") or {}).get("themes") or []):
+        if t.get("remedy"):
+            return {"text": t["remedy"], "why": t.get("text"), "ref": public_view.ref_for(t.get("rule_id"))}
+    return None
+
+
 def build(ctx, library: dict, life: Optional[dict] = None, recent_topics: Optional[List[str]] = None,
-          lang: str = "en", pinned: Optional[List[str]] = None, kp: Optional[Dict[str, dict]] = None) -> dict:
+          lang: str = "en", pinned: Optional[List[str]] = None, kp: Optional[Dict[str, dict]] = None,
+          horizon_months: int = 6) -> dict:
     lang = "es" if lang == "es" else "en"
     share = _recent_share(recent_topics or [])
-    cards = []
+    cards, used_remedies = [], set()
     for key, subjects, label in AREAS:
         lean = [i for ln in ("vimshottari", "jaimini") for i in library[ln]["lean_in"] if i.get("subject") in subjects]
         watch = [i for ln in ("vimshottari", "jaimini") for i in library[ln]["watch"] if i.get("subject") in subjects]
         wins = []
         for s in subjects:
-            w = when_engine.build(ctx, s, lang, kp=(kp or {}).get(s))
+            w = when_engine.build(ctx, s, lang, kp=(kp or {}).get(s), horizon_months=horizon_months)
             wins += w["agree"]
         wins.sort(key=lambda w: (-w["signals"], w["start"]))
         pattern = _pattern(ctx, subjects, lang)
@@ -107,14 +138,14 @@ def build(ctx, library: dict, life: Optional[dict] = None, recent_topics: Option
             score += 100.0
         w0 = watch[0] if watch else None
         cards.append({"area": key, "label": label[lang], "_score": score,
-                      "pattern": pattern, "season": season, "move": move,
+                      "pattern": pattern, "season": season, "move": move, "support": _support(ctx, subjects, lang, used_remedies),
                       "watch": {"text": w0["text"], "do": w0.get("do"), "ref": public_view.ref_for(w0["rule_id"])} if w0 else None})
     cards.sort(key=lambda c: -c["_score"])
     focus = [c for c in cards if c["_score"] > 0.4][:MAX_FOCUS] or cards[:1]
     focus_keys = {c["area"] for c in focus}
     also = [c for c in cards if c["area"] not in focus_keys]
     clean = lambda c: {k: v for k, v in c.items() if k != "_score"}
-    return {"labels": LABELS[lang], "focus": [clean(c) for c in focus],
+    return {"labels": LABELS[lang], "horizon_months": horizon_months, "care": _care(library), "focus": [clean(c) for c in focus],
             "also": [{"area": c["area"], "label": c["label"],
                       "hint": (c["season"] or {}).get("text") or (c["pattern"] or {}).get("text")} for c in also],
             "horizon": library.get("horizon")}

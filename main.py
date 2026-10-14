@@ -4621,8 +4621,8 @@ def _is_admin_request(http_request) -> bool:
 
 
 @app.get("/api/v1/chart/{chart_id}/focus")
-async def get_chart_focus(chart_id: str, http_request: Request, language: str = "en", months: int = 24, pin: str = ""):
-    """Year view around the person: up to 2 life areas that matter NOW (their recent questions > their situation > how strongly a
+async def get_chart_focus(chart_id: str, http_request: Request, language: str = "en", months: int = 6, pin: str = ""):
+    """Focus around the person (default: the next 6 months): up to 2 life areas that matter NOW (their recent questions > their situation > how strongly a
     window runs), each merged into one card (pattern, season, move, watch); the rest fold under `also`. One voice: no method,
     book or rule names. `pin` = comma list of area keys the user chose to focus on."""
     def _run():
@@ -4636,7 +4636,8 @@ async def get_chart_focus(chart_id: str, http_request: Request, language: str = 
         vim = (get_dashas_for_chart(chart_id) or {}).get("vimsottari") or []
         ctx = rr.Ctx(cd, row.data.get("birth_date") or cd.get("birth_date"), vim,
                      birth_time_accuracy=row.data.get("birth_time_accuracy"), gender=row.data.get("gender"))
-        lib = reading_library.build(ctx, max(6, min(int(months), 24)), language)
+        _m = max(3, min(int(months), 24))
+        lib = reading_library.build(ctx, _m, language)
         life = None
         try:
             life = life_context.resolve_life_facts(life_context._fetch_chart_row(chart_id, supabase))
@@ -4649,7 +4650,7 @@ async def get_chart_focus(chart_id: str, http_request: Request, language: str = 
             recent = [r.get("topic") for r in rows if r.get("topic")]
         except Exception as _e:
             print(f"[focus] recent topics non-fatal: {_e}")
-        return focus_view.build(ctx, lib, life, recent, language, [p for p in pin.split(",") if p])
+        return focus_view.build(ctx, lib, life, recent, language, [p for p in pin.split(",") if p], None, _m)
 
     try:
         out = await asyncio.to_thread(_run)

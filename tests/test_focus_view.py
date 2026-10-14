@@ -43,3 +43,19 @@ def test_one_card_merges_season_move_watch_and_has_no_method_names(monkeypatch):
 def test_pinned_focus_wins_and_at_most_two(monkeypatch):
     out = _run(monkeypatch, recent=["money"], pinned=["partnership"])
     assert out["focus"][0]["area"] == "partnership" and len(out["focus"]) <= 2
+
+
+def test_card_carries_a_support_remedy_and_top_level_care_line(monkeypatch):
+    from tests.test_rule_registry import ctx
+    monkeypatch.setattr(fv.rr, "remedy_calendar", lambda c, l, s=None: {"this_month": [], "six_months": [
+        {"steps": ["Offer water to the sun at dawn for 43 days."], "duration": "43 days", "purpose": "To ease it", "rule_id": "RM.A.1"}]})
+    lib = _lib()
+    lib["wellness"] = {"themes": [{"rule_id": "BK.CHM.5", "text": "Your digestion may need care.", "remedy": "Eat lighter now and then."}]}
+    monkeypatch.setattr(fv.rr, "applicable", lambda c: [])
+    monkeypatch.setattr(fv.rr, "_windows", lambda c, s, l: [])
+    monkeypatch.setattr(when_engine, "_lk_year", lambda c, s: None)
+    out = fv.build(ctx(), lib, None, ["money"], "en")
+    c = out["focus"][0]
+    assert c["support"]["text"].startswith("Offer water") and c["support"]["ref"]
+    assert out["care"]["text"] == "Eat lighter now and then." and out["horizon_months"] == 6
+    assert out["labels"]["support"] == "Do this to support it"
