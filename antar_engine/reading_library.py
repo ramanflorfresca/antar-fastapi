@@ -42,25 +42,112 @@ def _spans(ctx, start: date, horizon_days: int) -> Dict[str, dict]:
     return seen
 
 
+def mechanisms(rule: dict) -> frozenset:
+    """Independent timing signals a rule is activated by: running periods, transits, age-year cycle."""
+    blob = json.dumps(rule.get("activation", []))
+    m = set()
+    if '"dasha"' in blob:
+        m.add("dasha")
+    if '"transit"' in blob or '"transit_conj"' in blob:
+        m.add("transit")
+    if '"age_year"' in blob:
+        m.add("age")
+    return frozenset(m)
+
+
+def _drop_conflicts(spans: Dict[str, dict], by_id: dict) -> set:
+    """Rules that fire together under the same timing condition and topic but point opposite ways: keep the clearly more
+    specific tone, and drop both when it is a tie (the book is not telling us which)."""
+    groups: Dict[tuple, list] = {}
+    for rid, sp in spans.items():
+        ev = sp["ev"]
+        rule = by_id.get(rid[3:] if rid.startswith("BK.") else rid) or {}
+        if ev.tone not in ("good", "bad") or not rule.get("activation"):
+            continue
+        spec = len(rule.get("requires", [])) + len(rule.get("activation", []))
+        key = (json.dumps(rule["activation"], sort_keys=True), tuple(sorted(ev.subjects or ["other"])))
+        groups.setdefault(key, []).append((ev.tone, spec, rid))
+    drop = set()
+    for rows in groups.values():
+        tones = {t for t, _, _ in rows}
+        if tones == {"good", "bad"}:
+            top = max(spec for _, spec, _ in rows)
+            winners = {t for t, spec, _ in rows if spec == top}
+            for t, spec, rid in rows:
+                if len(winners) > 1 or t not in winners:
+                    drop.add(rid)
+    return drop
+
+
+def _agree(ctx, pool: dict, start: date, horizon: int, lang: str) -> list:
+    """Topics where independent timing signals (running periods, transits, the Lal Kitab year) all favour the same
+    topic in overlapping windows. Rules sharing one signal count once; a single signal is never 'agreement'."""
+    from antar_engine import rc_rules
+    by_subj: Dict[str, list] = {}
+    for (line, tone, subj), items in pool.items():
+        if tone == "good":
+            by_subj.setdefault(subj, []).extend(items)
+    try:
+        lk = [r for r in rc_rules.applying(ctx.rc_state(), "annual") if r.get("tone") == "good"]
+    except Exception:
+        lk = []
+    end = start + timedelta(days=horizon)
+    out = []
+    for subj, items in by_subj.items():
+        if subj not in rr.SUBJECTS:
+            continue
+        sigs = {}
+        for it in items:
+            for m in it["_mech"]:
+                sigs.setdefault(m, []).append(it)
+        if any(subj in rc_rules.subjects_of(r) for r in lk):
+            sigs["lal_kitab_year"] = []
+        if len(sigs) < 2:
+            continue
+        starts = [date.fromisoformat(i["start"]) for v in sigs.values() for i in v]
+        ends = [date.fromisoformat(i["end"]) for v in sigs.values() for i in v]
+        lo, hi = max(starts + [start]), min(ends + [end])
+        if sigs.get("dasha") and sigs.get("transit"):       # windows must overlap between the dated signals
+            a = max(min(date.fromisoformat(i["start"]) for i in sigs["dasha"]), min(date.fromisoformat(i["start"]) for i in sigs["transit"]))
+            b = min(max(date.fromisoformat(i["end"]) for i in sigs["dasha"]), max(date.fromisoformat(i["end"]) for i in sigs["transit"]))
+            if a > b:
+                continue
+            lo, hi = a, b
+        label = rr.SUBJECTS[subj]["label"][lang]
+        text = (f"Independent signals point the same way on {label}." if lang == "en"
+                else f"Señales independientes apuntan en la misma dirección en {label}.")
+        out.append({"subject": subj, "signals": sorted(sigs), "text": text, "start": lo.isoformat(), "end": max(lo, hi).isoformat()})
+    out.sort(key=lambda r: (-len(r["signals"]), r["start"]))
+    seen, uniq = set(), []
+    for r in out:                       # love / marriage and similar twins share one line
+        k = (tuple(r["signals"]), r["start"], r["end"])
+        if k not in seen:
+            seen.add(k)
+            uniq.append(r)
+    return uniq[:3]
+
+
 def build(ctx, months: int = 6, language: str = "en", start: Optional[date] = None) -> dict:
     lang = "es" if language == "es" else "en"
     start = start or ctx.today
     by_id = {r["id"]: r for r in book_rules.load_rules()}
     spans = _spans(ctx, start, int(months * 30.4))
     out = {"vimshottari": {"lean_in": [], "watch": []}, "jaimini": {"lean_in": [], "watch": []}}
+    conflicts = _drop_conflicts(spans, by_id)
     best: Dict[tuple, dict] = {}
     pool: Dict[tuple, list] = {}
     for rid, sp in spans.items():
         ev = sp["ev"]
         rule = by_id.get(rid[3:] if rid.startswith("BK.") else rid) or {}
-        if ev.tone not in ("good", "bad"):
+        if ev.tone not in ("good", "bad") or rid in conflicts:
             continue
         line = line_of(rule)
         spec = len(rule.get("requires", [])) + len(rule.get("activation", []))
         text = ev.plain.get(lang) or ev.plain.get("en")
         item = {"rule_id": rid, "source": ev.book, "text": text, "start": sp["start"].isoformat(),
                 "end": sp["end"].isoformat(), "label": _fmt(lang, sp["start"].isoformat(), sp["end"].isoformat()),
-                "_spec": spec, "_subjects": ev.subjects}
+                "_spec": spec, "_subjects": ev.subjects, "_mech": mechanisms(rule),
+                "_rank": (1 if ev.precision == "specific" else 0, spec), "tendency": ev.precision != "specific"}
         if ev.tone == "bad":
             act = wl._action(ev.subjects, ev.remedy, lang)
             if not act:
@@ -69,18 +156,19 @@ def build(ctx, months: int = 6, language: str = "en", start: Optional[date] = No
         for subj in (ev.subjects or ["other"]):
             k = (line, ev.tone, subj)
             pool.setdefault(k, []).append(item)
-            if k not in best or (spec, -sp["start"].toordinal()) > (best[k]["_spec"], -date.fromisoformat(best[k]["start"]).toordinal()):
+            if k not in best or (item["_rank"], -sp["start"].toordinal()) > (best[k]["_rank"], -date.fromisoformat(best[k]["start"]).toordinal()):
                 best[k] = item
     shown = {}
-    for (line, tone, subj), item in sorted(best.items(), key=lambda kv: (-kv[1]["_spec"], kv[1]["start"])):
+    for (line, tone, subj), item in sorted(best.items(), key=lambda kv: (-kv[1]["_rank"][0], -kv[1]["_rank"][1], kv[1]["start"])):
         block = out[line]["lean_in" if tone == "good" else "watch"]
         if item["rule_id"] in shown or len(block) >= MAX_PER_BLOCK:
             continue
         shown[item["rule_id"]] = item
         others = {i["rule_id"] for i in pool[(line, tone, subj)]} - {item["rule_id"]}
         block.append({**{k: v for k, v in item.items() if not k.startswith("_")}, "subject": subj, "more": len(others)})
-    for line in out.values():
-        for blk in line.values():
+    out["agree"] = _agree(ctx, pool, start, int(months * 30.4), lang)
+    for line in ("vimshottari", "jaimini"):
+        for blk in out[line].values():
             blk.sort(key=lambda i: i["start"])
     out["horizon"] = [start.isoformat(), (start + timedelta(days=int(months * 30.4))).isoformat()]
     return out
