@@ -50,6 +50,9 @@ def build(data_dir):
         for r in json.load(open(f)).get("rules", []):
             st["raw"] += 1
             en = (r.get("effect_en") or "").strip()
+            if r.get("probe"):                       # probe rules (e.g. Nadi) are evidence for a decision, never shipped
+                st["skipped_probe"] = st.get("skipped_probe", 0) + 1
+                continue
             if r.get("drop") or not en:
                 st["dropped_by_reader"] = st.get("dropped_by_reader", 0) + 1
                 continue
