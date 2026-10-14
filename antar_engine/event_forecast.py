@@ -154,7 +154,8 @@ def _mandook_block(lagna_sign, lagna_lon, planets, bd, start, end) -> dict:
 
 
 def build_forecast(chart_data: dict, birth_date, vim_rows, today: Optional[date] = None,
-                   months: int = 24, birth_time_accuracy: Optional[str] = None) -> dict:
+                   months: int = 24, birth_time_accuracy: Optional[str] = None,
+                   gender: Optional[str] = None) -> dict:
     today = today or date.today()
     bd = _dt(birth_date)
     planets = _planets(chart_data)
@@ -184,7 +185,8 @@ def build_forecast(chart_data: dict, birth_date, vim_rows, today: Optional[date]
     age = (today - bd.date()).days // 365
     natal = {"planets": {p: {"house": pl.sign + 1} for p, pl in planets.items()}}
     lk_profile = lal_kitab_profile({p: pl.sign for p, pl in planets.items()}, age, horizon=2)
-    annual = [lk_annual_forecast(natal, a, bd.date().isoformat(), today)
+    annual = [lk_annual_forecast(natal, a, bd.date().isoformat(), today, gender=gender,
+                                 lagna_sign=SIGN_NAMES[lagna_sign])
               for a in (age, age + 1)]
     d10 = d10_windows(lagna_sign, lagna_lon, planets, bd, start, end, vim_rows=_vim_rows(vim_rows))
     # Birth-time gate: the D-10 lagna flips if the time is off by a few minutes. A user-confirmed

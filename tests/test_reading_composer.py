@@ -56,23 +56,24 @@ def test_cautions_and_dates_are_clipped_to_today():
     assert all(w["start"] >= "2026-10-13" for a in r["areas"] for w in a["windows"])
 
 
-LK = {"annual": [{"annual_houses": {"Jupiter": 11, "Saturn": 2, "Moon": 4, "Rahu": 10}, "special_cycle": None,
-                  "good_placements": [{"planet": "Jupiter", "house": 11}, {"planet": "Moon", "house": 4}, {"planet": "Rahu", "house": 10}],
-                  "bad_placements": [{"planet": "Saturn", "house": 2}],
-                  "dormant_areas": [{"area": "children", "house": 5}],
-                  "remedies": {"Saturn": [{"name": "Saturn in 2nd", "do": "Serve the poor on Saturdays and donate oil.", "timing": "Saturday", "duration": "43 days"},
-                                          {"name": "x", "do": "Wear Jupiter gem daily", "timing": "", "duration": ""}]}}]}
+LK = {"annual": [{"year_lord": "Jupiter", "principle": {"en": "Run a remedy for 43 days without a break.", "es": "Haz un remedio 43 días sin interrupción."},
+                  "rc": [{"id": "A1", "tone": "good", "en": "Money comes in this year.", "es": "El dinero llega este año.", "remedy_en": None, "remedy_es": None},
+                         {"id": "A2", "tone": "good", "en": "Your standing rises this year.", "es": "Tu posición sube este año.", "remedy_en": None, "remedy_es": None},
+                         {"id": "A3", "tone": "bad", "en": "You may face a loss this year.", "es": "Puedes sufrir una pérdida este año.",
+                          "remedy_en": "Float a coconut in running water.", "remedy_es": "Echa un coco al agua corriente."}]}]}
 
 
-def test_year_block_good_bad_and_remedies_plain():
+def test_year_block_uses_the_applicable_annual_rules_and_remedies():
     fc = {**FC, "lal_kitab": LK}
-    for loc in ("en", "es"):
-        y = compose(fc, loc, TODAY)["year"]
-        assert y["good"] and y["watch"] and y["tone"] in ("favourable", "mixed", "testing")
-        assert len(y["remedies"]) == 1          # the remedy naming a planet is dropped
-        assert "Jupiter" not in json.dumps(y) and "Saturn" not in json.dumps(y)
-    assert "income and gains" in compose(fc, "en", TODAY)["year"]["good"]
+    en = compose(fc, "en", TODAY)["year"]
+    assert en["tone"] == "mixed" and en["good"] == ["Money comes in this year.", "Your standing rises this year."]
+    assert en["watch"] == ["You may face a loss this year."]
+    assert en["remedies"][0]["do"] == "Float a coconut in running water." and en["remedies"][-1]["duration"] == "43"
+    es = compose(fc, "es", TODAY)["year"]
+    assert es["good"][0] == "El dinero llega este año." and es["remedies"][0]["do"].startswith("Echa un coco")
     assert compose(FC, "en", TODAY)["year"] is None
+    empty = compose({**FC, "lal_kitab": {"annual": [{"rc": []}]}}, "en", TODAY)["year"]
+    assert empty["tone"] == "quiet" and not empty["remedies"]
 
 
 def test_weak_single_system_window_does_not_say_strongly():

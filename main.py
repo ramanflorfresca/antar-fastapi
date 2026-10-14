@@ -4667,7 +4667,7 @@ async def get_chart_reading(chart_id: str, language: str = "en", months: int = 2
         from antar_engine.reading_composer import compose
         vim = (get_dashas_for_chart(chart_id) or {}).get("vimsottari") or []
         fc = build_forecast(cd, row.data.get("birth_date") or cd.get("birth_date"), vim, months=months,
-                            birth_time_accuracy=row.data.get("birth_time_accuracy"))
+                            birth_time_accuracy=row.data.get("birth_time_accuracy"), gender=row.data.get("gender"))
         return compose(fc, language)
 
     try:
@@ -4696,7 +4696,7 @@ async def get_event_forecast(chart_id: str, months: int = 24):
         from antar_engine.event_forecast import build_forecast
         vim = (get_dashas_for_chart(chart_id) or {}).get("vimsottari") or []
         return build_forecast(cd, row.data.get("birth_date") or cd.get("birth_date"), vim, months=months,
-                            birth_time_accuracy=row.data.get("birth_time_accuracy"))
+                            birth_time_accuracy=row.data.get("birth_time_accuracy"), gender=row.data.get("gender"))
 
     try:
         out = await asyncio.to_thread(_run)
