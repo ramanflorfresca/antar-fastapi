@@ -14679,6 +14679,56 @@ async def protect_season(chart_id: str, language: str = "en"):
         return {"available": False, "error": str(e)[:160]}
 
 
+@app.get("/api/v1/vastu/{chart_id}")
+@translate_response(
+    fields_to_translate=["headline", "label", "why", "governs", "status_label",
+                         "care_note", "place_here", "keep_out", "best", "avoid", "note",
+                         "tip", "do", "scope_label", "until_label", "what_it_is",
+                         "what_it_does", "how_worked_out", "what_it_isnt", "title",
+                         "disclaimer"],
+    endpoint_name="vastu",
+)
+async def vastu_directions(chart_id: str, language: str = "en"):
+    """[vastu 2026-10-14] Vastu-Jyotish (Parashari-based) directions + dasha line:
+    the chart's eight compass zones, personal sleep/work/eat directions inside the
+    classical safe envelopes, an object-placement guide, and the zone the running
+    Vimsottari period puts in focus. Deterministic and read-only (antar_engine/
+    vastu_engine.py); traditional guidance, never a prediction. Gated by the
+    `vastu_enabled` app_config flag (default OFF) until the owner signs off the
+    rules table. The FE renders only — no logic there."""
+    from fastapi.responses import JSONResponse
+    from antar_engine import app_config as _ac
+    if not _ac.get_bool(supabase, "vastu_enabled", False):
+        return {"available": False, "reason": "disabled"}
+    try:
+        row = (supabase.table("charts")
+               .select("chart_data,lal_kitab_data")
+               .eq("id", chart_id).single().execute().data) or {}
+    except Exception:
+        return JSONResponse(status_code=404,
+                            content={"available": False, "error": "chart not found"})
+    if not row:
+        return JSONResponse(status_code=404,
+                            content={"available": False, "error": "chart not found"})
+    cd = row.get("chart_data")
+    if isinstance(cd, str):
+        cd = _safe_jsonb(cd)
+    lk = row.get("lal_kitab_data")
+    if isinstance(lk, str):
+        lk = _safe_jsonb(lk)
+    try:
+        dashas = get_dashas_for_chart(chart_id)
+    except Exception as _de:
+        print(f"[vastu] dasha load failed (non-fatal): {_de}")
+        dashas = {}
+    try:
+        from antar_engine.vastu_engine import vastu_guidance
+        return vastu_guidance(cd, dashas, lk)
+    except Exception as e:
+        print(f"[vastu] {e}")
+        return {"available": False, "error": str(e)[:160]}
+
+
 # [life-events standardization 2026-09-28] Normalize the free-form capture so the
 # forward-validation loop (validate_from_life_events.py) and personalization can
 # consume it: canonical metadata.{direction, domain, magnitude} + a stamped
