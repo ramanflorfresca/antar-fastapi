@@ -29,7 +29,7 @@ def _book_lines(ctx, start: date, days: int, language: str) -> list:
 
 
 def _specificity(row: dict, rules_by_id: dict) -> int:
-    r = rules_by_id.get(row["rule_id"]) or {}
+    r = rules_by_id.get(row["rule_id"][3:] if row["rule_id"].startswith("BK.") else row["rule_id"]) or {}
     return len(r.get("requires", [])) + len(r.get("activation", []))
 
 
@@ -65,10 +65,104 @@ def _lk_line(ctx, language: str) -> dict:
         st = ctx.rc_state()
         for r in rc_rules.applying(st, "annual"):
             eff = (r.get("effect_es") if language == "es" else None) or r.get("effect")
-            out["rules"].append({"rule_id": r.get("id"), "tone": r.get("tone"), "text": eff})
+            out["rules"].append({"rule_id": r.get("id"), "tone": r.get("tone"), "text": eff,
+                                 "subjects": rc_rules.subjects_of(r)})
     except Exception:
         pass
     return out
+
+
+# practical step per topic: written by us (not from the books), shown only beside a caution
+STEPS = {
+    "money": ("Hold off on big spending or new commitments; check the numbers twice before you pay or sign.",
+              "Pospón gastos grandes o compromisos nuevos; revisa las cifras dos veces antes de pagar o firmar."),
+    "funding": ("Don't sign terms in a hurry; get every condition in writing and give yourself a day before you agree.",
+                "No firmes condiciones con prisa; pide todo por escrito y date un día antes de aceptar."),
+    "career": ("Keep to the work in front of you; avoid starting a fight or making a big career move this week.",
+              "Concéntrate en el trabajo que tienes; evita pelear o dar un gran paso profesional esta semana."),
+    "job": ("Don't resign or make a hard decision on a bad day; polish your résumé and keep options open instead.",
+            "No renuncies ni decidas en un mal día; mejora tu currículum y mantén opciones abiertas."),
+    "business": ("Delay launches and new partnerships; use the week to tighten what already works.",
+                 "Retrasa lanzamientos y nuevas alianzas; usa la semana para afinar lo que ya funciona."),
+    "love": ("Keep talks calm and short; save the big conversation for a better day.",
+             "Mantén las charlas tranquilas y breves; deja la conversación importante para un mejor día."),
+    "marriage": ("Don't force big decisions about the relationship now; listen more and decide later.",
+                 "No fuerces decisiones importantes sobre la relación ahora; escucha más y decide después."),
+    "children": ("Keep routines steady and be patient; avoid big changes this week.",
+                 "Mantén las rutinas estables y ten paciencia; evita grandes cambios esta semana."),
+    "education": ("Break study into short daily blocks and avoid cramming; postpone big exams or applications if you can.",
+                  "Divide el estudio en bloques cortos diarios y evita memorizar a última hora; pospón exámenes o solicitudes grandes si puedes."),
+    "property": ("Don't close or sign property deals this week; get documents checked first.",
+                 "No cierres ni firmes tratos de propiedad esta semana; haz revisar los documentos primero."),
+    "foreign": ("Double-check dates, documents and bookings before any travel or move abroad.",
+                "Verifica fechas, documentos y reservas antes de viajar o mudarte al extranjero."),
+    "spirituality": ("Keep a short, steady daily practice rather than doing a lot at once.",
+                     "Mantén una práctica diaria corta y constante en lugar de hacer mucho de golpe."),
+    "speculation": ("Skip speculative bets this week; if you act, risk only what you can lose.",
+                    "Evita las apuestas especulativas esta semana; si actúas, arriesga solo lo que puedas perder."),
+    "health": ("Rest, keep a regular routine, and book the check-up you have been putting off.",
+               "Descansa, mantén una rutina regular y agenda el chequeo que has ido posponiendo."),
+}
+PLANET_STEP_SUBJECT = {"Jupiter": "money", "Saturn": "career", "Sun": "career", "Mars": "love", "Mercury": "money",
+                       "Venus": "love", "Moon": None}
+MOON_STEP = ("Keep the day light: fewer commitments, no big decisions.", "Mantén el día ligero: menos compromisos, sin decisiones grandes.")
+MAX_WATCH = 3
+
+
+def _lang(pair, language):
+    return pair[1] if language == "es" else pair[0]
+
+
+def _action(subjects, remedy, language):
+    if remedy:
+        return remedy.get(language) or remedy.get("en")
+    for sj in subjects or []:
+        if sj in STEPS:
+            return _lang(STEPS[sj], language)
+    return None
+
+
+def _blocks(out: dict, language: str) -> dict:
+    """lean_in / watch across the lines. Every caution carries something to do; a caution with nothing to do is hidden.
+    Order: timed book rules first, then Lal Kitab year, then this week's planetary positions."""
+    from antar_engine import book_rules, rc_rules
+    lean, watch = [], []
+    by_id = {r["id"]: r for r in book_rules.load_rules()}
+    for row in out["jaimini"]:
+        rid = row["rule_id"][3:] if row["rule_id"].startswith("BK.") else row["rule_id"]
+        item = {"line": "jaimini" if row["book"] == "K.N. Rao" else "book", "source": row["book"], "text": row["text"],
+                "rule_id": row["rule_id"], "days": row["days"], "more": row.get("more", [])}
+        if row["tone"] == "good":
+            lean.append(item)
+        elif row["tone"] == "bad":
+            rem = by_id.get(rid, {})
+            remedy = {l: v for l, v in (("en", rem.get("remedy")), ("es", rem.get("remedy_es"))) if v} or None
+            act = _action(row["subjects"], remedy, language)
+            if act:
+                watch.append({**item, "do": act})
+    for r in out["lal_kitab"]["rules"]:
+        item = {"line": "lal_kitab", "source": "Lal Kitab", "text": r["text"], "rule_id": r["rule_id"]}
+        if r["tone"] == "good":
+            lean.append(item)
+        elif r["tone"] == "bad":
+            act = _action(r.get("subjects"), None, language)
+            if act:
+                watch.append({**item, "do": act})
+    g = (out["vimshottari"].get("gochara") or {})
+    for l in g.get("background", []) + g.get("this_month", []):
+        item = {"line": "vimshottari", "source": "Raman, transits", "text": l["text"], "rule_id": "GOCHARA." + l["planet_key"]}
+        if l["state"] == "good":
+            lean.append(item)
+        else:
+            act = _action([PLANET_STEP_SUBJECT.get(l["planet_key"])], None, language)
+            if act:
+                watch.append({**item, "do": act})
+    if g.get("slow_days"):
+        watch.append({"line": "vimshottari", "source": "Raman, transits", "rule_id": "GOCHARA.Moon",
+                      "text": "Slower days this week: " + ", ".join(g["slow_days"]) if language != "es"
+                      else "Días más lentos esta semana: " + ", ".join(g["slow_days"]),
+                      "days": g["slow_days"], "do": _lang(MOON_STEP, language)})
+    return {"lean_in": lean, "watch": watch[:MAX_WATCH], "watch_more": watch[MAX_WATCH:]}
 
 
 def week(ctx, language: str = "en", days: int = 7, start: Optional[date] = None) -> dict:
@@ -77,7 +171,9 @@ def week(ctx, language: str = "en", days: int = 7, start: Optional[date] = None)
     vim = {"periods_now": ctx.periods_at(start), "gochara": None}
     if moon is not None:
         vim["gochara"] = gochara.outlook(moon.sign, start, days, language)
-    return {"start": start.isoformat(), "days": days,
-            "vimshottari": vim,
-            "jaimini": _book_lines(ctx, start, days, language),
-            "lal_kitab": _lk_line(ctx, language)}
+    out = {"start": start.isoformat(), "days": days,
+           "vimshottari": vim,
+           "jaimini": _book_lines(ctx, start, days, language),
+           "lal_kitab": _lk_line(ctx, language)}
+    out.update(_blocks(out, language))
+    return out
