@@ -105,3 +105,11 @@ def test_every_card_and_folded_row_carries_a_window_status(monkeypatch):
     assert fv._window(None, {"text": "x"}) == {"kind": "care", "start": None, "end": None}
     assert fv._window({"start": "2026-10-14", "end": "2027-01-01", "strength": "possible"}, {"text": "x"})["kind"] == "care"
     assert fv._window(None, None) is None
+
+
+def test_window_prefers_the_strongest_stretch_and_keeps_the_end_of_support():
+    w = fv._window({"start": "2026-10-14", "end": "2027-04-14", "strength": "strong",
+                    "peaks": [{"start": "2026-10-14", "end": "2026-11-26"}]}, None)
+    assert w == {"kind": "window", "start": "2026-10-14", "end": "2026-11-26", "through": "2027-04-14"}
+    w2 = fv._window({"start": "2026-10-14", "end": "2027-04-14", "strength": "good", "peaks": []}, None)
+    assert w2["start"] == "2026-10-14" and w2["end"] == "2027-04-14" and w2["through"] == "2027-04-14"
