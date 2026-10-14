@@ -4614,6 +4614,22 @@ def _chart_row_for_forecast(chart_id: str):
             raise
 
 
+_PV_CACHE: dict = {}
+
+
+def _pv_cached(key, ttl, fn):
+    """Short in-process cache for the heavy read-only blocks (focus, week): the same chart/day/language answers within `ttl` seconds."""
+    now = _time.time()
+    hit = _PV_CACHE.get(key)
+    if hit and now - hit[0] < ttl:
+        return hit[1]
+    val = fn()
+    if len(_PV_CACHE) > 400:
+        _PV_CACHE.clear()
+    _PV_CACHE[key] = (now, val)
+    return val
+
+
 def _is_admin_request(http_request) -> bool:
     """Internal view (method names, book labels, rule ids) only with the admin key; every user surface gets the one-voice view."""
     _admin = os.getenv("ADMIN_EXPORT_KEY")
@@ -4654,7 +4670,7 @@ async def get_chart_focus(chart_id: str, http_request: Request, language: str = 
         return focus_view.build(ctx, lib, life, recent, language, [p for p in pin.split(",") if p], None, _m, area or None)
 
     try:
-        out = await asyncio.to_thread(_run)
+        out = await asyncio.to_thread(lambda: _pv_cached(("focus", chart_id, language, int(months), pin, area, date.today().isoformat()), 600, _run))
     except Exception as e:
         print(f"[focus] failed: {e}")
         raise HTTPException(500, "focus unavailable")
@@ -4681,7 +4697,7 @@ async def get_chart_week(chart_id: str, http_request: Request, language: str = "
         return weekly_layer.week(ctx, language, max(1, min(int(days), 14)))
 
     try:
-        out = await asyncio.to_thread(_run)
+        out = await asyncio.to_thread(lambda: _pv_cached(("week", chart_id, language, int(days), date.today().isoformat()), 600, _run))
     except Exception as e:
         print(f"[week] failed: {e}")
         raise HTTPException(500, "week unavailable")

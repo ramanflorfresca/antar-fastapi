@@ -65,6 +65,27 @@ def _life_fit(area: str, life: Optional[dict]) -> float:
     return f
 
 
+_MON = {"en": ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+        "es": ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"]}
+_STRENGTH_WORD = {"en": {"strong": "Strong support", "good": "Good support", "possible": "A lighter signal"},
+                  "es": {"strong": "Mucho apoyo", "good": "Buen apoyo", "possible": "Una señal más ligera"}}
+
+
+def _mon(iso: str, lang: str) -> str:
+    return f"{_MON[lang][int(iso[5:7]) - 1]} {iso[:4]}"
+
+
+def _season_sentence(season: dict, lang: str) -> str:
+    """When no timed statement exists for the window, say it in plain words from the window itself."""
+    w = _STRENGTH_WORD[lang].get(season.get("strength"), _STRENGTH_WORD[lang]["possible"])
+    s = f"{w} through {_mon(season['end'], lang)}." if lang == "en" else f"{w} hasta {_mon(season['end'], lang)}."
+    pk = (season.get("peaks") or [])[:1]
+    if pk:
+        a, b = pk[0]["start"], pk[0]["end"]
+        s += (f" Strongest from {_mon(a, lang)} to {_mon(b, lang)}." if lang == "en" else f" Más fuerte de {_mon(a, lang)} a {_mon(b, lang)}.")
+    return s
+
+
 def _pattern(ctx, subjects, lang) -> Optional[dict]:
     evs = rr.for_subject(rr.applicable(ctx), subjects[0]) if subjects else []
     for s in subjects[1:]:
@@ -132,6 +153,8 @@ def build(ctx, library: dict, life: Optional[dict] = None, recent_topics: Option
             season = {"text": (lean[0]["text"] if lean else None), "ref": public_view.ref_for(lean[0]["rule_id"]) if lean else None,
                       "start": wins[0]["start"] if wins else lean[0].get("start"), "end": wins[0]["end"] if wins else lean[0].get("end"),
                       "strength": wins[0]["strength"] if wins else "possible", "peaks": (wins[0].get("peaks") if wins else []) or []}
+        if season and not season.get("text") and season.get("start") and season.get("end"):
+            season["text"] = _season_sentence(season, lang)
         activation = (2.0 if wins and wins[0]["strength"] == "strong" else 1.0 if wins else 0.0)
         score = 3.0 * share.get(key, 0.0) + 1.5 * max(_life_fit(key, life), -1.0) + 1.0 * activation * 0.5
         if pinned and key in pinned:

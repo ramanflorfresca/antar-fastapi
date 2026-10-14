@@ -72,3 +72,17 @@ def test_area_param_returns_that_areas_full_card_even_when_not_in_focus(monkeypa
     out = fv.build(ctx(), _lib(), None, ["money"], "en", None, None, 6, "partnership")
     assert out["card"]["area"] == "partnership" and out["card"]["season"]["text"] == "Partnership takes shape."
     assert fv.build(ctx(), _lib(), None, ["money"], "en", None, None, 6, "inner")["card"] is None
+
+
+def test_season_gets_a_plain_sentence_when_no_timed_statement_exists(monkeypatch):
+    from tests.test_rule_registry import ctx
+    monkeypatch.setattr(fv.rr, "applicable", lambda c: [])
+    monkeypatch.setattr(fv.rr, "remedy_calendar", lambda c, l, s=None: {})
+    monkeypatch.setattr(fv.rr, "_windows", lambda c, s, l: [{"start": "2026-10-14", "end": "2027-04-14", "both_systems": True}] if s == "money" else [])
+    monkeypatch.setattr(when_engine, "_lk_year", lambda c, s: (__import__("datetime").date(2026, 10, 14), __import__("datetime").date(2026, 11, 26)))
+    lib = {"horizon": ["a", "b"], "vimshottari": {"lean_in": [], "watch": []}, "jaimini": {"lean_in": [], "watch": []}}
+    out = fv.build(ctx(), lib, None, ["money"], "en")
+    t = out["focus"][0]["season"]["text"]
+    assert t.startswith("Strong support through Apr 2027.") and "Strongest from Oct 2026 to Nov 2026." in t
+    es = fv.build(ctx(), lib, None, ["money"], "es")["focus"][0]["season"]["text"]
+    assert es.startswith("Mucho apoyo hasta abr 2027.")
