@@ -4603,12 +4603,15 @@ _OVERVIEW_NEG = {"Kemadruma", "Grahan", "Guru-Chandala"}
 
 def _chart_row_for_forecast(chart_id: str):
     """chart_data + birth_date + birth_time_accuracy; fail-open if the column is not migrated."""
-    try:
-        return supabase.table("charts").select("chart_data,birth_date,birth_time_accuracy").eq("id", chart_id).single().execute()
-    except Exception as e:
-        if "birth_time_accuracy" in str(e) or "PGRST204" in str(e) or "42703" in str(e):
-            return supabase.table("charts").select("chart_data,birth_date").eq("id", chart_id).single().execute()
-        raise
+    for cols in ("chart_data,birth_date,birth_time_accuracy,gender", "chart_data,birth_date,birth_time_accuracy",
+                 "chart_data,birth_date"):
+        try:
+            return supabase.table("charts").select(cols).eq("id", chart_id).single().execute()
+        except Exception as e:
+            if cols != "chart_data,birth_date" and ("birth_time_accuracy" in str(e) or "gender" in str(e)
+                                                    or "PGRST204" in str(e) or "42703" in str(e)):
+                continue
+            raise
 
 
 @app.get("/api/v1/chart/{chart_id}/astrologer")
@@ -4628,7 +4631,7 @@ async def get_chart_astrologer(chart_id: str, question: str = "", subject: str =
         from antar_engine import rule_registry as rr
         vim = (get_dashas_for_chart(chart_id) or {}).get("vimsottari") or []
         ctx = rr.Ctx(cd, row.data.get("birth_date") or cd.get("birth_date"), vim,
-                     birth_time_accuracy=row.data.get("birth_time_accuracy"))
+                     birth_time_accuracy=row.data.get("birth_time_accuracy"), gender=row.data.get("gender"))
         subj, qw = rr.parse_question(question) if question else (None, "what")
         subj = subject or subj
         qw = qword or qw

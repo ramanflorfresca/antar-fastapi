@@ -10,8 +10,8 @@ What it computes, per the books (rule ids tagged for later feedback grading):
     4 Moon, 5 Sun, 6 Rahu, 7 Venus, 8 Moon, 9 Jupiter, 10 Saturn, 11 Jupiter, 12 Ketu)
     reaches its maturity age
   - planet maturity windows: result starts at the planet's age and runs the same number
-    of years again (Jupiter 16, Sun 22, Moon 24, Venus 25, Mars 28, Mercury 34,
-    Saturn 36, Rahu 42, Ketu 48; the book also gives Mercury 17: unresolved conflict)
+    of years again (Jupiter 16, Sun 22, Moon 24, Venus 25, Mars 28, Mercury 17,
+    Saturn 36, Rahu 42, Ketu 48: the ages in Roop Chand's own text)
   - explicit age triggers the books state for a planet in a house
   - blind planets, and a gambling/speculation tendency flag (the books give a register,
     not a method: tendency only, no win/loss call)
@@ -22,7 +22,7 @@ from typing import Dict, List
 SIGN_HOUSE = lambda sign_idx: sign_idx + 1
 
 MATURITY = {"Jupiter": 16, "Sun": 22, "Moon": 24, "Venus": 25, "Mars": 28,
-            "Mercury": 34, "Saturn": 36, "Rahu": 42, "Ketu": 48}
+            "Mercury": 17, "Saturn": 36, "Rahu": 42, "Ketu": 48}
 ACTIVATION_PLANET = {1: "Mars", 2: "Moon", 3: "Mercury", 4: "Moon", 5: "Sun", 6: "Rahu",
                      7: "Venus", 8: "Moon", 9: "Jupiter", 10: "Saturn", 11: "Jupiter",
                      12: "Ketu"}
