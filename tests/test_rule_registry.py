@@ -3,6 +3,24 @@ from datetime import date
 import pytest
 
 from antar_engine import rule_registry as rr
+from antar_engine import rc_rules as rc
+
+SMALL = [
+    {"id": "T1", "kind": "natal", "planet": "Moon", "houses": [12], "requires": [], "tone": "bad", "topics": ["money"],
+     "effect": "Spending runs ahead of income.", "effect_es": "El gasto va por delante del ingreso.", "remedy": "Float a coconut in running water for 43 days.", "remedy_es": "Echa un coco al agua corriente durante 43 días.", "clarity": "clear"},
+    {"id": "T2", "kind": "natal", "planet": "Mars", "houses": [7], "requires": [{"planet": "Mercury", "with": "Mars"}],
+     "tone": "good", "topics": ["marriage"], "effect": "A steady, supportive partner.", "clarity": "clear"},
+    {"id": "T3", "kind": "natal", "planet": "Moon", "houses": [4], "requires": [], "tone": "good", "topics": ["money"],
+     "effect": "Family help keeps money steady.", "clarity": "clear"},
+    {"id": "T4", "kind": "natal", "planet": "Saturn", "houses": [3], "requires": [{"planet": "Venus", "with": "Mars"}],
+     "tone": "good", "topics": ["career"], "effect": "Hard work pays at work.", "clarity": "clear"},
+]
+
+
+@pytest.fixture(autouse=True)
+def small_rules(monkeypatch):
+    monkeypatch.setattr(rc, "_cache", SMALL)
+    yield
 
 SIGNS = ["Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo", "Libra", "Scorpio", "Sagittarius",
          "Capricorn", "Aquarius", "Pisces"]
@@ -36,17 +54,18 @@ def test_parse_question_languages():
     assert rr.parse_question("tell me about the weather") == (None, "what")
 
 
-def test_lk_rule_applies_only_when_the_planet_is_in_that_house():
+def test_rule_applies_only_when_planet_and_conditions_hold():
     c = ctx()
-    evs = {e.rule_id for e in rr.applicable(c)}
-    assert "LK.Moon_12.bad" in evs                            # Moon in Pisces = house 12
-    assert "LK.Moon_1.good" not in evs                         # not applicable: says nothing
-    moved = ctx({**SIGNS_A, "Moon": 3})                        # Moon in Cancer = house 4 (good)
-    assert "LK.Moon_4.good" in {e.rule_id for e in rr.applicable(moved)}
+    ids = {e.rule_id for e in rr.applicable(c)}
+    assert "LK.T1" in ids and "LK.T3" not in ids               # Moon is in 12, not 4
+    assert "LK.T2" in ids                                       # Mars and Mercury share Libra (house 7)
+    assert "LK.T4" not in ids                                   # Saturn is not in house 3
+    moved = ctx({**SIGNS_A, "Moon": 3})                         # Moon in Cancer = house 4
+    mids = {e.rule_id for e in rr.applicable(moved)}
+    assert "LK.T3" in mids and "LK.T1" not in mids
 
 
-def test_disputed_placements_are_silent():
-    # Jupiter in 8 (Scorpio) is disputed between the books -> no rule
+def test_disputed_cells_stay_silent_because_no_rule_exists_for_them():
     c = ctx({**SIGNS_A, "Jupiter": 7})
     assert not [e for e in rr.applicable(c) if e.planet == "Jupiter"]
 
@@ -81,8 +100,7 @@ def test_remedies_attach_to_straining_placements_and_name_no_planet():
     c = ctx()
     a = rr.answer(c, "marriage", "how", "en")
     for r in a["remedies"]:
-        assert r["rule_id"].endswith(".bad")
-        assert "rahu" not in r["do"].lower() and "venus" not in r["do"].lower()
+        assert r["do"] and "rahu" not in r["do"].lower() and "venus" not in r["do"].lower()
 
 
 def test_speculation_gets_a_caution_not_a_call():
@@ -100,7 +118,7 @@ def test_unknown_subject_and_unusable_chart():
 def test_money_draws_on_expense_and_hidden_money_houses():
     c = ctx()                                                  # Moon in house 12 (bad) -> bears on money
     evs = rr.for_subject(rr.applicable(c), "money")
-    assert any(e.rule_id == "LK.Moon_12.bad" for e in evs)
+    assert any(e.rule_id == "LK.T1" for e in evs)
 
 
 def test_why_leads_with_the_strain_and_how_never_comes_back_blank():
@@ -131,7 +149,7 @@ def test_dasha_state_reads_vimshottari_and_chara():
 
 def test_a_rule_runs_only_when_its_planet_or_sign_is_dashaed():
     c = ctx_v()
-    moon12 = next(e for e in rr.applicable(c) if e.rule_id == "LK.Moon_12.bad")
+    moon12 = next(e for e in rr.applicable(c) if e.rule_id == "LK.T1")
     assert "vimshottari" in rr.running(c, moon12, rr.dasha_state(c, TODAY))          # Moon dasha running
     later = rr.dasha_state(c, date(2028, 1, 1))                                       # Moon major, Saturn sub: still runs
     assert later["vim_ad"] == "Saturn" and "vimshottari" in rr.running(c, moon12, later)
@@ -149,3 +167,28 @@ def test_timeline_segments_are_ordered_labelled_and_silent_when_nothing_runs():
     assert all(s["tone_label"] in ("favorable", "tenso", "mixto") for s in es)
     quiet = rr.Ctx(chart(9, SIGNS_A), "1975-11-26", [], TODAY)                       # no Vimshottari rows: no answer lines
     assert "to" not in " ".join(rr.answer(quiet, "money", "when", "en")["lines"][:0])
+
+
+def test_rules_whose_ages_are_all_past_are_history_not_guidance():
+    old = {"id": "T9", "kind": "natal", "planet": "Moon", "houses": [12], "requires": [], "tone": "bad",
+           "topics": ["money"], "effect": "Money slips at around age 24.", "ages": [24], "clarity": "clear"}
+    rc._cache = SMALL + [old]
+    ids = {e.rule_id for e in rr.applicable(ctx(age_years=51))}
+    assert "LK.T9" not in ids
+    young = {e.rule_id for e in rr.applicable(rr.Ctx(chart(9, SIGNS_A), "2005-11-26", [], TODAY))}
+    assert "LK.T9" in young                                    # still ahead at 20
+
+
+def test_how_never_lists_cautions_under_lean_on():
+    a = rr.answer(ctx(), "marriage", "how", "en")
+    text = "\n".join(a["lines"])
+    assert "Lean on:" not in text or all("wedding can be delayed" not in l for l in a["lines"])
+
+
+def test_gender_clauses_need_a_known_gender():
+    fem = {"id": "T10", "kind": "natal", "planet": "Moon", "houses": [12], "requires": [{"chart": "female"}],
+           "tone": "good", "topics": ["money"], "effect": "x", "clarity": "clear"}
+    rc._cache = SMALL + [fem]
+    c = rr.Ctx(chart(9, SIGNS_A), "1975-11-26", [], TODAY, gender="female")
+    assert "LK.T10" in {e.rule_id for e in rr.applicable(c)}
+    assert "LK.T10" not in {e.rule_id for e in rr.applicable(ctx())}

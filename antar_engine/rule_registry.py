@@ -28,8 +28,8 @@ from typing import Callable, Dict, Iterable, List, Optional
 
 from antar_engine.jaimini_engine import SIGN_NAMES
 from antar_engine import jaimini_rao_events as jre
-from antar_engine.lk_annual_forecast import GOOD_PLACE, BAD_PLACE
-from antar_engine.lal_kitab import get_remedies_for_planet
+from antar_engine import rc_rules as rc
+from antar_engine.varshaphal_table import get_annual_house
 from antar_engine.lal_kitab_events import lal_kitab_profile, AGE_TRIGGERS, MATURITY
 
 # ----------------------------------------------------------------------------- subjects
@@ -145,12 +145,14 @@ T = {
            "kar_spirit": "Your chart carries a spiritual or foreign tilt, a supportive planet sits in the sign of release.",
            "kar_spirit_why": "A benefic occupies the 12th position from the sign of your life purpose.",
            "yoga_why": "This combination is present in your birth chart.",
+           "rc_why_planet": "{p} sits in the part of your chart that governs {t}, and the traditional text speaks to exactly that arrangement.",
+           "rc_why_chart": "It follows from how your chart is arranged, which the traditional text addresses directly.",
            "none": "The chart gives no rule on {s}, so there is nothing to predict here.",
            "head_what": "What your chart says about {s}", "head_why": "Why your chart reads this way about {s}",
            "head_when": "When {s} is most active", "head_how": "How to work with {s}",
            "head_where": "Where {s} points", "head_which": "Which part of your chart leads on {s}",
            "none_when": "No window for {s} stands out in the next 24 months.",
-           "windows": "Windows", "remedies": "Practical remedies", "strengths": "Working for you", "lean_on": "Lean on",
+           "windows": "Windows", "remedies": "Practical remedies", "strengths": "Working for you", "lean_on": "Lean on", "worth_knowing": "Worth knowing",
            "challenges": "To handle with care", "tone_only": "This reading only says whether it helps or strains; the books give no more detail.",
            "spec": "Treat speculation with caution: size any bet to what you can afford to lose. This is a caution, not a call on any trade.",
            "step": "First step: {a}", "wake": "A dormant area wakes around age {age}.", "lead": "The strongest lead is {x}."},
@@ -162,12 +164,14 @@ T = {
            "kar_spirit": "Tu carta tiene una inclinación espiritual o hacia lo extranjero: un planeta favorable está en el signo de la liberación.",
            "kar_spirit_why": "Un planeta benéfico ocupa la posición 12 desde el signo de tu propósito de vida.",
            "yoga_why": "Esta combinación está presente en tu carta natal.",
+           "rc_why_planet": "{p} está en la parte de tu carta que rige {t}, y el texto tradicional habla exactamente de esa disposición.",
+           "rc_why_chart": "Se deriva de cómo está dispuesta tu carta, algo que el texto tradicional aborda directamente.",
            "none": "La carta no da ninguna regla sobre {s}, así que no hay nada que predecir aquí.",
            "head_what": "Lo que dice tu carta sobre {s}", "head_why": "Por qué tu carta se lee así sobre {s}",
            "head_when": "Cuándo {s} está más activo", "head_how": "Cómo trabajar con {s}",
            "head_where": "Hacia dónde apunta {s}", "head_which": "Qué parte de tu carta lidera en {s}",
            "none_when": "Ninguna ventana para {s} destaca en los próximos 24 meses.",
-           "windows": "Ventanas", "remedies": "Remedios prácticos", "strengths": "A tu favor", "lean_on": "Apóyate en",
+           "windows": "Ventanas", "remedies": "Remedios prácticos", "strengths": "A tu favor", "lean_on": "Apóyate en", "worth_knowing": "Conviene saber",
            "challenges": "Para manejar con cuidado", "tone_only": "Esta lectura solo dice si ayuda o presiona; los libros no dan más detalle.",
            "spec": "Trata la especulación con cautela: limita cualquier apuesta a lo que puedas perder. Es una precaución, no una indicación sobre ninguna operación.",
            "step": "Primer paso: {a}", "wake": "Un área latente despierta hacia los {age} años.", "lead": "La pista más fuerte es {x}."},
@@ -179,13 +183,15 @@ class Ctx:
     """Everything a rule needs about one chart, computed once."""
 
     def __init__(self, chart_data: dict, birth_date, vim_rows=None, today: Optional[date] = None,
-                 birth_time_accuracy: Optional[str] = None):
+                 birth_time_accuracy: Optional[str] = None, gender: Optional[str] = None):
         from antar_engine.event_forecast import _planets, _lagna
         self.chart_data = chart_data
         self.today = today or date.today()
         self.birth_date = birth_date
         self.vim_rows = vim_rows or []
         self.birth_time_accuracy = birth_time_accuracy
+        g = (gender or "").lower()
+        self.gender = g if g in ("male", "female") else None
         self.planets = _planets(chart_data)
         self.lagna, self.lagna_lon = _lagna(chart_data)
         self.ok = self.lagna is not None and len(self.planets) >= 9
@@ -198,6 +204,18 @@ class Ctx:
 
     def lk_house(self, planet: str) -> int:
         return self.planets[planet].sign + 1          # fixed frame: Aries = house 1
+
+    def rc_state(self) -> dict:
+        """State the Roop Chand rules read: natal houses (fixed frame), this year's annual houses, gender, rising sign."""
+        if not hasattr(self, "_rc_state"):
+            annual = None
+            if self.birth_date:
+                b = date.fromisoformat(str(self.birth_date)[:10])
+                age = self.today.year - b.year - ((self.today.month, self.today.day) < (b.month, b.day))
+                annual = {p: get_annual_house(self.lk_house(p), age) for p in self.planets}
+            self._rc_state = {"natal": {p: self.lk_house(p) for p in self.planets}, "annual": annual,
+                              "gender": self.gender, "lagna_sign": SIGN_NAMES[self.lagna]}
+        return self._rc_state
 
     @property
     def forecast(self):
@@ -227,6 +245,7 @@ class Evidence:
     why: Dict[str, str]
     planet: Optional[str] = None
     house: Optional[int] = None
+    remedy: Optional[dict] = None     # {lang: sentence}
     planets: tuple = ()            # planets the rule is about (a dasha of one of them runs the rule)
     signs: tuple = ()              # signs the rule is about (a Jaimini sub-period in one of them runs the rule)
 
@@ -264,27 +283,29 @@ def _kar_rules(ctx: Ctx):
     return out
 
 
-def _lk_rules(ctx: Ctx):
+def _rc_family(ctx: Ctx):
+    """Pt. Roop Chand's Lal Kitab rules (atomic rules, applied only where every condition holds)."""
     out = []
-    for planet in ctx.planets:
-        if planet not in GOOD_PLACE:
-            continue
-        h = ctx.lk_house(planet)
-        if h in GOOD_PLACE[planet]:
-            tone = "good"
-        elif h in BAD_PLACE[planet]:
-            tone = "bad"
-        else:
-            continue                                   # contradicted or unclassified: says nothing
-        plain, why = {}, {}
+    for r in rc.applying(ctx.rc_state(), kind="natal"):
+        ages = [a for a in (r.get("ages") or []) if isinstance(a, (int, float))]
+        if ages and ctx.age is not None and max(ages) < ctx.age:
+            continue                                        # every age the text names is already past: history, not guidance
+        tone = r["tone"] if r["tone"] in ("good", "bad") else "info"
+        p, h = r.get("planet"), (r.get("houses") or [None])[0]
+        plain = {"en": r["effect"]}
+        if r.get("effect_es"):
+            plain["es"] = r["effect_es"]
+        why = {}
         for l in T:
-            p = PLANET_PHRASE[l][planet]
-            p = p[0].upper() + p[1:]
-            t = HOUSE_THEME[l][h]
-            plain[l] = T[l]["lk_good" if tone == "good" else "lk_bad"].format(p=p, t=t)
-            why[l] = T[l]["lk_why"].format(t=t, v=T[l]["v_good" if tone == "good" else "v_bad"])
-        out.append(Evidence(f"LK.{planet}_{h}.{tone}", "Lal Kitab", HOUSE_SUBJECTS.get(h, []), tone, "tone",
-                            plain, why, planet=planet, house=h, planets=(planet,)))
+            if p and h:
+                why[l] = T[l]["rc_why_planet"].format(p=PLANET_PHRASE[l][p], t=HOUSE_THEME[l][h])
+            else:
+                why[l] = T[l]["rc_why_chart"]
+        rem = {l: v for l, v in (("en", r.get("remedy")), ("es", r.get("remedy_es"))) if v and _plain_ok(v)} or None
+        out.append(Evidence(f"LK.{r['id']}", "Lal Kitab (Roop Chand)", rc.subjects_of(r), tone,
+                            "specific" if r.get("clarity") == "clear" else "tone", plain, why,
+                            planet=p, house=h, remedy=rem,
+                            planets=(p,) if p else ()))
     return out
 
 
@@ -319,7 +340,7 @@ def _yoga_rules(ctx: Ctx):
 
 REGISTRY: List[Rule] = [
     Rule("KAR", "K.N. Rao, Karakamsha", _kar_rules),
-    Rule("LK.placements", "Lal Kitab", _lk_rules),
+    Rule("LK.RC", "Lal Kitab (Roop Chand)", _rc_family),
     Rule("YOGA", "B.V. Raman, combinations", _yoga_rules),
 ]
 
@@ -348,16 +369,16 @@ def _plain_ok(text: str) -> bool:
     return not any(w in low for w in ("rahu", "ketu", "jupiter", "mars", "mercury", "venus"))
 
 
-def remedies_for(evs: List[Evidence], limit: int = 3) -> List[dict]:
-    """Lal Kitab remedies for the placements that strain this subject. Remedies that name a planet are skipped."""
-    out = []
+def remedies_for(evs: List[Evidence], limit: int = 3, lang: str = "en") -> List[dict]:
+    """Remedies the text attaches to the applicable rules that strain this subject. Remedies that name a
+    planet are skipped. Roop Chand's text: easy, affordable measures (donations, feeding, running water)."""
+    out, seen = [], set()
     for e in evs:
-        if e.tone != "bad" or not e.planet:
+        text = (e.remedy or {}).get(lang)
+        if e.tone != "bad" or not text or text in seen:
             continue
-        for r in get_remedies_for_planet(e.planet, e.house):
-            if r.instructions and _plain_ok(r.instructions):
-                out.append({"rule_id": e.rule_id, "do": r.instructions, "timing": r.timing, "duration": r.duration})
-                break
+        seen.add(text)
+        out.append({"rule_id": e.rule_id, "do": text, "timing": "", "duration": ""})
         if len(out) >= limit:
             break
     return out
@@ -481,17 +502,34 @@ def answer(ctx: Ctx, subject: Optional[str], qword: str = "what", lang: str = "e
     good = [e for e in evs if e.tone in ("good", "info")]
     bad = [e for e in evs if e.tone == "bad"]
     lines, used = [], []
-    rem = remedies_for(bad)
+    rem = remedies_for(bad, lang=lang)
     wins = _windows(ctx, subject, lang)
     wake = []
     if ctx.age is not None:
         prof = lal_kitab_profile({n: p.sign for n, p in ctx.planets.items()}, ctx.age, horizon=3)
         wake = [w for w in prof["wake_ups"]]
 
-    def add(items, evidence=False):
+    def add(items, evidence=False, cap=6):
+        """Effect lines, deduplicated and capped. With evidence, lines are grouped by placement and the reason
+        ('because your X sits in Y') is stated once per placement instead of after every sentence."""
+        seen_text, shown = set(), 0
+        groups = {}
         for e in items:
-            lines.append(e.plain[lang] + ((" " + e.why[lang]) if evidence else ""))
-            used.append(e.rule_id)
+            txt = e.plain.get(lang)
+            if not txt or txt in seen_text:
+                continue                                   # no text in this language, or a repeat
+            seen_text.add(txt)
+            groups.setdefault((e.planet, e.house) if evidence else id(e), []).append((e, txt))
+            shown += 1
+            if shown >= cap:
+                break
+        for grp in groups.values():
+            if evidence:
+                w = grp[0][0].why[lang]
+                lines.append(w[0].upper() + w[1:])
+            for e, txt in grp:
+                lines.append(("- " if evidence else "") + txt)
+                used.append(e.rule_id)
 
     head = tx["head_" + qword].format(s=label)
     if qword in ("what", "why"):
@@ -522,9 +560,14 @@ def answer(ctx: Ctx, subject: Optional[str], qword: str = "what", lang: str = "e
     elif qword == "how":
         for w in wins[:2]:
             lines.append(tx["step"].format(a=w["action"]))
-        if good:
+        lean = [e for e in good if e.tone == "good"]
+        note = [e for e in good if e.tone == "info"]
+        if lean:
             lines.append(tx["lean_on"] + ":")
-            add(good)
+            add(lean)
+        if note:
+            lines.append(tx["worth_knowing"] + ":")
+            add(note, cap=3)
         if rem:
             lines.append(tx["remedies"] + ":")
             for r in rem:
