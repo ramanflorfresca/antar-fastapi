@@ -6500,30 +6500,6 @@
 "line": 4032
 },
 {
-"id": "BVJ1.299",
-"book": "bv_raman_how_to_judge_1",
-"requires": [
-{
-"planet": "L3",
-"in_houses": [
-11
-]
-}
-],
-"activation": [],
-"tone": "bad",
-"topics": [
-"money"
-],
-"effect": "Your earnings come only with effort, and you may depend on others.",
-"effect_es": "Tus ingresos llegan solo con esfuerzo y puedes depender de otros.",
-"remedy": null,
-"remedy_es": null,
-"timing_note": null,
-"clarity": "clear",
-"line": 4034
-},
-{
 "id": "BVJ1.300",
 "book": "bv_raman_how_to_judge_1",
 "requires": [
@@ -9307,7 +9283,6 @@
 "activation": [],
 "tone": "bad",
 "topics": [
-"property",
 "foreign"
 ],
 "effect": "You are deprived of properties and happiness, and live in a foreign place.",
@@ -13615,7 +13590,6 @@
 "activation": [],
 "tone": "good",
 "topics": [
-"marriage",
 "children"
 ],
 "effect": "You have a lucky and happy partner, with many children and comforts.",
@@ -23929,7 +23903,6 @@
 "activation": [],
 "tone": "good",
 "topics": [
-"marriage",
 "career"
 ],
 "effect": "You have a mature partner who assists you in your work.",
@@ -45076,32 +45049,6 @@
 "line": 784
 },
 {
-"id": "KNDM.9",
-"book": "kn_rao_delayed_marriage",
-"requires": [
-{
-"chart": "female"
-},
-{
-"a": "Mars",
-"b": "Jupiter",
-"relation": "conjunct"
-}
-],
-"activation": [],
-"tone": "bad",
-"topics": [
-"marriage"
-],
-"effect": "Your marriage is likely to come later than usual.",
-"effect_es": "Es probable que tu matrimonio llegue más tarde de lo habitual.",
-"remedy": null,
-"remedy_es": null,
-"timing_note": "Book adds delay points to a base age of 22 to place marriage; this rule only marks the tendency to delay, no age given.",
-"clarity": "inferred",
-"line": 661
-},
-{
 "id": "KNDM.10",
 "book": "kn_rao_delayed_marriage",
 "requires": [
@@ -52619,6 +52566,9005 @@
 "timing_note": "Book: marriage tends to fall in the period of a planet aspected by the upapada sign (also its dispositor, not tested); held in 75% of 40 charts. Planet in the same sign is counted too.",
 "clarity": "inferred",
 "line": 6027
+},
+{
+"id": "KPNP.14",
+"book": "kp_basics_nakshatra_padhathi",
+"requires": [
+{
+"a": "L7",
+"b": "Saturn",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "Marriage tends to come later than expected for you.",
+"effect_es": "El matrimonio tiende a llegar más tarde de lo esperado para ti.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 2207
+},
+{
+"id": "KPNP.15",
+"book": "kp_basics_nakshatra_padhathi",
+"requires": [
+{
+"a": "Saturn",
+"b": "L7",
+"relation": "a_aspects_b"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "Marriage tends to come later than expected for you.",
+"effect_es": "El matrimonio tiende a llegar más tarde de lo esperado para ti.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 2207
+},
+{
+"id": "KPNP.17",
+"book": "kp_basics_nakshatra_padhathi",
+"requires": [
+{
+"a": "L7",
+"b": "Saturn",
+"relation": "conjunct"
+}
+],
+"activation": [
+{
+"dasha": {
+"level": "md",
+"lords": [
+"Saturn"
+]
+}
+}
+],
+"tone": "good",
+"topics": [
+"marriage"
+],
+"effect": "A period of discipline and hard work is when marriage is most likely to happen for you.",
+"effect_es": "Un periodo de disciplina y trabajo duro es cuando es más probable que te cases.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: where this planet is tied to the seventh house or its lord, only its own main, sub or sub-sub period brings marriage (worked case line 2226-2229), with transit agreeing. The sub-sub level is not coded.",
+"clarity": "inferred",
+"line": 2209
+},
+{
+"id": "KPNP.18",
+"book": "kp_basics_nakshatra_padhathi",
+"requires": [
+{
+"a": "L7",
+"b": "Saturn",
+"relation": "conjunct"
+}
+],
+"activation": [
+{
+"dasha": {
+"level": "ad",
+"lords": [
+"Saturn"
+]
+}
+}
+],
+"tone": "good",
+"topics": [
+"marriage"
+],
+"effect": "A period of discipline and hard work is when marriage is most likely to happen for you.",
+"effect_es": "Un periodo de disciplina y trabajo duro es cuando es más probable que te cases.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: where this planet is tied to the seventh house or its lord, only its own main, sub or sub-sub period brings marriage (worked case line 2226-2229), with transit agreeing. The sub-sub level is not coded.",
+"clarity": "inferred",
+"line": 2209
+},
+{
+"id": "KPNP.19",
+"book": "kp_basics_nakshatra_padhathi",
+"requires": [
+{
+"a": "Moon",
+"b": "Saturn",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "Marriage plans can stall, and proposals or engagements can fall through for you.",
+"effect_es": "Los planes de matrimonio pueden estancarse y las propuestas o los compromisos pueden cancelarse.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 2535
+},
+{
+"id": "KPNP.20",
+"book": "kp_basics_nakshatra_padhathi",
+"requires": [
+{
+"a": "Saturn",
+"b": "Moon",
+"relation": "a_aspects_b"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "Marriage plans can stall, and proposals or engagements can fall through for you.",
+"effect_es": "Los planes de matrimonio pueden estancarse y las propuestas o los compromisos pueden cancelarse.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 2535
+},
+{
+"id": "KPNP.21",
+"book": "kp_basics_nakshatra_padhathi",
+"requires": [
+{
+"a": "Venus",
+"b": "Ketu",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "There may be little warmth and affection between you and your partner.",
+"effect_es": "Podría haber poca calidez y cariño entre tu pareja y tú.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book says conjoined or connected to the seventh house; the conjunction is the testable case.",
+"clarity": "inferred",
+"line": 2332
+},
+{
+"id": "KPNP.23",
+"book": "kp_basics_nakshatra_padhathi",
+"requires": [
+{
+"planet": "L7",
+"in_houses": [
+6,
+8,
+12
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "Your married life may not run smoothly.",
+"effect_es": "Tu vida matrimonial podría no transcurrir con tranquilidad.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: the seventh lord, or a planet signifying the seventh, connected with planets of the sixth, eighth or twelfth is not desirable for smooth married life (lines 2294-2318). 'Connected' is coded as placement, conjunction or aspect.",
+"clarity": "inferred",
+"line": 2294
+},
+{
+"id": "KPNP.24",
+"book": "kp_basics_nakshatra_padhathi",
+"requires": [
+{
+"a": "L7",
+"b": "L6",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "Your married life may not run smoothly.",
+"effect_es": "Tu vida matrimonial podría no transcurrir con tranquilidad.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: the seventh lord, or a planet signifying the seventh, connected with planets of the sixth, eighth or twelfth is not desirable for smooth married life (lines 2294-2318). 'Connected' is coded as placement, conjunction or aspect.",
+"clarity": "inferred",
+"line": 2294
+},
+{
+"id": "KPNP.25",
+"book": "kp_basics_nakshatra_padhathi",
+"requires": [
+{
+"a": "L7",
+"b": "L8",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "Your married life may not run smoothly.",
+"effect_es": "Tu vida matrimonial podría no transcurrir con tranquilidad.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: the seventh lord, or a planet signifying the seventh, connected with planets of the sixth, eighth or twelfth is not desirable for smooth married life (lines 2294-2318). 'Connected' is coded as placement, conjunction or aspect.",
+"clarity": "inferred",
+"line": 2294
+},
+{
+"id": "KPNP.26",
+"book": "kp_basics_nakshatra_padhathi",
+"requires": [
+{
+"a": "L7",
+"b": "L12",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "Your married life may not run smoothly.",
+"effect_es": "Tu vida matrimonial podría no transcurrir con tranquilidad.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: the seventh lord, or a planet signifying the seventh, connected with planets of the sixth, eighth or twelfth is not desirable for smooth married life (lines 2294-2318). 'Connected' is coded as placement, conjunction or aspect.",
+"clarity": "inferred",
+"line": 2294
+},
+{
+"id": "KPNP.27",
+"book": "kp_basics_nakshatra_padhathi",
+"requires": [
+{
+"a": "L6",
+"b": "L7",
+"relation": "a_aspects_b"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "Your married life may not run smoothly.",
+"effect_es": "Tu vida matrimonial podría no transcurrir con tranquilidad.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: the seventh lord, or a planet signifying the seventh, connected with planets of the sixth, eighth or twelfth is not desirable for smooth married life (lines 2294-2318). 'Connected' is coded as placement, conjunction or aspect. Worked case: sixth lord aspecting the seventh lord.",
+"clarity": "inferred",
+"line": 2316
+},
+{
+"id": "KPNP.28",
+"book": "kp_basics_nakshatra_padhathi",
+"requires": [
+{
+"a": "L8",
+"b": "L7",
+"relation": "a_aspects_b"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "Your married life may not run smoothly.",
+"effect_es": "Tu vida matrimonial podría no transcurrir con tranquilidad.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: the seventh lord, or a planet signifying the seventh, connected with planets of the sixth, eighth or twelfth is not desirable for smooth married life (lines 2294-2318). 'Connected' is coded as placement, conjunction or aspect. Worked case: sixth lord aspecting the seventh lord.",
+"clarity": "inferred",
+"line": 2316
+},
+{
+"id": "KPNP.29",
+"book": "kp_basics_nakshatra_padhathi",
+"requires": [
+{
+"a": "L12",
+"b": "L7",
+"relation": "a_aspects_b"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "Your married life may not run smoothly.",
+"effect_es": "Tu vida matrimonial podría no transcurrir con tranquilidad.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: the seventh lord, or a planet signifying the seventh, connected with planets of the sixth, eighth or twelfth is not desirable for smooth married life (lines 2294-2318). 'Connected' is coded as placement, conjunction or aspect. Worked case: sixth lord aspecting the seventh lord.",
+"clarity": "inferred",
+"line": 2316
+},
+{
+"id": "KPNP.30",
+"book": "kp_basics_nakshatra_padhathi",
+"requires": [
+{
+"house": 6,
+"holds_any_malefic": true
+},
+{
+"house": 8,
+"holds_any_malefic": true
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "Matters of marriage and partnership may come with difficulties for you.",
+"effect_es": "Los asuntos del matrimonio y de la pareja podrían traerte dificultades.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Seventh house hemmed between harmful planets in the sixth and eighth.",
+"clarity": "clear",
+"line": 2942
+},
+{
+"id": "KPNP.31",
+"book": "kp_basics_nakshatra_padhathi",
+"requires": [
+{
+"house": 4,
+"holds_any_malefic": true
+},
+{
+"house": 6,
+"holds_any_malefic": true
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"children"
+],
+"effect": "You may meet difficulties around having children.",
+"effect_es": "Podrías encontrar dificultades para tener hijos.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "The OCR of line 2937-2941 is damaged; the fifth house hemmed by harmful planets is read as giving difficulty with children.",
+"clarity": "inferred",
+"line": 2940
+},
+{
+"id": "KPNP.32",
+"book": "kp_basics_nakshatra_padhathi",
+"requires": [
+{
+"planet": "L7",
+"in_houses": [
+11
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"marriage"
+],
+"effect": "Your marriage is likely to be harmonious.",
+"effect_es": "Es probable que tu matrimonio sea armonioso.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Stated in a worked case: seventh lord in the eleventh indicates good marital harmony.",
+"clarity": "inferred",
+"line": 5391
+},
+{
+"id": "KPNP.33",
+"book": "kp_basics_nakshatra_padhathi",
+"requires": [
+{
+"planet": "L7",
+"in_houses": [
+5
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"marriage"
+],
+"effect": "Romance is likely to feature strongly in your marriage.",
+"effect_es": "Es probable que el romance tenga un papel importante en tu matrimonio.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Stated in a worked case: seventh lord in the fifth promotes romance.",
+"clarity": "inferred",
+"line": 3347
+},
+{
+"id": "KPNP.34",
+"book": "kp_basics_nakshatra_padhathi",
+"requires": [
+{
+"planet": "Mars",
+"in_houses": [
+10
+]
+}
+],
+"activation": [],
+"tone": "mixed",
+"topics": [
+"marriage",
+"other"
+],
+"effect": "You tend to act independently and try to take charge, including over your partner.",
+"effect_es": "Tiendes a actuar de forma independiente y a querer llevar el mando, incluso sobre tu pareja.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 3343
+},
+{
+"id": "KPNP.35",
+"book": "kp_basics_nakshatra_padhathi",
+"requires": [
+{
+"planet": "Mars",
+"in_houses": [
+8
+]
+}
+],
+"activation": [],
+"tone": "mixed",
+"topics": [
+"other",
+"family"
+],
+"effect": "You argue well and logically, though your words can come out harsh.",
+"effect_es": "Argumentas bien y con lógica, aunque tus palabras pueden sonar duras.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 1989
+},
+{
+"id": "KPNP.36",
+"book": "kp_basics_nakshatra_padhathi",
+"requires": [
+{
+"planet": "Mars",
+"in_houses": [
+1,
+2
+]
+}
+],
+"activation": [],
+"tone": "mixed",
+"topics": [
+"other"
+],
+"effect": "You speak logically and argue your case with courage.",
+"effect_es": "Hablas con lógica y defiendes tu postura con valentía.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: Mars connected to the lagna, the Moon or the second house by conjunction, aspect or lordship gives logical, argumentative speech (line 10156-10181).",
+"clarity": "inferred",
+"line": 10156
+},
+{
+"id": "KPNP.37",
+"book": "kp_basics_nakshatra_padhathi",
+"requires": [
+{
+"a": "Mars",
+"b": "Moon",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "mixed",
+"topics": [
+"other"
+],
+"effect": "You speak logically and argue your case with courage.",
+"effect_es": "Hablas con lógica y defiendes tu postura con valentía.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: Mars connected to the lagna, the Moon or the second house by conjunction, aspect or lordship gives logical, argumentative speech (line 10156-10181).",
+"clarity": "inferred",
+"line": 10156
+},
+{
+"id": "KPNP.38",
+"book": "kp_basics_nakshatra_padhathi",
+"requires": [
+{
+"a": "Mars",
+"b": "L2",
+"relation": "a_aspects_b"
+}
+],
+"activation": [],
+"tone": "mixed",
+"topics": [
+"other"
+],
+"effect": "You speak logically and argue your case with courage.",
+"effect_es": "Hablas con lógica y defiendes tu postura con valentía.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: Mars connected to the lagna, the Moon or the second house by conjunction, aspect or lordship gives logical, argumentative speech (line 10156-10181).",
+"clarity": "inferred",
+"line": 10180
+},
+{
+"id": "KPNP.39",
+"book": "kp_basics_nakshatra_padhathi",
+"requires": [
+{
+"planet": "L1",
+"dignity": [
+"exalted"
+]
+}
+],
+"activation": [],
+"tone": "mixed",
+"topics": [
+"other"
+],
+"effect": "You hold your views very firmly and are hard to convince otherwise.",
+"effect_es": "Sostienes tus opiniones con mucha firmeza y es difícil hacerte cambiar de parecer.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book also lists an exalted planet in or aspecting the lagna, or in conjunction with the lagna lord; only the lagna lord exalted is coded.",
+"clarity": "clear",
+"line": 10025
+},
+{
+"id": "KPNP.40",
+"book": "kp_basics_nakshatra_padhathi",
+"requires": [
+{
+"planet": "Sun",
+"in_houses": [
+1
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "You may come across as less attentive to your partner's needs than they would like.",
+"effect_es": "Podrías mostrar menos atención a las necesidades de tu pareja de la que esa persona desearía.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 10058
+},
+{
+"id": "KPNP.41",
+"book": "kp_basics_nakshatra_padhathi",
+"requires": [
+{
+"chart": "female"
+},
+{
+"planet": "Jupiter",
+"in_houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "Your partner may be doubtful of you or discouraging toward you.",
+"effect_es": "Tu pareja podría desconfiar de ti o desanimarte.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 2241
+},
+{
+"id": "KPNP.42",
+"book": "kp_basics_nakshatra_padhathi",
+"requires": [
+{
+"chart": "female"
+},
+{
+"planet": "Jupiter",
+"in_houses": [
+7
+]
+},
+{
+"planet": "L7",
+"in_houses": [
+6,
+8,
+12
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "Married life may be hard going, with a partner who is stubborn.",
+"effect_es": "La vida de casados podría ser difícil, con una pareja terca.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book says 'negative connections' of the seventh lord (worked cases: sixth house, lines 2259, 10122); placement in the sixth, eighth or twelfth is coded. The book's added 'sadistic' label is left out.",
+"clarity": "inferred",
+"line": 10101
+},
+{
+"id": "KPNP.44",
+"book": "kp_basics_nakshatra_padhathi",
+"requires": [
+{
+"planet": "Ketu",
+"in_houses_from": "Moon",
+"houses": [
+4
+]
+}
+],
+"activation": [],
+"tone": "mixed",
+"topics": [
+"other"
+],
+"effect": "Your moods can shift easily, and your state of mind may change quickly.",
+"effect_es": "Tu estado de ánimo puede cambiar con facilidad y tu mente puede variar rápido.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 10184
+},
+{
+"id": "KPNP.45",
+"book": "kp_basics_nakshatra_padhathi",
+"requires": [
+{
+"planet": "Jupiter",
+"in_houses": [
+6,
+10
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "You are likely to reach a higher position in your job.",
+"effect_es": "Es probable que alcances una posición más alta en tu trabajo.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 7789
+},
+{
+"id": "KPNP.46",
+"book": "kp_basics_nakshatra_padhathi",
+"requires": [
+{
+"planet": "Mars",
+"in_houses": [
+10
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "You are likely to command authority and power in your work.",
+"effect_es": "Es probable que tengas autoridad y poder en tu trabajo.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book says Mars 'connected to' the tenth house; occupying it is the coded case.",
+"clarity": "inferred",
+"line": 7790
+},
+{
+"id": "KPNP.51",
+"book": "kp_basics_nakshatra_padhathi",
+"requires": [
+{
+"a": "L1",
+"b": "L5",
+"relation": "trine_from_each_other"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career",
+"fame"
+],
+"effect": "You are likely to hold a high position in life.",
+"effect_es": "Es probable que ocupes una posición alta en la vida.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 7088
+},
+{
+"id": "KPNP.52",
+"book": "kp_basics_nakshatra_padhathi",
+"requires": [
+{
+"a": "AK",
+"b": "PK",
+"relation": "trine_from_each_other"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"fame",
+"career"
+],
+"effect": "You are likely to gain high status.",
+"effect_es": "Es probable que alcances un estatus elevado.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 7402
+},
+{
+"id": "KPNP.53",
+"book": "kp_basics_nakshatra_padhathi",
+"requires": [
+{
+"from": "Moon",
+"houses": [
+6
+],
+"holds_any": [
+"Jupiter",
+"Venus",
+"Mercury"
+]
+},
+{
+"from": "Moon",
+"houses": [
+7
+],
+"holds_any": [
+"Jupiter",
+"Venus",
+"Mercury"
+]
+},
+{
+"from": "Moon",
+"houses": [
+8
+],
+"holds_any": [
+"Jupiter",
+"Venus",
+"Mercury"
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career",
+"fame"
+],
+"effect": "You are likely to rise to a high level in life.",
+"effect_es": "Es probable que llegues a un nivel alto en la vida.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book defines this yoga in passing as benefic planets in the sixth, seventh and eighth from the Moon (line 7506-7510).",
+"clarity": "inferred",
+"line": 7506
+},
+{
+"id": "KPNP.54",
+"book": "kp_basics_nakshatra_padhathi",
+"requires": [
+{
+"planet": "L2",
+"in_houses": [
+2,
+6,
+10,
+11
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "Your earning prospects are favourable.",
+"effect_es": "Tus perspectivas de ingresos son favorables.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: second lord connected to the wealth houses; placement is coded.",
+"clarity": "inferred",
+"line": 7082
+},
+{
+"id": "KPNP.55",
+"book": "kp_basics_nakshatra_padhathi",
+"requires": [
+{
+"planet": "L10",
+"in_houses": [
+2,
+6,
+10,
+11
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money",
+"career"
+],
+"effect": "Your earning prospects are favourable.",
+"effect_es": "Tus perspectivas de ingresos son favorables.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: tenth lord connected to the wealth houses; placement is coded.",
+"clarity": "inferred",
+"line": 7083
+},
+{
+"id": "KPNP.57",
+"book": "kp_basics_nakshatra_padhathi",
+"requires": [
+{
+"planet": "L11",
+"in_houses": [
+12
+]
+}
+],
+"activation": [],
+"tone": "mixed",
+"topics": [
+"money"
+],
+"effect": "You tend to give away much of what you earn.",
+"effect_es": "Tiendes a regalar buena parte de lo que ganas.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 7703
+},
+{
+"id": "KPNP.58",
+"book": "kp_basics_nakshatra_padhathi",
+"requires": [
+{
+"a": "L11",
+"b": "L12",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"money"
+],
+"effect": "You may find it hard to control your spending.",
+"effect_es": "Podrías tener dificultad para controlar tus gastos.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: the house of gains connected to the house of expenses. A Jupiter-Moon trine curbs it (see companion rule).",
+"clarity": "inferred",
+"line": 7628
+},
+{
+"id": "KPNP.59",
+"book": "kp_basics_nakshatra_padhathi",
+"requires": [
+{
+"a": "L12",
+"b": "L11",
+"relation": "a_aspects_b"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"money"
+],
+"effect": "You may find it hard to control your spending.",
+"effect_es": "Podrías tener dificultad para controlar tus gastos.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Worked case: twelfth lord aspecting the eleventh lord. A Jupiter-Moon trine curbs it.",
+"clarity": "inferred",
+"line": 7646
+},
+{
+"id": "KPNP.60",
+"book": "kp_basics_nakshatra_padhathi",
+"requires": [
+{
+"a": "L11",
+"b": "L12",
+"relation": "conjunct"
+},
+{
+"a": "Jupiter",
+"b": "Moon",
+"relation": "trine_from_each_other"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "Your spending stays in check even when the pull to overspend is there.",
+"effect_es": "Tus gastos se mantienen bajo control aunque sientas la tentación de gastar de más.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: if Jupiter and Moon are in trine the overspending is curtailed.",
+"clarity": "inferred",
+"line": 7630
+},
+{
+"id": "KPNP.61",
+"book": "kp_basics_nakshatra_padhathi",
+"requires": [],
+"activation": [
+{
+"transit": {
+"planet": "Saturn",
+"from": "Moon",
+"houses": [
+12,
+1,
+2
+]
+}
+}
+],
+"tone": "bad",
+"topics": [
+"other"
+],
+"effect": "For about seven and a half years you may face pressures that are hard to pin down.",
+"effect_es": "Durante unos siete años y medio podrías enfrentar presiones difíciles de identificar.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: some astrologers hold that transit Saturn over the natal Moon is very important, from the twelfth to the third sign from the Moon (line 763-765); marital disharmony in this phase is shown in worked cases (lines 5461-5467, 10091-10094). The book gives 7.5 years and ends at the third sign; coded as the twelfth, first and second.",
+"clarity": "inferred",
+"line": 760
+},
+{
+"id": "KPND.A.30",
+"book": "kp_new_dimensions_dynamics",
+"requires": [
+{
+"a": "Rahu",
+"b": "Sun",
+"relation": "conjunct"
+},
+{
+"a": "Rahu",
+"b": "Moon",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"family"
+],
+"effect": "You may suffer worry on account of your father and mother.",
+"effect_es": "Es posible que sufras preocupaciones por causa de tu padre y tu madre.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book reasons from the story of the demon who was exposed by the Sun and Moon; it says 'conjoined or associated with Sun and Moon', read here as both.",
+"clarity": "inferred",
+"line": 2089
+},
+{
+"id": "KPND.A.31",
+"book": "kp_new_dimensions_dynamics",
+"requires": [],
+"activation": [
+{
+"dasha": {
+"level": "md",
+"lords": [
+"Saturn"
+]
+}
+},
+{
+"dasha": {
+"level": "ad",
+"lords": [
+"Ketu"
+]
+}
+}
+],
+"tone": "bad",
+"topics": [
+"other"
+],
+"effect": "This stretch tends to bring many unwelcome results in your personal life and affairs.",
+"effect_es": "Esta etapa tiende a traer muchos resultados desfavorables en tu vida personal y tus asuntos.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: either order of the two planets; also applies to organisations and countries. Reverse order is the next rule.",
+"clarity": "clear",
+"line": 6273
+},
+{
+"id": "KPND.A.32",
+"book": "kp_new_dimensions_dynamics",
+"requires": [],
+"activation": [
+{
+"dasha": {
+"level": "md",
+"lords": [
+"Ketu"
+]
+}
+},
+{
+"dasha": {
+"level": "ad",
+"lords": [
+"Saturn"
+]
+}
+}
+],
+"tone": "bad",
+"topics": [
+"other"
+],
+"effect": "This stretch tends to bring many unwelcome results in your personal life and affairs.",
+"effect_es": "Esta etapa tiende a traer muchos resultados desfavorables en tu vida personal y tus asuntos.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 6273
+},
+{
+"id": "KPND.A.47",
+"book": "kp_new_dimensions_dynamics",
+"requires": [
+{
+"a": "Jupiter",
+"b": "Saturn",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"money"
+],
+"effect": "When you borrow or recover money, you tend to receive only about half of what you expect.",
+"effect_es": "Cuando pides prestado o recuperas dinero, tiendes a recibir solo cerca de la mitad de lo que esperas.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Stated for borrowing or recovery questions (fifty percent); alternatives written separately.",
+"clarity": "inferred",
+"line": 4016
+},
+{
+"id": "KPND.A.48",
+"book": "kp_new_dimensions_dynamics",
+"requires": [
+{
+"a": "Jupiter",
+"b": "Rahu",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"money"
+],
+"effect": "When you borrow or recover money, you tend to receive only about half of what you expect.",
+"effect_es": "Cuando pides prestado o recuperas dinero, tiendes a recibir solo cerca de la mitad de lo que esperas.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Stated for borrowing or recovery questions (fifty percent); alternatives written separately.",
+"clarity": "inferred",
+"line": 4019
+},
+{
+"id": "KPND.A.49",
+"book": "kp_new_dimensions_dynamics",
+"requires": [
+{
+"a": "Saturn",
+"b": "Jupiter",
+"relation": "a_aspects_b"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"money"
+],
+"effect": "When you borrow or recover money, you tend to receive only about half of what you expect.",
+"effect_es": "Cuando pides prestado o recuperas dinero, tiendes a recibir solo cerca de la mitad de lo que esperas.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Stated for borrowing or recovery questions (fifty percent); alternatives written separately.",
+"clarity": "inferred",
+"line": 4016
+},
+{
+"id": "KPND.B.221",
+"book": "kp_new_dimensions_dynamics",
+"requires": [
+{
+"chart": "male"
+},
+{
+"a": "Venus",
+"b": "Jupiter",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"marriage"
+],
+"effect": "Marriage tends to be assured for you.",
+"effect_es": "Tu matrimonio tiende a estar asegurado.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Naadi note: 'relation' is defined at lines 2147-2150 as same sign, 5th, 9th, 7th and 2nd sign from the selected planet; the 2nd-sign relation cannot be written.",
+"clarity": "inferred",
+"line": 2157
+},
+{
+"id": "KPND.B.222",
+"book": "kp_new_dimensions_dynamics",
+"requires": [
+{
+"chart": "male"
+},
+{
+"a": "Venus",
+"b": "Jupiter",
+"relation": "trine_from_each_other"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"marriage"
+],
+"effect": "Marriage tends to be assured for you.",
+"effect_es": "Tu matrimonio tiende a estar asegurado.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Naadi note: 'relation' is defined at lines 2147-2150 as same sign, 5th, 9th, 7th and 2nd sign from the selected planet; the 2nd-sign relation cannot be written.",
+"clarity": "inferred",
+"line": 2157
+},
+{
+"id": "KPND.B.223",
+"book": "kp_new_dimensions_dynamics",
+"requires": [
+{
+"chart": "male"
+},
+{
+"a": "Venus",
+"b": "Jupiter",
+"relation": "mutual_aspect"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"marriage"
+],
+"effect": "Marriage tends to be assured for you.",
+"effect_es": "Tu matrimonio tiende a estar asegurado.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Naadi note: 'relation' is defined at lines 2147-2150 as same sign, 5th, 9th, 7th and 2nd sign from the selected planet; the 2nd-sign relation cannot be written.",
+"clarity": "inferred",
+"line": 2157
+},
+{
+"id": "KPND.B.224",
+"book": "kp_new_dimensions_dynamics",
+"requires": [
+{
+"chart": "male"
+},
+{
+"a": "Venus",
+"b": "Saturn",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"marriage"
+],
+"effect": "Marriage tends to be assured for you.",
+"effect_es": "Tu matrimonio tiende a estar asegurado.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Naadi note: 'relation' is defined at lines 2147-2150 as same sign, 5th, 9th, 7th and 2nd sign from the selected planet; the 2nd-sign relation cannot be written.",
+"clarity": "inferred",
+"line": 2157
+},
+{
+"id": "KPND.B.225",
+"book": "kp_new_dimensions_dynamics",
+"requires": [
+{
+"chart": "male"
+},
+{
+"a": "Venus",
+"b": "Saturn",
+"relation": "trine_from_each_other"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"marriage"
+],
+"effect": "Marriage tends to be assured for you.",
+"effect_es": "Tu matrimonio tiende a estar asegurado.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Naadi note: 'relation' is defined at lines 2147-2150 as same sign, 5th, 9th, 7th and 2nd sign from the selected planet; the 2nd-sign relation cannot be written.",
+"clarity": "inferred",
+"line": 2157
+},
+{
+"id": "KPND.B.226",
+"book": "kp_new_dimensions_dynamics",
+"requires": [
+{
+"chart": "male"
+},
+{
+"a": "Venus",
+"b": "Saturn",
+"relation": "mutual_aspect"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"marriage"
+],
+"effect": "Marriage tends to be assured for you.",
+"effect_es": "Tu matrimonio tiende a estar asegurado.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Naadi note: 'relation' is defined at lines 2147-2150 as same sign, 5th, 9th, 7th and 2nd sign from the selected planet; the 2nd-sign relation cannot be written.",
+"clarity": "inferred",
+"line": 2157
+},
+{
+"id": "KPND.B.228",
+"book": "kp_new_dimensions_dynamics",
+"requires": [
+{
+"chart": "female"
+},
+{
+"a": "Mars",
+"b": "Jupiter",
+"relation": "trine_from_each_other"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"marriage"
+],
+"effect": "Marriage tends to be assured for you.",
+"effect_es": "Tu matrimonio tiende a estar asegurado.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Naadi note: 'relation' is defined at lines 2147-2150 as same sign, 5th, 9th, 7th and 2nd sign from the selected planet; the 2nd-sign relation cannot be written.",
+"clarity": "inferred",
+"line": 2157
+},
+{
+"id": "KPND.B.229",
+"book": "kp_new_dimensions_dynamics",
+"requires": [
+{
+"chart": "female"
+},
+{
+"a": "Mars",
+"b": "Jupiter",
+"relation": "mutual_aspect"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"marriage"
+],
+"effect": "Marriage tends to be assured for you.",
+"effect_es": "Tu matrimonio tiende a estar asegurado.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Naadi note: 'relation' is defined at lines 2147-2150 as same sign, 5th, 9th, 7th and 2nd sign from the selected planet; the 2nd-sign relation cannot be written.",
+"clarity": "inferred",
+"line": 2157
+},
+{
+"id": "KPND.B.230",
+"book": "kp_new_dimensions_dynamics",
+"requires": [
+{
+"chart": "female"
+},
+{
+"a": "Mars",
+"b": "Saturn",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"marriage"
+],
+"effect": "Marriage tends to be assured for you.",
+"effect_es": "Tu matrimonio tiende a estar asegurado.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Naadi note: 'relation' is defined at lines 2147-2150 as same sign, 5th, 9th, 7th and 2nd sign from the selected planet; the 2nd-sign relation cannot be written.",
+"clarity": "inferred",
+"line": 2157
+},
+{
+"id": "KPND.B.231",
+"book": "kp_new_dimensions_dynamics",
+"requires": [
+{
+"chart": "female"
+},
+{
+"a": "Mars",
+"b": "Saturn",
+"relation": "trine_from_each_other"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"marriage"
+],
+"effect": "Marriage tends to be assured for you.",
+"effect_es": "Tu matrimonio tiende a estar asegurado.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Naadi note: 'relation' is defined at lines 2147-2150 as same sign, 5th, 9th, 7th and 2nd sign from the selected planet; the 2nd-sign relation cannot be written.",
+"clarity": "inferred",
+"line": 2157
+},
+{
+"id": "KPND.B.232",
+"book": "kp_new_dimensions_dynamics",
+"requires": [
+{
+"chart": "female"
+},
+{
+"a": "Mars",
+"b": "Saturn",
+"relation": "mutual_aspect"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"marriage"
+],
+"effect": "Marriage tends to be assured for you.",
+"effect_es": "Tu matrimonio tiende a estar asegurado.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Naadi note: 'relation' is defined at lines 2147-2150 as same sign, 5th, 9th, 7th and 2nd sign from the selected planet; the 2nd-sign relation cannot be written.",
+"clarity": "inferred",
+"line": 2157
+},
+{
+"id": "KPPR.18",
+"book": "kp_progeny_romance",
+"requires": [
+{
+"a": "Moon",
+"b": "Saturn",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "Your marriage plans may face a postponement, a delay or a last-minute change.",
+"effect_es": "Tus planes de matrimonio podrían enfrentar un aplazamiento, un retraso o un cambio de último momento.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "The book says results are not uniform; the only certain thing is some problem in the marriage.",
+"clarity": "clear",
+"line": 2851
+},
+{
+"id": "KPPR.19",
+"book": "kp_progeny_romance",
+"requires": [
+{
+"a": "Saturn",
+"b": "Moon",
+"relation": "a_aspects_b"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "Your marriage plans may face a postponement, a delay or a last-minute change.",
+"effect_es": "Tus planes de matrimonio podrían enfrentar un aplazamiento, un retraso o un cambio de último momento.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "The book says results are not uniform; the only certain thing is some problem in the marriage.",
+"clarity": "clear",
+"line": 3788
+},
+{
+"id": "KPPR.20",
+"book": "kp_progeny_romance",
+"requires": [
+{
+"a": "Moon",
+"b": "Saturn",
+"relation": "a_aspects_b"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "Your marriage plans may face a postponement, a delay or a last-minute change.",
+"effect_es": "Tus planes de matrimonio podrían enfrentar un aplazamiento, un retraso o un cambio de último momento.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "The book says results are not uniform; the only certain thing is some problem in the marriage.",
+"clarity": "clear",
+"line": 3788
+},
+{
+"id": "KPPR.29",
+"book": "kp_progeny_romance",
+"requires": [
+{
+"planet": "Mars",
+"in_houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage",
+"money"
+],
+"effect": "Your partner may spend more freely than is comfortable.",
+"effect_es": "Tu pareja podría gastar con más libertad de lo cómodo.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 10330
+},
+{
+"id": "KPPR.40",
+"book": "kp_progeny_romance",
+"requires": [
+{
+"house": 5,
+"holds_any": [
+"Jupiter",
+"Venus",
+"Mercury",
+"Moon"
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"children"
+],
+"effect": "Children are favoured and may be several.",
+"effect_es": "Los hijos están favorecidos y pueden ser varios.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 11103
+},
+{
+"id": "KPPR.49",
+"book": "kp_progeny_romance",
+"requires": [
+{
+"house": 11,
+"empty": false
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"marriage"
+],
+"effect": "Your married life tends to be happy and harmonious, with steady progress.",
+"effect_es": "Tu vida matrimonial tiende a ser feliz y armoniosa, con progreso constante.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 10208
+},
+{
+"id": "KPPR.50",
+"book": "kp_progeny_romance",
+"requires": [
+{
+"house": 11,
+"empty": false
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"fame",
+"money"
+],
+"effect": "You gain name, social standing and financial success.",
+"effect_es": "Obtienes renombre, posición social y éxito económico.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 10215
+},
+{
+"id": "KPPR.51",
+"book": "kp_progeny_romance",
+"requires": [
+{
+"house": 4,
+"holds_any_malefic": true
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"marriage"
+],
+"effect": "Your partner is hard-working, patient and persevering.",
+"effect_es": "Tu pareja es trabajadora, paciente y perseverante.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "inferred",
+"line": 10298
+},
+{
+"id": "KPPR.52",
+"book": "kp_progeny_romance",
+"requires": [
+{
+"house": 4,
+"holds_any_malefic": true
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"other"
+],
+"effect": "Some friends may take advantage of you.",
+"effect_es": "Algunos amigos podrían aprovecharse de ti.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "inferred",
+"line": 10314
+},
+{
+"id": "KPPR.53",
+"book": "kp_progeny_romance",
+"requires": [
+{
+"house": 10,
+"holds_any_malefic": true
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "You work hard and your standing improves steadily.",
+"effect_es": "Trabajas duro y tu posición mejora de forma constante.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "inferred",
+"line": 10316
+},
+{
+"id": "KPPR.54",
+"book": "kp_progeny_romance",
+"requires": [
+{
+"house": 10,
+"holds_any_malefic": true
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"marriage"
+],
+"effect": "Your love life tends to move forward with steady harmony and happiness.",
+"effect_es": "Tu vida amorosa tiende a avanzar con armonía y felicidad constantes.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "inferred",
+"line": 10319
+},
+{
+"id": "KPPR.55",
+"book": "kp_progeny_romance",
+"requires": [
+{
+"house": 10,
+"holds_any_malefic": true
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You tend to build up wealth over time.",
+"effect_es": "Tiendes a acumular riqueza con el tiempo.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "inferred",
+"line": 10323
+},
+{
+"id": "KPPR.56",
+"book": "kp_progeny_romance",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+1
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "You are graceful, artistic and liked by others.",
+"effect_es": "Tienes gracia y sentido artístico, y agradas a los demás.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 10476
+},
+{
+"id": "KPPR.57",
+"book": "kp_progeny_romance",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+1
+]
+},
+{
+"chart": "female"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"marriage"
+],
+"effect": "Your partner is likely to be dutiful and caring.",
+"effect_es": "Tu pareja probablemente sea cumplida y atenta.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 10479
+},
+{
+"id": "KPPR.58",
+"book": "kp_progeny_romance",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+2
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"family",
+"money"
+],
+"effect": "You are likely to have a large family and a comfortable life.",
+"effect_es": "Es probable que tengas una familia grande y una vida cómoda.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 10483
+},
+{
+"id": "KPPR.59",
+"book": "kp_progeny_romance",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+2
+]
+},
+{
+"chart": "male"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"marriage"
+],
+"effect": "Your spouse is likely to be cooperative, charming and faithful.",
+"effect_es": "Tu pareja probablemente sea cooperadora, encantadora y fiel.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 10483
+},
+{
+"id": "KPPR.60",
+"book": "kp_progeny_romance",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+2
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You speak persuasively and are financially comfortable.",
+"effect_es": "Hablas con persuasión y vives con holgura económica.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 10484
+},
+{
+"id": "KPPR.61",
+"book": "kp_progeny_romance",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+2
+]
+},
+{
+"chart": "female"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You command wealth, work skilfully and give generously to others.",
+"effect_es": "Manejas bien la riqueza, trabajas con habilidad y das con generosidad.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 10486
+},
+{
+"id": "KPPR.62",
+"book": "kp_progeny_romance",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+3
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career",
+"other"
+],
+"effect": "You enjoy pleasure and gains through travel, and succeed in sports and fine arts.",
+"effect_es": "Disfrutas del placer y de ganancias a través de los viajes, y tienes éxito en el deporte y las bellas artes.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 10491
+},
+{
+"id": "KPPR.63",
+"book": "kp_progeny_romance",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+3
+]
+}
+],
+"activation": [],
+"tone": "mixed",
+"topics": [
+"marriage"
+],
+"effect": "Your love affairs may stay light rather than deep.",
+"effect_es": "Tus romances podrían quedarse en lo ligero más que en lo profundo.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 10492
+},
+{
+"id": "KPPR.64",
+"book": "kp_progeny_romance",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+4
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"family",
+"money"
+],
+"effect": "Your family life is loving and harmonious, and your later years are prosperous.",
+"effect_es": "Tu vida familiar es cariñosa y armoniosa, y tus últimos años son prósperos.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 10498
+},
+{
+"id": "KPPR.65",
+"book": "kp_progeny_romance",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+4
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money",
+"property"
+],
+"effect": "You earn through trade and have a vehicle at your disposal.",
+"effect_es": "Ganas dinero con el comercio y tienes un vehículo a tu disposición.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 10499
+},
+{
+"id": "KPPR.66",
+"book": "kp_progeny_romance",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+4
+]
+},
+{
+"chart": "male"
+}
+],
+"activation": [],
+"tone": "mixed",
+"topics": [
+"marriage"
+],
+"effect": "Your spouse tends to take the lead at home.",
+"effect_es": "Tu pareja tiende a llevar la voz cantante en casa.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "inferred",
+"line": 10510
+},
+{
+"id": "KPPR.67",
+"book": "kp_progeny_romance",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+5
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"marriage",
+"children"
+],
+"effect": "You share real affection with your children and friends, and enjoy marital happiness.",
+"effect_es": "Compartes afecto verdadero con tus hijos y amigos, y disfrutas de felicidad matrimonial.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 10517
+},
+{
+"id": "KPPR.68",
+"book": "kp_progeny_romance",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+5
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money",
+"other"
+],
+"effect": "This is a good setup for investment, entertainment and creative ventures.",
+"effect_es": "Es una buena configuración para la inversión, el entretenimiento y los proyectos creativos.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 10519
+},
+{
+"id": "KPPR.69",
+"book": "kp_progeny_romance",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+5
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "You have refined taste in music and the arts.",
+"effect_es": "Tienes un gusto refinado por la música y las artes.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 10520
+},
+{
+"id": "KPPR.70",
+"book": "kp_progeny_romance",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+5
+]
+},
+{
+"chart": "female"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money",
+"career"
+],
+"effect": "You grow wealthy and take a leading role.",
+"effect_es": "Alcanzas prosperidad y asumes un papel de liderazgo.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 10527
+},
+{
+"id": "KPPR.71",
+"book": "kp_progeny_romance",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+6
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "You enjoy your work, do well in a team and find good working conditions.",
+"effect_es": "Disfrutas tu trabajo, rindes bien en equipo y encuentras buenas condiciones laborales.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 10530
+},
+{
+"id": "KPPR.72",
+"book": "kp_progeny_romance",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+6
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"marriage"
+],
+"effect": "Married life tends to be better than life before marriage.",
+"effect_es": "La vida matrimonial tiende a ser mejor que la anterior al matrimonio.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 10535
+},
+{
+"id": "KPPR.73",
+"book": "kp_progeny_romance",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career",
+"money"
+],
+"effect": "You gain social and financial success, good public relations and pleasant journeys.",
+"effect_es": "Obtienes éxito social y económico, buenas relaciones públicas y viajes agradables.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 10560
+},
+{
+"id": "KPPR.74",
+"book": "kp_progeny_romance",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+7
+]
+},
+{
+"chart": "male"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"marriage"
+],
+"effect": "Your spouse is likely to be charming.",
+"effect_es": "Tu pareja probablemente sea encantadora.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 10561
+},
+{
+"id": "KPPR.75",
+"book": "kp_progeny_romance",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+7
+]
+},
+{
+"chart": "female"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"fame",
+"career"
+],
+"effect": "You become well known and show an enterprising spirit.",
+"effect_es": "Te das a conocer y muestras espíritu emprendedor.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 10565
+},
+{
+"id": "KPPR.76",
+"book": "kp_progeny_romance",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+8
+]
+}
+],
+"activation": [],
+"tone": "mixed",
+"topics": [
+"other"
+],
+"effect": "You may see both legal benefits and legal disappointments.",
+"effect_es": "Podrías ver tanto beneficios como decepciones en asuntos legales.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 10570
+},
+{
+"id": "KPPR.77",
+"book": "kp_progeny_romance",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+9
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money",
+"family"
+],
+"effect": "You tend to be wealthy and your home life is happy.",
+"effect_es": "Tiendes a gozar de prosperidad y tu vida en casa es feliz.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 10582
+},
+{
+"id": "KPPR.78",
+"book": "kp_progeny_romance",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+9
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"fame",
+"foreign"
+],
+"effect": "You gain recognition from government, societies and foreign countries.",
+"effect_es": "Obtienes reconocimiento del gobierno, de las sociedades y de países extranjeros.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 10583
+},
+{
+"id": "KPPR.79",
+"book": "kp_progeny_romance",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+9
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"marriage",
+"foreign"
+],
+"effect": "You may fall in love at first sight, and may marry someone from another country.",
+"effect_es": "Podrías enamorarte a primera vista y casarte con alguien de otro país.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 10585
+},
+{
+"id": "KPPR.80",
+"book": "kp_progeny_romance",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+9
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You gain wealth through the women in your life.",
+"effect_es": "Obtienes riqueza a través de las mujeres de tu vida.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 10584
+},
+{
+"id": "KPPR.81",
+"book": "kp_progeny_romance",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+9
+]
+},
+{
+"chart": "female"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money",
+"education"
+],
+"effect": "You are learned, gentle, wealthy and have many sources of income.",
+"effect_es": "Eres instruida, amable, próspera y tienes muchas fuentes de ingreso.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 10593
+},
+{
+"id": "KPPR.82",
+"book": "kp_progeny_romance",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+10
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"fame",
+"career"
+],
+"effect": "You gain fame, popularity, lasting friends and help from associates and elders.",
+"effect_es": "Obtienes fama, popularidad, amigos duraderos y ayuda de colegas y mayores.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 10604
+},
+{
+"id": "KPPR.83",
+"book": "kp_progeny_romance",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+10
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"marriage"
+],
+"effect": "You marry a partner of similar status and position to your own.",
+"effect_es": "Te casas con una pareja de estatus y posición similares a los tuyos.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 10613
+},
+{
+"id": "KPPR.84",
+"book": "kp_progeny_romance",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+10
+]
+},
+{
+"chart": "female"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"fame",
+"career"
+],
+"effect": "You rise to a position of power and are fortunate and respected.",
+"effect_es": "Asciendes a una posición de poder y eres afortunada y respetada.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 10614
+},
+{
+"id": "KPPR.85",
+"book": "kp_progeny_romance",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+11
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "Good fortune comes to you even without much effort, with wealth, comfort and good friends.",
+"effect_es": "La buena fortuna te llega incluso sin mucho esfuerzo, con riqueza, comodidad y buenos amigos.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 10617
+},
+{
+"id": "KPPR.86",
+"book": "kp_progeny_romance",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+11
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"marriage"
+],
+"effect": "Your life starts to flourish after you find a partner.",
+"effect_es": "Tu vida empieza a florecer después de encontrar pareja.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 10625
+},
+{
+"id": "KPPR.87",
+"book": "kp_progeny_romance",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+11
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"marriage",
+"education"
+],
+"effect": "Your partner is highly educated and drawn to research.",
+"effect_es": "Tu pareja es muy instruida y se inclina por la investigación.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 10625
+},
+{
+"id": "KPR12.A.1",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"planet": "Rahu",
+"in_houses": [
+3
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "You are bold and enterprising.",
+"effect_es": "Tienes audacia e iniciativa.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book attributes this to the Hindu sages and reads the node by the house it occupies; written here as a whole-sign house reading.",
+"clarity": "clear",
+"line": 4879
+},
+{
+"id": "KPR12.A.2",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"planet": "Rahu",
+"in_houses": [
+3
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You tend to be well off and are never short of food.",
+"effect_es": "Tiendes a vivir con holgura y nunca te falta comida.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book attributes this to the Hindu sages and reads the node by the house it occupies; written here as a whole-sign house reading.",
+"clarity": "clear",
+"line": 4879
+},
+{
+"id": "KPR12.A.3",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"planet": "Rahu",
+"in_houses": [
+3
+]
+}
+],
+"activation": [],
+"tone": "info",
+"topics": [
+"career"
+],
+"effect": "You take a keen interest in farming and work on the land.",
+"effect_es": "Te interesa mucho la agricultura y el trabajo con la tierra.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book attributes this to the Hindu sages and reads the node by the house it occupies; written here as a whole-sign house reading.",
+"clarity": "clear",
+"line": 4879
+},
+{
+"id": "KPR12.A.4",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"planet": "Rahu",
+"in_houses": [
+4
+]
+}
+],
+"activation": [],
+"tone": "info",
+"topics": [
+"money"
+],
+"effect": "You like wearing jewellery and are likely to have household help.",
+"effect_es": "Te gusta lucir joyas y es probable que tengas ayuda en casa.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book attributes this to the Hindu sages and reads the node by the house it occupies; written here as a whole-sign house reading.",
+"clarity": "clear",
+"line": 4882
+},
+{
+"id": "KPR12.A.5",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"planet": "Rahu",
+"in_houses": [
+4
+]
+}
+],
+"activation": [],
+"tone": "mixed",
+"topics": [
+"marriage"
+],
+"effect": "You may marry more than once.",
+"effect_es": "Es posible que te cases más de una vez.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book attributes this to the Hindu sages and reads the node by the house it occupies; written here as a whole-sign house reading.",
+"clarity": "clear",
+"line": 4882
+},
+{
+"id": "KPR12.A.6",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"planet": "Rahu",
+"in_houses": [
+6
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "You are very bold and brave.",
+"effect_es": "Eres muy audaz y valiente.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book attributes this to the Hindu sages and reads the node by the house it occupies; written here as a whole-sign house reading.",
+"clarity": "clear",
+"line": 4894
+},
+{
+"id": "KPR12.A.7",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"planet": "Rahu",
+"in_houses": [
+6
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "You tend to come out victorious in disputes and competitions.",
+"effect_es": "Tiendes a salir ganando en disputas y competencias.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book attributes this to the Hindu sages and reads the node by the house it occupies; written here as a whole-sign house reading.",
+"clarity": "clear",
+"line": 4894
+},
+{
+"id": "KPR12.A.8",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"planet": "Rahu",
+"in_houses": [
+6
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "You enjoy life.",
+"effect_es": "Disfrutas de la vida.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book attributes this to the Hindu sages and reads the node by the house it occupies; written here as a whole-sign house reading.",
+"clarity": "clear",
+"line": 4894
+},
+{
+"id": "KPR12.A.9",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"planet": "Rahu",
+"in_houses": [
+6
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"money"
+],
+"effect": "You tend to waste money.",
+"effect_es": "Tiendes a malgastar el dinero.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book attributes this to the Hindu sages and reads the node by the house it occupies; written here as a whole-sign house reading.",
+"clarity": "clear",
+"line": 4894
+},
+{
+"id": "KPR12.A.10",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"planet": "Rahu",
+"in_houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "mixed",
+"topics": [
+"marriage"
+],
+"effect": "You may marry more than once.",
+"effect_es": "Es posible que te cases más de una vez.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book attributes this to the Hindu sages and reads the node by the house it occupies; written here as a whole-sign house reading. The book says this is especially so when another harsh influence is also present, and that helpful ones can ward it off.",
+"clarity": "clear",
+"line": 4899
+},
+{
+"id": "KPR12.A.11",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"planet": "Rahu",
+"in_houses": [
+8
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"other"
+],
+"effect": "You face delays in reaching your aims.",
+"effect_es": "Enfrentas retrasos para alcanzar tus metas.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book attributes this to the Hindu sages and reads the node by the house it occupies; written here as a whole-sign house reading.",
+"clarity": "clear",
+"line": 4903
+},
+{
+"id": "KPR12.A.12",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"planet": "Rahu",
+"in_houses": [
+9
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money",
+"fame"
+],
+"effect": "You tend to become wealthy and popular.",
+"effect_es": "Tiendes a alcanzar prosperidad y popularidad.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book attributes this to the Hindu sages and reads the node by the house it occupies; written here as a whole-sign house reading.",
+"clarity": "clear",
+"line": 4906
+},
+{
+"id": "KPR12.A.13",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"planet": "Rahu",
+"in_houses": [
+9
+]
+}
+],
+"activation": [],
+"tone": "info",
+"topics": [
+"other"
+],
+"effect": "You are likely to have servants or helpers.",
+"effect_es": "Es probable que tengas empleados o ayudantes.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book attributes this to the Hindu sages and reads the node by the house it occupies; written here as a whole-sign house reading.",
+"clarity": "clear",
+"line": 4906
+},
+{
+"id": "KPR12.A.14",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"planet": "Rahu",
+"in_houses": [
+10
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "You have a gift for composing songs.",
+"effect_es": "Tienes talento para componer canciones.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book attributes this to the Hindu sages and reads the node by the house it occupies; written here as a whole-sign house reading.",
+"clarity": "clear",
+"line": 4910
+},
+{
+"id": "KPR12.A.15",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"planet": "Rahu",
+"in_houses": [
+11
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"children"
+],
+"effect": "You tend to have many children.",
+"effect_es": "Tiendes a tener muchos hijos.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book attributes this to the Hindu sages and reads the node by the house it occupies; written here as a whole-sign house reading.",
+"clarity": "clear",
+"line": 4914
+},
+{
+"id": "KPR12.A.16",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"planet": "Rahu",
+"in_houses": [
+11
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money",
+"property"
+],
+"effect": "You tend to be wealthy and to own land and buildings.",
+"effect_es": "Tiendes a tener prosperidad y a poseer terrenos y edificios.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book attributes this to the Hindu sages and reads the node by the house it occupies; written here as a whole-sign house reading.",
+"clarity": "clear",
+"line": 4914
+},
+{
+"id": "KPR12.A.17",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"planet": "Rahu",
+"in_houses": [
+11
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"education"
+],
+"effect": "You are learned and respected for your knowledge.",
+"effect_es": "Eres una persona instruida y respetada por tu conocimiento.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book attributes this to the Hindu sages and reads the node by the house it occupies; written here as a whole-sign house reading.",
+"clarity": "clear",
+"line": 4914
+},
+{
+"id": "KPR12.A.18",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"planet": "Rahu",
+"in_houses": [
+11
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "You tend to win out over your rivals.",
+"effect_es": "Tiendes a imponerte sobre tus rivales.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book attributes this to the Hindu sages and reads the node by the house it occupies; written here as a whole-sign house reading.",
+"clarity": "clear",
+"line": 4914
+},
+{
+"id": "KPR12.A.19",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"planet": "Rahu",
+"in_houses": [
+12
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "You are helpful to others.",
+"effect_es": "Eres una persona servicial con los demás.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book attributes this to the Hindu sages and reads the node by the house it occupies; written here as a whole-sign house reading.",
+"clarity": "clear",
+"line": 4918
+},
+{
+"id": "KPR12.A.20",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"planet": "Rahu",
+"in_houses": [
+12
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"children"
+],
+"effect": "You tend to have only a few children.",
+"effect_es": "Tiendes a tener pocos hijos.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book attributes this to the Hindu sages and reads the node by the house it occupies; written here as a whole-sign house reading.",
+"clarity": "clear",
+"line": 4918
+},
+{
+"id": "KPR12.A.21",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"planet": "Ketu",
+"in_houses": [
+2
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"money"
+],
+"effect": "You find it hard to build savings.",
+"effect_es": "Te cuesta formar ahorros.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book attributes this to the Hindu sages and reads the node by the house it occupies; written here as a whole-sign house reading.",
+"clarity": "clear",
+"line": 4925
+},
+{
+"id": "KPR12.A.22",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"planet": "Ketu",
+"in_houses": [
+2
+]
+}
+],
+"activation": [],
+"tone": "mixed",
+"topics": [
+"marriage"
+],
+"effect": "You may marry more than once.",
+"effect_es": "Es posible que te cases más de una vez.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book attributes this to the Hindu sages and reads the node by the house it occupies; written here as a whole-sign house reading.",
+"clarity": "clear",
+"line": 4925
+},
+{
+"id": "KPR12.A.23",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"planet": "Ketu",
+"in_houses": [
+3
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "You are good-natured.",
+"effect_es": "Tienes un carácter bondadoso.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book attributes this to the Hindu sages and reads the node by the house it occupies; written here as a whole-sign house reading.",
+"clarity": "clear",
+"line": 4930
+},
+{
+"id": "KPR12.A.24",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"planet": "Ketu",
+"in_houses": [
+3
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You tend to be well off.",
+"effect_es": "Tiendes a vivir con holgura.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book attributes this to the Hindu sages and reads the node by the house it occupies; written here as a whole-sign house reading.",
+"clarity": "clear",
+"line": 4930
+},
+{
+"id": "KPR12.A.25",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"planet": "Ketu",
+"in_houses": [
+3
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "You succeed as a messenger, agent or contractor.",
+"effect_es": "Tienes éxito en el trabajo de mensajería, agencia o contratos.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book attributes this to the Hindu sages and reads the node by the house it occupies; written here as a whole-sign house reading.",
+"clarity": "clear",
+"line": 4930
+},
+{
+"id": "KPR12.A.26",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"planet": "Ketu",
+"in_houses": [
+4
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You tend to hold wealth and jewellery.",
+"effect_es": "Tiendes a poseer riqueza y joyas.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book attributes this to the Hindu sages and reads the node by the house it occupies; written here as a whole-sign house reading.",
+"clarity": "clear",
+"line": 4933
+},
+{
+"id": "KPR12.A.27",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"planet": "Ketu",
+"in_houses": [
+4
+]
+}
+],
+"activation": [],
+"tone": "mixed",
+"topics": [
+"marriage"
+],
+"effect": "You may marry more than once.",
+"effect_es": "Es posible que te cases más de una vez.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book attributes this to the Hindu sages and reads the node by the house it occupies; written here as a whole-sign house reading.",
+"clarity": "clear",
+"line": 4933
+},
+{
+"id": "KPR12.A.28",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"planet": "Ketu",
+"in_houses": [
+6
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "You are courageous.",
+"effect_es": "Eres valiente.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book attributes this to the Hindu sages and reads the node by the house it occupies; written here as a whole-sign house reading.",
+"clarity": "clear",
+"line": 4941
+},
+{
+"id": "KPR12.A.29",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"planet": "Ketu",
+"in_houses": [
+6
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "You enjoy life to the full.",
+"effect_es": "Disfrutas la vida al máximo.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book attributes this to the Hindu sages and reads the node by the house it occupies; written here as a whole-sign house reading.",
+"clarity": "clear",
+"line": 4941
+},
+{
+"id": "KPR12.A.30",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"planet": "Ketu",
+"in_houses": [
+6
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"education"
+],
+"effect": "You are clever, studious and learned.",
+"effect_es": "Tienes inteligencia, afán de estudio y mucha instrucción.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book attributes this to the Hindu sages and reads the node by the house it occupies; written here as a whole-sign house reading.",
+"clarity": "clear",
+"line": 4941
+},
+{
+"id": "KPR12.A.31",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"planet": "Ketu",
+"in_houses": [
+6
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"family"
+],
+"effect": "You are well liked by your relatives.",
+"effect_es": "Tus familiares te aprecian mucho.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book attributes this to the Hindu sages and reads the node by the house it occupies; written here as a whole-sign house reading.",
+"clarity": "clear",
+"line": 4941
+},
+{
+"id": "KPR12.A.32",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"planet": "Ketu",
+"in_houses": [
+6
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"fame"
+],
+"effect": "You tend to become well known.",
+"effect_es": "Tiendes a ganar renombre.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book attributes this to the Hindu sages and reads the node by the house it occupies; written here as a whole-sign house reading.",
+"clarity": "clear",
+"line": 4941
+},
+{
+"id": "KPR12.A.33",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"planet": "Ketu",
+"in_houses": [
+8
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You may receive an inheritance.",
+"effect_es": "Es posible que recibas una herencia.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book attributes this to the Hindu sages and reads the node by the house it occupies; written here as a whole-sign house reading.",
+"clarity": "clear",
+"line": 4953
+},
+{
+"id": "KPR12.A.34",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"planet": "Ketu",
+"in_houses": [
+10
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "You are clever, diplomatic and brave in your work.",
+"effect_es": "Tienes inteligencia, diplomacia y valentía en tu trabajo.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book attributes this to the Hindu sages and reads the node by the house it occupies; written here as a whole-sign house reading.",
+"clarity": "clear",
+"line": 4965
+},
+{
+"id": "KPR12.A.35",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"planet": "Ketu",
+"in_houses": [
+10
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"fame"
+],
+"effect": "You enjoy social success.",
+"effect_es": "Tienes éxito social.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book attributes this to the Hindu sages and reads the node by the house it occupies; written here as a whole-sign house reading.",
+"clarity": "clear",
+"line": 4965
+},
+{
+"id": "KPR12.A.36",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"planet": "Ketu",
+"in_houses": [
+10
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "You have faithful servants or helpers.",
+"effect_es": "Cuentas con ayudantes fieles.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book attributes this to the Hindu sages and reads the node by the house it occupies; written here as a whole-sign house reading.",
+"clarity": "clear",
+"line": 4965
+},
+{
+"id": "KPR12.A.37",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"planet": "Ketu",
+"in_houses": [
+10
+]
+}
+],
+"activation": [],
+"tone": "info",
+"topics": [
+"foreign"
+],
+"effect": "You travel a great deal.",
+"effect_es": "Viajas mucho.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book attributes this to the Hindu sages and reads the node by the house it occupies; written here as a whole-sign house reading.",
+"clarity": "clear",
+"line": 4965
+},
+{
+"id": "KPR12.A.38",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"planet": "Ketu",
+"in_houses": [
+11
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"children"
+],
+"effect": "You tend to have many children.",
+"effect_es": "Tiendes a tener muchos hijos.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book attributes this to the Hindu sages and reads the node by the house it occupies; written here as a whole-sign house reading.",
+"clarity": "clear",
+"line": 4970
+},
+{
+"id": "KPR12.A.39",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"planet": "Ketu",
+"in_houses": [
+11
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You tend to be rich.",
+"effect_es": "Tiendes a tener riqueza.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book attributes this to the Hindu sages and reads the node by the house it occupies; written here as a whole-sign house reading.",
+"clarity": "clear",
+"line": 4970
+},
+{
+"id": "KPR12.A.40",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"planet": "Ketu",
+"in_houses": [
+11
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "You are courageous.",
+"effect_es": "Eres valiente.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book attributes this to the Hindu sages and reads the node by the house it occupies; written here as a whole-sign house reading.",
+"clarity": "clear",
+"line": 4970
+},
+{
+"id": "KPR12.A.41",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"planet": "Ketu",
+"in_houses": [
+11
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"fame"
+],
+"effect": "You enjoy social success.",
+"effect_es": "Tienes éxito social.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book attributes this to the Hindu sages and reads the node by the house it occupies; written here as a whole-sign house reading.",
+"clarity": "clear",
+"line": 4970
+},
+{
+"id": "KPR12.A.42",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"planet": "Ketu",
+"in_houses": [
+11
+]
+}
+],
+"activation": [],
+"tone": "info",
+"topics": [
+"money"
+],
+"effect": "You spend very little.",
+"effect_es": "Gastas muy poco.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book attributes this to the Hindu sages and reads the node by the house it occupies; written here as a whole-sign house reading.",
+"clarity": "clear",
+"line": 4970
+},
+{
+"id": "KPR12.A.43",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"planet": "Ketu",
+"in_houses": [
+11
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"spiritual"
+],
+"effect": "You wish to do meritorious deeds.",
+"effect_es": "Deseas realizar obras meritorias.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book attributes this to the Hindu sages and reads the node by the house it occupies; written here as a whole-sign house reading.",
+"clarity": "clear",
+"line": 4970
+},
+{
+"id": "KPR12.A.44",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"planet": "Ketu",
+"in_houses": [
+12
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"money",
+"fame"
+],
+"effect": "You may lose family property and your standing in the community.",
+"effect_es": "Es posible que pierdas bienes de la familia y tu posición en la comunidad.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book attributes this to the Hindu sages and reads the node by the house it occupies; written here as a whole-sign house reading.",
+"clarity": "clear",
+"line": 4974
+},
+{
+"id": "KPR12.A.45",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"planet": "Ketu",
+"in_houses": [
+12
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"children"
+],
+"effect": "You tend to have only a few children.",
+"effect_es": "Tiendes a tener pocos hijos.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book attributes this to the Hindu sages and reads the node by the house it occupies; written here as a whole-sign house reading.",
+"clarity": "clear",
+"line": 4974
+},
+{
+"id": "KPR12.A.46",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"planet": "Rahu",
+"in_houses": [
+4,
+7,
+9,
+10,
+11
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "Your ambition and unconventional drive tend to work in your favour.",
+"effect_es": "Tu ambición y tu impulso poco convencional tienden a trabajar a tu favor.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General rule the book gives from Kalidasa: the node is beneficial in these houses.",
+"clarity": "clear",
+"line": 4864
+},
+{
+"id": "KPR12.A.47",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"planet": "Ketu",
+"in_houses": [
+3
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "Your detached side tends to work in your favour.",
+"effect_es": "Tu lado desapegado tiende a trabajar a tu favor.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "General rule the book gives from Kalidasa: Ketu is favourable in this house.",
+"clarity": "clear",
+"line": 4865
+},
+{
+"id": "KPR12.A.162",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"a": "Sun",
+"b": "Rahu",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"career"
+],
+"effect": "You meet difficulties through officials and authority, with a risk of legal trouble and loss of position.",
+"effect_es": "Encuentras dificultades con funcionarios y autoridades, con riesgo de problemas legales y pérdida de posición.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book says 'Sun and Rahu indicate' these troubles without saying conjunct; conjunction assumed.",
+"clarity": "inferred",
+"line": 5011
+},
+{
+"id": "KPR12.A.163",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"a": "Moon",
+"b": "Rahu",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"other"
+],
+"effect": "You are troubled by worry, anxiety and feelings of inferiority.",
+"effect_es": "Te inquietan la preocupación, la ansiedad y los sentimientos de inferioridad.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book says 'Moon and Rahu threaten' these without saying conjunct; conjunction assumed.",
+"clarity": "inferred",
+"line": 5015
+},
+{
+"id": "KPR12.B.1",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"planet": "Saturn",
+"in_houses": [
+1,
+3,
+9,
+10
+]
+},
+{
+"planet": "Moon",
+"in_houses": [
+1,
+3,
+9,
+10
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "You are industrious, honest, patient and persevering.",
+"effect_es": "Tienes una naturaleza laboriosa, honesta, paciente y perseverante.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Western view quoted by the book; both planets in these houses.",
+"clarity": "inferred",
+"line": 2786
+},
+{
+"id": "KPR12.B.2",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"planet": "Saturn",
+"in_houses": [
+1,
+3,
+9,
+10
+]
+},
+{
+"planet": "Moon",
+"in_houses": [
+1,
+3,
+9,
+10
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"education"
+],
+"effect": "You have a strong appetite for learning.",
+"effect_es": "Tienes un fuerte apetito por aprender.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book says appetite to learn astrology; generalised to learning. Both planets in these houses.",
+"clarity": "inferred",
+"line": 2786
+},
+{
+"id": "KPR12.B.3",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"planet": "Moon",
+"dignity": [
+"own"
+]
+}
+],
+"activation": [],
+"tone": "info",
+"topics": [
+"other"
+],
+"effect": "You are drawn to astrology and the study of the stars.",
+"effect_es": "Sientes atracción por la astrología y el estudio de los astros.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book (Horasara): Moon in Cancer; Cancer is the Moon's only own sign so own-sign dignity is used. The book itself says not every such person will study astrology.",
+"clarity": "inferred",
+"line": 2847
+},
+{
+"id": "KPR12.B.4",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"a": "Moon",
+"b": "Mercury",
+"relation": "trine_from_each_other"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"education"
+],
+"effect": "You express yourself clearly, with a rich vocabulary, quick grasp, good memory and fluent speech.",
+"effect_es": "Te expresas con claridad, con vocabulario rico, comprensión rápida, buena memoria y habla fluida.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book says 'good/favourable aspects'; only the trine (houses 1-5-9 from each other) can be written, so the rule fires on a subset of the book's condition.",
+"clarity": "inferred",
+"line": 2812
+},
+{
+"id": "KPR12.B.5",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"a": "Saturn",
+"b": "Mercury",
+"relation": "trine_from_each_other"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"education"
+],
+"effect": "You think with concentration and depth, and work in an exact, precise and methodical way.",
+"effect_es": "Piensas con concentración y profundidad, y trabajas de forma exacta, precisa y metódica.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book says 'good/favourable aspects'; only the trine (houses 1-5-9 from each other) can be written, so the rule fires on a subset of the book's condition.",
+"clarity": "inferred",
+"line": 2831
+},
+{
+"id": "KPR12.B.6",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"a": "Saturn",
+"b": "Mercury",
+"relation": "trine_from_each_other"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"education",
+"career"
+],
+"effect": "You have a talent for mathematics and calculation.",
+"effect_es": "Tienes talento para las matemáticas y el cálculo.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book says 'good/favourable aspects'; only the trine (houses 1-5-9 from each other) can be written, so the rule fires on a subset of the book's condition.",
+"clarity": "inferred",
+"line": 2831
+},
+{
+"id": "KPR12.B.7",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"a": "Jupiter",
+"b": "Mercury",
+"relation": "trine_from_each_other"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career",
+"education"
+],
+"effect": "You have a strong command of language and wide knowledge, which suits writing, editing and journalism.",
+"effect_es": "Dominas bien el lenguaje y tienes un conocimiento amplio, lo que te favorece en la escritura, la edición y el periodismo.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book says 'good/favourable aspects'; only the trine (houses 1-5-9 from each other) can be written, so the rule fires on a subset of the book's condition.",
+"clarity": "inferred",
+"line": 2920
+},
+{
+"id": "KPR12.B.8",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"a": "L1",
+"b": "L7",
+"relation": "exchange"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "A business partnership is advisable for you, with a good working arrangement.",
+"effect_es": "Una sociedad de negocios te conviene, con un buen acuerdo de trabajo.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: if the lords of the 1st and 7th are in harmonious aspect or exchange, partnership is advisable. Only the exchange is written. Book places this in the discussion of common signs but does not state it as a condition.",
+"clarity": "inferred",
+"line": 3565
+},
+{
+"id": "KPR12.B.9",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"a": "Saturn",
+"b": "Moon",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"other"
+],
+"effect": "You find it hard to concentrate and you doubt yourself.",
+"effect_es": "Te cuesta concentrarte y dudas de ti.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book says 'Moon afflicted by Saturn'. Its glossary (vol 1) defines affliction as adverse aspect or conjunction with a malefic; the conjunction is written here.",
+"clarity": "inferred",
+"line": 2865
+},
+{
+"id": "KPR12.B.10",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"planet": "Jupiter",
+"in_houses": [
+1
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"spiritual",
+"other"
+],
+"effect": "You tend to enjoy life comfortably even without performing special remedies or rituals.",
+"effect_es": "Tiendes a disfrutar la vida con comodidad aun sin hacer remedios o rituales especiales.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book calls this the lightest kind of past-life burden. It also lists the running period lord joined with the Moon as a cause; that cannot be written.",
+"clarity": "clear",
+"line": 1342
+},
+{
+"id": "KPR12.B.11",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"planet": "L9",
+"in_houses": [
+1
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"spiritual",
+"other"
+],
+"effect": "You tend to enjoy life comfortably even without performing special remedies or rituals.",
+"effect_es": "Tiendes a disfrutar la vida con comodidad aun sin hacer remedios o rituales especiales.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book calls this the lightest kind of past-life burden. It also lists the running period lord joined with the Moon as a cause; that cannot be written.",
+"clarity": "clear",
+"line": 1342
+},
+{
+"id": "KPR12.B.12",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"a": "Jupiter",
+"b": "Moon",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"spiritual",
+"other"
+],
+"effect": "You tend to enjoy life comfortably even without performing special remedies or rituals.",
+"effect_es": "Tiendes a disfrutar la vida con comodidad aun sin hacer remedios o rituales especiales.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book calls this the lightest kind of past-life burden. It also lists the running period lord joined with the Moon as a cause; that cannot be written.",
+"clarity": "clear",
+"line": 1342
+},
+{
+"id": "KPR12.B.13",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"a": "L9",
+"b": "Moon",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"spiritual",
+"other"
+],
+"effect": "You tend to enjoy life comfortably even without performing special remedies or rituals.",
+"effect_es": "Tiendes a disfrutar la vida con comodidad aun sin hacer remedios o rituales especiales.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book calls this the lightest kind of past-life burden. It also lists the running period lord joined with the Moon as a cause; that cannot be written.",
+"clarity": "clear",
+"line": 1342
+},
+{
+"id": "KPR12.B.14",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"a": "Jupiter",
+"b": "Moon",
+"relation": "a_aspects_b"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"spiritual",
+"other"
+],
+"effect": "Prayers, charity and remedies you perform bring you full relief from your troubles.",
+"effect_es": "Las oraciones, la caridad y los remedios que haces te dan alivio completo de tus problemas.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: the lagna, Moon or running-period lord receiving a favourable aspect from Jupiter or the 9th lord marks an excusable past mistake, so remedies work in full. Period-lord case not written.",
+"clarity": "inferred",
+"line": 1315
+},
+{
+"id": "KPR12.B.15",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"a": "Jupiter",
+"b": "lagna",
+"relation": "a_aspects_b"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"spiritual",
+"other"
+],
+"effect": "Prayers, charity and remedies you perform bring you full relief from your troubles.",
+"effect_es": "Las oraciones, la caridad y los remedios que haces te dan alivio completo de tus problemas.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: the lagna, Moon or running-period lord receiving a favourable aspect from Jupiter or the 9th lord marks an excusable past mistake, so remedies work in full. Period-lord case not written.",
+"clarity": "inferred",
+"line": 1315
+},
+{
+"id": "KPR12.B.16",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"a": "L9",
+"b": "Moon",
+"relation": "a_aspects_b"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"spiritual",
+"other"
+],
+"effect": "Prayers, charity and remedies you perform bring you full relief from your troubles.",
+"effect_es": "Las oraciones, la caridad y los remedios que haces te dan alivio completo de tus problemas.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: the lagna, Moon or running-period lord receiving a favourable aspect from Jupiter or the 9th lord marks an excusable past mistake, so remedies work in full. Period-lord case not written.",
+"clarity": "inferred",
+"line": 1315
+},
+{
+"id": "KPR12.B.17",
+"book": "kp_reader_1_2_basics",
+"requires": [
+{
+"a": "L9",
+"b": "lagna",
+"relation": "a_aspects_b"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"spiritual",
+"other"
+],
+"effect": "Prayers, charity and remedies you perform bring you full relief from your troubles.",
+"effect_es": "Las oraciones, la caridad y los remedios que haces te dan alivio completo de tus problemas.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: the lagna, Moon or running-period lord receiving a favourable aspect from Jupiter or the 9th lord marks an excusable past mistake, so remedies work in full. Period-lord case not written.",
+"clarity": "inferred",
+"line": 1315
+},
+{
+"id": "KPR34.A.42",
+"book": "kp_reader_3_4",
+"requires": [
+{
+"a": "Moon",
+"b": "Saturn",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"other"
+],
+"effect": "Important matters meet obstacles and delays, and often succeed only after more than one attempt.",
+"effect_es": "Los asuntos importantes encuentran obstáculos y demoras, y a menudo solo salen bien después de más de un intento.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book names this combination 'Punarpoo': Moon with Saturn in the same sign; the first favourable period then fails and the next one delivers.",
+"clarity": "clear",
+"line": 1816
+},
+{
+"id": "KPR34.A.49",
+"book": "kp_reader_3_4",
+"requires": [
+{
+"planet": "L3",
+"in_houses": [
+11
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"family"
+],
+"effect": "You gain or profit through a brother or sister, an agency, or writing.",
+"effect_es": "Ganas o te beneficias por medio de un hermano o hermana, una agencia o la escritura.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book gives the general case first, then Saturn (brother helps but is thrifty) and Mars (help is sudden, brother extravagant) as variants.",
+"clarity": "clear",
+"line": 1707
+},
+{
+"id": "KPR34.A.58",
+"book": "kp_reader_3_4",
+"requires": [
+{
+"a": "Moon",
+"b": "Jupiter",
+"relation": "conjunct"
+},
+{
+"planet": "Moon",
+"in_houses": [
+5
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"marriage"
+],
+"effect": "A marriage is promised for you.",
+"effect_es": "Un matrimonio está prometido para ti.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Frame of 'the 5th house' is not stated; read in the ordinary whole-sign frame.",
+"clarity": "inferred",
+"line": 2016
+},
+{
+"id": "KPR34.A.62",
+"book": "kp_reader_3_4",
+"requires": [
+{
+"a": "L6",
+"b": "L12",
+"relation": "exchange"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"family"
+],
+"effect": "Your younger brother, mother and father tend to benefit and prosper.",
+"effect_es": "Tus hermanos menores, tu madre y tu padre suelen beneficiarse y prosperar.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book says 'advantageous to' these relatives; read as exchange of signs between the lords of 6 and 12.",
+"clarity": "clear",
+"line": 2302
+},
+{
+"id": "KPR34.A.63",
+"book": "kp_reader_3_4",
+"requires": [
+{
+"a": "L8",
+"b": "L12",
+"relation": "exchange"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"family"
+],
+"effect": "Your mother, spouse and elder brother tend to benefit and prosper.",
+"effect_es": "Tu madre, tu pareja y tu hermano mayor suelen beneficiarse y prosperar.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read as exchange of signs between the lords of 8 and 12.",
+"clarity": "clear",
+"line": 2304
+},
+{
+"id": "KPR34.A.64",
+"book": "kp_reader_3_4",
+"requires": [
+{
+"a": "L6",
+"b": "L8",
+"relation": "exchange"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"children"
+],
+"effect": "Your children tend to benefit and prosper.",
+"effect_es": "Tus hijos suelen beneficiarse y prosperar.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Read as exchange of signs between the lords of 6 and 8. Book elsewhere says this exchange favours the native only when both lords are malefics and the lagna is Gemini, Virgo, Aries or Scorpio.",
+"clarity": "clear",
+"line": 2305
+},
+{
+"id": "KPR34.B.1",
+"book": "kp_reader_3_4",
+"requires": [
+{
+"planet": "L1",
+"not_in_houses": [
+6,
+8,
+12
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"health",
+"other"
+],
+"effect": "You are protected, and your health and standing tend to improve.",
+"effect_es": "Estás protegido, y tu salud y tu posición tienden a mejorar.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: the lord of the ascendant will invariably protect the native and improve health and position provided it is not in 6, 8 or 12.",
+"clarity": "clear",
+"line": 2633
+},
+{
+"id": "KPR5.22",
+"book": "kp_reader_5",
+"requires": [],
+"activation": [
+{
+"dasha": {
+"level": "md",
+"lords": [
+"Jupiter"
+]
+}
+}
+],
+"tone": "good",
+"topics": [
+"career",
+"money"
+],
+"effect": "If you run a business, this is a stretch to expand it and open new branches.",
+"effect_es": "Si diriges un negocio, esta es una etapa para expandirlo y abrir nuevas sucursales.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book conditions this on being a businessman, which the grammar cannot test; the condition is carried in the sentence. Book says it applies to anyone in business, in any sign.",
+"clarity": "inferred",
+"line": 8612
+},
+{
+"id": "KPR5.23",
+"book": "kp_reader_5",
+"requires": [],
+"activation": [
+{
+"dasha": {
+"level": "md",
+"lords": [
+"Saturn"
+]
+}
+}
+],
+"tone": "info",
+"topics": [
+"career",
+"money"
+],
+"effect": "If you run a business, this is a stretch to consolidate and concentrate rather than expand.",
+"effect_es": "Si diriges un negocio, esta es una etapa para consolidar y concentrarte en lugar de expandir.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Same conditioning on being in business as the previous rule.",
+"clarity": "inferred",
+"line": 8615
+},
+{
+"id": "KPR6.A.33",
+"book": "kp_reader_6_muhurat",
+"requires": [
+{
+"planet": "Moon",
+"in_houses": [
+6
+]
+}
+],
+"activation": [],
+"tone": "mixed",
+"topics": [
+"career"
+],
+"effect": "You are better suited to working for others than to running an independent business.",
+"effect_es": "Te conviene más trabajar para otros que llevar un negocio independiente.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 1519
+},
+{
+"id": "KPR6.A.34",
+"book": "kp_reader_6_muhurat",
+"requires": [
+{
+"planet": "Moon",
+"in_houses": [
+6
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"money",
+"fame"
+],
+"effect": "Money, popularity and reputation do not come easily to you.",
+"effect_es": "El dinero, la popularidad y la reputación no te llegan con facilidad.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 1520
+},
+{
+"id": "KPR6.A.35",
+"book": "kp_reader_6_muhurat",
+"requires": [
+{
+"planet": "Moon",
+"in_houses": [
+6
+]
+},
+{
+"chart": "female"
+}
+],
+"activation": [],
+"tone": "mixed",
+"topics": [
+"other"
+],
+"effect": "You may find it hard to keep household helpers for long.",
+"effect_es": "Puede costarte conservar por mucho tiempo a quienes te ayudan en casa.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 1522
+},
+{
+"id": "KPR6.A.36",
+"book": "kp_reader_6_muhurat",
+"requires": [
+{
+"planet": "Moon",
+"in_houses": [
+6
+]
+},
+{
+"a": "Mars",
+"b": "Moon",
+"relation": "a_aspects_b"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money",
+"career"
+],
+"effect": "You do well with small animals, dairy and poultry work.",
+"effect_es": "Te va bien con animales pequeños, lácteos y avicultura.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 1557
+},
+{
+"id": "KPR6.A.37",
+"book": "kp_reader_6_muhurat",
+"requires": [
+{
+"planet": "Moon",
+"in_houses": [
+6
+]
+},
+{
+"a": "Venus",
+"b": "Moon",
+"relation": "a_aspects_b"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money",
+"career"
+],
+"effect": "You do well with small animals, dairy and poultry work.",
+"effect_es": "Te va bien con animales pequeños, lácteos y avicultura.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 1557
+},
+{
+"id": "KPR6.A.38",
+"book": "kp_reader_6_muhurat",
+"requires": [
+{
+"planet": "Moon",
+"in_houses": [
+6
+]
+},
+{
+"a": "Jupiter",
+"b": "Moon",
+"relation": "a_aspects_b"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money",
+"career"
+],
+"effect": "You do well with small animals, dairy and poultry work.",
+"effect_es": "Te va bien con animales pequeños, lácteos y avicultura.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 1557
+},
+{
+"id": "KPR6.A.39",
+"book": "kp_reader_6_muhurat",
+"requires": [
+{
+"planet": "Moon",
+"in_houses": [
+6
+]
+},
+{
+"a": "Moon",
+"b": "Sun",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "You have a creative spirit and skill with machinery and stonework.",
+"effect_es": "Tienes espíritu creativo y habilidad con la maquinaria y el trabajo en piedra.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 1626
+},
+{
+"id": "KPR6.A.40",
+"book": "kp_reader_6_muhurat",
+"requires": [
+{
+"planet": "Moon",
+"in_houses": [
+6
+]
+},
+{
+"a": "Moon",
+"b": "Mars",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career",
+"money"
+],
+"effect": "You may earn by trading tools, farm implements, pottery or drinks.",
+"effect_es": "Puedes ganar comerciando herramientas, aperos agrícolas, cerámica o bebidas.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 1628
+},
+{
+"id": "KPR6.A.41",
+"book": "kp_reader_6_muhurat",
+"requires": [
+{
+"planet": "Moon",
+"in_houses": [
+6
+]
+},
+{
+"a": "Moon",
+"b": "Mars",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"family"
+],
+"effect": "Your relationship with your mother may be strained.",
+"effect_es": "Tu relación con tu madre puede ser tensa.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 1631
+},
+{
+"id": "KPR6.A.42",
+"book": "kp_reader_6_muhurat",
+"requires": [
+{
+"planet": "Moon",
+"in_houses": [
+6
+]
+},
+{
+"a": "Moon",
+"b": "Jupiter",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "You tend to win in legal disputes.",
+"effect_es": "Tiendes a ganar en disputas legales.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 1720
+},
+{
+"id": "KPR6.A.43",
+"book": "kp_reader_6_muhurat",
+"requires": [
+{
+"planet": "Moon",
+"in_houses": [
+6
+]
+},
+{
+"a": "Moon",
+"b": "Jupiter",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You can arrange credit or overdraft facilities easily.",
+"effect_es": "Puedes conseguir créditos o sobregiros con facilidad.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 1722
+},
+{
+"id": "KPR6.A.44",
+"book": "kp_reader_6_muhurat",
+"requires": [
+{
+"planet": "Moon",
+"in_houses": [
+6
+]
+},
+{
+"a": "Moon",
+"b": "Jupiter",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "You may work in finance, law, religious institutions or banking.",
+"effect_es": "Puedes trabajar en finanzas, derecho, instituciones religiosas o banca.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 1725
+},
+{
+"id": "KPR6.A.45",
+"book": "kp_reader_6_muhurat",
+"requires": [
+{
+"planet": "Moon",
+"in_houses": [
+6
+]
+},
+{
+"a": "Moon",
+"b": "Venus",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"money",
+"career"
+],
+"effect": "You may gain through arts, music, painting, tailoring, silk, perfume or weaving.",
+"effect_es": "Puedes ganar con las artes, la música, la pintura, la sastrería, la seda, los perfumes o el tejido.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 1727
+},
+{
+"id": "KPR6.A.46",
+"book": "kp_reader_6_muhurat",
+"requires": [
+{
+"planet": "Moon",
+"in_houses": [
+6
+]
+},
+{
+"a": "Moon",
+"b": "Venus",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"property",
+"money"
+],
+"effect": "You are likely to acquire vehicles or land.",
+"effect_es": "Es probable que adquieras vehículos o terrenos.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 1730
+},
+{
+"id": "KPR6.A.47",
+"book": "kp_reader_6_muhurat",
+"requires": [
+{
+"planet": "Moon",
+"in_houses": [
+6
+]
+},
+{
+"a": "Moon",
+"b": "Saturn",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"money"
+],
+"effect": "You may stay short of money and keep borrowing, with your debts growing.",
+"effect_es": "Puedes quedarte corto de dinero y seguir pidiendo prestado, mientras tus deudas crecen.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 1732
+},
+{
+"id": "KPR6.A.48",
+"book": "kp_reader_6_muhurat",
+"requires": [
+{
+"planet": "Moon",
+"in_houses": [
+6
+]
+},
+{
+"a": "Moon",
+"b": "Saturn",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "info",
+"topics": [
+"career"
+],
+"effect": "You may work in mining products, fuel or heavy manual labour.",
+"effect_es": "Puedes trabajar con productos mineros, combustibles o trabajo manual pesado.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 1737
+},
+{
+"id": "KPR6.A.49",
+"book": "kp_reader_6_muhurat",
+"requires": [
+{
+"planet": "Sun",
+"dignity": [
+"exalted"
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "You lead naturally and do best as a manager, director or instructor.",
+"effect_es": "Lideras con naturalidad y te desempeñas mejor como gerente, director o instructor.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book says 'Sun in Aries'; Aries is the exaltation sign, so exalted is used.",
+"clarity": "inferred",
+"line": 519
+},
+{
+"id": "KPR6.A.50",
+"book": "kp_reader_6_muhurat",
+"requires": [
+{
+"planet": "Sun",
+"dignity": [
+"exalted"
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "You have strong willpower and are not easily discouraged.",
+"effect_es": "Tienes una voluntad fuerte y no te desanimas con facilidad.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "inferred",
+"line": 523
+},
+{
+"id": "KPR6.A.51",
+"book": "kp_reader_6_muhurat",
+"requires": [
+{
+"planet": "Saturn",
+"dignity": [
+"debilitated"
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "You have a talent for planning, organising and managing.",
+"effect_es": "Tienes talento para planificar, organizar y dirigir.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book says 'Saturn in Aries'; Aries is Saturn's debilitation sign.",
+"clarity": "inferred",
+"line": 1020
+},
+{
+"id": "KPHO.48",
+"book": "kp_the_times_horary",
+"requires": [
+{
+"a": "Saturn",
+"b": "Jupiter",
+"relation": "a_aspects_b"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"money"
+],
+"effect": "In loans and recoveries of money you may get only about half of what you expect.",
+"effect_es": "En préstamos y recuperaciones de dinero puedes obtener solo la mitad de lo que esperas.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book's aspect is degree-based KP; ordinary sign aspect used here. Applies to questions of borrowing or recovery.",
+"clarity": "inferred",
+"line": 4364
+},
+{
+"id": "KPHO.49",
+"book": "kp_the_times_horary",
+"requires": [
+{
+"a": "Jupiter",
+"b": "Saturn",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"money"
+],
+"effect": "In loans and recoveries of money you may get only about half of what you expect.",
+"effect_es": "En préstamos y recuperaciones de dinero puedes obtener solo la mitad de lo que esperas.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Same-sign test replaces the book's degree-based association.",
+"clarity": "inferred",
+"line": 4367
+},
+{
+"id": "KPHO.50",
+"book": "kp_the_times_horary",
+"requires": [
+{
+"a": "Jupiter",
+"b": "Rahu",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"money"
+],
+"effect": "In loans and recoveries of money you may get only about half of what you expect.",
+"effect_es": "En préstamos y recuperaciones de dinero puedes obtener solo la mitad de lo que esperas.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "inferred",
+"line": 4367
+},
+{
+"id": "KPHO.69",
+"book": "kp_the_times_horary",
+"requires": [],
+"activation": [
+{
+"dasha": {
+"level": "md",
+"lords": [
+"Saturn"
+]
+}
+},
+{
+"dasha": {
+"level": "ad",
+"lords": [
+"Ketu"
+]
+}
+}
+],
+"tone": "bad",
+"topics": [
+"other"
+],
+"effect": "This is a hard period that tends to bring many undesirable results.",
+"effect_es": "Este es un periodo difícil que tiende a traer muchos resultados indeseables.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Author says it applies to organisations, countries and natal charts.",
+"clarity": "clear",
+"line": 6355
+},
+{
+"id": "KPHO.70",
+"book": "kp_the_times_horary",
+"requires": [],
+"activation": [
+{
+"dasha": {
+"level": "md",
+"lords": [
+"Ketu"
+]
+}
+},
+{
+"dasha": {
+"level": "ad",
+"lords": [
+"Saturn"
+]
+}
+}
+],
+"tone": "bad",
+"topics": [
+"other"
+],
+"effect": "This is a hard period that tends to bring many undesirable results.",
+"effect_es": "Este es un periodo difícil que tiende a traer muchos resultados indeseables.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Author says it applies to organisations, countries and natal charts.",
+"clarity": "clear",
+"line": 6355
+},
+{
+"id": "KPTA.1",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L1",
+"in_houses": [
+2,
+5,
+7,
+11
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"marriage"
+],
+"effect": "Marriage is promised in your life.",
+"effect_es": "El matrimonio está prometido en tu vida.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book counts a lord as related to a house by placement or aspect (also kendra/trikona from it); only placement is encoded.",
+"clarity": "inferred",
+"line": 8129
+},
+{
+"id": "KPTA.2",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L7",
+"in_houses": [
+2,
+5,
+7,
+11
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"marriage"
+],
+"effect": "Marriage is promised in your life.",
+"effect_es": "El matrimonio está prometido en tu vida.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book counts a lord as related to a house by placement or aspect (also kendra/trikona from it); only placement is encoded.",
+"clarity": "inferred",
+"line": 8132
+},
+{
+"id": "KPTA.3",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "Jupiter",
+"in_houses": [
+2,
+5,
+7,
+11
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"marriage"
+],
+"effect": "Marriage is promised in your life.",
+"effect_es": "El matrimonio está prometido en tu vida.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book counts a lord as related to a house by placement or aspect (also kendra/trikona from it); only placement is encoded.",
+"clarity": "inferred",
+"line": 8135
+},
+{
+"id": "KPTA.4",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+2,
+5,
+7,
+11
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"marriage"
+],
+"effect": "Marriage is promised in your life.",
+"effect_es": "El matrimonio está prometido en tu vida.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book counts a lord as related to a house by placement or aspect (also kendra/trikona from it); only placement is encoded.",
+"clarity": "inferred",
+"line": 8135
+},
+{
+"id": "KPTA.5",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "Moon",
+"in_houses": [
+2,
+5,
+7,
+11
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"marriage"
+],
+"effect": "Marriage is promised in your life.",
+"effect_es": "El matrimonio está prometido en tu vida.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book counts a lord as related to a house by placement or aspect (also kendra/trikona from it); only placement is encoded.",
+"clarity": "inferred",
+"line": 8135
+},
+{
+"id": "KPTA.6",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L7",
+"in_houses": [
+5,
+7,
+11
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"marriage"
+],
+"effect": "You are likely to marry at a normal age, neither early nor unusually late.",
+"effect_es": "Es probable que te cases a una edad normal, ni temprano ni inusualmente tarde.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book says 'association with' 5, 7, 11; placement encoded. Overlaps with early-marriage rule on house 7 (book contradiction, ledger).",
+"clarity": "inferred",
+"line": 8593
+},
+{
+"id": "KPTA.7",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L7",
+"in_houses": [
+6,
+12
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "Your marriage may be delayed a great deal, to around age 35 or later.",
+"effect_es": "Tu matrimonio podría retrasarse mucho, hasta alrededor de los 35 años o más.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Overlaps with the 28-35 rule on house 6 (book contradiction).",
+"clarity": "inferred",
+"line": 8594
+},
+{
+"id": "KPTA.8",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L7",
+"in_houses": [
+3,
+7
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"marriage"
+],
+"effect": "You are likely to marry early.",
+"effect_es": "Es probable que te cases joven.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Overlaps with the normal-age rule on house 7 (book contradiction).",
+"clarity": "inferred",
+"line": 8596
+},
+{
+"id": "KPTA.9",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L7",
+"in_houses": [
+1,
+4,
+6,
+8,
+9,
+10
+]
+}
+],
+"activation": [],
+"tone": "info",
+"topics": [
+"marriage"
+],
+"effect": "You are likely to marry between about age 28 and 35.",
+"effect_es": "Es probable que te cases entre los 28 y los 35 años aproximadamente.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "inferred",
+"line": 8598
+},
+{
+"id": "KPTA.10",
+"book": "kp_true_astrology",
+"requires": [
+{
+"a": "L2",
+"b": "L11",
+"relation": "exchange"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"marriage"
+],
+"effect": "You are likely to marry between about age 16 and 25.",
+"effect_es": "Es probable que te cases entre los 16 y los 25 años aproximadamente.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 8605
+},
+{
+"id": "KPTA.11",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+2
+]
+},
+{
+"planet": "L7",
+"in_houses": [
+11
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"marriage"
+],
+"effect": "You are likely to marry between about age 23 and 28.",
+"effect_es": "Es probable que te cases entre los 23 y los 28 años aproximadamente.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 8608
+},
+{
+"id": "KPTA.12",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+7
+]
+},
+{
+"planet": "Moon",
+"in_houses": [
+7
+]
+},
+{
+"planet": "Saturn",
+"in_houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "Marriage is unlikely before about age 30.",
+"effect_es": "Es poco probable que te cases antes de los 30 años aproximadamente.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 8611
+},
+{
+"id": "KPTA.15",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L7",
+"in_houses": [
+4,
+6,
+10,
+12
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "Your marriage is likely to come later than usual.",
+"effect_es": "Es probable que tu matrimonio llegue más tarde de lo habitual.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book adds 'or weak'; strength is not encoded.",
+"clarity": "inferred",
+"line": 8148
+},
+{
+"id": "KPTA.16",
+"book": "kp_true_astrology",
+"requires": [
+{
+"a": "L7",
+"b": "L4",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "Your marriage is likely to come later than usual.",
+"effect_es": "Es probable que tu matrimonio llegue más tarde de lo habitual.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "'These lords' read as the lords of 4, 6, 10, 12.",
+"clarity": "inferred",
+"line": 8150
+},
+{
+"id": "KPTA.17",
+"book": "kp_true_astrology",
+"requires": [
+{
+"a": "L7",
+"b": "L6",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "Your marriage is likely to come later than usual.",
+"effect_es": "Es probable que tu matrimonio llegue más tarde de lo habitual.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "'These lords' read as the lords of 4, 6, 10, 12.",
+"clarity": "inferred",
+"line": 8150
+},
+{
+"id": "KPTA.18",
+"book": "kp_true_astrology",
+"requires": [
+{
+"a": "L7",
+"b": "L10",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "Your marriage is likely to come later than usual.",
+"effect_es": "Es probable que tu matrimonio llegue más tarde de lo habitual.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "'These lords' read as the lords of 4, 6, 10, 12.",
+"clarity": "inferred",
+"line": 8150
+},
+{
+"id": "KPTA.19",
+"book": "kp_true_astrology",
+"requires": [
+{
+"a": "L7",
+"b": "L12",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "Your marriage is likely to come later than usual.",
+"effect_es": "Es probable que tu matrimonio llegue más tarde de lo habitual.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "'These lords' read as the lords of 4, 6, 10, 12.",
+"clarity": "inferred",
+"line": 8150
+},
+{
+"id": "KPTA.20",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L6",
+"in_houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "Your marriage is likely to come later than usual.",
+"effect_es": "Es probable que tu matrimonio llegue más tarde de lo habitual.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Affliction encoded as placement only.",
+"clarity": "inferred",
+"line": 8151
+},
+{
+"id": "KPTA.21",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L12",
+"in_houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "Your marriage is likely to come later than usual.",
+"effect_es": "Es probable que tu matrimonio llegue más tarde de lo habitual.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Affliction encoded as placement only.",
+"clarity": "inferred",
+"line": 8151
+},
+{
+"id": "KPTA.22",
+"book": "kp_true_astrology",
+"requires": [
+{
+"house": 7,
+"holds_any_malefic": true
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "Your marriage is likely to come later than usual.",
+"effect_es": "Es probable que tu matrimonio llegue más tarde de lo habitual.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "inferred",
+"line": 8151
+},
+{
+"id": "KPTA.23",
+"book": "kp_true_astrology",
+"requires": [
+{
+"a": "L6",
+"b": "L7",
+"relation": "a_aspects_b"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "Your marriage is likely to come later than usual.",
+"effect_es": "Es probable que tu matrimonio llegue más tarde de lo habitual.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 8155
+},
+{
+"id": "KPTA.24",
+"book": "kp_true_astrology",
+"requires": [
+{
+"a": "L12",
+"b": "L7",
+"relation": "a_aspects_b"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "Your marriage is likely to come later than usual.",
+"effect_es": "Es probable que tu matrimonio llegue más tarde de lo habitual.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 8155
+},
+{
+"id": "KPTA.25",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "Saturn",
+"in_houses": [
+1,
+3,
+5,
+7,
+10
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "Your marriage is likely to come later than usual.",
+"effect_es": "Es probable que tu matrimonio llegue más tarde de lo habitual.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 8156
+},
+{
+"id": "KPTA.26",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "Saturn",
+"in_houses_from": "Moon",
+"houses": [
+1,
+3,
+5,
+7,
+10
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "Your marriage is likely to come later than usual.",
+"effect_es": "Es probable que tu matrimonio llegue más tarde de lo habitual.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 8156
+},
+{
+"id": "KPTA.27",
+"book": "kp_true_astrology",
+"requires": [
+{
+"a": "Moon",
+"b": "Saturn",
+"relation": "conjunct"
+},
+{
+"planet": "Moon",
+"in_houses": [
+1,
+2,
+11
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "Your marriage is likely to come later than usual.",
+"effect_es": "Es probable que tu matrimonio llegue más tarde de lo habitual.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "inferred",
+"line": 8159
+},
+{
+"id": "KPTA.28",
+"book": "kp_true_astrology",
+"requires": [
+{
+"a": "Venus",
+"b": "Mars",
+"relation": "conjunct"
+},
+{
+"planet": "Venus",
+"in_houses": [
+5,
+7,
+9
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "Your marriage is likely to come later than usual.",
+"effect_es": "Es probable que tu matrimonio llegue más tarde de lo habitual.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: Venus afflicted 'especially by Mars in 5, 7 or 9'; read as conjunction with Venus in those places.",
+"clarity": "inferred",
+"line": 8161
+},
+{
+"id": "KPTA.29",
+"book": "kp_true_astrology",
+"requires": [
+{
+"a": "Saturn",
+"b": "Venus",
+"relation": "a_aspects_b"
+},
+{
+"a": "Saturn",
+"b": "L7",
+"relation": "a_aspects_b"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "Your marriage is likely to come later than usual.",
+"effect_es": "Es probable que tu matrimonio llegue más tarde de lo habitual.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 8162
+},
+{
+"id": "KPTA.30",
+"book": "kp_true_astrology",
+"requires": [
+{
+"a": "Jupiter",
+"b": "Moon",
+"relation": "kendra_from_each_other"
+},
+{
+"a": "Jupiter",
+"b": "Venus",
+"relation": "kendra_from_each_other"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "Your marriage is likely to come later than usual.",
+"effect_es": "Es probable que tu matrimonio llegue más tarde de lo habitual.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: Jupiter in a kendra or square to Moon and Venus.",
+"clarity": "inferred",
+"line": 8164
+},
+{
+"id": "KPTA.31",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L7",
+"not_in_houses": [
+4,
+6,
+10,
+12
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"marriage"
+],
+"effect": "Your married life is likely to be steady and harmonious.",
+"effect_es": "Tu vida matrimonial probablemente será estable y armoniosa.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "One of six listed conditions; the others use 'influence' and 'good relationship', which cannot be written.",
+"clarity": "inferred",
+"line": 8273
+},
+{
+"id": "KPTA.32",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L7",
+"in_houses": [
+2,
+4,
+6,
+10,
+12
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "Your married life may carry friction and dissatisfaction.",
+"effect_es": "Tu vida matrimonial puede traer fricciones e insatisfacción.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 8296
+},
+{
+"id": "KPTA.33",
+"book": "kp_true_astrology",
+"requires": [
+{
+"a": "L7",
+"b": "L4",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "Your married life may carry friction and dissatisfaction.",
+"effect_es": "Tu vida matrimonial puede traer fricciones e insatisfacción.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "'Malefic influence' encoded as conjunction.",
+"clarity": "inferred",
+"line": 8293
+},
+{
+"id": "KPTA.34",
+"book": "kp_true_astrology",
+"requires": [
+{
+"a": "L4",
+"b": "L7",
+"relation": "a_aspects_b"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "Your married life may carry friction and dissatisfaction.",
+"effect_es": "Tu vida matrimonial puede traer fricciones e insatisfacción.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "'Malefic influence' encoded as aspect.",
+"clarity": "inferred",
+"line": 8293
+},
+{
+"id": "KPTA.35",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L4",
+"in_houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "Your married life may carry friction and dissatisfaction.",
+"effect_es": "Tu vida matrimonial puede traer fricciones e insatisfacción.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "'Malefic influence' on the 7th encoded as placement in it.",
+"clarity": "inferred",
+"line": 8290
+},
+{
+"id": "KPTA.36",
+"book": "kp_true_astrology",
+"requires": [
+{
+"a": "L7",
+"b": "L6",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "Your married life may carry friction and dissatisfaction.",
+"effect_es": "Tu vida matrimonial puede traer fricciones e insatisfacción.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "'Malefic influence' encoded as conjunction.",
+"clarity": "inferred",
+"line": 8293
+},
+{
+"id": "KPTA.37",
+"book": "kp_true_astrology",
+"requires": [
+{
+"a": "L6",
+"b": "L7",
+"relation": "a_aspects_b"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "Your married life may carry friction and dissatisfaction.",
+"effect_es": "Tu vida matrimonial puede traer fricciones e insatisfacción.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "'Malefic influence' encoded as aspect.",
+"clarity": "inferred",
+"line": 8293
+},
+{
+"id": "KPTA.38",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L6",
+"in_houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "Your married life may carry friction and dissatisfaction.",
+"effect_es": "Tu vida matrimonial puede traer fricciones e insatisfacción.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "'Malefic influence' on the 7th encoded as placement in it.",
+"clarity": "inferred",
+"line": 8290
+},
+{
+"id": "KPTA.39",
+"book": "kp_true_astrology",
+"requires": [
+{
+"a": "L7",
+"b": "L10",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "Your married life may carry friction and dissatisfaction.",
+"effect_es": "Tu vida matrimonial puede traer fricciones e insatisfacción.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "'Malefic influence' encoded as conjunction.",
+"clarity": "inferred",
+"line": 8293
+},
+{
+"id": "KPTA.40",
+"book": "kp_true_astrology",
+"requires": [
+{
+"a": "L10",
+"b": "L7",
+"relation": "a_aspects_b"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "Your married life may carry friction and dissatisfaction.",
+"effect_es": "Tu vida matrimonial puede traer fricciones e insatisfacción.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "'Malefic influence' encoded as aspect.",
+"clarity": "inferred",
+"line": 8293
+},
+{
+"id": "KPTA.42",
+"book": "kp_true_astrology",
+"requires": [
+{
+"a": "L7",
+"b": "L12",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "Your married life may carry friction and dissatisfaction.",
+"effect_es": "Tu vida matrimonial puede traer fricciones e insatisfacción.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "'Malefic influence' encoded as conjunction.",
+"clarity": "inferred",
+"line": 8293
+},
+{
+"id": "KPTA.43",
+"book": "kp_true_astrology",
+"requires": [
+{
+"a": "L12",
+"b": "L7",
+"relation": "a_aspects_b"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "Your married life may carry friction and dissatisfaction.",
+"effect_es": "Tu vida matrimonial puede traer fricciones e insatisfacción.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "'Malefic influence' encoded as aspect.",
+"clarity": "inferred",
+"line": 8293
+},
+{
+"id": "KPTA.44",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L12",
+"in_houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "Your married life may carry friction and dissatisfaction.",
+"effect_es": "Tu vida matrimonial puede traer fricciones e insatisfacción.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "'Malefic influence' on the 7th encoded as placement in it.",
+"clarity": "inferred",
+"line": 8290
+},
+{
+"id": "KPTA.45",
+"book": "kp_true_astrology",
+"requires": [
+{
+"a": "Saturn",
+"b": "L7",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "Your married life may carry friction and dissatisfaction.",
+"effect_es": "Tu vida matrimonial puede traer fricciones e insatisfacción.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "inferred",
+"line": 8298
+},
+{
+"id": "KPTA.46",
+"book": "kp_true_astrology",
+"requires": [
+{
+"a": "Mars",
+"b": "L7",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "Your married life may carry friction and dissatisfaction.",
+"effect_es": "Tu vida matrimonial puede traer fricciones e insatisfacción.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "inferred",
+"line": 8298
+},
+{
+"id": "KPTA.47",
+"book": "kp_true_astrology",
+"requires": [
+{
+"a": "Saturn",
+"b": "L7",
+"relation": "a_aspects_b"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "Your married life may carry friction and dissatisfaction.",
+"effect_es": "Tu vida matrimonial puede traer fricciones e insatisfacción.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "inferred",
+"line": 8298
+},
+{
+"id": "KPTA.48",
+"book": "kp_true_astrology",
+"requires": [
+{
+"a": "Mars",
+"b": "L7",
+"relation": "a_aspects_b"
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "Your married life may carry friction and dissatisfaction.",
+"effect_es": "Tu vida matrimonial puede traer fricciones e insatisfacción.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "inferred",
+"line": 8298
+},
+{
+"id": "KPTA.49",
+"book": "kp_true_astrology",
+"requires": [
+{
+"a": "Moon",
+"b": "Venus",
+"relation": "conjunct"
+},
+{
+"planet": "Moon",
+"in_houses": [
+4,
+6,
+10,
+12
+]
+}
+],
+"activation": [],
+"tone": "mixed",
+"topics": [
+"marriage"
+],
+"effect": "Your married life may meet some strain.",
+"effect_es": "Tu vida matrimonial puede enfrentar algo de tensión.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book hedges: conjunction counts only if the planets are also afflicted; affliction not encoded.",
+"clarity": "inferred",
+"line": 8312
+},
+{
+"id": "KPTA.50",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L7",
+"in_houses": [
+1
+]
+}
+],
+"activation": [],
+"tone": "mixed",
+"topics": [
+"marriage"
+],
+"effect": "Your partner tends to take the lead and can dominate the relationship.",
+"effect_es": "Tu pareja tiende a llevar la iniciativa y puede dominar la relación.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 8528
+},
+{
+"id": "KPTA.51",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L7",
+"in_houses": [
+2
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"marriage",
+"money"
+],
+"effect": "You may find financial success after marriage.",
+"effect_es": "Puedes lograr éxito económico después de casarte.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 8535
+},
+{
+"id": "KPTA.52",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L7",
+"in_houses": [
+3
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"marriage"
+],
+"effect": "You gain strength and confidence after marriage.",
+"effect_es": "Ganas fuerza y confianza después de casarte.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 8537
+},
+{
+"id": "KPTA.53",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L7",
+"in_houses": [
+3
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"marriage"
+],
+"effect": "Marriage may come early for you.",
+"effect_es": "El matrimonio puede llegar pronto para ti.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 8538
+},
+{
+"id": "KPTA.54",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L7",
+"in_houses": [
+4
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "Your partner may reach a dignified standing in their own profession.",
+"effect_es": "Tu pareja puede alcanzar una posición digna en su propia profesión.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 8540
+},
+{
+"id": "KPTA.56",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L7",
+"in_houses": [
+5
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"marriage"
+],
+"effect": "You are likely to have a love marriage.",
+"effect_es": "Es probable que tengas un matrimonio por amor.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 8544
+},
+{
+"id": "KPTA.58",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L7",
+"in_houses": [
+6
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "You may get the better of your rivals after marriage.",
+"effect_es": "Puedes salir mejor parado frente a tus rivales después de casarte.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 8551
+},
+{
+"id": "KPTA.59",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L7",
+"in_houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"marriage"
+],
+"effect": "Your marriage tends to be successful.",
+"effect_es": "Tu matrimonio tiende a ser exitoso.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 8554
+},
+{
+"id": "KPTA.60",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L7",
+"in_houses": [
+8
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "Your marriage is likely to be delayed.",
+"effect_es": "Es probable que tu matrimonio se retrase.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 8560
+},
+{
+"id": "KPTA.61",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L7",
+"in_houses": [
+9
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"marriage",
+"spiritual"
+],
+"effect": "You may support religious or spiritual activities after marriage.",
+"effect_es": "Puedes apoyar actividades religiosas o espirituales después de casarte.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 8564
+},
+{
+"id": "KPTA.62",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L7",
+"in_houses": [
+9
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"marriage",
+"foreign",
+"career"
+],
+"effect": "Your business may do well in faraway places after marriage.",
+"effect_es": "Tu negocio puede irle bien en lugares lejanos después de casarte.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 8565
+},
+{
+"id": "KPTA.63",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L7",
+"in_houses": [
+10
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"marriage",
+"fame"
+],
+"effect": "You may gain status through your partner.",
+"effect_es": "Puedes ganar posición social gracias a tu pareja.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 8568
+},
+{
+"id": "KPTA.64",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L7",
+"in_houses": [
+11
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"marriage",
+"money"
+],
+"effect": "You may gain through your partner.",
+"effect_es": "Puedes beneficiarte gracias a tu pareja.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 8569
+},
+{
+"id": "KPTA.65",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L7",
+"in_houses": [
+12
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage",
+"money"
+],
+"effect": "Your partner may bring extra expenses into your life.",
+"effect_es": "Tu pareja puede traer gastos adicionales a tu vida.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 8571
+},
+{
+"id": "KPTA.66",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L7",
+"in_houses": [
+12
+]
+}
+],
+"activation": [],
+"tone": "info",
+"topics": [
+"marriage"
+],
+"effect": "Your marriage may be secret or unconventional.",
+"effect_es": "Tu matrimonio puede ser secreto o poco convencional.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 8572
+},
+{
+"id": "KPTA.75",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "Moon",
+"in_houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "mixed",
+"topics": [
+"marriage"
+],
+"effect": "Your partner is sensitive and impressionable, and their moods may shift.",
+"effect_es": "Tu pareja es sensible e impresionable, y su estado de ánimo puede cambiar.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 8463
+},
+{
+"id": "KPTA.76",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "Mars",
+"in_houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"marriage"
+],
+"effect": "Partnership tends to bring friction into your life.",
+"effect_es": "La pareja tiende a traer fricciones a tu vida.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 8471
+},
+{
+"id": "KPTA.77",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "Mercury",
+"in_houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "mixed",
+"topics": [
+"marriage"
+],
+"effect": "Your partner has a sharp mind but can be hard to read.",
+"effect_es": "Tu pareja tiene una mente aguda pero puede ser difícil de entender.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 8479
+},
+{
+"id": "KPTA.78",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "Jupiter",
+"in_houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"marriage"
+],
+"effect": "Your partner is generous, optimistic and healthy.",
+"effect_es": "Tu pareja es generosa, optimista y saludable.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "clear",
+"line": 8487
+},
+{
+"id": "KPTA.80",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"marriage"
+],
+"effect": "Your partner is attractive, peace-loving and artistic.",
+"effect_es": "Tu pareja es atractiva, pacífica y artística.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book adds that an afflicted Venus brings immorality of the partner; dropped as character slur.",
+"clarity": "clear",
+"line": 8497
+},
+{
+"id": "KPTA.81",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "Rahu",
+"in_houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "mixed",
+"topics": [
+"marriage"
+],
+"effect": "Partnership may involve separation or an unconventional arrangement.",
+"effect_es": "La pareja puede implicar separación o un arreglo poco convencional.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: behaves like Saturn; true effect depends on the planet it represents (not encoded).",
+"clarity": "inferred",
+"line": 8503
+},
+{
+"id": "KPTA.82",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "Ketu",
+"in_houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "info",
+"topics": [
+"marriage"
+],
+"effect": "Your marriage may be unconventional.",
+"effect_es": "Tu matrimonio puede ser poco convencional.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: behaves like Mars; true effect depends on the planet it represents (not encoded).",
+"clarity": "inferred",
+"line": 8510
+},
+{
+"id": "KPTA.84",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "Saturn",
+"in_houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "info",
+"topics": [
+"marriage"
+],
+"effect": "Your partner is older than you, or looks older than their age.",
+"effect_es": "Tu pareja es mayor que tú, o parece mayor de lo que es.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book says the 'influence' of Saturn on the 7th; placement encoded.",
+"clarity": "inferred",
+"line": 8385
+},
+{
+"id": "KPTA.85",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "Moon",
+"in_houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "info",
+"topics": [
+"marriage"
+],
+"effect": "Your partner is likely to be young, with a small age gap between you.",
+"effect_es": "Es probable que tu pareja sea joven, con poca diferencia de edad contigo.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book says the 'influence' of these planets on the 7th; placement encoded.",
+"clarity": "inferred",
+"line": 8387
+},
+{
+"id": "KPTA.86",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "Mars",
+"in_houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "info",
+"topics": [
+"marriage"
+],
+"effect": "Your partner is likely to be young, with a small age gap between you.",
+"effect_es": "Es probable que tu pareja sea joven, con poca diferencia de edad contigo.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book says the 'influence' of these planets on the 7th; placement encoded.",
+"clarity": "inferred",
+"line": 8387
+},
+{
+"id": "KPTA.87",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "Mercury",
+"in_houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "info",
+"topics": [
+"marriage"
+],
+"effect": "Your partner is likely to be young, with a small age gap between you.",
+"effect_es": "Es probable que tu pareja sea joven, con poca diferencia de edad contigo.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book says the 'influence' of these planets on the 7th; placement encoded.",
+"clarity": "inferred",
+"line": 8387
+},
+{
+"id": "KPTA.88",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L10",
+"in_houses": [
+4
+]
+}
+],
+"activation": [],
+"tone": "info",
+"topics": [
+"marriage"
+],
+"effect": "Your partner may come from your own locality or town.",
+"effect_es": "Tu pareja puede ser de tu misma localidad o ciudad.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: locality judged from the 10th lord's strong link; placement encoded.",
+"clarity": "inferred",
+"line": 8405
+},
+{
+"id": "KPTA.89",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L10",
+"in_houses": [
+9
+]
+}
+],
+"activation": [],
+"tone": "info",
+"topics": [
+"marriage",
+"foreign"
+],
+"effect": "Your partner may come from a faraway place.",
+"effect_es": "Tu pareja puede venir de un lugar lejano.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: locality judged from the 10th lord's strong link; placement encoded.",
+"clarity": "inferred",
+"line": 8405
+},
+{
+"id": "KPTA.90",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L10",
+"in_houses": [
+12
+]
+}
+],
+"activation": [],
+"tone": "info",
+"topics": [
+"marriage",
+"foreign"
+],
+"effect": "Your partner may come from overseas.",
+"effect_es": "Tu pareja puede venir del extranjero.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: locality judged from the 10th lord's strong link; placement encoded.",
+"clarity": "inferred",
+"line": 8405
+},
+{
+"id": "KPTA.91",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L10",
+"in_houses": [
+2
+]
+}
+],
+"activation": [],
+"tone": "info",
+"topics": [
+"marriage"
+],
+"effect": "Your partner may come from within your family circle.",
+"effect_es": "Tu pareja puede venir de tu círculo familiar.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: locality judged from the 10th lord's strong link; placement encoded.",
+"clarity": "inferred",
+"line": 8405
+},
+{
+"id": "KPTA.92",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L1",
+"in_houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "info",
+"topics": [
+"marriage"
+],
+"effect": "You are likely to arrange your marriage yourself or with an associate.",
+"effect_es": "Es probable que tú mismo organices tu matrimonio o lo hagas con un socio.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: 'planet and its houses of lordship that maintains a strong connection with the 7th'; encoded as that house's lord standing in the 7th.",
+"clarity": "inferred",
+"line": 8421
+},
+{
+"id": "KPTA.93",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L2",
+"in_houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "info",
+"topics": [
+"marriage"
+],
+"effect": "Your family may arrange your marriage, or you may marry within the family circle.",
+"effect_es": "Tu familia puede organizar tu matrimonio, o puedes casarte dentro del círculo familiar.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: 'planet and its houses of lordship that maintains a strong connection with the 7th'; encoded as that house's lord standing in the 7th.",
+"clarity": "inferred",
+"line": 8422
+},
+{
+"id": "KPTA.94",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L3",
+"in_houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "info",
+"topics": [
+"marriage"
+],
+"effect": "Neighbours, correspondence or someone from nearby may bring your marriage about.",
+"effect_es": "Tus vecinos, la correspondencia o alguien cercano pueden propiciar tu matrimonio.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: 'planet and its houses of lordship that maintains a strong connection with the 7th'; encoded as that house's lord standing in the 7th.",
+"clarity": "inferred",
+"line": 8423
+},
+{
+"id": "KPTA.95",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L4",
+"in_houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "info",
+"topics": [
+"marriage"
+],
+"effect": "Your mother may help arrange your marriage, or you may marry a close relative.",
+"effect_es": "Tu madre puede ayudar a organizar tu matrimonio, o puedes casarte con un pariente cercano.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: 'planet and its houses of lordship that maintains a strong connection with the 7th'; encoded as that house's lord standing in the 7th.",
+"clarity": "inferred",
+"line": 8424
+},
+{
+"id": "KPTA.96",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L5",
+"in_houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "info",
+"topics": [
+"marriage"
+],
+"effect": "Your marriage may be a love marriage, possibly to an artist or sportsperson.",
+"effect_es": "Tu matrimonio puede ser por amor, posiblemente con un artista o deportista.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: 'planet and its houses of lordship that maintains a strong connection with the 7th'; encoded as that house's lord standing in the 7th.",
+"clarity": "inferred",
+"line": 8425
+},
+{
+"id": "KPTA.97",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L6",
+"in_houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "info",
+"topics": [
+"marriage"
+],
+"effect": "You may marry a colleague or someone who works with or for you, or through maternal relatives.",
+"effect_es": "Puedes casarte con un colega o con alguien que trabaja contigo o para ti, o por medio de familiares maternos.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: 'planet and its houses of lordship that maintains a strong connection with the 7th'; encoded as that house's lord standing in the 7th.",
+"clarity": "inferred",
+"line": 8426
+},
+{
+"id": "KPTA.98",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L8",
+"in_houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "info",
+"topics": [
+"marriage"
+],
+"effect": "Your marriage may be sudden and unexpected.",
+"effect_es": "Tu matrimonio puede ser repentino e inesperado.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: 'planet and its houses of lordship that maintains a strong connection with the 7th'; encoded as that house's lord standing in the 7th.",
+"clarity": "inferred",
+"line": 8428
+},
+{
+"id": "KPTA.99",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L9",
+"in_houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "info",
+"topics": [
+"marriage"
+],
+"effect": "Your marriage may come through your father, a teacher or new friends, possibly with someone unknown to you.",
+"effect_es": "Tu matrimonio puede llegar por tu padre, un maestro o nuevas amistades, posiblemente con alguien que no conocías.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: 'planet and its houses of lordship that maintains a strong connection with the 7th'; encoded as that house's lord standing in the 7th.",
+"clarity": "inferred",
+"line": 8429
+},
+{
+"id": "KPTA.100",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L10",
+"in_houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "info",
+"topics": [
+"marriage"
+],
+"effect": "You may marry someone you meet through work.",
+"effect_es": "Puedes casarte con alguien que conozcas en el trabajo.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: 'planet and its houses of lordship that maintains a strong connection with the 7th'; encoded as that house's lord standing in the 7th.",
+"clarity": "inferred",
+"line": 8430
+},
+{
+"id": "KPTA.101",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L11",
+"in_houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "info",
+"topics": [
+"marriage"
+],
+"effect": "You may marry a friend or someone from a friend's family.",
+"effect_es": "Puedes casarte con un amigo o alguien de la familia de un amigo.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: 'planet and its houses of lordship that maintains a strong connection with the 7th'; encoded as that house's lord standing in the 7th.",
+"clarity": "inferred",
+"line": 8431
+},
+{
+"id": "KPTA.102",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L12",
+"in_houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "info",
+"topics": [
+"marriage"
+],
+"effect": "Your marriage may be secret, or take place far away or overseas.",
+"effect_es": "Tu matrimonio puede ser secreto, o celebrarse lejos o en el extranjero.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: 'planet and its houses of lordship that maintains a strong connection with the 7th'; encoded as that house's lord standing in the 7th.",
+"clarity": "inferred",
+"line": 8432
+},
+{
+"id": "KPTA.104",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L7",
+"in_houses": [
+2,
+5,
+7,
+11
+]
+}
+],
+"activation": [
+{
+"dasha": {
+"level": "ad",
+"lords": [
+"L7"
+]
+}
+}
+],
+"tone": "good",
+"topics": [
+"marriage"
+],
+"effect": "You are likely to marry during the sub-period of the planet that rules your partnership.",
+"effect_es": "Es probable que te cases durante el subperiodo del planeta que rige tu vida de pareja.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book allows the sub-period lord to be the 7th lord placed in 2, 5, 7 or 11; the other options (planet in or aspecting the 7th) are not encoded. Transit must agree.",
+"clarity": "clear",
+"line": 8624
+},
+{
+"id": "KPTA.105",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L1",
+"in_houses": [
+10
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "You may be drawn to counselling, psychology, fitness, teaching about the mind, or running your own venture or advisory practice.",
+"effect_es": "Puedes sentirte atraído por la consejería, la psicología, el acondicionamiento físico, la enseñanza sobre la mente, o por dirigir tu propio negocio o consultoría.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: lord of the house 'connected with' the 10th; placement in the 10th encoded (aspect and other links not encoded). 'Brothels' and similar entries omitted.",
+"clarity": "inferred",
+"line": 3227
+},
+{
+"id": "KPTA.106",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L2",
+"in_houses": [
+10
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "You may do well in finance, banking, accounting, economics or dealing in metals and jewellery.",
+"effect_es": "Puedes destacar en finanzas, banca, contabilidad, economía o en el comercio de metales y joyería.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: lord of the house 'connected with' the 10th; placement in the 10th encoded (aspect and other links not encoded). 'Brothels' and similar entries omitted.",
+"clarity": "inferred",
+"line": 3273
+},
+{
+"id": "KPTA.107",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L3",
+"in_houses": [
+10
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "You may do well in communication, media, writing, performance, trading or commission work.",
+"effect_es": "Puedes destacar en comunicación, medios, escritura, artes escénicas, comercio o trabajo por comisión.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: lord of the house 'connected with' the 10th; placement in the 10th encoded (aspect and other links not encoded). 'Brothels' and similar entries omitted.",
+"clarity": "inferred",
+"line": 3317
+},
+{
+"id": "KPTA.108",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L4",
+"in_houses": [
+10
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "You may do well in property, construction, manufacturing, farming, hospitality or interior design.",
+"effect_es": "Puedes destacar en bienes raíces, construcción, manufactura, agricultura, hospitalidad o diseño de interiores.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: lord of the house 'connected with' the 10th; placement in the 10th encoded (aspect and other links not encoded). 'Brothels' and similar entries omitted.",
+"clarity": "inferred",
+"line": 3360
+},
+{
+"id": "KPTA.109",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L5",
+"in_houses": [
+10
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "You may do well in financial markets, sport, the arts, entertainment, or teaching religion and science.",
+"effect_es": "Puedes destacar en los mercados financieros, el deporte, las artes, el entretenimiento, o enseñando religión y ciencia.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: lord of the house 'connected with' the 10th; placement in the 10th encoded (aspect and other links not encoded). 'Brothels' and similar entries omitted.",
+"clarity": "inferred",
+"line": 3404
+},
+{
+"id": "KPTA.110",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L6",
+"in_houses": [
+10
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "You may do well in healthcare, law, repair and maintenance work, or labour-oriented jobs.",
+"effect_es": "Puedes destacar en salud, derecho, trabajos de reparación y mantenimiento, o empleos de labor.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: lord of the house 'connected with' the 10th; placement in the 10th encoded (aspect and other links not encoded). 'Brothels' and similar entries omitted.",
+"clarity": "inferred",
+"line": 3452
+},
+{
+"id": "KPTA.111",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L7",
+"in_houses": [
+10
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "You may do well in law, diplomacy, public relations, public administration or private business.",
+"effect_es": "Puedes destacar en derecho, diplomacia, relaciones públicas, administración pública o negocios propios.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: lord of the house 'connected with' the 10th; placement in the 10th encoded (aspect and other links not encoded). 'Brothels' and similar entries omitted.",
+"clarity": "inferred",
+"line": 3499
+},
+{
+"id": "KPTA.112",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L8",
+"in_houses": [
+10
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "You may do well in insurance, mining, tax work, auditing, investigation, or research into the past and estates.",
+"effect_es": "Puedes destacar en seguros, minería, impuestos, auditoría, investigación, o en la historia y las herencias.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: lord of the house 'connected with' the 10th; placement in the 10th encoded (aspect and other links not encoded). 'Brothels' and similar entries omitted.",
+"clarity": "inferred",
+"line": 3548
+},
+{
+"id": "KPTA.113",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L9",
+"in_houses": [
+10
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "You may do well in research, universities, travel, export, politics, aviation or law.",
+"effect_es": "Puedes destacar en investigación, universidades, viajes, exportación, política, aviación o derecho.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: lord of the house 'connected with' the 10th; placement in the 10th encoded (aspect and other links not encoded). 'Brothels' and similar entries omitted.",
+"clarity": "inferred",
+"line": 3603
+},
+{
+"id": "KPTA.114",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L10",
+"in_houses": [
+10
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "You may do well in government, production, politics, management or a venture of your own.",
+"effect_es": "Puedes destacar en el gobierno, la producción, la política, la gerencia o en un negocio propio.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: lord of the house 'connected with' the 10th; placement in the 10th encoded (aspect and other links not encoded). 'Brothels' and similar entries omitted.",
+"clarity": "inferred",
+"line": 3654
+},
+{
+"id": "KPTA.115",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L11",
+"in_houses": [
+10
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "You may do well in computer hardware, general medicine, charities, commercial firms or journalism.",
+"effect_es": "Puedes destacar en equipos de cómputo, medicina general, organizaciones benéficas, empresas comerciales o periodismo.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: lord of the house 'connected with' the 10th; placement in the 10th encoded (aspect and other links not encoded). 'Brothels' and similar entries omitted.",
+"clarity": "inferred",
+"line": 3690
+},
+{
+"id": "KPTA.116",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L12",
+"in_houses": [
+10
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "You may do well in hospitals, investigation, research institutions, or work in foreign countries.",
+"effect_es": "Puedes destacar en hospitales, investigación, instituciones de estudio, o trabajando en países extranjeros.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: lord of the house 'connected with' the 10th; placement in the 10th encoded (aspect and other links not encoded). 'Brothels' and similar entries omitted.",
+"clarity": "inferred",
+"line": 3732
+},
+{
+"id": "KPTA.117",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L10",
+"in_houses": [
+6
+]
+}
+],
+"activation": [],
+"tone": "info",
+"topics": [
+"career"
+],
+"effect": "A salaried job suits you better than independent work.",
+"effect_es": "Un empleo asalariado te conviene más que el trabajo independiente.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: strong connection of the 10th with the 6th indicates service.",
+"clarity": "inferred",
+"line": 9528
+},
+{
+"id": "KPTA.118",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L6",
+"in_houses": [
+10
+]
+}
+],
+"activation": [],
+"tone": "info",
+"topics": [
+"career"
+],
+"effect": "A salaried job suits you better than independent work.",
+"effect_es": "Un empleo asalariado te conviene más que el trabajo independiente.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: strong connection of the 10th with the 6th indicates service.",
+"clarity": "inferred",
+"line": 9528
+},
+{
+"id": "KPTA.119",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L10",
+"in_houses": [
+7
+]
+}
+],
+"activation": [],
+"tone": "info",
+"topics": [
+"career"
+],
+"effect": "Private business or independent work suits you better than a salaried job.",
+"effect_es": "El negocio propio o el trabajo independiente te conviene más que un empleo asalariado.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: strong connection of the 10th with the 7th indicates private business.",
+"clarity": "inferred",
+"line": 9530
+},
+{
+"id": "KPTA.120",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L7",
+"in_houses": [
+10
+]
+}
+],
+"activation": [],
+"tone": "info",
+"topics": [
+"career"
+],
+"effect": "Private business or independent work suits you better than a salaried job.",
+"effect_es": "El negocio propio o el trabajo independiente te conviene más que un empleo asalariado.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: strong connection of the 10th with the 7th indicates private business.",
+"clarity": "inferred",
+"line": 9530
+},
+{
+"id": "KPTA.121",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L10",
+"in_houses": [
+2,
+5,
+9,
+12
+]
+}
+],
+"activation": [],
+"tone": "info",
+"topics": [
+"career"
+],
+"effect": "You may be drawn to advisory, research or insight-based work, such as astrology or counselling.",
+"effect_es": "Puedes sentirte atraído por el trabajo de asesoría, investigación o visión intuitiva, como la astrología o la consejería.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book example: 10th and its lord related to 2, 5, 9, 12 or their lords.",
+"clarity": "inferred",
+"line": 9910
+},
+{
+"id": "KPTA.122",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L2",
+"in_houses": [
+10
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career",
+"fame"
+],
+"effect": "You may have a talent for music or singing that can become a career.",
+"effect_es": "Puedes tener talento para la música o el canto que puede volverse una profesión.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: lords of 2, 3, 5 connected with the 10th develop music talent.",
+"clarity": "inferred",
+"line": 9831
+},
+{
+"id": "KPTA.123",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L3",
+"in_houses": [
+10
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career",
+"fame"
+],
+"effect": "You may have a talent for music or singing that can become a career.",
+"effect_es": "Puedes tener talento para la música o el canto que puede volverse una profesión.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: lords of 2, 3, 5 connected with the 10th develop music talent.",
+"clarity": "inferred",
+"line": 9831
+},
+{
+"id": "KPTA.124",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L5",
+"in_houses": [
+10
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"career",
+"fame"
+],
+"effect": "You may have a talent for music or singing that can become a career.",
+"effect_es": "Puedes tener talento para la música o el canto que puede volverse una profesión.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: lords of 2, 3, 5 connected with the 10th develop music talent.",
+"clarity": "inferred",
+"line": 9831
+},
+{
+"id": "KPTA.125",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L1",
+"in_houses": [
+4,
+9
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"education"
+],
+"effect": "You are likely to complete formal education and training.",
+"effect_es": "Es probable que completes tu educación y formación formal.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: lagna or its lord connected with the 4th or 9th; placement encoded.",
+"clarity": "inferred",
+"line": 9103
+},
+{
+"id": "KPTA.126",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L4",
+"in_houses": [
+9
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"education"
+],
+"effect": "You have the capacity to go on to higher studies.",
+"effect_es": "Tienes la capacidad de continuar con estudios superiores.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "inferred",
+"line": 9169
+},
+{
+"id": "KPTA.127",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L9",
+"in_houses": [
+3,
+5,
+11
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"education"
+],
+"effect": "Your prospects for higher education are good.",
+"effect_es": "Tus perspectivas de educación superior son buenas.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book also requires the 9th and its lord to be strong (not encoded).",
+"clarity": "inferred",
+"line": 9189
+},
+{
+"id": "KPTA.128",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L9",
+"in_houses": [
+4,
+8,
+12
+]
+}
+],
+"activation": [],
+"tone": "bad",
+"topics": [
+"education"
+],
+"effect": "Higher studies may meet obstacles or interruptions for you.",
+"effect_es": "Tus estudios superiores pueden encontrar obstáculos o interrupciones.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book says the 9th lord 'should not be posited' in 4, 8, 12; converse read as a drawback.",
+"clarity": "inferred",
+"line": 9194
+},
+{
+"id": "KPTA.129",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L11",
+"in_houses": [
+4,
+9
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"education"
+],
+"effect": "You are likely to succeed in basic or higher education.",
+"effect_es": "Es probable que tengas éxito en la educación básica o superior.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": null,
+"clarity": "inferred",
+"line": 9200
+},
+{
+"id": "KPTA.130",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "Jupiter",
+"in_houses": [
+4
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"education"
+],
+"effect": "Your success in your studies is well supported.",
+"effect_es": "Tu éxito en los estudios cuenta con buen respaldo.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: connection of Jupiter or Mercury (education significators) with the 4th; placement encoded.",
+"clarity": "inferred",
+"line": 9204
+},
+{
+"id": "KPTA.131",
+"book": "kp_true_astrology",
+"requires": [
+{
+"a": "Jupiter",
+"b": "L1",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"education"
+],
+"effect": "Your success in your studies is well supported.",
+"effect_es": "Tu éxito en los estudios cuenta con buen respaldo.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: connection of Jupiter or Mercury with the lagna lord; conjunction encoded.",
+"clarity": "inferred",
+"line": 9212
+},
+{
+"id": "KPTA.132",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "Mercury",
+"in_houses": [
+4
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"education"
+],
+"effect": "Your success in your studies is well supported.",
+"effect_es": "Tu éxito en los estudios cuenta con buen respaldo.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: connection of Jupiter or Mercury (education significators) with the 4th; placement encoded.",
+"clarity": "inferred",
+"line": 9204
+},
+{
+"id": "KPTA.133",
+"book": "kp_true_astrology",
+"requires": [
+{
+"a": "Mercury",
+"b": "L1",
+"relation": "conjunct"
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"education"
+],
+"effect": "Your success in your studies is well supported.",
+"effect_es": "Tu éxito en los estudios cuenta con buen respaldo.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: connection of Jupiter or Mercury with the lagna lord; conjunction encoded.",
+"clarity": "inferred",
+"line": 9212
+},
+{
+"id": "KPTA.134",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "Moon",
+"in_houses": [
+3
+]
+}
+],
+"activation": [],
+"tone": "mixed",
+"topics": [
+"education"
+],
+"effect": "You may lack boldness in making decisions.",
+"effect_es": "Puedes carecer de audacia para tomar decisiones.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: 'influence of planets on the 3rd'; placement encoded.",
+"clarity": "inferred",
+"line": 9131
+},
+{
+"id": "KPTA.135",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "Saturn",
+"in_houses": [
+3
+]
+}
+],
+"activation": [],
+"tone": "mixed",
+"topics": [
+"education"
+],
+"effect": "You are careful and hardworking in your studies, but may lack confidence and tend to forget things.",
+"effect_es": "Eres cuidadoso y trabajador en tus estudios, pero puedes carecer de confianza y tender a olvidar cosas.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: 'influence of planets on the 3rd'; placement encoded.",
+"clarity": "inferred",
+"line": 9131
+},
+{
+"id": "KPTA.136",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "Mercury",
+"in_houses": [
+3
+]
+}
+],
+"activation": [],
+"tone": "mixed",
+"topics": [
+"education"
+],
+"effect": "You have a good memory, but your mind can be divided between options.",
+"effect_es": "Tienes buena memoria, pero tu mente puede dividirse entre opciones.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: 'influence of planets on the 3rd'; placement encoded.",
+"clarity": "inferred",
+"line": 9131
+},
+{
+"id": "KPTA.137",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "Sun",
+"in_houses": [
+3
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"education"
+],
+"effect": "You have courage and confidence in facing exams and competition.",
+"effect_es": "Tienes valentía y confianza para enfrentar exámenes y competencia.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: 'influence of planets on the 3rd'; placement encoded.",
+"clarity": "inferred",
+"line": 9131
+},
+{
+"id": "KPTA.138",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "Mars",
+"in_houses": [
+3
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"education"
+],
+"effect": "You have courage and confidence in facing exams and competition.",
+"effect_es": "Tienes valentía y confianza para enfrentar exámenes y competencia.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: 'influence of planets on the 3rd'; placement encoded.",
+"clarity": "inferred",
+"line": 9131
+},
+{
+"id": "KPTA.139",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "Jupiter",
+"in_houses": [
+3
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"education"
+],
+"effect": "You have strong powers of concentration, courage and confidence.",
+"effect_es": "Tienes gran poder de concentración, valentía y confianza.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: 'influence of planets on the 3rd'; placement encoded.",
+"clarity": "inferred",
+"line": 9131
+},
+{
+"id": "KPTA.140",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+3
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"education"
+],
+"effect": "You have strong powers of concentration.",
+"effect_es": "Tienes gran poder de concentración.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: 'influence of planets on the 3rd'; placement encoded.",
+"clarity": "inferred",
+"line": 9131
+},
+{
+"id": "KPTA.141",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "Moon",
+"in_houses": [
+4,
+9
+]
+}
+],
+"activation": [],
+"tone": "info",
+"topics": [
+"education"
+],
+"effect": "You are drawn to studying psychology, music, marketing, textiles, water engineering or political science.",
+"effect_es": "Te atrae estudiar psicología, música, mercadotecnia, textiles, ingeniería hidráulica o ciencias políticas.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: planet 'establishing link' with the 4th/9th house decides subjects; placement in 4 or 9 encoded.",
+"clarity": "inferred",
+"line": 9236
+},
+{
+"id": "KPTA.142",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "Sun",
+"in_houses": [
+4,
+9
+]
+}
+],
+"activation": [],
+"tone": "info",
+"topics": [
+"education"
+],
+"effect": "You are drawn to studying medicine, chemistry or geography.",
+"effect_es": "Te atrae estudiar medicina, química o geografía.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: planet 'establishing link' with the 4th/9th house decides subjects; placement in 4 or 9 encoded.",
+"clarity": "inferred",
+"line": 9236
+},
+{
+"id": "KPTA.143",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "Mars",
+"in_houses": [
+4,
+9
+]
+}
+],
+"activation": [],
+"tone": "info",
+"topics": [
+"education"
+],
+"effect": "You are drawn to studying engineering, surgery, physics, structural design or military studies.",
+"effect_es": "Te atrae estudiar ingeniería, cirugía, física, diseño estructural o estudios militares.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: planet 'establishing link' with the 4th/9th house decides subjects; placement in 4 or 9 encoded.",
+"clarity": "inferred",
+"line": 9236
+},
+{
+"id": "KPTA.144",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "Mercury",
+"in_houses": [
+4,
+9
+]
+}
+],
+"activation": [],
+"tone": "info",
+"topics": [
+"education"
+],
+"effect": "You are drawn to studying mathematics, engineering, logic, journalism, advertising or public speaking.",
+"effect_es": "Te atrae estudiar matemáticas, ingeniería, lógica, periodismo, publicidad u oratoria.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: planet 'establishing link' with the 4th/9th house decides subjects; placement in 4 or 9 encoded.",
+"clarity": "inferred",
+"line": 9236
+},
+{
+"id": "KPTA.145",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+4,
+9
+]
+}
+],
+"activation": [],
+"tone": "info",
+"topics": [
+"education"
+],
+"effect": "You are drawn to studying chemistry, electronics, computing, agriculture, music, poetry or foreign literature.",
+"effect_es": "Te atrae estudiar química, electrónica, computación, agricultura, música, poesía o literatura extranjera.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: planet 'establishing link' with the 4th/9th house decides subjects; placement in 4 or 9 encoded.",
+"clarity": "inferred",
+"line": 9236
+},
+{
+"id": "KPTA.146",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "Jupiter",
+"in_houses": [
+4,
+9
+]
+}
+],
+"activation": [],
+"tone": "info",
+"topics": [
+"education"
+],
+"effect": "You are drawn to studying law, medicine, administration, philosophy, religion, politics, banking or business management.",
+"effect_es": "Te atrae estudiar derecho, medicina, administración, filosofía, religión, política, banca o gestión de negocios.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: planet 'establishing link' with the 4th/9th house decides subjects; placement in 4 or 9 encoded.",
+"clarity": "inferred",
+"line": 9236
+},
+{
+"id": "KPTA.147",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "Saturn",
+"in_houses": [
+4,
+9
+]
+}
+],
+"activation": [],
+"tone": "info",
+"topics": [
+"education"
+],
+"effect": "You are drawn to studying geology, engineering, refinery work, mining or labour law.",
+"effect_es": "Te atrae estudiar geología, ingeniería, refinería, minería o derecho laboral.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: planet 'establishing link' with the 4th/9th house decides subjects; placement in 4 or 9 encoded.",
+"clarity": "inferred",
+"line": 9236
+},
+{
+"id": "KPTA.148",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "Rahu",
+"in_houses": [
+4,
+9
+]
+}
+],
+"activation": [],
+"tone": "info",
+"topics": [
+"education"
+],
+"effect": "You are drawn to studying radiology, photography or space science.",
+"effect_es": "Te atrae estudiar radiología, fotografía o ciencias espaciales.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: planet 'establishing link' with the 4th/9th house decides subjects; placement in 4 or 9 encoded.",
+"clarity": "inferred",
+"line": 9236
+},
+{
+"id": "KPTA.149",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "Ketu",
+"in_houses": [
+4,
+9
+]
+}
+],
+"activation": [],
+"tone": "info",
+"topics": [
+"education"
+],
+"effect": "You are drawn to studying radiology, photography or space science.",
+"effect_es": "Te atrae estudiar radiología, fotografía o ciencias espaciales.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: planet 'establishing link' with the 4th/9th house decides subjects; placement in 4 or 9 encoded.",
+"clarity": "inferred",
+"line": 9236
+},
+{
+"id": "KPTA.150",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L1",
+"in_houses": [
+4,
+9
+]
+}
+],
+"activation": [],
+"tone": "info",
+"topics": [
+"education"
+],
+"effect": "You are drawn to studying psychology, mind-body practice or the study of the brain.",
+"effect_es": "Te atrae estudiar psicología, prácticas mente-cuerpo o el estudio del cerebro.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: lord of the house linked with the 4th/9th decides subjects; placement in 4 or 9 encoded.",
+"clarity": "inferred",
+"line": 9267
+},
+{
+"id": "KPTA.151",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L2",
+"in_houses": [
+4,
+9
+]
+}
+],
+"activation": [],
+"tone": "info",
+"topics": [
+"education"
+],
+"effect": "You are drawn to studying economics, mathematics, languages, sound engineering, dentistry or eye care.",
+"effect_es": "Te atrae estudiar economía, matemáticas, idiomas, ingeniería de sonido, odontología u oftalmología.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: lord of the house linked with the 4th/9th decides subjects; placement in 4 or 9 encoded.",
+"clarity": "inferred",
+"line": 9267
+},
+{
+"id": "KPTA.152",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L3",
+"in_houses": [
+4,
+9
+]
+}
+],
+"activation": [],
+"tone": "info",
+"topics": [
+"education"
+],
+"effect": "You are drawn to studying electronics, communication, computing, printing, physics, neurology or journalism.",
+"effect_es": "Te atrae estudiar electrónica, comunicaciones, computación, imprenta, física, neurología o periodismo.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: lord of the house linked with the 4th/9th decides subjects; placement in 4 or 9 encoded.",
+"clarity": "inferred",
+"line": 9267
+},
+{
+"id": "KPTA.153",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L4",
+"in_houses": [
+4,
+9
+]
+}
+],
+"activation": [],
+"tone": "info",
+"topics": [
+"education"
+],
+"effect": "You are drawn to studying agriculture, automobile, mechanical, civil or industrial engineering, geography or home science.",
+"effect_es": "Te atrae estudiar agricultura, ingeniería automotriz, mecánica, civil o industrial, geografía o economía doméstica.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: lord of the house linked with the 4th/9th decides subjects; placement in 4 or 9 encoded.",
+"clarity": "inferred",
+"line": 9267
+},
+{
+"id": "KPTA.154",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L5",
+"in_houses": [
+4,
+9
+]
+}
+],
+"activation": [],
+"tone": "info",
+"topics": [
+"education"
+],
+"effect": "You are drawn to studying architecture, film, sports, atomic science, the arts, music or child and women's health.",
+"effect_es": "Te atrae estudiar arquitectura, cine, deportes, ciencia atómica, artes, música o salud infantil y femenina.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: lord of the house linked with the 4th/9th decides subjects; placement in 4 or 9 encoded.",
+"clarity": "inferred",
+"line": 9267
+},
+{
+"id": "KPTA.155",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L6",
+"in_houses": [
+4,
+9
+]
+}
+],
+"activation": [],
+"tone": "info",
+"topics": [
+"education"
+],
+"effect": "You are drawn to studying textiles, chemistry, biology, medicine, law or radiology.",
+"effect_es": "Te atrae estudiar textiles, química, biología, medicina, derecho o radiología.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: lord of the house linked with the 4th/9th decides subjects; placement in 4 or 9 encoded.",
+"clarity": "inferred",
+"line": 9267
+},
+{
+"id": "KPTA.156",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L7",
+"in_houses": [
+4,
+9
+]
+}
+],
+"activation": [],
+"tone": "info",
+"topics": [
+"education"
+],
+"effect": "You are drawn to studying public administration, business management or international law.",
+"effect_es": "Te atrae estudiar administración pública, gestión de negocios o derecho internacional.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: lord of the house linked with the 4th/9th decides subjects; placement in 4 or 9 encoded.",
+"clarity": "inferred",
+"line": 9267
+},
+{
+"id": "KPTA.157",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L8",
+"in_houses": [
+4,
+9
+]
+}
+],
+"activation": [],
+"tone": "info",
+"topics": [
+"education"
+],
+"effect": "You are drawn to studying surgical equipment, sanitary engineering, history, zoology, urology or mining.",
+"effect_es": "Te atrae estudiar equipo quirúrgico, ingeniería sanitaria, historia, zoología, urología o minería.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: lord of the house linked with the 4th/9th decides subjects; placement in 4 or 9 encoded.",
+"clarity": "inferred",
+"line": 9267
+},
+{
+"id": "KPTA.158",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L9",
+"in_houses": [
+4,
+9
+]
+}
+],
+"activation": [],
+"tone": "info",
+"topics": [
+"education"
+],
+"effect": "You are drawn to studying aeronautical engineering, space technology, Sanskrit, philosophy, law or genetics.",
+"effect_es": "Te atrae estudiar ingeniería aeronáutica, tecnología espacial, sánscrito, filosofía, derecho o genética.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: lord of the house linked with the 4th/9th decides subjects; placement in 4 or 9 encoded.",
+"clarity": "inferred",
+"line": 9267
+},
+{
+"id": "KPTA.159",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L10",
+"in_houses": [
+4,
+9
+]
+}
+],
+"activation": [],
+"tone": "info",
+"topics": [
+"education"
+],
+"effect": "You are drawn to studying management, government policy or production technology.",
+"effect_es": "Te atrae estudiar gestión, políticas públicas o tecnología de producción.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: lord of the house linked with the 4th/9th decides subjects; placement in 4 or 9 encoded.",
+"clarity": "inferred",
+"line": 9267
+},
+{
+"id": "KPTA.160",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L11",
+"in_houses": [
+4,
+9
+]
+}
+],
+"activation": [],
+"tone": "info",
+"topics": [
+"education"
+],
+"effect": "You are drawn to studying polymer technology, commerce or women's health.",
+"effect_es": "Te atrae estudiar tecnología de polímeros, comercio o salud femenina.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: lord of the house linked with the 4th/9th decides subjects; placement in 4 or 9 encoded.",
+"clarity": "inferred",
+"line": 9267
+},
+{
+"id": "KPTA.161",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L12",
+"in_houses": [
+4,
+9
+]
+}
+],
+"activation": [],
+"tone": "info",
+"topics": [
+"education"
+],
+"effect": "You are drawn to studying foreign languages, research or criminology.",
+"effect_es": "Te atrae estudiar idiomas extranjeros, investigación o criminología.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: lord of the house linked with the 4th/9th decides subjects; placement in 4 or 9 encoded.",
+"clarity": "inferred",
+"line": 9267
+},
+{
+"id": "KPTA.162",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L5",
+"in_houses": [
+5,
+7,
+11
+]
+},
+{
+"planet": "L4",
+"not_in_houses": [
+5
+]
+},
+{
+"planet": "L6",
+"not_in_houses": [
+5
+]
+},
+{
+"planet": "L10",
+"not_in_houses": [
+5
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"marriage"
+],
+"effect": "A love affair is likely to lead to marriage for you.",
+"effect_es": "Es probable que una relación amorosa termine en matrimonio para ti.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "'Related to' encoded as placement; 'not influenced by lords of 4, 6, 10' encoded as those lords not standing in the 5th.",
+"clarity": "inferred",
+"line": 8913
+},
+{
+"id": "KPTA.163",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L1",
+"in_houses": [
+5
+]
+}
+],
+"activation": [],
+"tone": "info",
+"topics": [
+"other",
+"fame"
+],
+"effect": "You are drawn to creative, artistic or sporting pursuits.",
+"effect_es": "Te atraen las actividades creativas, artísticas o deportivas.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book: gives the desire, not success; success needs further links.",
+"clarity": "inferred",
+"line": 8934
+},
+{
+"id": "KPTA.164",
+"book": "kp_true_astrology",
+"requires": [
+{
+"planet": "L5",
+"in_houses": [
+1,
+3,
+5,
+6,
+11
+]
+}
+],
+"activation": [],
+"tone": "good",
+"topics": [
+"other",
+"fame"
+],
+"effect": "You have good prospects of success in sport and the arts.",
+"effect_es": "Tienes buenas perspectivas de éxito en el deporte y las artes.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "OCR reads '1,3,5, band 11', read as 1,3,5,6,11. Book adds the 5th must be fortified (not encoded).",
+"clarity": "inferred",
+"line": 8953
+},
+{
+"id": "KPTA.165",
+"book": "kp_true_astrology",
+"requires": [],
+"activation": [
+{
+"transit": {
+"planet": "Sun",
+"from": "lagna",
+"houses": [
+3,
+4,
+6,
+10,
+11,
+12
+]
+}
+}
+],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "This is a supportive stretch, when things tend to go your way.",
+"effect_es": "Esta es una etapa de apoyo, en la que las cosas tienden a salir a tu favor.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book credits Brihat Parashara Hora Shastra and Phaladeepika; classic transit-from-lagna table.",
+"clarity": "clear",
+"line": 6149
+},
+{
+"id": "KPTA.166",
+"book": "kp_true_astrology",
+"requires": [],
+"activation": [
+{
+"transit": {
+"planet": "Moon",
+"from": "lagna",
+"houses": [
+3,
+6,
+10,
+11
+]
+}
+}
+],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "This is a supportive stretch, when things tend to go your way.",
+"effect_es": "Esta es una etapa de apoyo, en la que las cosas tienden a salir a tu favor.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book credits Brihat Parashara Hora Shastra and Phaladeepika; classic transit-from-lagna table.",
+"clarity": "clear",
+"line": 6149
+},
+{
+"id": "KPTA.167",
+"book": "kp_true_astrology",
+"requires": [],
+"activation": [
+{
+"transit": {
+"planet": "Mars",
+"from": "lagna",
+"houses": [
+1,
+3,
+6,
+10,
+11
+]
+}
+}
+],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "This is a supportive stretch, when things tend to go your way.",
+"effect_es": "Esta es una etapa de apoyo, en la que las cosas tienden a salir a tu favor.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book credits Brihat Parashara Hora Shastra and Phaladeepika; classic transit-from-lagna table.",
+"clarity": "clear",
+"line": 6149
+},
+{
+"id": "KPTA.168",
+"book": "kp_true_astrology",
+"requires": [],
+"activation": [
+{
+"transit": {
+"planet": "Mercury",
+"from": "lagna",
+"houses": [
+1,
+2,
+4,
+6,
+8,
+10,
+11
+]
+}
+}
+],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "This is a supportive stretch, when things tend to go your way.",
+"effect_es": "Esta es una etapa de apoyo, en la que las cosas tienden a salir a tu favor.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book credits Brihat Parashara Hora Shastra and Phaladeepika; classic transit-from-lagna table.",
+"clarity": "clear",
+"line": 6149
+},
+{
+"id": "KPTA.169",
+"book": "kp_true_astrology",
+"requires": [],
+"activation": [
+{
+"transit": {
+"planet": "Jupiter",
+"from": "lagna",
+"houses": [
+1,
+2,
+4,
+5,
+6,
+9,
+10,
+11
+]
+}
+}
+],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "This is a supportive stretch, when things tend to go your way.",
+"effect_es": "Esta es una etapa de apoyo, en la que las cosas tienden a salir a tu favor.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book credits Brihat Parashara Hora Shastra and Phaladeepika; classic transit-from-lagna table.",
+"clarity": "clear",
+"line": 6149
+},
+{
+"id": "KPTA.170",
+"book": "kp_true_astrology",
+"requires": [],
+"activation": [
+{
+"transit": {
+"planet": "Venus",
+"from": "lagna",
+"houses": [
+1,
+2,
+3,
+4,
+5,
+8,
+9,
+11
+]
+}
+}
+],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "This is a supportive stretch, when things tend to go your way.",
+"effect_es": "Esta es una etapa de apoyo, en la que las cosas tienden a salir a tu favor.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book credits Brihat Parashara Hora Shastra and Phaladeepika; classic transit-from-lagna table.",
+"clarity": "clear",
+"line": 6149
+},
+{
+"id": "KPTA.171",
+"book": "kp_true_astrology",
+"requires": [],
+"activation": [
+{
+"transit": {
+"planet": "Saturn",
+"from": "lagna",
+"houses": [
+1,
+3,
+4,
+6,
+10,
+11
+]
+}
+}
+],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "This is a supportive stretch, when things tend to go your way.",
+"effect_es": "Esta es una etapa de apoyo, en la que las cosas tienden a salir a tu favor.",
+"remedy": null,
+"remedy_es": null,
+"timing_note": "Book credits Brihat Parashara Hora Shastra and Phaladeepika; classic transit-from-lagna table.",
+"clarity": "clear",
+"line": 6149
 }
 ]
 }
