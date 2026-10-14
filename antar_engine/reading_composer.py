@@ -50,7 +50,8 @@ T = {
         "year_watch": "Handle with care this year: {items}.",
         "year_quiet": "Quiet this year (little movement either way): {items}.",
         "year_tone": {"favourable": "A supportive year overall.", "mixed": "A mixed year: real gains and real tests.",
-                      "testing": "A testing year. Lean on the remedies and keep plans simple."},
+                      "testing": "A testing year. Lean on the remedies and keep plans simple.",
+                      "quiet": "The traditional text has nothing specific for your placements this year."},
         "remedy_for": "For {theme}",
         "special": "This is a turning-point year in your cycle.",
         "focus_title": "Your focus for the next six months",
@@ -97,7 +98,8 @@ T = {
         "year_watch": "Maneja con cuidado este año: {items}.",
         "year_quiet": "Tranquilo este año (poco movimiento): {items}.",
         "year_tone": {"favourable": "Un año de apoyo en general.", "mixed": "Un año mixto: ganancias reales y pruebas reales.",
-                      "testing": "Un año de pruebas. Apóyate en los remedios y mantén los planes simples."},
+                      "testing": "Un año de pruebas. Apóyate en los remedios y mantén los planes simples.",
+                      "quiet": "El texto tradicional no dice nada específico sobre tus posiciones este año."},
         "remedy_for": "Para {theme}",
         "special": "Este es un año de inflexión en tu ciclo.",
         "focus_title": "Tu enfoque para los próximos seis meses",
@@ -209,39 +211,36 @@ def _plain_ok(text: str) -> bool:
 
 
 def _year_block(lk: dict, loc: str) -> Optional[dict]:
-    """Lal Kitab annual (varshphal) view in plain language: what favours, what to watch, remedies."""
+    """Lal Kitab year view (Roop Chand's annual rules that apply to this chart this year), in plain language."""
     if not lk:
         return None
     tx = T[loc]
-    th = tx["themes"]
-    good = sorted({th[g["house"]] for g in lk.get("good_placements", [])})
-    bad = sorted({th[b["house"]] for b in lk.get("bad_placements", [])})
-    good = [g for g in good if g not in bad]            # a theme that is both good and bad is "mixed": treat as watch
-    quiet = sorted({th[d["house"]] for d in lk.get("dormant_areas", []) if "house" in d} -
-                   set(good) - set(bad))
+    items = lk.get("rc") or []
+
+    def pick(tone):
+        out, seen = [], set()
+        for i in items:
+            t = i.get("es") if loc == "es" else i.get("en")
+            if i["tone"] == tone and t and t not in seen:
+                seen.add(t)
+                out.append(t)
+        return out
+
+    good, bad = pick("good"), pick("bad")
     ng, nb = len(good), len(bad)
-    tone = "favourable" if ng >= nb + 2 else ("testing" if nb >= ng + 2 else "mixed")
+    tone = "quiet" if not (ng or nb) else ("favourable" if ng >= nb + 2 else ("testing" if nb >= ng + 2 else "mixed"))
     parts = [tx["year_tone"][tone]]
-    if good:
-        parts.append(tx["year_good"].format(items=", ".join(good)))
-    if bad:
-        parts.append(tx["year_watch"].format(items=", ".join(bad)))
-    if quiet:
-        parts.append(tx["year_quiet"].format(items=", ".join(quiet)))
-    if lk.get("special_cycle"):
-        parts.append(tx["special"])
-    remedies = []
-    houses = lk.get("annual_houses", {})
-    for planet, rs in (lk.get("remedies") or {}).items():
-        theme = th.get(houses.get(planet, 0), "")
-        for r in rs:
-            do = r.get("do", "")
-            if not do or not _plain_ok(do):
-                continue
-            remedies.append({"for": tx["remedy_for"].format(theme=theme) if theme else "",
-                             "do": do, "timing": r.get("timing", ""), "duration": r.get("duration", "")})
-    return {"tone": tone, "summary": " ".join(parts), "good": good, "watch": bad, "quiet": quiet,
-            "remedies": remedies[:4]}
+    remedies, seen = [], set()
+    for i in items:
+        r = i.get("remedy_es") if loc == "es" else i.get("remedy_en")
+        if i["tone"] == "bad" and r and r not in seen:
+            seen.add(r)
+            remedies.append({"for": "", "do": r, "timing": "", "duration": ""})
+    if remedies:
+        remedies.append({"for": "", "do": lk.get("principle", {}).get(loc) or lk.get("principle", {}).get("en", ""),
+                         "timing": "", "duration": "43"})
+    return {"tone": tone, "summary": " ".join(parts), "good": good[:5], "watch": bad[:5], "quiet": [],
+            "remedies": remedies[:4], "year_lord": lk.get("year_lord"), "rules_used": [i["id"] for i in items]}
 
 
 _FOCUS_ORDER = ("money", "career", "relationship", "learning")   # tie-break: owner's product focus order

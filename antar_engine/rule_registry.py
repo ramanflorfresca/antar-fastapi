@@ -222,7 +222,7 @@ class Ctx:
         if self._forecast is None:
             from antar_engine.event_forecast import build_forecast
             self._forecast = build_forecast(self.chart_data, self.birth_date, self.vim_rows, today=self.today,
-                                            birth_time_accuracy=self.birth_time_accuracy)
+                                            birth_time_accuracy=self.birth_time_accuracy, gender=self.gender)
         return self._forecast
 
     def reading(self, lang):
@@ -286,7 +286,8 @@ def _kar_rules(ctx: Ctx):
 def _rc_family(ctx: Ctx):
     """Pt. Roop Chand's Lal Kitab rules (atomic rules, applied only where every condition holds)."""
     out = []
-    for r in rc.applying(ctx.rc_state(), kind="natal"):
+    state = ctx.rc_state()
+    for r in rc.applying(state, kind="natal") + rc.applying(state, kind="annual"):
         ages = [a for a in (r.get("ages") or []) if isinstance(a, (int, float))]
         if ages and ctx.age is not None and max(ages) < ctx.age:
             continue                                        # every age the text names is already past: history, not guidance

@@ -18,21 +18,11 @@ _YEAR_DAY_LORDS = ["Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn", "Sun
 
 
 def year_lord_for(birth_date, today=None) -> str:
-    """Return the current Varshphal year lord for a birth_date (str or date), or
-    '' if it can't be computed. `today` overridable for testing."""
-    try:
-        born = date.fromisoformat(str(birth_date)[:10]) if not isinstance(birth_date, date) else birth_date
-        today = today or date.today()
-        try:
-            last_bday = born.replace(year=today.year)
-            if last_bday > today:
-                last_bday = born.replace(year=today.year - 1)
-        except ValueError:               # Feb 29 birthday in a non-leap year
-            last_bday = date(today.year, born.month, min(born.day, 28))
-        return _YEAR_DAY_LORDS[last_bday.weekday()]
-    except Exception:
-        return ""
-
+    """Current Varshphal year lord: the age-based 35-year planet cycle (lk_year_lord.py), or '' if the birth date
+    cannot be read. (Was the weekday of the last birthday until 2026-10-13; the owner decided the age cycle is right.)
+    `today` overridable for testing."""
+    from antar_engine.lk_year_lord import year_lord_by_age
+    return year_lord_by_age(birth_date, today)
 
 SIGNS = [
     "Aries","Taurus","Gemini","Cancer","Leo","Virgo",
