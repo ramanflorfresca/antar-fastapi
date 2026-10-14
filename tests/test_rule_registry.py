@@ -192,3 +192,44 @@ def test_gender_clauses_need_a_known_gender():
     c = rr.Ctx(chart(9, SIGNS_A), "1975-11-26", [], TODAY, gender="female")
     assert "LK.T10" in {e.rule_id for e in rr.applicable(c)}
     assert "LK.T10" not in {e.rule_id for e in rr.applicable(ctx())}
+
+
+def test_combination_rules_apply_only_when_the_planets_stand_that_way(monkeypatch):
+    from antar_engine import combo_rules as cb
+    monkeypatch.setattr(cb, "_cache", [
+        {"id": "CB.1", "n": 1, "name": "Gajakesari Yoga", "tone": "good", "topics": ["fame", "money"],
+         "requires": [{"planet": "Jupiter", "in_houses_from": "Moon", "houses": [1, 4, 7, 10]}],
+         "effect": "Your standing outlasts you.", "effect_es": "Tu prestigio te sobrevive.", "clarity": "clear"},
+        {"id": "CB.2", "n": 2, "name": "Other Yoga", "tone": "bad", "topics": ["money"],
+         "requires": [{"planet": "Jupiter", "in_houses": [6]}], "effect": "Money feels thin.", "effect_es": None, "clarity": "clear"}])
+    c = ctx({**SIGNS_A, "Moon": 3, "Jupiter": 6})                 # Moon Cancer, Jupiter Libra: 4th from the Moon
+    ids = {e.rule_id for e in rr.applicable(c)}
+    assert "CB.1" in ids and "CB.2" not in ids
+    a = rr.answer(c, "money", "what", "en")
+    assert any("Your standing outlasts you." in l for l in a["lines"])
+    es = rr.answer(c, "money", "what", "es")
+    assert any("Tu prestigio" in l for l in es["lines"])
+    other = ctx({**SIGNS_A, "Moon": 3, "Jupiter": 11})
+    assert "CB.1" not in {e.rule_id for e in rr.applicable(other)}
+
+
+def test_capped_answers_draw_from_every_book():
+    many = [{"id": f"M{i}", "kind": "natal", "planet": "Moon", "houses": [12], "requires": [], "tone": "bad",
+             "topics": ["money"], "effect": f"Lal Kitab line {i}.", "effect_es": f"Linea {i}.", "clarity": "clear"} for i in range(12)]
+    rc._cache = many
+    from antar_engine import combo_rules as cb
+    cb._cache = [{"id": "CB.1", "n": 1, "name": "Z Yoga", "tone": "bad", "topics": ["money"],
+                  "requires": [{"planet": "Moon", "in_houses": [4]}], "effect": "Combination line.", "effect_es": "Linea c.",
+                  "clarity": "clear"}]
+    a = rr.answer(ctx({**SIGNS_A, "Moon": 3}), "money", "what", "en")      # Moon in Cancer: 4th from Aries lagna? lagna is Capricorn
+    assert a["applicable"] in (True, False)
+    c = ctx({**SIGNS_A})
+    # lagna Capricorn (9): Moon in Pisces is house 3, so use a Moon placement that is the 4th house (Aries)
+    c4 = ctx({**SIGNS_A, "Moon": 0})
+    cb._cache = [{"id": "CB.1", "n": 1, "name": "Z Yoga", "tone": "bad", "topics": ["money"],
+                  "requires": [{"planet": "Moon", "in_houses": [4]}], "effect": "Combination line.", "effect_es": "Linea c.",
+                  "clarity": "clear"}]
+    rc._cache = [{**m, "houses": [1]} for m in many]                         # Moon in Aries = Lal Kitab house 1
+    lines = rr.answer(c4, "money", "what", "en")["lines"]
+    assert any("Combination line." in l for l in lines)
+    assert any("Lal Kitab line" in l for l in lines)

@@ -1,0 +1,7340 @@
+{
+"source": "B.V. Raman, Three Hundred Important Combinations, Part I (1-162), decomposed 2026-10-13",
+"rules": [
+{
+"id": "CB.1",
+"n": 1,
+"name": "Gajakesari Yoga",
+"requires": [
+{
+"planet": "Jupiter",
+"in_houses_from": "Moon",
+"houses": [
+1,
+4,
+7,
+10
+]
+}
+],
+"tone": "good",
+"topics": [
+"fame"
+],
+"effect": "Your good name and standing in your community can last well beyond your own lifetime.",
+"effect_es": "Tu buen nombre y tu posición en tu comunidad pueden durar mucho más allá de tu propia vida.",
+"clarity": "clear"
+},
+{
+"id": "CB.2",
+"n": 2,
+"name": "Sunapha Yoga",
+"requires": [
+{
+"from": "Moon",
+"houses": [
+2
+],
+"holds_any": [
+"Mars",
+"Mercury",
+"Jupiter",
+"Venus",
+"Saturn"
+]
+}
+],
+"tone": "good",
+"topics": [
+"money",
+"fame"
+],
+"effect": "You tend to build money, standing and a good name through your own efforts.",
+"effect_es": "Tiendes a construir dinero, posición y buen nombre con tu propio esfuerzo.",
+"clarity": "clear"
+},
+{
+"id": "CB.3",
+"n": 3,
+"name": "Anapha Yoga",
+"requires": [
+{
+"from": "Moon",
+"houses": [
+12
+],
+"holds_any": [
+"Mars",
+"Mercury",
+"Jupiter",
+"Venus",
+"Saturn"
+]
+}
+],
+"tone": "good",
+"topics": [
+"fame"
+],
+"effect": "You carry yourself well, earn a good reputation and enjoy comfort, with a generous streak.",
+"effect_es": "Te comportas bien, ganas buena reputación y disfrutas de la comodidad, con un lado generoso.",
+"clarity": "clear"
+},
+{
+"id": "CB.4",
+"n": 4,
+"name": "Dhurdhura Yoga",
+"requires": [
+{
+"from": "Moon",
+"houses": [
+2
+],
+"holds_any": [
+"Mars",
+"Mercury",
+"Jupiter",
+"Venus",
+"Saturn"
+]
+},
+{
+"from": "Moon",
+"houses": [
+12
+],
+"holds_any": [
+"Mars",
+"Mercury",
+"Jupiter",
+"Venus",
+"Saturn"
+]
+}
+],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You tend to be generous, and you also draw in money and comforts such as a vehicle.",
+"effect_es": "Tiendes a ser generoso y también atraes dinero y comodidades, como un vehículo.",
+"clarity": "clear"
+},
+{
+"id": "CB.5",
+"n": 5,
+"name": "Kemadruma Yoga",
+"requires": [
+{
+"from": "Moon",
+"houses": [
+2,
+12
+],
+"holds_none_of": [
+"Mars",
+"Mercury",
+"Jupiter",
+"Venus",
+"Saturn"
+]
+}
+],
+"tone": "bad",
+"topics": [
+"money",
+"family"
+],
+"effect": "Money and support can feel thin at times, so build your own steady income instead of leaning on others.",
+"effect_es": "El dinero y el apoyo pueden sentirse escasos a veces, así que construye tus propios ingresos estables en lugar de depender de otros.",
+"clarity": "clear"
+},
+{
+"id": "CB.6a",
+"n": 6,
+"name": "Chandra-Mangala Yoga",
+"requires": [
+{
+"a": "Moon",
+"b": "Mars",
+"relation": "conjunct"
+}
+],
+"tone": "mixed",
+"topics": [
+"money",
+"career"
+],
+"effect": "You can earn through trade and enterprise, and handling money steadily matters more than chasing quick gains.",
+"effect_es": "Puedes ganar dinero con el comercio y los negocios, y manejarlo con constancia importa más que perseguir ganancias rápidas.",
+"clarity": "clear"
+},
+{
+"id": "CB.6b",
+"n": 6,
+"name": "Chandra-Mangala Yoga",
+"requires": [
+{
+"a": "Moon",
+"b": "Mars",
+"relation": "mutual_aspect"
+}
+],
+"tone": "mixed",
+"topics": [
+"money",
+"career"
+],
+"effect": "You can earn through trade and enterprise, and handling money steadily matters more than chasing quick gains.",
+"effect_es": "Puedes ganar dinero con el comercio y los negocios, y manejarlo con constancia importa más que perseguir ganancias rápidas.",
+"clarity": "clear"
+},
+{
+"id": "CB.7",
+"n": 7,
+"name": "Adhi Yoga",
+"requires": [
+{
+"from": "Moon",
+"houses": [
+6,
+7,
+8
+],
+"holds_any": [
+"Mercury",
+"Jupiter",
+"Venus"
+]
+}
+],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "You can rise to a position of authority, enjoy comfort and come out ahead of your rivals.",
+"effect_es": "Puedes llegar a una posición de autoridad, vivir con comodidad y salir adelante frente a tus rivales.",
+"clarity": "clear"
+},
+{
+"id": "CB.8",
+"n": 8,
+"name": "Chatussagara Yoga",
+"requires": [
+{
+"kendras_all_occupied": true
+}
+],
+"tone": "good",
+"topics": [
+"fame",
+"money"
+],
+"effect": "You tend to earn a good name and stay financially sound, with a standing others look up to.",
+"effect_es": "Tiendes a ganar buen nombre y a mantener una situación económica sólida, con una posición que otros admiran.",
+"clarity": "clear"
+},
+{
+"id": "CB.9a",
+"n": 9,
+"name": "Vasumathi Yoga",
+"requires": [
+{
+"from": "lagna",
+"houses": [
+3,
+6,
+10,
+11
+],
+"holds_any": [
+"Mercury",
+"Jupiter",
+"Venus"
+]
+}
+],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You tend to stand on your own feet and have plenty of money.",
+"effect_es": "Tiendes a valerte por ti mismo y a tener mucho dinero.",
+"clarity": "inferred"
+},
+{
+"id": "CB.9b",
+"n": 9,
+"name": "Vasumathi Yoga",
+"requires": [
+{
+"from": "Moon",
+"houses": [
+3,
+6,
+10,
+11
+],
+"holds_any": [
+"Mercury",
+"Jupiter",
+"Venus"
+]
+}
+],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You tend to stand on your own feet and have plenty of money.",
+"effect_es": "Tiendes a valerte por ti mismo y a tener mucho dinero.",
+"clarity": "inferred"
+},
+{
+"id": "CB.10",
+"n": 10,
+"name": "Rajalakshana Yoga",
+"requires": [
+{
+"planet": "Jupiter",
+"in_houses": [
+1,
+4,
+7,
+10
+]
+},
+{
+"planet": "Venus",
+"in_houses": [
+1,
+4,
+7,
+10
+]
+},
+{
+"planet": "Mercury",
+"in_houses": [
+1,
+4,
+7,
+10
+]
+},
+{
+"planet": "Moon",
+"in_houses": [
+1,
+4,
+7,
+10
+]
+}
+],
+"tone": "good",
+"topics": [
+"fame"
+],
+"effect": "You have an attractive presence that commands respect from others.",
+"effect_es": "Tienes una presencia atractiva que inspira respeto en los demás.",
+"clarity": "clear"
+},
+{
+"id": "CB.12",
+"n": 12,
+"name": "Sakata Yoga (Moon-Jupiter)",
+"requires": [
+{
+"planet": "Moon",
+"in_houses_from": "Jupiter",
+"houses": [
+6,
+8,
+12
+]
+}
+],
+"tone": "bad",
+"topics": [
+"money"
+],
+"effect": "Your fortunes can swing, with money lost and later regained, though the effect is usually mild.",
+"effect_es": "Tu suerte puede variar, con dinero que se pierde y luego se recupera, aunque el efecto suele ser leve.",
+"clarity": "clear"
+},
+{
+"id": "CB.13a",
+"n": 13,
+"name": "Amala Yoga",
+"requires": [
+{
+"house": 10,
+"holds_any_benefic": true
+}
+],
+"tone": "good",
+"topics": [
+"fame",
+"money"
+],
+"effect": "Your good name can last, and you tend to prosper by fair means.",
+"effect_es": "Tu buen nombre puede perdurar y tiendes a prosperar por medios honestos.",
+"clarity": "clear"
+},
+{
+"id": "CB.13b",
+"n": 13,
+"name": "Amala Yoga",
+"requires": [
+{
+"from": "Moon",
+"houses": [
+10
+],
+"holds_any": [
+"Mercury",
+"Jupiter",
+"Venus"
+]
+}
+],
+"tone": "good",
+"topics": [
+"fame",
+"money"
+],
+"effect": "Your good name can last, and you tend to prosper by fair means.",
+"effect_es": "Tu buen nombre puede perdurar y tiendes a prosperar por medios honestos.",
+"clarity": "clear"
+},
+{
+"id": "CB.14a",
+"n": 14,
+"name": "Parvata Yoga",
+"requires": [
+{
+"planets_in_houses": [
+"Mercury",
+"Jupiter",
+"Venus"
+],
+"houses": [
+1,
+4,
+7,
+10
+],
+"at_least": 1
+},
+{
+"house": 6,
+"holds_any_malefic": false
+},
+{
+"house": 8,
+"holds_any_malefic": false
+}
+],
+"tone": "good",
+"topics": [
+"money",
+"career"
+],
+"effect": "You can prosper, take a leading role in your town or circle, and enjoy financial stability.",
+"effect_es": "Puedes prosperar, tener un papel de liderazgo en tu ciudad o círculo y disfrutar de estabilidad económica.",
+"clarity": "inferred"
+},
+{
+"id": "CB.14b",
+"n": 14,
+"name": "Parvata Yoga",
+"requires": [
+{
+"a": "L1",
+"b": "L12",
+"relation": "kendra_from_each_other"
+}
+],
+"tone": "good",
+"topics": [
+"money",
+"career"
+],
+"effect": "You can prosper, take a leading role in your town or circle, and enjoy financial stability.",
+"effect_es": "Puedes prosperar, tener un papel de liderazgo en tu ciudad o círculo y disfrutar de estabilidad económica.",
+"clarity": "inferred"
+},
+{
+"id": "CB.15b",
+"n": 15,
+"name": "Kahala Yoga",
+"requires": [
+{
+"planet": "L4",
+"dignity": [
+"own",
+"exalted"
+]
+},
+{
+"a": "L10",
+"b": "L4",
+"relation": "conjunct"
+}
+],
+"tone": "mixed",
+"topics": [
+"career"
+],
+"effect": "You are bold and determined and can take charge of a team or local area, though you may be stubborn.",
+"effect_es": "Eres audaz y decidido y puedes dirigir un equipo o una zona local, aunque puedes ser terco.",
+"clarity": "inferred"
+},
+{
+"id": "CB.15c",
+"n": 15,
+"name": "Kahala Yoga",
+"requires": [
+{
+"planet": "L4",
+"dignity": [
+"own",
+"exalted"
+]
+},
+{
+"a": "L10",
+"b": "L4",
+"relation": "a_aspects_b"
+}
+],
+"tone": "mixed",
+"topics": [
+"career"
+],
+"effect": "You are bold and determined and can take charge of a team or local area, though you may be stubborn.",
+"effect_es": "Eres audaz y decidido y puedes dirigir un equipo o una zona local, aunque puedes ser terco.",
+"clarity": "inferred"
+},
+{
+"id": "CB.16a",
+"n": 16,
+"name": "Vesi Yoga",
+"requires": [
+{
+"from": "Sun",
+"houses": [
+2
+],
+"holds_any": [
+"Mercury",
+"Jupiter",
+"Venus"
+]
+}
+],
+"tone": "good",
+"topics": [
+"fame"
+],
+"effect": "Luck tends to favour you, bringing happiness, good character and a good name.",
+"effect_es": "La suerte tiende a favorecerte, trayéndote felicidad, buen carácter y buen nombre.",
+"clarity": "clear"
+},
+{
+"id": "CB.16b",
+"n": 16,
+"name": "Vesi Yoga",
+"requires": [
+{
+"from": "Sun",
+"houses": [
+2
+],
+"holds_any": [
+"Mars",
+"Saturn"
+]
+}
+],
+"tone": "bad",
+"topics": [
+"fame"
+],
+"effect": "Luck, ease and recognition may come less readily, so steady effort counts for more.",
+"effect_es": "La suerte, la tranquilidad y el reconocimiento pueden llegar con menos facilidad, así que el esfuerzo constante cuenta más.",
+"clarity": "clear"
+},
+{
+"id": "CB.17a",
+"n": 17,
+"name": "Vasi Yoga",
+"requires": [
+{
+"from": "Sun",
+"houses": [
+12
+],
+"holds_any": [
+"Mercury",
+"Jupiter",
+"Venus"
+]
+}
+],
+"tone": "good",
+"topics": [
+"money",
+"career"
+],
+"effect": "You tend to prosper, give freely and be favoured by people in authority.",
+"effect_es": "Tiendes a prosperar, a dar con generosidad y a ser favorecido por personas con autoridad.",
+"clarity": "clear"
+},
+{
+"id": "CB.17b",
+"n": 17,
+"name": "Vasi Yoga",
+"requires": [
+{
+"from": "Sun",
+"houses": [
+12
+],
+"holds_any": [
+"Mars",
+"Saturn"
+]
+}
+],
+"tone": "bad",
+"topics": [
+"money",
+"career"
+],
+"effect": "Prosperity and goodwill from people in authority may come less easily, so steady effort counts for more.",
+"effect_es": "La prosperidad y la buena voluntad de quienes tienen autoridad pueden llegar con menos facilidad, así que el esfuerzo constante cuenta más.",
+"clarity": "clear"
+},
+{
+"id": "CB.18",
+"n": 18,
+"name": "Obhayachari Yoga",
+"requires": [
+{
+"from": "Sun",
+"houses": [
+2
+],
+"holds_any": [
+"Mars",
+"Mercury",
+"Jupiter",
+"Venus",
+"Saturn"
+]
+},
+{
+"from": "Sun",
+"houses": [
+12
+],
+"holds_any": [
+"Mars",
+"Mercury",
+"Jupiter",
+"Venus",
+"Saturn"
+]
+}
+],
+"tone": "good",
+"topics": [
+"fame",
+"money"
+],
+"effect": "You tend to speak well, be liked, build wealth and become well known.",
+"effect_es": "Tiendes a expresarte bien, caer bien, construir riqueza y hacerte conocido.",
+"clarity": "clear"
+},
+{
+"id": "CB.19",
+"n": 19,
+"name": "Hamsa Yoga",
+"requires": [
+{
+"planet": "Jupiter",
+"in_houses": [
+1,
+4,
+7,
+10
+]
+},
+{
+"planet": "Jupiter",
+"dignity": [
+"own",
+"exalted"
+]
+}
+],
+"tone": "good",
+"topics": [
+"spiritual",
+"fame"
+],
+"effect": "You tend to be righteous, wise and well liked.",
+"effect_es": "Tiendes a ser íntegro, sabio y apreciado por los demás.",
+"clarity": "clear"
+},
+{
+"id": "CB.20",
+"n": 20,
+"name": "Malavya Yoga",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+1,
+4,
+7,
+10
+]
+},
+{
+"planet": "Venus",
+"dignity": [
+"own",
+"exalted"
+]
+}
+],
+"tone": "good",
+"topics": [
+"marriage",
+"family",
+"money"
+],
+"effect": "You can enjoy good health, wealth, happiness through partner and children, and comforts such as a vehicle, with a taste for pleasure.",
+"effect_es": "Puedes disfrutar de buena salud, riqueza, felicidad con tu pareja e hijos y comodidades como un vehículo, con gusto por el placer.",
+"clarity": "clear"
+},
+{
+"id": "CB.21",
+"n": 21,
+"name": "Sasa Yoga",
+"requires": [
+{
+"planet": "Saturn",
+"in_houses": [
+1,
+4,
+7,
+10
+]
+},
+{
+"planet": "Saturn",
+"dignity": [
+"own",
+"exalted"
+]
+}
+],
+"tone": "mixed",
+"topics": [
+"career"
+],
+"effect": "You can gain authority and lead others, though you must watch your ethics when under pressure.",
+"effect_es": "Puedes ganar autoridad y dirigir a otros, aunque debes cuidar tu ética cuando estés bajo presión.",
+"clarity": "clear"
+},
+{
+"id": "CB.22",
+"n": 22,
+"name": "Ruchaka Yoga",
+"requires": [
+{
+"planet": "Mars",
+"in_houses": [
+1,
+4,
+7,
+10
+]
+},
+{
+"planet": "Mars",
+"dignity": [
+"own",
+"exalted"
+]
+}
+],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "You are a strong, bold leader who can command others, though you can be forceful if pushed.",
+"effect_es": "Eres un líder fuerte y audaz que puede dirigir a otros, aunque puedes ser impetuoso si te presionan.",
+"clarity": "clear"
+},
+{
+"id": "CB.23",
+"n": 23,
+"name": "Bhadra Yoga",
+"requires": [
+{
+"planet": "Mercury",
+"in_houses": [
+1,
+4,
+7,
+10
+]
+},
+{
+"planet": "Mercury",
+"dignity": [
+"own",
+"exalted"
+]
+}
+],
+"tone": "good",
+"topics": [
+"education",
+"money"
+],
+"effect": "You have a sharp mind and love of learning, and you tend to gain wealth and be generous.",
+"effect_es": "Tienes una mente aguda y amor por aprender, y tiendes a ganar riqueza y ser generoso.",
+"clarity": "clear"
+},
+{
+"id": "CB.27a",
+"n": 27,
+"name": "Lakshmi Yoga",
+"requires": [
+{
+"a": "L1",
+"b": "L9",
+"relation": "conjunct"
+},
+{
+"planet": "L1",
+"not_in_houses": [
+3,
+6,
+8
+]
+}
+],
+"tone": "good",
+"topics": [
+"money",
+"education",
+"fame"
+],
+"effect": "You tend to enjoy wealth, learning, a good name and comfort.",
+"effect_es": "Tiendes a disfrutar de riqueza, conocimiento, buen nombre y comodidad.",
+"clarity": "inferred"
+},
+{
+"id": "CB.27b",
+"n": 27,
+"name": "Lakshmi Yoga",
+"requires": [
+{
+"a": "L1",
+"b": "L9",
+"relation": "mutual_aspect"
+},
+{
+"planet": "L1",
+"not_in_houses": [
+3,
+6,
+8
+]
+}
+],
+"tone": "good",
+"topics": [
+"money",
+"education",
+"fame"
+],
+"effect": "You tend to enjoy wealth, learning, a good name and comfort.",
+"effect_es": "Tiendes a disfrutar de riqueza, conocimiento, buen nombre y comodidad.",
+"clarity": "inferred"
+},
+{
+"id": "CB.27c",
+"n": 27,
+"name": "Lakshmi Yoga",
+"requires": [
+{
+"planet": "L9",
+"dignity": [
+"own",
+"exalted"
+]
+},
+{
+"planet": "L9",
+"in_houses": [
+1,
+4,
+5,
+7,
+9,
+10
+]
+},
+{
+"planet": "Venus",
+"dignity": [
+"own",
+"exalted"
+]
+},
+{
+"planet": "Venus",
+"in_houses": [
+1,
+4,
+5,
+7,
+9,
+10
+]
+}
+],
+"tone": "good",
+"topics": [
+"money",
+"education",
+"fame"
+],
+"effect": "You tend to enjoy wealth, learning, a good name and comfort.",
+"effect_es": "Tiendes a disfrutar de riqueza, conocimiento, buen nombre y comodidad.",
+"clarity": "inferred"
+},
+{
+"id": "CB.28",
+"n": 28,
+"name": "Gauri Yoga",
+"requires": [
+{
+"planet": "L9",
+"dignity": [
+"own",
+"exalted"
+]
+},
+{
+"planet": "L9",
+"in_houses": [
+1,
+4,
+5,
+7,
+9,
+10
+]
+},
+{
+"planet": "Moon",
+"dignity": [
+"own",
+"exalted"
+]
+},
+{
+"planet": "Moon",
+"in_houses": [
+1,
+4,
+5,
+7,
+9,
+10
+]
+}
+],
+"tone": "good",
+"topics": [
+"family",
+"property",
+"children",
+"fame"
+],
+"effect": "You come from or build a respected family, may own land, give generously, and raise children of good character.",
+"effect_es": "Vienes de una familia respetada o la construyes, puedes tener tierras, das con generosidad y crías hijos de buen carácter.",
+"clarity": "inferred"
+},
+{
+"id": "CB.30",
+"n": 30,
+"name": "Kusuma Yoga",
+"requires": [
+{
+"planet": "Jupiter",
+"in_houses": [
+1
+]
+},
+{
+"planet": "Moon",
+"in_houses": [
+7
+]
+},
+{
+"planet": "Sun",
+"in_houses": [
+2
+]
+}
+],
+"tone": "good",
+"topics": [
+"career",
+"fame"
+],
+"effect": "You can become a leader of your town or community, often after your early twenties, and help many others.",
+"effect_es": "Puedes convertirte en líder de tu ciudad o comunidad, a menudo pasados tus veinte años, y ayudar a muchos otros.",
+"clarity": "clear"
+},
+{
+"id": "CB.31",
+"n": 31,
+"name": "Chapa Yoga (4-10 exchange)",
+"requires": [
+{
+"planet": "L1",
+"dignity": [
+"exalted"
+]
+},
+{
+"a": "L4",
+"b": "L10",
+"relation": "exchange"
+}
+],
+"tone": "good",
+"topics": [
+"money",
+"career"
+],
+"effect": "You may handle other people's money or resources, in finance or administration, more than build personal riches.",
+"effect_es": "Es posible que manejes el dinero o los recursos de otros, en finanzas o administración, más que construir riqueza personal.",
+"clarity": "clear"
+},
+{
+"id": "CB.32",
+"n": 32,
+"name": "Sreenatha Yoga",
+"requires": [
+{
+"planet": "L7",
+"dignity": [
+"exalted"
+]
+},
+{
+"planet": "L7",
+"in_houses": [
+10
+]
+},
+{
+"planet": "L10",
+"in_houses": [
+9
+]
+}
+],
+"tone": "good",
+"topics": [
+"career",
+"money",
+"marriage"
+],
+"effect": "You can gain both power and wealth, with a supportive partner and a loving family life.",
+"effect_es": "Puedes ganar poder y riqueza, con una pareja que te apoya y una vida familiar afectuosa.",
+"clarity": "clear"
+},
+{
+"id": "CB.33",
+"n": 33,
+"name": "Lagna Malika Yoga",
+"requires": [
+{
+"planet": "Sun",
+"in_houses": [
+1,
+2,
+3,
+4,
+5,
+6,
+7
+]
+},
+{
+"planet": "Moon",
+"in_houses": [
+1,
+2,
+3,
+4,
+5,
+6,
+7
+]
+},
+{
+"planet": "Mars",
+"in_houses": [
+1,
+2,
+3,
+4,
+5,
+6,
+7
+]
+},
+{
+"planet": "Mercury",
+"in_houses": [
+1,
+2,
+3,
+4,
+5,
+6,
+7
+]
+},
+{
+"planet": "Jupiter",
+"in_houses": [
+1,
+2,
+3,
+4,
+5,
+6,
+7
+]
+},
+{
+"planet": "Venus",
+"in_houses": [
+1,
+2,
+3,
+4,
+5,
+6,
+7
+]
+},
+{
+"planet": "Saturn",
+"in_houses": [
+1,
+2,
+3,
+4,
+5,
+6,
+7
+]
+},
+{
+"house": 1,
+"empty": false
+},
+{
+"house": 2,
+"empty": false
+},
+{
+"house": 3,
+"empty": false
+},
+{
+"house": 4,
+"empty": false
+},
+{
+"house": 5,
+"empty": false
+},
+{
+"house": 6,
+"empty": false
+},
+{
+"house": 7,
+"empty": false
+}
+],
+"tone": "good",
+"topics": [
+"career",
+"money",
+"fame"
+],
+"effect": "You can rise to a position of leadership and command, and have good wealth.",
+"effect_es": "Puedes llegar a una posición de liderazgo y mando, y tener buena riqueza.",
+"clarity": "inferred"
+},
+{
+"id": "CB.36",
+"n": 36,
+"name": "Sukha Malika Yoga",
+"requires": [
+{
+"planet": "Sun",
+"in_houses": [
+4,
+5,
+6,
+7,
+8,
+9,
+10
+]
+},
+{
+"planet": "Moon",
+"in_houses": [
+4,
+5,
+6,
+7,
+8,
+9,
+10
+]
+},
+{
+"planet": "Mars",
+"in_houses": [
+4,
+5,
+6,
+7,
+8,
+9,
+10
+]
+},
+{
+"planet": "Mercury",
+"in_houses": [
+4,
+5,
+6,
+7,
+8,
+9,
+10
+]
+},
+{
+"planet": "Jupiter",
+"in_houses": [
+4,
+5,
+6,
+7,
+8,
+9,
+10
+]
+},
+{
+"planet": "Venus",
+"in_houses": [
+4,
+5,
+6,
+7,
+8,
+9,
+10
+]
+},
+{
+"planet": "Saturn",
+"in_houses": [
+4,
+5,
+6,
+7,
+8,
+9,
+10
+]
+},
+{
+"house": 4,
+"empty": false
+},
+{
+"house": 5,
+"empty": false
+},
+{
+"house": 6,
+"empty": false
+},
+{
+"house": 7,
+"empty": false
+},
+{
+"house": 8,
+"empty": false
+},
+{
+"house": 9,
+"empty": false
+},
+{
+"house": 10,
+"empty": false
+}
+],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You tend to be generous and well off.",
+"effect_es": "Tiendes a ser generoso y a vivir con holgura.",
+"clarity": "inferred"
+},
+{
+"id": "CB.37",
+"n": 37,
+"name": "Putra Malika Yoga",
+"requires": [
+{
+"planet": "Sun",
+"in_houses": [
+5,
+6,
+7,
+8,
+9,
+10,
+11
+]
+},
+{
+"planet": "Moon",
+"in_houses": [
+5,
+6,
+7,
+8,
+9,
+10,
+11
+]
+},
+{
+"planet": "Mars",
+"in_houses": [
+5,
+6,
+7,
+8,
+9,
+10,
+11
+]
+},
+{
+"planet": "Mercury",
+"in_houses": [
+5,
+6,
+7,
+8,
+9,
+10,
+11
+]
+},
+{
+"planet": "Jupiter",
+"in_houses": [
+5,
+6,
+7,
+8,
+9,
+10,
+11
+]
+},
+{
+"planet": "Venus",
+"in_houses": [
+5,
+6,
+7,
+8,
+9,
+10,
+11
+]
+},
+{
+"planet": "Saturn",
+"in_houses": [
+5,
+6,
+7,
+8,
+9,
+10,
+11
+]
+},
+{
+"house": 5,
+"empty": false
+},
+{
+"house": 6,
+"empty": false
+},
+{
+"house": 7,
+"empty": false
+},
+{
+"house": 8,
+"empty": false
+},
+{
+"house": 9,
+"empty": false
+},
+{
+"house": 10,
+"empty": false
+},
+{
+"house": 11,
+"empty": false
+}
+],
+"tone": "good",
+"topics": [
+"spiritual",
+"fame"
+],
+"effect": "You tend to be devout and well known.",
+"effect_es": "Tiendes a ser devoto y a ser muy conocido.",
+"clarity": "inferred"
+},
+{
+"id": "CB.38",
+"n": 38,
+"name": "Satru Malika Yoga",
+"requires": [
+{
+"planet": "Sun",
+"in_houses": [
+6,
+7,
+8,
+9,
+10,
+11,
+12
+]
+},
+{
+"planet": "Moon",
+"in_houses": [
+6,
+7,
+8,
+9,
+10,
+11,
+12
+]
+},
+{
+"planet": "Mars",
+"in_houses": [
+6,
+7,
+8,
+9,
+10,
+11,
+12
+]
+},
+{
+"planet": "Mercury",
+"in_houses": [
+6,
+7,
+8,
+9,
+10,
+11,
+12
+]
+},
+{
+"planet": "Jupiter",
+"in_houses": [
+6,
+7,
+8,
+9,
+10,
+11,
+12
+]
+},
+{
+"planet": "Venus",
+"in_houses": [
+6,
+7,
+8,
+9,
+10,
+11,
+12
+]
+},
+{
+"planet": "Saturn",
+"in_houses": [
+6,
+7,
+8,
+9,
+10,
+11,
+12
+]
+},
+{
+"house": 6,
+"empty": false
+},
+{
+"house": 7,
+"empty": false
+},
+{
+"house": 8,
+"empty": false
+},
+{
+"house": 9,
+"empty": false
+},
+{
+"house": 10,
+"empty": false
+},
+{
+"house": 11,
+"empty": false
+},
+{
+"house": 12,
+"empty": false
+}
+],
+"tone": "bad",
+"topics": [
+"money"
+],
+"effect": "Money may feel tight at times, and holding on too hard can hold you back.",
+"effect_es": "El dinero puede sentirse justo a veces, y aferrarte demasiado a él puede frenarte.",
+"clarity": "inferred"
+},
+{
+"id": "CB.39",
+"n": 39,
+"name": "Kalatra Malika Yoga",
+"requires": [
+{
+"planet": "Sun",
+"in_houses": [
+7,
+8,
+9,
+10,
+11,
+12,
+1
+]
+},
+{
+"planet": "Moon",
+"in_houses": [
+7,
+8,
+9,
+10,
+11,
+12,
+1
+]
+},
+{
+"planet": "Mars",
+"in_houses": [
+7,
+8,
+9,
+10,
+11,
+12,
+1
+]
+},
+{
+"planet": "Mercury",
+"in_houses": [
+7,
+8,
+9,
+10,
+11,
+12,
+1
+]
+},
+{
+"planet": "Jupiter",
+"in_houses": [
+7,
+8,
+9,
+10,
+11,
+12,
+1
+]
+},
+{
+"planet": "Venus",
+"in_houses": [
+7,
+8,
+9,
+10,
+11,
+12,
+1
+]
+},
+{
+"planet": "Saturn",
+"in_houses": [
+7,
+8,
+9,
+10,
+11,
+12,
+1
+]
+},
+{
+"house": 7,
+"empty": false
+},
+{
+"house": 8,
+"empty": false
+},
+{
+"house": 9,
+"empty": false
+},
+{
+"house": 10,
+"empty": false
+},
+{
+"house": 11,
+"empty": false
+},
+{
+"house": 12,
+"empty": false
+},
+{
+"house": 1,
+"empty": false
+}
+],
+"tone": "good",
+"topics": [
+"fame",
+"marriage"
+],
+"effect": "Others tend to seek you out, and you carry real influence.",
+"effect_es": "Los demás tienden a buscarte y tienes una influencia real.",
+"clarity": "inferred"
+},
+{
+"id": "CB.41",
+"n": 41,
+"name": "Bhagya Malika Yoga",
+"requires": [
+{
+"planet": "Sun",
+"in_houses": [
+9,
+10,
+11,
+12,
+1,
+2,
+3
+]
+},
+{
+"planet": "Moon",
+"in_houses": [
+9,
+10,
+11,
+12,
+1,
+2,
+3
+]
+},
+{
+"planet": "Mars",
+"in_houses": [
+9,
+10,
+11,
+12,
+1,
+2,
+3
+]
+},
+{
+"planet": "Mercury",
+"in_houses": [
+9,
+10,
+11,
+12,
+1,
+2,
+3
+]
+},
+{
+"planet": "Jupiter",
+"in_houses": [
+9,
+10,
+11,
+12,
+1,
+2,
+3
+]
+},
+{
+"planet": "Venus",
+"in_houses": [
+9,
+10,
+11,
+12,
+1,
+2,
+3
+]
+},
+{
+"planet": "Saturn",
+"in_houses": [
+9,
+10,
+11,
+12,
+1,
+2,
+3
+]
+},
+{
+"house": 9,
+"empty": false
+},
+{
+"house": 10,
+"empty": false
+},
+{
+"house": 11,
+"empty": false
+},
+{
+"house": 12,
+"empty": false
+},
+{
+"house": 1,
+"empty": false
+},
+{
+"house": 2,
+"empty": false
+},
+{
+"house": 3,
+"empty": false
+}
+],
+"tone": "good",
+"topics": [
+"spiritual",
+"money"
+],
+"effect": "You tend to be devout, comfortably off and powerful.",
+"effect_es": "Tiendes a ser devoto, a vivir con holgura y a tener poder.",
+"clarity": "inferred"
+},
+{
+"id": "CB.42",
+"n": 42,
+"name": "Karma Malika Yoga",
+"requires": [
+{
+"planet": "Sun",
+"in_houses": [
+10,
+11,
+12,
+1,
+2,
+3,
+4
+]
+},
+{
+"planet": "Moon",
+"in_houses": [
+10,
+11,
+12,
+1,
+2,
+3,
+4
+]
+},
+{
+"planet": "Mars",
+"in_houses": [
+10,
+11,
+12,
+1,
+2,
+3,
+4
+]
+},
+{
+"planet": "Mercury",
+"in_houses": [
+10,
+11,
+12,
+1,
+2,
+3,
+4
+]
+},
+{
+"planet": "Jupiter",
+"in_houses": [
+10,
+11,
+12,
+1,
+2,
+3,
+4
+]
+},
+{
+"planet": "Venus",
+"in_houses": [
+10,
+11,
+12,
+1,
+2,
+3,
+4
+]
+},
+{
+"planet": "Saturn",
+"in_houses": [
+10,
+11,
+12,
+1,
+2,
+3,
+4
+]
+},
+{
+"house": 10,
+"empty": false
+},
+{
+"house": 11,
+"empty": false
+},
+{
+"house": 12,
+"empty": false
+},
+{
+"house": 1,
+"empty": false
+},
+{
+"house": 2,
+"empty": false
+},
+{
+"house": 3,
+"empty": false
+},
+{
+"house": 4,
+"empty": false
+}
+],
+"tone": "good",
+"topics": [
+"career",
+"fame"
+],
+"effect": "You earn respect and are seen as a person of good character.",
+"effect_es": "Te ganas el respeto y te ven como una persona de buen carácter.",
+"clarity": "inferred"
+},
+{
+"id": "CB.43",
+"n": 43,
+"name": "Labha Malika Yoga",
+"requires": [
+{
+"planet": "Sun",
+"in_houses": [
+11,
+12,
+1,
+2,
+3,
+4,
+5
+]
+},
+{
+"planet": "Moon",
+"in_houses": [
+11,
+12,
+1,
+2,
+3,
+4,
+5
+]
+},
+{
+"planet": "Mars",
+"in_houses": [
+11,
+12,
+1,
+2,
+3,
+4,
+5
+]
+},
+{
+"planet": "Mercury",
+"in_houses": [
+11,
+12,
+1,
+2,
+3,
+4,
+5
+]
+},
+{
+"planet": "Jupiter",
+"in_houses": [
+11,
+12,
+1,
+2,
+3,
+4,
+5
+]
+},
+{
+"planet": "Venus",
+"in_houses": [
+11,
+12,
+1,
+2,
+3,
+4,
+5
+]
+},
+{
+"planet": "Saturn",
+"in_houses": [
+11,
+12,
+1,
+2,
+3,
+4,
+5
+]
+},
+{
+"house": 11,
+"empty": false
+},
+{
+"house": 12,
+"empty": false
+},
+{
+"house": 1,
+"empty": false
+},
+{
+"house": 2,
+"empty": false
+},
+{
+"house": 3,
+"empty": false
+},
+{
+"house": 4,
+"empty": false
+},
+{
+"house": 5,
+"empty": false
+}
+],
+"tone": "good",
+"topics": [
+"fame",
+"career"
+],
+"effect": "You are skilful and attract many admirers.",
+"effect_es": "Eres hábil y atraes a muchos admiradores.",
+"clarity": "inferred"
+},
+{
+"id": "CB.44",
+"n": 44,
+"name": "Vyaya Malika Yoga",
+"requires": [
+{
+"planet": "Sun",
+"in_houses": [
+12,
+1,
+2,
+3,
+4,
+5,
+6
+]
+},
+{
+"planet": "Moon",
+"in_houses": [
+12,
+1,
+2,
+3,
+4,
+5,
+6
+]
+},
+{
+"planet": "Mars",
+"in_houses": [
+12,
+1,
+2,
+3,
+4,
+5,
+6
+]
+},
+{
+"planet": "Mercury",
+"in_houses": [
+12,
+1,
+2,
+3,
+4,
+5,
+6
+]
+},
+{
+"planet": "Jupiter",
+"in_houses": [
+12,
+1,
+2,
+3,
+4,
+5,
+6
+]
+},
+{
+"planet": "Venus",
+"in_houses": [
+12,
+1,
+2,
+3,
+4,
+5,
+6
+]
+},
+{
+"planet": "Saturn",
+"in_houses": [
+12,
+1,
+2,
+3,
+4,
+5,
+6
+]
+},
+{
+"house": 12,
+"empty": false
+},
+{
+"house": 1,
+"empty": false
+},
+{
+"house": 2,
+"empty": false
+},
+{
+"house": 3,
+"empty": false
+},
+{
+"house": 4,
+"empty": false
+},
+{
+"house": 5,
+"empty": false
+},
+{
+"house": 6,
+"empty": false
+}
+],
+"tone": "good",
+"topics": [
+"fame"
+],
+"effect": "You earn honour and respect, and you are generous with others.",
+"effect_es": "Te ganas honor y respeto, y eres generoso con los demás.",
+"clarity": "inferred"
+},
+{
+"id": "CB.65a",
+"n": 65,
+"name": "Brahma Yoga",
+"requires": [
+{
+"a": "Jupiter",
+"b": "L9",
+"relation": "kendra_from_each_other"
+},
+{
+"a": "Venus",
+"b": "L11",
+"relation": "kendra_from_each_other"
+},
+{
+"a": "Mercury",
+"b": "L1",
+"relation": "kendra_from_each_other"
+}
+],
+"tone": "good",
+"topics": [
+"money",
+"education",
+"spiritual"
+],
+"effect": "You can become learned, charitable and wealthy, and earn the respect of others.",
+"effect_es": "Puedes llegar a ser culto, caritativo y rico, y ganarte el respeto de los demás.",
+"clarity": "inferred"
+},
+{
+"id": "CB.65b",
+"n": 65,
+"name": "Brahma Yoga",
+"requires": [
+{
+"a": "Jupiter",
+"b": "L9",
+"relation": "kendra_from_each_other"
+},
+{
+"a": "Venus",
+"b": "L11",
+"relation": "kendra_from_each_other"
+},
+{
+"a": "Mercury",
+"b": "L10",
+"relation": "kendra_from_each_other"
+}
+],
+"tone": "good",
+"topics": [
+"money",
+"education",
+"spiritual"
+],
+"effect": "You can become learned, charitable and wealthy, and earn the respect of others.",
+"effect_es": "Puedes llegar a ser culto, caritativo y rico, y ganarte el respeto de los demás.",
+"clarity": "inferred"
+},
+{
+"id": "CB.66",
+"n": 66,
+"name": "Indra Yoga",
+"requires": [
+{
+"a": "L5",
+"b": "L11",
+"relation": "exchange"
+},
+{
+"planet": "Moon",
+"in_houses": [
+5
+]
+}
+],
+"tone": "good",
+"topics": [
+"fame"
+],
+"effect": "You can show real courage and earn a name that lasts.",
+"effect_es": "Puedes mostrar un gran valor y ganarte un nombre que perdure.",
+"clarity": "clear"
+},
+{
+"id": "CB.67",
+"n": 67,
+"name": "Ravi Yoga",
+"requires": [
+{
+"planet": "Sun",
+"in_houses": [
+10
+]
+},
+{
+"planet": "L10",
+"in_houses": [
+3
+]
+},
+{
+"a": "L10",
+"b": "Saturn",
+"relation": "conjunct"
+}
+],
+"tone": "good",
+"topics": [
+"career",
+"fame"
+],
+"effect": "You can earn respect from people in authority and become well known, especially through technical or scientific work.",
+"effect_es": "Puedes ganarte el respeto de personas con autoridad y hacerte conocido, sobre todo con trabajo técnico o científico.",
+"clarity": "clear"
+},
+{
+"id": "CB.71",
+"n": 71,
+"name": "Thrilochana Yoga",
+"requires": [
+{
+"a": "Sun",
+"b": "Moon",
+"relation": "trine_from_each_other"
+},
+{
+"a": "Sun",
+"b": "Mars",
+"relation": "trine_from_each_other"
+},
+{
+"a": "Moon",
+"b": "Mars",
+"relation": "trine_from_each_other"
+}
+],
+"tone": "good",
+"topics": [
+"money",
+"career"
+],
+"effect": "You can gain great wealth and move through your career smoothly, without fear of rivals.",
+"effect_es": "Puedes ganar mucha riqueza y avanzar en tu carrera sin tropiezos, sin temer a tus rivales.",
+"clarity": "clear"
+},
+{
+"id": "CB.72",
+"n": 72,
+"name": "Samudra Yoga",
+"requires": [
+{
+"planet": "Sun",
+"in_houses": [
+2,
+4,
+6,
+8,
+10,
+12
+]
+},
+{
+"planet": "Moon",
+"in_houses": [
+2,
+4,
+6,
+8,
+10,
+12
+]
+},
+{
+"planet": "Mars",
+"in_houses": [
+2,
+4,
+6,
+8,
+10,
+12
+]
+},
+{
+"planet": "Mercury",
+"in_houses": [
+2,
+4,
+6,
+8,
+10,
+12
+]
+},
+{
+"planet": "Jupiter",
+"in_houses": [
+2,
+4,
+6,
+8,
+10,
+12
+]
+},
+{
+"planet": "Venus",
+"in_houses": [
+2,
+4,
+6,
+8,
+10,
+12
+]
+},
+{
+"planet": "Saturn",
+"in_houses": [
+2,
+4,
+6,
+8,
+10,
+12
+]
+}
+],
+"tone": "good",
+"topics": [
+"fame",
+"career"
+],
+"effect": "You can rise to a very high position and live largely free of worry.",
+"effect_es": "Puedes llegar a una posición muy alta y vivir en gran medida sin preocupaciones.",
+"clarity": "clear"
+},
+{
+"id": "CB.73",
+"n": 73,
+"name": "Jaya Yoga",
+"requires": [
+{
+"planet": "L6",
+"dignity": [
+"debilitated"
+]
+},
+{
+"planet": "L10",
+"dignity": [
+"exalted"
+]
+}
+],
+"tone": "good",
+"topics": [
+"career"
+],
+"effect": "You tend to overcome obstacles and rivals and succeed in your work.",
+"effect_es": "Tiendes a superar obstáculos y rivales y a tener éxito en tu trabajo.",
+"clarity": "clear"
+},
+{
+"id": "CB.74",
+"n": 74,
+"name": "Kulavardhana Yoga",
+"requires": [
+{
+"house": 5,
+"holds_any_benefic": true
+},
+{
+"from": "Sun",
+"houses": [
+5
+],
+"holds_any": [
+"Mercury",
+"Jupiter",
+"Venus"
+]
+},
+{
+"from": "Moon",
+"houses": [
+5
+],
+"holds_any": [
+"Mercury",
+"Jupiter",
+"Venus"
+]
+}
+],
+"tone": "good",
+"topics": [
+"children",
+"family"
+],
+"effect": "Your family line is likely to continue unbroken through your children and their children.",
+"effect_es": "Es probable que tu linaje continúe sin interrupciones a través de tus hijos y los hijos de ellos.",
+"clarity": "inferred"
+},
+{
+"id": "CB.75",
+"n": 75,
+"name": "Yupa Yoga",
+"requires": [
+{
+"planet": "Sun",
+"in_houses": [
+1,
+2,
+3,
+4
+]
+},
+{
+"planet": "Moon",
+"in_houses": [
+1,
+2,
+3,
+4
+]
+},
+{
+"planet": "Mars",
+"in_houses": [
+1,
+2,
+3,
+4
+]
+},
+{
+"planet": "Mercury",
+"in_houses": [
+1,
+2,
+3,
+4
+]
+},
+{
+"planet": "Jupiter",
+"in_houses": [
+1,
+2,
+3,
+4
+]
+},
+{
+"planet": "Venus",
+"in_houses": [
+1,
+2,
+3,
+4
+]
+},
+{
+"planet": "Saturn",
+"in_houses": [
+1,
+2,
+3,
+4
+]
+}
+],
+"tone": "good",
+"topics": [
+"other",
+"money"
+],
+"effect": "You tend to be generous, self-possessed and known for acts of charity.",
+"effect_es": "Tiendes a ser generoso, dueño de ti mismo y conocido por tus actos de caridad.",
+"clarity": "clear"
+},
+{
+"id": "CB.78",
+"n": 78,
+"name": "Danda Yoga",
+"requires": [
+{
+"planet": "Sun",
+"in_houses": [
+10,
+11,
+12,
+1
+]
+},
+{
+"planet": "Moon",
+"in_houses": [
+10,
+11,
+12,
+1
+]
+},
+{
+"planet": "Mars",
+"in_houses": [
+10,
+11,
+12,
+1
+]
+},
+{
+"planet": "Mercury",
+"in_houses": [
+10,
+11,
+12,
+1
+]
+},
+{
+"planet": "Jupiter",
+"in_houses": [
+10,
+11,
+12,
+1
+]
+},
+{
+"planet": "Venus",
+"in_houses": [
+10,
+11,
+12,
+1
+]
+},
+{
+"planet": "Saturn",
+"in_houses": [
+10,
+11,
+12,
+1
+]
+}
+],
+"tone": "bad",
+"topics": [
+"marriage",
+"children"
+],
+"effect": "You may find less happiness than you hope for from your partner and children, so tend those bonds with care.",
+"effect_es": "Puede que encuentres menos felicidad de la que esperas en tu pareja e hijos, así que cuida esos vínculos con atención.",
+"clarity": "clear"
+},
+{
+"id": "CB.79",
+"n": 79,
+"name": "Nav Yoga",
+"requires": [
+{
+"planet": "Sun",
+"in_houses": [
+1,
+2,
+3,
+4,
+5,
+6,
+7
+]
+},
+{
+"planet": "Moon",
+"in_houses": [
+1,
+2,
+3,
+4,
+5,
+6,
+7
+]
+},
+{
+"planet": "Mars",
+"in_houses": [
+1,
+2,
+3,
+4,
+5,
+6,
+7
+]
+},
+{
+"planet": "Mercury",
+"in_houses": [
+1,
+2,
+3,
+4,
+5,
+6,
+7
+]
+},
+{
+"planet": "Jupiter",
+"in_houses": [
+1,
+2,
+3,
+4,
+5,
+6,
+7
+]
+},
+{
+"planet": "Venus",
+"in_houses": [
+1,
+2,
+3,
+4,
+5,
+6,
+7
+]
+},
+{
+"planet": "Saturn",
+"in_houses": [
+1,
+2,
+3,
+4,
+5,
+6,
+7
+]
+},
+{
+"house": 1,
+"empty": false
+},
+{
+"house": 2,
+"empty": false
+},
+{
+"house": 3,
+"empty": false
+},
+{
+"house": 4,
+"empty": false
+},
+{
+"house": 5,
+"empty": false
+},
+{
+"house": 6,
+"empty": false
+},
+{
+"house": 7,
+"empty": false
+}
+],
+"tone": "mixed",
+"topics": [
+"fame",
+"other"
+],
+"effect": "You can become well known and have happy spells, though you may hold on to money too tightly.",
+"effect_es": "Puedes hacerte conocido y tener temporadas felices, aunque quizá te aferres demasiado al dinero.",
+"clarity": "clear"
+},
+{
+"id": "CB.81",
+"n": 81,
+"name": "Chhatra Yoga",
+"requires": [
+{
+"planet": "Sun",
+"in_houses": [
+7,
+8,
+9,
+10,
+11,
+12,
+1
+]
+},
+{
+"planet": "Moon",
+"in_houses": [
+7,
+8,
+9,
+10,
+11,
+12,
+1
+]
+},
+{
+"planet": "Mars",
+"in_houses": [
+7,
+8,
+9,
+10,
+11,
+12,
+1
+]
+},
+{
+"planet": "Mercury",
+"in_houses": [
+7,
+8,
+9,
+10,
+11,
+12,
+1
+]
+},
+{
+"planet": "Jupiter",
+"in_houses": [
+7,
+8,
+9,
+10,
+11,
+12,
+1
+]
+},
+{
+"planet": "Venus",
+"in_houses": [
+7,
+8,
+9,
+10,
+11,
+12,
+1
+]
+},
+{
+"planet": "Saturn",
+"in_houses": [
+7,
+8,
+9,
+10,
+11,
+12,
+1
+]
+},
+{
+"house": 7,
+"empty": false
+},
+{
+"house": 8,
+"empty": false
+},
+{
+"house": 9,
+"empty": false
+},
+{
+"house": 10,
+"empty": false
+},
+{
+"house": 11,
+"empty": false
+},
+{
+"house": 12,
+"empty": false
+},
+{
+"house": 1,
+"empty": false
+}
+],
+"tone": "good",
+"topics": [
+"money",
+"other"
+],
+"effect": "You tend to be happy and strong-minded, and to earn good wealth.",
+"effect_es": "Tiendes a ser feliz y de mente fuerte, y a ganar buena riqueza.",
+"clarity": "clear"
+},
+{
+"id": "CB.82",
+"n": 82,
+"name": "Chapa (arc) Yoga",
+"requires": [
+{
+"planet": "Sun",
+"in_houses": [
+10,
+11,
+12,
+1,
+2,
+3,
+4
+]
+},
+{
+"planet": "Moon",
+"in_houses": [
+10,
+11,
+12,
+1,
+2,
+3,
+4
+]
+},
+{
+"planet": "Mars",
+"in_houses": [
+10,
+11,
+12,
+1,
+2,
+3,
+4
+]
+},
+{
+"planet": "Mercury",
+"in_houses": [
+10,
+11,
+12,
+1,
+2,
+3,
+4
+]
+},
+{
+"planet": "Jupiter",
+"in_houses": [
+10,
+11,
+12,
+1,
+2,
+3,
+4
+]
+},
+{
+"planet": "Venus",
+"in_houses": [
+10,
+11,
+12,
+1,
+2,
+3,
+4
+]
+},
+{
+"planet": "Saturn",
+"in_houses": [
+10,
+11,
+12,
+1,
+2,
+3,
+4
+]
+},
+{
+"house": 10,
+"empty": false
+},
+{
+"house": 11,
+"empty": false
+},
+{
+"house": 12,
+"empty": false
+},
+{
+"house": 1,
+"empty": false
+},
+{
+"house": 2,
+"empty": false
+},
+{
+"house": 3,
+"empty": false
+},
+{
+"house": 4,
+"empty": false
+}
+],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "You tend to be brave and bold, with comfort and happiness in the early years and again in the later years of life.",
+"effect_es": "Tiendes a ser valiente y decidido, con comodidad y felicidad en los primeros años y de nuevo en los últimos años de tu vida.",
+"clarity": "clear"
+},
+{
+"id": "CB.83a",
+"n": 83,
+"name": "Ardha Chandra Yoga",
+"requires": [
+{
+"planet": "Sun",
+"in_houses": [
+2,
+3,
+4,
+5,
+6,
+7,
+8
+]
+},
+{
+"planet": "Moon",
+"in_houses": [
+2,
+3,
+4,
+5,
+6,
+7,
+8
+]
+},
+{
+"planet": "Mars",
+"in_houses": [
+2,
+3,
+4,
+5,
+6,
+7,
+8
+]
+},
+{
+"planet": "Mercury",
+"in_houses": [
+2,
+3,
+4,
+5,
+6,
+7,
+8
+]
+},
+{
+"planet": "Jupiter",
+"in_houses": [
+2,
+3,
+4,
+5,
+6,
+7,
+8
+]
+},
+{
+"planet": "Venus",
+"in_houses": [
+2,
+3,
+4,
+5,
+6,
+7,
+8
+]
+},
+{
+"planet": "Saturn",
+"in_houses": [
+2,
+3,
+4,
+5,
+6,
+7,
+8
+]
+},
+{
+"house": 2,
+"empty": false
+},
+{
+"house": 3,
+"empty": false
+},
+{
+"house": 4,
+"empty": false
+},
+{
+"house": 5,
+"empty": false
+},
+{
+"house": 6,
+"empty": false
+},
+{
+"house": 7,
+"empty": false
+},
+{
+"house": 8,
+"empty": false
+}
+],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "You tend to find steady happiness through most of your life and make a pleasing impression on others.",
+"effect_es": "Tiendes a encontrar una felicidad estable durante gran parte de tu vida y a causar una impresión agradable en los demás.",
+"clarity": "clear"
+},
+{
+"id": "CB.83b",
+"n": 83,
+"name": "Ardha Chandra Yoga",
+"requires": [
+{
+"planet": "Sun",
+"in_houses": [
+3,
+4,
+5,
+6,
+7,
+8,
+9
+]
+},
+{
+"planet": "Moon",
+"in_houses": [
+3,
+4,
+5,
+6,
+7,
+8,
+9
+]
+},
+{
+"planet": "Mars",
+"in_houses": [
+3,
+4,
+5,
+6,
+7,
+8,
+9
+]
+},
+{
+"planet": "Mercury",
+"in_houses": [
+3,
+4,
+5,
+6,
+7,
+8,
+9
+]
+},
+{
+"planet": "Jupiter",
+"in_houses": [
+3,
+4,
+5,
+6,
+7,
+8,
+9
+]
+},
+{
+"planet": "Venus",
+"in_houses": [
+3,
+4,
+5,
+6,
+7,
+8,
+9
+]
+},
+{
+"planet": "Saturn",
+"in_houses": [
+3,
+4,
+5,
+6,
+7,
+8,
+9
+]
+},
+{
+"house": 3,
+"empty": false
+},
+{
+"house": 4,
+"empty": false
+},
+{
+"house": 5,
+"empty": false
+},
+{
+"house": 6,
+"empty": false
+},
+{
+"house": 7,
+"empty": false
+},
+{
+"house": 8,
+"empty": false
+},
+{
+"house": 9,
+"empty": false
+}
+],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "You tend to find steady happiness through most of your life and make a pleasing impression on others.",
+"effect_es": "Tiendes a encontrar una felicidad estable durante gran parte de tu vida y a causar una impresión agradable en los demás.",
+"clarity": "clear"
+},
+{
+"id": "CB.83c",
+"n": 83,
+"name": "Ardha Chandra Yoga",
+"requires": [
+{
+"planet": "Sun",
+"in_houses": [
+5,
+6,
+7,
+8,
+9,
+10,
+11
+]
+},
+{
+"planet": "Moon",
+"in_houses": [
+5,
+6,
+7,
+8,
+9,
+10,
+11
+]
+},
+{
+"planet": "Mars",
+"in_houses": [
+5,
+6,
+7,
+8,
+9,
+10,
+11
+]
+},
+{
+"planet": "Mercury",
+"in_houses": [
+5,
+6,
+7,
+8,
+9,
+10,
+11
+]
+},
+{
+"planet": "Jupiter",
+"in_houses": [
+5,
+6,
+7,
+8,
+9,
+10,
+11
+]
+},
+{
+"planet": "Venus",
+"in_houses": [
+5,
+6,
+7,
+8,
+9,
+10,
+11
+]
+},
+{
+"planet": "Saturn",
+"in_houses": [
+5,
+6,
+7,
+8,
+9,
+10,
+11
+]
+},
+{
+"house": 5,
+"empty": false
+},
+{
+"house": 6,
+"empty": false
+},
+{
+"house": 7,
+"empty": false
+},
+{
+"house": 8,
+"empty": false
+},
+{
+"house": 9,
+"empty": false
+},
+{
+"house": 10,
+"empty": false
+},
+{
+"house": 11,
+"empty": false
+}
+],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "You tend to find steady happiness through most of your life and make a pleasing impression on others.",
+"effect_es": "Tiendes a encontrar una felicidad estable durante gran parte de tu vida y a causar una impresión agradable en los demás.",
+"clarity": "clear"
+},
+{
+"id": "CB.83d",
+"n": 83,
+"name": "Ardha Chandra Yoga",
+"requires": [
+{
+"planet": "Sun",
+"in_houses": [
+6,
+7,
+8,
+9,
+10,
+11,
+12
+]
+},
+{
+"planet": "Moon",
+"in_houses": [
+6,
+7,
+8,
+9,
+10,
+11,
+12
+]
+},
+{
+"planet": "Mars",
+"in_houses": [
+6,
+7,
+8,
+9,
+10,
+11,
+12
+]
+},
+{
+"planet": "Mercury",
+"in_houses": [
+6,
+7,
+8,
+9,
+10,
+11,
+12
+]
+},
+{
+"planet": "Jupiter",
+"in_houses": [
+6,
+7,
+8,
+9,
+10,
+11,
+12
+]
+},
+{
+"planet": "Venus",
+"in_houses": [
+6,
+7,
+8,
+9,
+10,
+11,
+12
+]
+},
+{
+"planet": "Saturn",
+"in_houses": [
+6,
+7,
+8,
+9,
+10,
+11,
+12
+]
+},
+{
+"house": 6,
+"empty": false
+},
+{
+"house": 7,
+"empty": false
+},
+{
+"house": 8,
+"empty": false
+},
+{
+"house": 9,
+"empty": false
+},
+{
+"house": 10,
+"empty": false
+},
+{
+"house": 11,
+"empty": false
+},
+{
+"house": 12,
+"empty": false
+}
+],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "You tend to find steady happiness through most of your life and make a pleasing impression on others.",
+"effect_es": "Tiendes a encontrar una felicidad estable durante gran parte de tu vida y a causar una impresión agradable en los demás.",
+"clarity": "clear"
+},
+{
+"id": "CB.83e",
+"n": 83,
+"name": "Ardha Chandra Yoga",
+"requires": [
+{
+"planet": "Sun",
+"in_houses": [
+8,
+9,
+10,
+11,
+12,
+1,
+2
+]
+},
+{
+"planet": "Moon",
+"in_houses": [
+8,
+9,
+10,
+11,
+12,
+1,
+2
+]
+},
+{
+"planet": "Mars",
+"in_houses": [
+8,
+9,
+10,
+11,
+12,
+1,
+2
+]
+},
+{
+"planet": "Mercury",
+"in_houses": [
+8,
+9,
+10,
+11,
+12,
+1,
+2
+]
+},
+{
+"planet": "Jupiter",
+"in_houses": [
+8,
+9,
+10,
+11,
+12,
+1,
+2
+]
+},
+{
+"planet": "Venus",
+"in_houses": [
+8,
+9,
+10,
+11,
+12,
+1,
+2
+]
+},
+{
+"planet": "Saturn",
+"in_houses": [
+8,
+9,
+10,
+11,
+12,
+1,
+2
+]
+},
+{
+"house": 8,
+"empty": false
+},
+{
+"house": 9,
+"empty": false
+},
+{
+"house": 10,
+"empty": false
+},
+{
+"house": 11,
+"empty": false
+},
+{
+"house": 12,
+"empty": false
+},
+{
+"house": 1,
+"empty": false
+},
+{
+"house": 2,
+"empty": false
+}
+],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "You tend to find steady happiness through most of your life and make a pleasing impression on others.",
+"effect_es": "Tiendes a encontrar una felicidad estable durante gran parte de tu vida y a causar una impresión agradable en los demás.",
+"clarity": "clear"
+},
+{
+"id": "CB.83f",
+"n": 83,
+"name": "Ardha Chandra Yoga",
+"requires": [
+{
+"planet": "Sun",
+"in_houses": [
+9,
+10,
+11,
+12,
+1,
+2,
+3
+]
+},
+{
+"planet": "Moon",
+"in_houses": [
+9,
+10,
+11,
+12,
+1,
+2,
+3
+]
+},
+{
+"planet": "Mars",
+"in_houses": [
+9,
+10,
+11,
+12,
+1,
+2,
+3
+]
+},
+{
+"planet": "Mercury",
+"in_houses": [
+9,
+10,
+11,
+12,
+1,
+2,
+3
+]
+},
+{
+"planet": "Jupiter",
+"in_houses": [
+9,
+10,
+11,
+12,
+1,
+2,
+3
+]
+},
+{
+"planet": "Venus",
+"in_houses": [
+9,
+10,
+11,
+12,
+1,
+2,
+3
+]
+},
+{
+"planet": "Saturn",
+"in_houses": [
+9,
+10,
+11,
+12,
+1,
+2,
+3
+]
+},
+{
+"house": 9,
+"empty": false
+},
+{
+"house": 10,
+"empty": false
+},
+{
+"house": 11,
+"empty": false
+},
+{
+"house": 12,
+"empty": false
+},
+{
+"house": 1,
+"empty": false
+},
+{
+"house": 2,
+"empty": false
+},
+{
+"house": 3,
+"empty": false
+}
+],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "You tend to find steady happiness through most of your life and make a pleasing impression on others.",
+"effect_es": "Tiendes a encontrar una felicidad estable durante gran parte de tu vida y a causar una impresión agradable en los demás.",
+"clarity": "clear"
+},
+{
+"id": "CB.83g",
+"n": 83,
+"name": "Ardha Chandra Yoga",
+"requires": [
+{
+"planet": "Sun",
+"in_houses": [
+11,
+12,
+1,
+2,
+3,
+4,
+5
+]
+},
+{
+"planet": "Moon",
+"in_houses": [
+11,
+12,
+1,
+2,
+3,
+4,
+5
+]
+},
+{
+"planet": "Mars",
+"in_houses": [
+11,
+12,
+1,
+2,
+3,
+4,
+5
+]
+},
+{
+"planet": "Mercury",
+"in_houses": [
+11,
+12,
+1,
+2,
+3,
+4,
+5
+]
+},
+{
+"planet": "Jupiter",
+"in_houses": [
+11,
+12,
+1,
+2,
+3,
+4,
+5
+]
+},
+{
+"planet": "Venus",
+"in_houses": [
+11,
+12,
+1,
+2,
+3,
+4,
+5
+]
+},
+{
+"planet": "Saturn",
+"in_houses": [
+11,
+12,
+1,
+2,
+3,
+4,
+5
+]
+},
+{
+"house": 11,
+"empty": false
+},
+{
+"house": 12,
+"empty": false
+},
+{
+"house": 1,
+"empty": false
+},
+{
+"house": 2,
+"empty": false
+},
+{
+"house": 3,
+"empty": false
+},
+{
+"house": 4,
+"empty": false
+},
+{
+"house": 5,
+"empty": false
+}
+],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "You tend to find steady happiness through most of your life and make a pleasing impression on others.",
+"effect_es": "Tiendes a encontrar una felicidad estable durante gran parte de tu vida y a causar una impresión agradable en los demás.",
+"clarity": "clear"
+},
+{
+"id": "CB.83h",
+"n": 83,
+"name": "Ardha Chandra Yoga",
+"requires": [
+{
+"planet": "Sun",
+"in_houses": [
+12,
+1,
+2,
+3,
+4,
+5,
+6
+]
+},
+{
+"planet": "Moon",
+"in_houses": [
+12,
+1,
+2,
+3,
+4,
+5,
+6
+]
+},
+{
+"planet": "Mars",
+"in_houses": [
+12,
+1,
+2,
+3,
+4,
+5,
+6
+]
+},
+{
+"planet": "Mercury",
+"in_houses": [
+12,
+1,
+2,
+3,
+4,
+5,
+6
+]
+},
+{
+"planet": "Jupiter",
+"in_houses": [
+12,
+1,
+2,
+3,
+4,
+5,
+6
+]
+},
+{
+"planet": "Venus",
+"in_houses": [
+12,
+1,
+2,
+3,
+4,
+5,
+6
+]
+},
+{
+"planet": "Saturn",
+"in_houses": [
+12,
+1,
+2,
+3,
+4,
+5,
+6
+]
+},
+{
+"house": 12,
+"empty": false
+},
+{
+"house": 1,
+"empty": false
+},
+{
+"house": 2,
+"empty": false
+},
+{
+"house": 3,
+"empty": false
+},
+{
+"house": 4,
+"empty": false
+},
+{
+"house": 5,
+"empty": false
+},
+{
+"house": 6,
+"empty": false
+}
+],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "You tend to find steady happiness through most of your life and make a pleasing impression on others.",
+"effect_es": "Tiendes a encontrar una felicidad estable durante gran parte de tu vida y a causar una impresión agradable en los demás.",
+"clarity": "clear"
+},
+{
+"id": "CB.84",
+"n": 84,
+"name": "Chakra Yoga",
+"requires": [
+{
+"planet": "Sun",
+"in_houses": [
+1,
+3,
+5,
+7,
+9,
+11
+]
+},
+{
+"planet": "Moon",
+"in_houses": [
+1,
+3,
+5,
+7,
+9,
+11
+]
+},
+{
+"planet": "Mars",
+"in_houses": [
+1,
+3,
+5,
+7,
+9,
+11
+]
+},
+{
+"planet": "Mercury",
+"in_houses": [
+1,
+3,
+5,
+7,
+9,
+11
+]
+},
+{
+"planet": "Jupiter",
+"in_houses": [
+1,
+3,
+5,
+7,
+9,
+11
+]
+},
+{
+"planet": "Venus",
+"in_houses": [
+1,
+3,
+5,
+7,
+9,
+11
+]
+},
+{
+"planet": "Saturn",
+"in_houses": [
+1,
+3,
+5,
+7,
+9,
+11
+]
+},
+{
+"house": 1,
+"empty": false
+},
+{
+"house": 3,
+"empty": false
+},
+{
+"house": 5,
+"empty": false
+},
+{
+"house": 7,
+"empty": false
+},
+{
+"house": 9,
+"empty": false
+},
+{
+"house": 11,
+"empty": false
+}
+],
+"tone": "good",
+"topics": [
+"money",
+"fame"
+],
+"effect": "You tend to earn well, spend well, and stand out as someone people respect and follow within your own circle.",
+"effect_es": "Tiendes a ganar bien, gastar bien y destacar como alguien a quien la gente respeta y sigue dentro de tu propio círculo.",
+"clarity": "clear"
+},
+{
+"id": "CB.85a",
+"n": 85,
+"name": "Gada Yoga",
+"requires": [
+{
+"planet": "Sun",
+"in_houses": [
+1,
+4
+]
+},
+{
+"planet": "Moon",
+"in_houses": [
+1,
+4
+]
+},
+{
+"planet": "Mars",
+"in_houses": [
+1,
+4
+]
+},
+{
+"planet": "Mercury",
+"in_houses": [
+1,
+4
+]
+},
+{
+"planet": "Jupiter",
+"in_houses": [
+1,
+4
+]
+},
+{
+"planet": "Venus",
+"in_houses": [
+1,
+4
+]
+},
+{
+"planet": "Saturn",
+"in_houses": [
+1,
+4
+]
+},
+{
+"house": 1,
+"empty": false
+},
+{
+"house": 4,
+"empty": false
+}
+],
+"tone": "good",
+"topics": [
+"money",
+"spiritual"
+],
+"effect": "You tend to build wealth steadily and feel drawn toward faith, tradition, or a spiritual practice.",
+"effect_es": "Tiendes a construir riqueza de manera constante y a sentirte atraído hacia la fe, la tradición o una práctica espiritual.",
+"clarity": "clear"
+},
+{
+"id": "CB.85b",
+"n": 85,
+"name": "Gada Yoga",
+"requires": [
+{
+"planet": "Sun",
+"in_houses": [
+4,
+7
+]
+},
+{
+"planet": "Moon",
+"in_houses": [
+4,
+7
+]
+},
+{
+"planet": "Mars",
+"in_houses": [
+4,
+7
+]
+},
+{
+"planet": "Mercury",
+"in_houses": [
+4,
+7
+]
+},
+{
+"planet": "Jupiter",
+"in_houses": [
+4,
+7
+]
+},
+{
+"planet": "Venus",
+"in_houses": [
+4,
+7
+]
+},
+{
+"planet": "Saturn",
+"in_houses": [
+4,
+7
+]
+},
+{
+"house": 4,
+"empty": false
+},
+{
+"house": 7,
+"empty": false
+}
+],
+"tone": "good",
+"topics": [
+"money",
+"spiritual"
+],
+"effect": "You tend to build wealth steadily and feel drawn toward faith, tradition, or a spiritual practice.",
+"effect_es": "Tiendes a construir riqueza de manera constante y a sentirte atraído hacia la fe, la tradición o una práctica espiritual.",
+"clarity": "clear"
+},
+{
+"id": "CB.85c",
+"n": 85,
+"name": "Gada Yoga",
+"requires": [
+{
+"planet": "Sun",
+"in_houses": [
+7,
+10
+]
+},
+{
+"planet": "Moon",
+"in_houses": [
+7,
+10
+]
+},
+{
+"planet": "Mars",
+"in_houses": [
+7,
+10
+]
+},
+{
+"planet": "Mercury",
+"in_houses": [
+7,
+10
+]
+},
+{
+"planet": "Jupiter",
+"in_houses": [
+7,
+10
+]
+},
+{
+"planet": "Venus",
+"in_houses": [
+7,
+10
+]
+},
+{
+"planet": "Saturn",
+"in_houses": [
+7,
+10
+]
+},
+{
+"house": 7,
+"empty": false
+},
+{
+"house": 10,
+"empty": false
+}
+],
+"tone": "good",
+"topics": [
+"money",
+"spiritual"
+],
+"effect": "You tend to build wealth steadily and feel drawn toward faith, tradition, or a spiritual practice.",
+"effect_es": "Tiendes a construir riqueza de manera constante y a sentirte atraído hacia la fe, la tradición o una práctica espiritual.",
+"clarity": "clear"
+},
+{
+"id": "CB.85d",
+"n": 85,
+"name": "Gada Yoga",
+"requires": [
+{
+"planet": "Sun",
+"in_houses": [
+10,
+1
+]
+},
+{
+"planet": "Moon",
+"in_houses": [
+10,
+1
+]
+},
+{
+"planet": "Mars",
+"in_houses": [
+10,
+1
+]
+},
+{
+"planet": "Mercury",
+"in_houses": [
+10,
+1
+]
+},
+{
+"planet": "Jupiter",
+"in_houses": [
+10,
+1
+]
+},
+{
+"planet": "Venus",
+"in_houses": [
+10,
+1
+]
+},
+{
+"planet": "Saturn",
+"in_houses": [
+10,
+1
+]
+},
+{
+"house": 10,
+"empty": false
+},
+{
+"house": 1,
+"empty": false
+}
+],
+"tone": "good",
+"topics": [
+"money",
+"spiritual"
+],
+"effect": "You tend to build wealth steadily and feel drawn toward faith, tradition, or a spiritual practice.",
+"effect_es": "Tiendes a construir riqueza de manera constante y a sentirte atraído hacia la fe, la tradición o una práctica espiritual.",
+"clarity": "clear"
+},
+{
+"id": "CB.86",
+"n": 86,
+"name": "Sakata Yoga (nabhasa)",
+"requires": [
+{
+"planet": "Sun",
+"in_houses": [
+1,
+7
+]
+},
+{
+"planet": "Moon",
+"in_houses": [
+1,
+7
+]
+},
+{
+"planet": "Mars",
+"in_houses": [
+1,
+7
+]
+},
+{
+"planet": "Mercury",
+"in_houses": [
+1,
+7
+]
+},
+{
+"planet": "Jupiter",
+"in_houses": [
+1,
+7
+]
+},
+{
+"planet": "Venus",
+"in_houses": [
+1,
+7
+]
+},
+{
+"planet": "Saturn",
+"in_houses": [
+1,
+7
+]
+},
+{
+"house": 1,
+"empty": false
+},
+{
+"house": 7,
+"empty": false
+}
+],
+"tone": "bad",
+"topics": [
+"money",
+"family"
+],
+"effect": "Money tends to come slowly and through hard daily effort, and home life may carry friction that you will need to manage.",
+"effect_es": "El dinero tiende a llegar despacio y con esfuerzo diario, y la vida en casa puede traer fricciones que tendrás que manejar.",
+"clarity": "clear"
+},
+{
+"id": "CB.87",
+"n": 87,
+"name": "Vihaga Yoga",
+"requires": [
+{
+"planet": "Sun",
+"in_houses": [
+4,
+10
+]
+},
+{
+"planet": "Moon",
+"in_houses": [
+4,
+10
+]
+},
+{
+"planet": "Mars",
+"in_houses": [
+4,
+10
+]
+},
+{
+"planet": "Mercury",
+"in_houses": [
+4,
+10
+]
+},
+{
+"planet": "Jupiter",
+"in_houses": [
+4,
+10
+]
+},
+{
+"planet": "Venus",
+"in_houses": [
+4,
+10
+]
+},
+{
+"planet": "Saturn",
+"in_houses": [
+4,
+10
+]
+},
+{
+"house": 4,
+"empty": false
+},
+{
+"house": 10,
+"empty": false
+}
+],
+"tone": "bad",
+"topics": [
+"career",
+"foreign"
+],
+"effect": "Your work may keep you on the move, and settling down in one place can take longer than you would like.",
+"effect_es": "Tu trabajo puede mantenerte en movimiento, y establecerte en un solo lugar puede tomar más tiempo del que quisieras.",
+"clarity": "inferred"
+},
+{
+"id": "CB.88",
+"n": 88,
+"name": "Vajra Yoga",
+"requires": [
+{
+"house": 1,
+"holds_any_benefic": true
+},
+{
+"house": 7,
+"holds_any_benefic": true
+},
+{
+"house": 4,
+"holds_any_malefic": true
+},
+{
+"house": 10,
+"holds_any_malefic": true
+}
+],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "You tend to be cheerful, brave, and happy, with a natural ease that people warm to.",
+"effect_es": "Tiendes a ser alegre, valiente y feliz, con una naturalidad que la gente aprecia.",
+"clarity": "inferred"
+},
+{
+"id": "CB.89",
+"n": 89,
+"name": "Yava Yoga",
+"requires": [
+{
+"house": 1,
+"holds_any_malefic": true
+},
+{
+"house": 7,
+"holds_any_malefic": true
+},
+{
+"house": 4,
+"holds_any_benefic": true
+},
+{
+"house": 10,
+"holds_any_benefic": true
+}
+],
+"tone": "mixed",
+"topics": [
+"marriage",
+"other"
+],
+"effect": "You tend to be happiest in the middle years of life, though close relationships may need extra care.",
+"effect_es": "Tiendes a ser más feliz en los años intermedios de la vida, aunque tus relaciones cercanas pueden necesitar un cuidado extra.",
+"clarity": "inferred"
+},
+{
+"id": "CB.90",
+"n": 90,
+"name": "Sringhataka Yoga",
+"requires": [
+{
+"planet": "Sun",
+"in_houses": [
+1,
+5,
+9
+]
+},
+{
+"planet": "Moon",
+"in_houses": [
+1,
+5,
+9
+]
+},
+{
+"planet": "Mars",
+"in_houses": [
+1,
+5,
+9
+]
+},
+{
+"planet": "Mercury",
+"in_houses": [
+1,
+5,
+9
+]
+},
+{
+"planet": "Jupiter",
+"in_houses": [
+1,
+5,
+9
+]
+},
+{
+"planet": "Venus",
+"in_houses": [
+1,
+5,
+9
+]
+},
+{
+"planet": "Saturn",
+"in_houses": [
+1,
+5,
+9
+]
+},
+{
+"house": 1,
+"empty": false
+},
+{
+"house": 5,
+"empty": false
+},
+{
+"house": 9,
+"empty": false
+}
+],
+"tone": "good",
+"topics": [
+"other"
+],
+"effect": "You tend to find a smoother, happier path in the later part of life.",
+"effect_es": "Tiendes a encontrar un camino más fácil y feliz en la parte final de tu vida.",
+"clarity": "clear"
+},
+{
+"id": "CB.91a",
+"n": 91,
+"name": "Hala Yoga",
+"requires": [
+{
+"planet": "Sun",
+"in_houses": [
+2,
+6,
+10
+]
+},
+{
+"planet": "Moon",
+"in_houses": [
+2,
+6,
+10
+]
+},
+{
+"planet": "Mars",
+"in_houses": [
+2,
+6,
+10
+]
+},
+{
+"planet": "Mercury",
+"in_houses": [
+2,
+6,
+10
+]
+},
+{
+"planet": "Jupiter",
+"in_houses": [
+2,
+6,
+10
+]
+},
+{
+"planet": "Venus",
+"in_houses": [
+2,
+6,
+10
+]
+},
+{
+"planet": "Saturn",
+"in_houses": [
+2,
+6,
+10
+]
+}
+],
+"tone": "mixed",
+"topics": [
+"career",
+"property"
+],
+"effect": "Your livelihood may lean toward land, farming, or work that grows things and holds value over time.",
+"effect_es": "Tu sustento puede inclinarse hacia la tierra, la agricultura o un trabajo que hace crecer las cosas y conserva su valor con el tiempo.",
+"clarity": "clear"
+},
+{
+"id": "CB.91b",
+"n": 91,
+"name": "Hala Yoga",
+"requires": [
+{
+"planet": "Sun",
+"in_houses": [
+3,
+7,
+11
+]
+},
+{
+"planet": "Moon",
+"in_houses": [
+3,
+7,
+11
+]
+},
+{
+"planet": "Mars",
+"in_houses": [
+3,
+7,
+11
+]
+},
+{
+"planet": "Mercury",
+"in_houses": [
+3,
+7,
+11
+]
+},
+{
+"planet": "Jupiter",
+"in_houses": [
+3,
+7,
+11
+]
+},
+{
+"planet": "Venus",
+"in_houses": [
+3,
+7,
+11
+]
+},
+{
+"planet": "Saturn",
+"in_houses": [
+3,
+7,
+11
+]
+}
+],
+"tone": "mixed",
+"topics": [
+"career",
+"property"
+],
+"effect": "Your livelihood may lean toward land, farming, or work that grows things and holds value over time.",
+"effect_es": "Tu sustento puede inclinarse hacia la tierra, la agricultura o un trabajo que hace crecer las cosas y conserva su valor con el tiempo.",
+"clarity": "clear"
+},
+{
+"id": "CB.91c",
+"n": 91,
+"name": "Hala Yoga",
+"requires": [
+{
+"planet": "Sun",
+"in_houses": [
+4,
+8,
+12
+]
+},
+{
+"planet": "Moon",
+"in_houses": [
+4,
+8,
+12
+]
+},
+{
+"planet": "Mars",
+"in_houses": [
+4,
+8,
+12
+]
+},
+{
+"planet": "Mercury",
+"in_houses": [
+4,
+8,
+12
+]
+},
+{
+"planet": "Jupiter",
+"in_houses": [
+4,
+8,
+12
+]
+},
+{
+"planet": "Venus",
+"in_houses": [
+4,
+8,
+12
+]
+},
+{
+"planet": "Saturn",
+"in_houses": [
+4,
+8,
+12
+]
+}
+],
+"tone": "mixed",
+"topics": [
+"career",
+"property"
+],
+"effect": "Your livelihood may lean toward land, farming, or work that grows things and holds value over time.",
+"effect_es": "Tu sustento puede inclinarse hacia la tierra, la agricultura o un trabajo que hace crecer las cosas y conserva su valor con el tiempo.",
+"clarity": "clear"
+},
+{
+"id": "CB.92",
+"n": 92,
+"name": "Kamala Yoga (nabhasa)",
+"requires": [
+{
+"planet": "Sun",
+"in_houses": [
+1,
+4,
+7,
+10
+]
+},
+{
+"planet": "Moon",
+"in_houses": [
+1,
+4,
+7,
+10
+]
+},
+{
+"planet": "Mars",
+"in_houses": [
+1,
+4,
+7,
+10
+]
+},
+{
+"planet": "Mercury",
+"in_houses": [
+1,
+4,
+7,
+10
+]
+},
+{
+"planet": "Jupiter",
+"in_houses": [
+1,
+4,
+7,
+10
+]
+},
+{
+"planet": "Venus",
+"in_houses": [
+1,
+4,
+7,
+10
+]
+},
+{
+"planet": "Saturn",
+"in_houses": [
+1,
+4,
+7,
+10
+]
+},
+{
+"kendras_all_occupied": true
+}
+],
+"tone": "good",
+"topics": [
+"fame",
+"other"
+],
+"effect": "You tend to earn lasting respect and a good name through your character, even if big money is not the main result.",
+"effect_es": "Tiendes a ganar respeto duradero y buen nombre por tu carácter, aunque el mucho dinero no sea el resultado principal.",
+"clarity": "inferred"
+},
+{
+"id": "CB.93a",
+"n": 93,
+"name": "Vapee Yoga",
+"requires": [
+{
+"planet": "Sun",
+"in_houses": [
+2,
+5,
+8,
+11
+]
+},
+{
+"planet": "Moon",
+"in_houses": [
+2,
+5,
+8,
+11
+]
+},
+{
+"planet": "Mars",
+"in_houses": [
+2,
+5,
+8,
+11
+]
+},
+{
+"planet": "Mercury",
+"in_houses": [
+2,
+5,
+8,
+11
+]
+},
+{
+"planet": "Jupiter",
+"in_houses": [
+2,
+5,
+8,
+11
+]
+},
+{
+"planet": "Venus",
+"in_houses": [
+2,
+5,
+8,
+11
+]
+},
+{
+"planet": "Saturn",
+"in_houses": [
+2,
+5,
+8,
+11
+]
+},
+{
+"house": 2,
+"empty": false
+},
+{
+"house": 5,
+"empty": false
+},
+{
+"house": 8,
+"empty": false
+},
+{
+"house": 11,
+"empty": false
+}
+],
+"tone": "mixed",
+"topics": [
+"money"
+],
+"effect": "You tend to save and hold on to money carefully, and may find it hard to let go of it.",
+"effect_es": "Tiendes a ahorrar y a cuidar tu dinero con mucho celo, y puede costarte soltarlo.",
+"clarity": "clear"
+},
+{
+"id": "CB.93b",
+"n": 93,
+"name": "Vapee Yoga",
+"requires": [
+{
+"planet": "Sun",
+"in_houses": [
+3,
+6,
+9,
+12
+]
+},
+{
+"planet": "Moon",
+"in_houses": [
+3,
+6,
+9,
+12
+]
+},
+{
+"planet": "Mars",
+"in_houses": [
+3,
+6,
+9,
+12
+]
+},
+{
+"planet": "Mercury",
+"in_houses": [
+3,
+6,
+9,
+12
+]
+},
+{
+"planet": "Jupiter",
+"in_houses": [
+3,
+6,
+9,
+12
+]
+},
+{
+"planet": "Venus",
+"in_houses": [
+3,
+6,
+9,
+12
+]
+},
+{
+"planet": "Saturn",
+"in_houses": [
+3,
+6,
+9,
+12
+]
+},
+{
+"house": 3,
+"empty": false
+},
+{
+"house": 6,
+"empty": false
+},
+{
+"house": 9,
+"empty": false
+},
+{
+"house": 12,
+"empty": false
+}
+],
+"tone": "mixed",
+"topics": [
+"money"
+],
+"effect": "You tend to save and hold on to money carefully, and may find it hard to let go of it.",
+"effect_es": "Tiendes a ahorrar y a cuidar tu dinero con mucho celo, y puede costarte soltarlo.",
+"clarity": "clear"
+},
+{
+"id": "CB.105",
+"n": 105,
+"name": "Srik Yoga",
+"requires": [
+{
+"planet": "Jupiter",
+"in_houses": [
+1,
+4,
+7,
+10
+]
+},
+{
+"planet": "Venus",
+"in_houses": [
+1,
+4,
+7,
+10
+]
+},
+{
+"planet": "Mercury",
+"in_houses": [
+1,
+4,
+7,
+10
+]
+}
+],
+"tone": "good",
+"topics": [
+"property",
+"other"
+],
+"effect": "You tend to enjoy comfort, good vehicles, and many of life's pleasures.",
+"effect_es": "Tiendes a disfrutar de comodidad, buenos vehículos y muchos de los placeres de la vida.",
+"clarity": "clear"
+},
+{
+"id": "CB.107",
+"n": 107,
+"name": "Duryoga",
+"requires": [
+{
+"planet": "L10",
+"in_houses": [
+6,
+8,
+12
+]
+}
+],
+"tone": "bad",
+"topics": [
+"career"
+],
+"effect": "Your hard work may not always bring back the full rewards it deserves, and recognition at work can come slowly.",
+"effect_es": "Tu esfuerzo no siempre te devolverá todas las recompensas que merece, y el reconocimiento en el trabajo puede tardar en llegar.",
+"clarity": "clear"
+},
+{
+"id": "CB.108",
+"n": 108,
+"name": "Daridra Yoga (11th lord)",
+"requires": [
+{
+"planet": "L11",
+"in_houses": [
+6,
+8,
+12
+]
+}
+],
+"tone": "bad",
+"topics": [
+"money"
+],
+"effect": "Money coming in can be tied up with debts or setbacks, so careful borrowing and spending matter more for you.",
+"effect_es": "El dinero que entra puede estar ligado a deudas o contratiempos, así que cuidar lo que pides prestado y lo que gastas pesa más en tu caso.",
+"clarity": "clear"
+},
+{
+"id": "CB.112",
+"n": 112,
+"name": "Sareera Soukhya Yoga",
+"requires": [
+{
+"planet": "L1",
+"in_houses": [
+1,
+4,
+7,
+10
+]
+},
+{
+"planet": "Jupiter",
+"in_houses": [
+1,
+4,
+7,
+10
+]
+},
+{
+"planet": "Venus",
+"in_houses": [
+1,
+4,
+7,
+10
+]
+}
+],
+"tone": "good",
+"topics": [
+"money",
+"career"
+],
+"effect": "You tend to enjoy comfortable wealth and the goodwill of people in positions of power.",
+"effect_es": "Tiendes a disfrutar de una buena situación económica y de la simpatía de personas con poder.",
+"clarity": "clear"
+},
+{
+"id": "CB.122",
+"n": 122,
+"name": "Dhana Yoga (5th-11th pattern)",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+5
+]
+},
+{
+"planet": "Venus",
+"dignity": [
+"own"
+]
+},
+{
+"planet": "Saturn",
+"in_houses": [
+11
+]
+}
+],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You have a strong pattern for gains and could build great wealth over time.",
+"effect_es": "Tienes un patrón fuerte para las ganancias y podrías construir una gran riqueza con el tiempo.",
+"clarity": "clear"
+},
+{
+"id": "CB.123",
+"n": 123,
+"name": "Dhana Yoga (5th-11th pattern)",
+"requires": [
+{
+"planet": "Mercury",
+"in_houses": [
+5
+]
+},
+{
+"planet": "Mercury",
+"dignity": [
+"own"
+]
+},
+{
+"planet": "Moon",
+"in_houses": [
+11
+]
+},
+{
+"planet": "Mars",
+"in_houses": [
+11
+]
+}
+],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You have a strong pattern for gains and could build great wealth over time.",
+"effect_es": "Tienes un patrón fuerte para las ganancias y podrías construir una gran riqueza con el tiempo.",
+"clarity": "clear"
+},
+{
+"id": "CB.124",
+"n": 124,
+"name": "Dhana Yoga (5th-11th pattern)",
+"requires": [
+{
+"planet": "Saturn",
+"in_houses": [
+5
+]
+},
+{
+"planet": "Saturn",
+"dignity": [
+"own"
+]
+},
+{
+"planet": "Mercury",
+"in_houses": [
+11
+]
+},
+{
+"planet": "Mars",
+"in_houses": [
+11
+]
+}
+],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You have a strong pattern for gains and could build great wealth over time.",
+"effect_es": "Tienes un patrón fuerte para las ganancias y podrías construir una gran riqueza con el tiempo.",
+"clarity": "clear"
+},
+{
+"id": "CB.125",
+"n": 125,
+"name": "Dhana Yoga (5th-11th pattern)",
+"requires": [
+{
+"planet": "Sun",
+"in_houses": [
+5
+]
+},
+{
+"planet": "Sun",
+"dignity": [
+"own"
+]
+},
+{
+"planet": "Jupiter",
+"in_houses": [
+11
+]
+},
+{
+"planet": "Moon",
+"in_houses": [
+11
+]
+}
+],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You have a strong pattern for gains and could build great wealth over time.",
+"effect_es": "Tienes un patrón fuerte para las ganancias y podrías construir una gran riqueza con el tiempo.",
+"clarity": "clear"
+},
+{
+"id": "CB.126",
+"n": 126,
+"name": "Dhana Yoga (5th-11th pattern)",
+"requires": [
+{
+"planet": "Jupiter",
+"in_houses": [
+5
+]
+},
+{
+"planet": "Jupiter",
+"dignity": [
+"own"
+]
+},
+{
+"planet": "Mars",
+"in_houses": [
+11
+]
+},
+{
+"planet": "Moon",
+"in_houses": [
+11
+]
+}
+],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You have a strong pattern for gains and could build great wealth over time.",
+"effect_es": "Tienes un patrón fuerte para las ganancias y podrías construir una gran riqueza con el tiempo.",
+"clarity": "clear"
+},
+{
+"id": "CB.127a",
+"n": 127,
+"name": "Dhana Yoga (lagna own-sign)",
+"requires": [
+{
+"planet": "Sun",
+"in_houses": [
+1
+]
+},
+{
+"planet": "Sun",
+"dignity": [
+"own"
+]
+},
+{
+"a": "Mars",
+"b": "Sun",
+"relation": "conjunct"
+},
+{
+"a": "Jupiter",
+"b": "Sun",
+"relation": "conjunct"
+}
+],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You have a strong pattern for very large wealth, built around your own standing and character.",
+"effect_es": "Tienes un patrón fuerte para una riqueza muy grande, construida en torno a tu propia posición y tu carácter.",
+"clarity": "clear"
+},
+{
+"id": "CB.127b",
+"n": 127,
+"name": "Dhana Yoga (lagna own-sign)",
+"requires": [
+{
+"planet": "Sun",
+"in_houses": [
+1
+]
+},
+{
+"planet": "Sun",
+"dignity": [
+"own"
+]
+},
+{
+"a": "Mars",
+"b": "Sun",
+"relation": "conjunct"
+},
+{
+"a": "Jupiter",
+"b": "Sun",
+"relation": "a_aspects_b"
+}
+],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You have a strong pattern for very large wealth, built around your own standing and character.",
+"effect_es": "Tienes un patrón fuerte para una riqueza muy grande, construida en torno a tu propia posición y tu carácter.",
+"clarity": "clear"
+},
+{
+"id": "CB.127c",
+"n": 127,
+"name": "Dhana Yoga (lagna own-sign)",
+"requires": [
+{
+"planet": "Sun",
+"in_houses": [
+1
+]
+},
+{
+"planet": "Sun",
+"dignity": [
+"own"
+]
+},
+{
+"a": "Mars",
+"b": "Sun",
+"relation": "a_aspects_b"
+},
+{
+"a": "Jupiter",
+"b": "Sun",
+"relation": "conjunct"
+}
+],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You have a strong pattern for very large wealth, built around your own standing and character.",
+"effect_es": "Tienes un patrón fuerte para una riqueza muy grande, construida en torno a tu propia posición y tu carácter.",
+"clarity": "clear"
+},
+{
+"id": "CB.127d",
+"n": 127,
+"name": "Dhana Yoga (lagna own-sign)",
+"requires": [
+{
+"planet": "Sun",
+"in_houses": [
+1
+]
+},
+{
+"planet": "Sun",
+"dignity": [
+"own"
+]
+},
+{
+"a": "Mars",
+"b": "Sun",
+"relation": "a_aspects_b"
+},
+{
+"a": "Jupiter",
+"b": "Sun",
+"relation": "a_aspects_b"
+}
+],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You have a strong pattern for very large wealth, built around your own standing and character.",
+"effect_es": "Tienes un patrón fuerte para una riqueza muy grande, construida en torno a tu propia posición y tu carácter.",
+"clarity": "clear"
+},
+{
+"id": "CB.128a",
+"n": 128,
+"name": "Dhana Yoga (lagna own-sign)",
+"requires": [
+{
+"planet": "Moon",
+"in_houses": [
+1
+]
+},
+{
+"planet": "Moon",
+"dignity": [
+"own"
+]
+},
+{
+"a": "Mars",
+"b": "Moon",
+"relation": "conjunct"
+},
+{
+"a": "Jupiter",
+"b": "Moon",
+"relation": "conjunct"
+}
+],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You have a strong pattern for very large wealth, built around your own standing and character.",
+"effect_es": "Tienes un patrón fuerte para una riqueza muy grande, construida en torno a tu propia posición y tu carácter.",
+"clarity": "clear"
+},
+{
+"id": "CB.128b",
+"n": 128,
+"name": "Dhana Yoga (lagna own-sign)",
+"requires": [
+{
+"planet": "Moon",
+"in_houses": [
+1
+]
+},
+{
+"planet": "Moon",
+"dignity": [
+"own"
+]
+},
+{
+"a": "Mars",
+"b": "Moon",
+"relation": "conjunct"
+},
+{
+"a": "Jupiter",
+"b": "Moon",
+"relation": "a_aspects_b"
+}
+],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You have a strong pattern for very large wealth, built around your own standing and character.",
+"effect_es": "Tienes un patrón fuerte para una riqueza muy grande, construida en torno a tu propia posición y tu carácter.",
+"clarity": "clear"
+},
+{
+"id": "CB.128c",
+"n": 128,
+"name": "Dhana Yoga (lagna own-sign)",
+"requires": [
+{
+"planet": "Moon",
+"in_houses": [
+1
+]
+},
+{
+"planet": "Moon",
+"dignity": [
+"own"
+]
+},
+{
+"a": "Mars",
+"b": "Moon",
+"relation": "a_aspects_b"
+},
+{
+"a": "Jupiter",
+"b": "Moon",
+"relation": "conjunct"
+}
+],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You have a strong pattern for very large wealth, built around your own standing and character.",
+"effect_es": "Tienes un patrón fuerte para una riqueza muy grande, construida en torno a tu propia posición y tu carácter.",
+"clarity": "clear"
+},
+{
+"id": "CB.128d",
+"n": 128,
+"name": "Dhana Yoga (lagna own-sign)",
+"requires": [
+{
+"planet": "Moon",
+"in_houses": [
+1
+]
+},
+{
+"planet": "Moon",
+"dignity": [
+"own"
+]
+},
+{
+"a": "Mars",
+"b": "Moon",
+"relation": "a_aspects_b"
+},
+{
+"a": "Jupiter",
+"b": "Moon",
+"relation": "a_aspects_b"
+}
+],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You have a strong pattern for very large wealth, built around your own standing and character.",
+"effect_es": "Tienes un patrón fuerte para una riqueza muy grande, construida en torno a tu propia posición y tu carácter.",
+"clarity": "clear"
+},
+{
+"id": "CB.129a",
+"n": 129,
+"name": "Dhana Yoga (lagna own-sign)",
+"requires": [
+{
+"planet": "Mars",
+"in_houses": [
+1
+]
+},
+{
+"planet": "Mars",
+"dignity": [
+"own"
+]
+},
+{
+"a": "Moon",
+"b": "Mars",
+"relation": "conjunct"
+},
+{
+"a": "Venus",
+"b": "Mars",
+"relation": "conjunct"
+},
+{
+"a": "Saturn",
+"b": "Mars",
+"relation": "conjunct"
+}
+],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You have a strong pattern for very large wealth, built around your own standing and character.",
+"effect_es": "Tienes un patrón fuerte para una riqueza muy grande, construida en torno a tu propia posición y tu carácter.",
+"clarity": "clear"
+},
+{
+"id": "CB.129b",
+"n": 129,
+"name": "Dhana Yoga (lagna own-sign)",
+"requires": [
+{
+"planet": "Mars",
+"in_houses": [
+1
+]
+},
+{
+"planet": "Mars",
+"dignity": [
+"own"
+]
+},
+{
+"a": "Moon",
+"b": "Mars",
+"relation": "conjunct"
+},
+{
+"a": "Venus",
+"b": "Mars",
+"relation": "conjunct"
+},
+{
+"a": "Saturn",
+"b": "Mars",
+"relation": "a_aspects_b"
+}
+],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You have a strong pattern for very large wealth, built around your own standing and character.",
+"effect_es": "Tienes un patrón fuerte para una riqueza muy grande, construida en torno a tu propia posición y tu carácter.",
+"clarity": "clear"
+},
+{
+"id": "CB.129c",
+"n": 129,
+"name": "Dhana Yoga (lagna own-sign)",
+"requires": [
+{
+"planet": "Mars",
+"in_houses": [
+1
+]
+},
+{
+"planet": "Mars",
+"dignity": [
+"own"
+]
+},
+{
+"a": "Moon",
+"b": "Mars",
+"relation": "conjunct"
+},
+{
+"a": "Venus",
+"b": "Mars",
+"relation": "a_aspects_b"
+},
+{
+"a": "Saturn",
+"b": "Mars",
+"relation": "conjunct"
+}
+],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You have a strong pattern for very large wealth, built around your own standing and character.",
+"effect_es": "Tienes un patrón fuerte para una riqueza muy grande, construida en torno a tu propia posición y tu carácter.",
+"clarity": "clear"
+},
+{
+"id": "CB.129d",
+"n": 129,
+"name": "Dhana Yoga (lagna own-sign)",
+"requires": [
+{
+"planet": "Mars",
+"in_houses": [
+1
+]
+},
+{
+"planet": "Mars",
+"dignity": [
+"own"
+]
+},
+{
+"a": "Moon",
+"b": "Mars",
+"relation": "conjunct"
+},
+{
+"a": "Venus",
+"b": "Mars",
+"relation": "a_aspects_b"
+},
+{
+"a": "Saturn",
+"b": "Mars",
+"relation": "a_aspects_b"
+}
+],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You have a strong pattern for very large wealth, built around your own standing and character.",
+"effect_es": "Tienes un patrón fuerte para una riqueza muy grande, construida en torno a tu propia posición y tu carácter.",
+"clarity": "clear"
+},
+{
+"id": "CB.129e",
+"n": 129,
+"name": "Dhana Yoga (lagna own-sign)",
+"requires": [
+{
+"planet": "Mars",
+"in_houses": [
+1
+]
+},
+{
+"planet": "Mars",
+"dignity": [
+"own"
+]
+},
+{
+"a": "Moon",
+"b": "Mars",
+"relation": "a_aspects_b"
+},
+{
+"a": "Venus",
+"b": "Mars",
+"relation": "conjunct"
+},
+{
+"a": "Saturn",
+"b": "Mars",
+"relation": "conjunct"
+}
+],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You have a strong pattern for very large wealth, built around your own standing and character.",
+"effect_es": "Tienes un patrón fuerte para una riqueza muy grande, construida en torno a tu propia posición y tu carácter.",
+"clarity": "clear"
+},
+{
+"id": "CB.129f",
+"n": 129,
+"name": "Dhana Yoga (lagna own-sign)",
+"requires": [
+{
+"planet": "Mars",
+"in_houses": [
+1
+]
+},
+{
+"planet": "Mars",
+"dignity": [
+"own"
+]
+},
+{
+"a": "Moon",
+"b": "Mars",
+"relation": "a_aspects_b"
+},
+{
+"a": "Venus",
+"b": "Mars",
+"relation": "conjunct"
+},
+{
+"a": "Saturn",
+"b": "Mars",
+"relation": "a_aspects_b"
+}
+],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You have a strong pattern for very large wealth, built around your own standing and character.",
+"effect_es": "Tienes un patrón fuerte para una riqueza muy grande, construida en torno a tu propia posición y tu carácter.",
+"clarity": "clear"
+},
+{
+"id": "CB.129g",
+"n": 129,
+"name": "Dhana Yoga (lagna own-sign)",
+"requires": [
+{
+"planet": "Mars",
+"in_houses": [
+1
+]
+},
+{
+"planet": "Mars",
+"dignity": [
+"own"
+]
+},
+{
+"a": "Moon",
+"b": "Mars",
+"relation": "a_aspects_b"
+},
+{
+"a": "Venus",
+"b": "Mars",
+"relation": "a_aspects_b"
+},
+{
+"a": "Saturn",
+"b": "Mars",
+"relation": "conjunct"
+}
+],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You have a strong pattern for very large wealth, built around your own standing and character.",
+"effect_es": "Tienes un patrón fuerte para una riqueza muy grande, construida en torno a tu propia posición y tu carácter.",
+"clarity": "clear"
+},
+{
+"id": "CB.129h",
+"n": 129,
+"name": "Dhana Yoga (lagna own-sign)",
+"requires": [
+{
+"planet": "Mars",
+"in_houses": [
+1
+]
+},
+{
+"planet": "Mars",
+"dignity": [
+"own"
+]
+},
+{
+"a": "Moon",
+"b": "Mars",
+"relation": "a_aspects_b"
+},
+{
+"a": "Venus",
+"b": "Mars",
+"relation": "a_aspects_b"
+},
+{
+"a": "Saturn",
+"b": "Mars",
+"relation": "a_aspects_b"
+}
+],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You have a strong pattern for very large wealth, built around your own standing and character.",
+"effect_es": "Tienes un patrón fuerte para una riqueza muy grande, construida en torno a tu propia posición y tu carácter.",
+"clarity": "clear"
+},
+{
+"id": "CB.130a",
+"n": 130,
+"name": "Dhana Yoga (lagna own-sign)",
+"requires": [
+{
+"planet": "Mercury",
+"in_houses": [
+1
+]
+},
+{
+"planet": "Mercury",
+"dignity": [
+"own"
+]
+},
+{
+"a": "Venus",
+"b": "Mercury",
+"relation": "conjunct"
+},
+{
+"a": "Saturn",
+"b": "Mercury",
+"relation": "conjunct"
+}
+],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You have a strong pattern for very large wealth, built around your own standing and character.",
+"effect_es": "Tienes un patrón fuerte para una riqueza muy grande, construida en torno a tu propia posición y tu carácter.",
+"clarity": "clear"
+},
+{
+"id": "CB.130b",
+"n": 130,
+"name": "Dhana Yoga (lagna own-sign)",
+"requires": [
+{
+"planet": "Mercury",
+"in_houses": [
+1
+]
+},
+{
+"planet": "Mercury",
+"dignity": [
+"own"
+]
+},
+{
+"a": "Venus",
+"b": "Mercury",
+"relation": "conjunct"
+},
+{
+"a": "Saturn",
+"b": "Mercury",
+"relation": "a_aspects_b"
+}
+],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You have a strong pattern for very large wealth, built around your own standing and character.",
+"effect_es": "Tienes un patrón fuerte para una riqueza muy grande, construida en torno a tu propia posición y tu carácter.",
+"clarity": "clear"
+},
+{
+"id": "CB.130c",
+"n": 130,
+"name": "Dhana Yoga (lagna own-sign)",
+"requires": [
+{
+"planet": "Mercury",
+"in_houses": [
+1
+]
+},
+{
+"planet": "Mercury",
+"dignity": [
+"own"
+]
+},
+{
+"a": "Venus",
+"b": "Mercury",
+"relation": "a_aspects_b"
+},
+{
+"a": "Saturn",
+"b": "Mercury",
+"relation": "conjunct"
+}
+],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You have a strong pattern for very large wealth, built around your own standing and character.",
+"effect_es": "Tienes un patrón fuerte para una riqueza muy grande, construida en torno a tu propia posición y tu carácter.",
+"clarity": "clear"
+},
+{
+"id": "CB.130d",
+"n": 130,
+"name": "Dhana Yoga (lagna own-sign)",
+"requires": [
+{
+"planet": "Mercury",
+"in_houses": [
+1
+]
+},
+{
+"planet": "Mercury",
+"dignity": [
+"own"
+]
+},
+{
+"a": "Venus",
+"b": "Mercury",
+"relation": "a_aspects_b"
+},
+{
+"a": "Saturn",
+"b": "Mercury",
+"relation": "a_aspects_b"
+}
+],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You have a strong pattern for very large wealth, built around your own standing and character.",
+"effect_es": "Tienes un patrón fuerte para una riqueza muy grande, construida en torno a tu propia posición y tu carácter.",
+"clarity": "clear"
+},
+{
+"id": "CB.131a",
+"n": 131,
+"name": "Dhana Yoga (lagna own-sign)",
+"requires": [
+{
+"planet": "Jupiter",
+"in_houses": [
+1
+]
+},
+{
+"planet": "Jupiter",
+"dignity": [
+"own"
+]
+},
+{
+"a": "Mercury",
+"b": "Jupiter",
+"relation": "conjunct"
+},
+{
+"a": "Mars",
+"b": "Jupiter",
+"relation": "conjunct"
+}
+],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You have a strong pattern for very large wealth, built around your own standing and character.",
+"effect_es": "Tienes un patrón fuerte para una riqueza muy grande, construida en torno a tu propia posición y tu carácter.",
+"clarity": "clear"
+},
+{
+"id": "CB.131b",
+"n": 131,
+"name": "Dhana Yoga (lagna own-sign)",
+"requires": [
+{
+"planet": "Jupiter",
+"in_houses": [
+1
+]
+},
+{
+"planet": "Jupiter",
+"dignity": [
+"own"
+]
+},
+{
+"a": "Mercury",
+"b": "Jupiter",
+"relation": "conjunct"
+},
+{
+"a": "Mars",
+"b": "Jupiter",
+"relation": "a_aspects_b"
+}
+],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You have a strong pattern for very large wealth, built around your own standing and character.",
+"effect_es": "Tienes un patrón fuerte para una riqueza muy grande, construida en torno a tu propia posición y tu carácter.",
+"clarity": "clear"
+},
+{
+"id": "CB.131c",
+"n": 131,
+"name": "Dhana Yoga (lagna own-sign)",
+"requires": [
+{
+"planet": "Jupiter",
+"in_houses": [
+1
+]
+},
+{
+"planet": "Jupiter",
+"dignity": [
+"own"
+]
+},
+{
+"a": "Mercury",
+"b": "Jupiter",
+"relation": "a_aspects_b"
+},
+{
+"a": "Mars",
+"b": "Jupiter",
+"relation": "conjunct"
+}
+],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You have a strong pattern for very large wealth, built around your own standing and character.",
+"effect_es": "Tienes un patrón fuerte para una riqueza muy grande, construida en torno a tu propia posición y tu carácter.",
+"clarity": "clear"
+},
+{
+"id": "CB.131d",
+"n": 131,
+"name": "Dhana Yoga (lagna own-sign)",
+"requires": [
+{
+"planet": "Jupiter",
+"in_houses": [
+1
+]
+},
+{
+"planet": "Jupiter",
+"dignity": [
+"own"
+]
+},
+{
+"a": "Mercury",
+"b": "Jupiter",
+"relation": "a_aspects_b"
+},
+{
+"a": "Mars",
+"b": "Jupiter",
+"relation": "a_aspects_b"
+}
+],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You have a strong pattern for very large wealth, built around your own standing and character.",
+"effect_es": "Tienes un patrón fuerte para una riqueza muy grande, construida en torno a tu propia posición y tu carácter.",
+"clarity": "clear"
+},
+{
+"id": "CB.132a",
+"n": 132,
+"name": "Dhana Yoga (lagna own-sign)",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+1
+]
+},
+{
+"planet": "Venus",
+"dignity": [
+"own"
+]
+},
+{
+"a": "Mercury",
+"b": "Venus",
+"relation": "conjunct"
+},
+{
+"a": "Saturn",
+"b": "Venus",
+"relation": "conjunct"
+}
+],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You have a strong pattern for very large wealth, built around your own standing and character.",
+"effect_es": "Tienes un patrón fuerte para una riqueza muy grande, construida en torno a tu propia posición y tu carácter.",
+"clarity": "clear"
+},
+{
+"id": "CB.132b",
+"n": 132,
+"name": "Dhana Yoga (lagna own-sign)",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+1
+]
+},
+{
+"planet": "Venus",
+"dignity": [
+"own"
+]
+},
+{
+"a": "Mercury",
+"b": "Venus",
+"relation": "conjunct"
+},
+{
+"a": "Saturn",
+"b": "Venus",
+"relation": "a_aspects_b"
+}
+],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You have a strong pattern for very large wealth, built around your own standing and character.",
+"effect_es": "Tienes un patrón fuerte para una riqueza muy grande, construida en torno a tu propia posición y tu carácter.",
+"clarity": "clear"
+},
+{
+"id": "CB.132c",
+"n": 132,
+"name": "Dhana Yoga (lagna own-sign)",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+1
+]
+},
+{
+"planet": "Venus",
+"dignity": [
+"own"
+]
+},
+{
+"a": "Mercury",
+"b": "Venus",
+"relation": "a_aspects_b"
+},
+{
+"a": "Saturn",
+"b": "Venus",
+"relation": "conjunct"
+}
+],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You have a strong pattern for very large wealth, built around your own standing and character.",
+"effect_es": "Tienes un patrón fuerte para una riqueza muy grande, construida en torno a tu propia posición y tu carácter.",
+"clarity": "clear"
+},
+{
+"id": "CB.132d",
+"n": 132,
+"name": "Dhana Yoga (lagna own-sign)",
+"requires": [
+{
+"planet": "Venus",
+"in_houses": [
+1
+]
+},
+{
+"planet": "Venus",
+"dignity": [
+"own"
+]
+},
+{
+"a": "Mercury",
+"b": "Venus",
+"relation": "a_aspects_b"
+},
+{
+"a": "Saturn",
+"b": "Venus",
+"relation": "a_aspects_b"
+}
+],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You have a strong pattern for very large wealth, built around your own standing and character.",
+"effect_es": "Tienes un patrón fuerte para una riqueza muy grande, construida en torno a tu propia posición y tu carácter.",
+"clarity": "clear"
+},
+{
+"id": "CB.133",
+"n": 133,
+"name": "Bahudravyarjana Yoga",
+"requires": [
+{
+"planet": "L1",
+"in_houses": [
+2
+]
+},
+{
+"planet": "L2",
+"in_houses": [
+11
+]
+},
+{
+"planet": "L11",
+"in_houses": [
+1
+]
+}
+],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You can build a large fortune, with your effort, your savings, and your gains all feeding each other.",
+"effect_es": "Puedes construir una gran fortuna, con tu esfuerzo, tus ahorros y tus ganancias alimentándose unos a otros.",
+"clarity": "clear"
+},
+{
+"id": "CB.136a",
+"n": 136,
+"name": "Swaveeryaddhana Yoga (C)",
+"requires": [
+{
+"a": "L2",
+"b": "L1",
+"relation": "kendra_from_each_other"
+}
+],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You tend to earn money mainly through your own effort and skill rather than through inheritance.",
+"effect_es": "Tiendes a ganar dinero principalmente con tu propio esfuerzo y habilidad, más que por herencia.",
+"clarity": "inferred"
+},
+{
+"id": "CB.136b",
+"n": 136,
+"name": "Swaveeryaddhana Yoga (C)",
+"requires": [
+{
+"a": "L2",
+"b": "L1",
+"relation": "trine_from_each_other"
+}
+],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "You tend to earn money mainly through your own effort and skill rather than through inheritance.",
+"effect_es": "Tiendes a ganar dinero principalmente con tu propio esfuerzo y habilidad, más que por herencia.",
+"clarity": "inferred"
+},
+{
+"id": "CB.140a",
+"n": 140,
+"name": "Bhratrumooladdhanapraprti Yoga (A)",
+"requires": [
+{
+"planet": "L1",
+"in_houses": [
+3
+]
+},
+{
+"planet": "L2",
+"in_houses": [
+3
+]
+},
+{
+"a": "Jupiter",
+"b": "L1",
+"relation": "a_aspects_b"
+}
+],
+"tone": "good",
+"topics": [
+"money",
+"family"
+],
+"effect": "Money and support may come to you through siblings or relatives.",
+"effect_es": "El dinero y el apoyo pueden llegarte a través de tus hermanos o parientes.",
+"clarity": "inferred"
+},
+{
+"id": "CB.140b",
+"n": 140,
+"name": "Bhratrumooladdhanapraprti Yoga (A)",
+"requires": [
+{
+"planet": "L1",
+"in_houses": [
+3
+]
+},
+{
+"planet": "L2",
+"in_houses": [
+3
+]
+},
+{
+"a": "Venus",
+"b": "L1",
+"relation": "a_aspects_b"
+}
+],
+"tone": "good",
+"topics": [
+"money",
+"family"
+],
+"effect": "Money and support may come to you through siblings or relatives.",
+"effect_es": "El dinero y el apoyo pueden llegarte a través de tus hermanos o parientes.",
+"clarity": "inferred"
+},
+{
+"id": "CB.140c",
+"n": 140,
+"name": "Bhratrumooladdhanapraprti Yoga (A)",
+"requires": [
+{
+"planet": "L1",
+"in_houses": [
+3
+]
+},
+{
+"planet": "L2",
+"in_houses": [
+3
+]
+},
+{
+"a": "Mercury",
+"b": "L1",
+"relation": "a_aspects_b"
+}
+],
+"tone": "good",
+"topics": [
+"money",
+"family"
+],
+"effect": "Money and support may come to you through siblings or relatives.",
+"effect_es": "El dinero y el apoyo pueden llegarte a través de tus hermanos o parientes.",
+"clarity": "inferred"
+},
+{
+"id": "CB.142a",
+"n": 142,
+"name": "Matrumooladdhana Yoga",
+"requires": [
+{
+"a": "L2",
+"b": "L4",
+"relation": "conjunct"
+}
+],
+"tone": "good",
+"topics": [
+"money",
+"family"
+],
+"effect": "Your mother or her side of the family may help you earn or grow money.",
+"effect_es": "Tu madre o su lado de la familia puede ayudarte a ganar o hacer crecer tu dinero.",
+"clarity": "clear"
+},
+{
+"id": "CB.142b",
+"n": 142,
+"name": "Matrumooladdhana Yoga",
+"requires": [
+{
+"a": "L4",
+"b": "L2",
+"relation": "a_aspects_b"
+}
+],
+"tone": "good",
+"topics": [
+"money",
+"family"
+],
+"effect": "Your mother or her side of the family may help you earn or grow money.",
+"effect_es": "Tu madre o su lado de la familia puede ayudarte a ganar o hacer crecer tu dinero.",
+"clarity": "clear"
+},
+{
+"id": "CB.147",
+"n": 147,
+"name": "Ayatnaddhanalabha Yoga",
+"requires": [
+{
+"a": "L1",
+"b": "L2",
+"relation": "exchange"
+}
+],
+"tone": "good",
+"topics": [
+"money"
+],
+"effect": "Money tends to come to you with less strain than most people need to put in.",
+"effect_es": "El dinero tiende a llegar a ti con menos esfuerzo del que la mayoría necesita.",
+"clarity": "clear"
+},
+{
+"id": "CB.148a",
+"n": 148,
+"name": "Daridra Yoga (set)",
+"requires": [
+{
+"a": "L1",
+"b": "L12",
+"relation": "exchange"
+},
+{
+"a": "L7",
+"b": "L1",
+"relation": "conjunct"
+}
+],
+"tone": "bad",
+"topics": [
+"money"
+],
+"effect": "Money can feel tight in your life, so careful budgeting and steering clear of debt matter more for you than for most.",
+"effect_es": "El dinero puede sentirse justo en tu vida, así que presupuestar con cuidado y evitar deudas importa más para ti que para la mayoría.",
+"clarity": "inferred"
+},
+{
+"id": "CB.148b",
+"n": 148,
+"name": "Daridra Yoga (set)",
+"requires": [
+{
+"a": "L1",
+"b": "L12",
+"relation": "exchange"
+},
+{
+"a": "L7",
+"b": "L12",
+"relation": "conjunct"
+}
+],
+"tone": "bad",
+"topics": [
+"money"
+],
+"effect": "Money can feel tight in your life, so careful budgeting and steering clear of debt matter more for you than for most.",
+"effect_es": "El dinero puede sentirse justo en tu vida, así que presupuestar con cuidado y evitar deudas importa más para ti que para la mayoría.",
+"clarity": "inferred"
+},
+{
+"id": "CB.148c",
+"n": 148,
+"name": "Daridra Yoga (set)",
+"requires": [
+{
+"a": "L1",
+"b": "L12",
+"relation": "exchange"
+},
+{
+"a": "L7",
+"b": "L1",
+"relation": "a_aspects_b"
+}
+],
+"tone": "bad",
+"topics": [
+"money"
+],
+"effect": "Money can feel tight in your life, so careful budgeting and steering clear of debt matter more for you than for most.",
+"effect_es": "El dinero puede sentirse justo en tu vida, así que presupuestar con cuidado y evitar deudas importa más para ti que para la mayoría.",
+"clarity": "inferred"
+},
+{
+"id": "CB.148d",
+"n": 148,
+"name": "Daridra Yoga (set)",
+"requires": [
+{
+"a": "L1",
+"b": "L12",
+"relation": "exchange"
+},
+{
+"a": "L7",
+"b": "L12",
+"relation": "a_aspects_b"
+}
+],
+"tone": "bad",
+"topics": [
+"money"
+],
+"effect": "Money can feel tight in your life, so careful budgeting and steering clear of debt matter more for you than for most.",
+"effect_es": "El dinero puede sentirse justo en tu vida, así que presupuestar con cuidado y evitar deudas importa más para ti que para la mayoría.",
+"clarity": "inferred"
+},
+{
+"id": "CB.149a",
+"n": 149,
+"name": "Daridra Yoga (set)",
+"requires": [
+{
+"a": "L1",
+"b": "L6",
+"relation": "exchange"
+},
+{
+"a": "L2",
+"b": "Moon",
+"relation": "a_aspects_b"
+}
+],
+"tone": "bad",
+"topics": [
+"money"
+],
+"effect": "Periods of money strain may appear, so building a safety cushion early will help you a lot.",
+"effect_es": "Pueden aparecer periodos de presión económica, así que crear un colchón de seguridad desde temprano te ayudará mucho.",
+"clarity": "clear"
+},
+{
+"id": "CB.149b",
+"n": 149,
+"name": "Daridra Yoga (set)",
+"requires": [
+{
+"a": "L1",
+"b": "L6",
+"relation": "exchange"
+},
+{
+"a": "L7",
+"b": "Moon",
+"relation": "a_aspects_b"
+}
+],
+"tone": "bad",
+"topics": [
+"money"
+],
+"effect": "Periods of money strain may appear, so building a safety cushion early will help you a lot.",
+"effect_es": "Pueden aparecer periodos de presión económica, así que crear un colchón de seguridad desde temprano te ayudará mucho.",
+"clarity": "clear"
+},
+{
+"id": "CB.150",
+"n": 150,
+"name": "Daridra Yoga (set)",
+"requires": [
+{
+"planet": "Ketu",
+"in_houses": [
+1
+]
+},
+{
+"planet": "Moon",
+"in_houses": [
+1
+]
+}
+],
+"tone": "bad",
+"topics": [
+"money"
+],
+"effect": "You may go through stretches of tight money, so building savings and a steady income early will help you a lot.",
+"effect_es": "Puedes pasar por temporadas de dinero ajustado, así que crear ahorros e ingresos estables desde temprano te ayudará mucho.",
+"clarity": "clear"
+},
+{
+"id": "CB.151a",
+"n": 151,
+"name": "Daridra Yoga (set)",
+"requires": [
+{
+"planet": "L1",
+"in_houses": [
+8
+]
+},
+{
+"a": "L2",
+"b": "L1",
+"relation": "conjunct"
+}
+],
+"tone": "bad",
+"topics": [
+"money"
+],
+"effect": "Money pressure can show up in your life, so keep spending in check and build a reserve while you can.",
+"effect_es": "La presión económica puede aparecer en tu vida, así que controla tus gastos y crea una reserva mientras puedas.",
+"clarity": "clear"
+},
+{
+"id": "CB.151b",
+"n": 151,
+"name": "Daridra Yoga (set)",
+"requires": [
+{
+"planet": "L1",
+"in_houses": [
+8
+]
+},
+{
+"a": "L2",
+"b": "L1",
+"relation": "a_aspects_b"
+}
+],
+"tone": "bad",
+"topics": [
+"money"
+],
+"effect": "Money pressure can show up in your life, so keep spending in check and build a reserve while you can.",
+"effect_es": "La presión económica puede aparecer en tu vida, así que controla tus gastos y crea una reserva mientras puedas.",
+"clarity": "clear"
+},
+{
+"id": "CB.151c",
+"n": 151,
+"name": "Daridra Yoga (set)",
+"requires": [
+{
+"planet": "L1",
+"in_houses": [
+8
+]
+},
+{
+"a": "L7",
+"b": "L1",
+"relation": "conjunct"
+}
+],
+"tone": "bad",
+"topics": [
+"money"
+],
+"effect": "Money pressure can show up in your life, so keep spending in check and build a reserve while you can.",
+"effect_es": "La presión económica puede aparecer en tu vida, así que controla tus gastos y crea una reserva mientras puedas.",
+"clarity": "clear"
+},
+{
+"id": "CB.151d",
+"n": 151,
+"name": "Daridra Yoga (set)",
+"requires": [
+{
+"planet": "L1",
+"in_houses": [
+8
+]
+},
+{
+"a": "L7",
+"b": "L1",
+"relation": "a_aspects_b"
+}
+],
+"tone": "bad",
+"topics": [
+"money"
+],
+"effect": "Money pressure can show up in your life, so keep spending in check and build a reserve while you can.",
+"effect_es": "La presión económica puede aparecer en tu vida, así que controla tus gastos y crea una reserva mientras puedas.",
+"clarity": "clear"
+},
+{
+"id": "CB.158a",
+"n": 158,
+"name": "Yukthi Samanwithavagmi Yoga (A)",
+"requires": [
+{
+"planet": "L2",
+"in_houses": [
+1,
+4,
+5,
+7,
+9,
+10
+]
+},
+{
+"a": "L2",
+"b": "Jupiter",
+"relation": "conjunct"
+}
+],
+"tone": "good",
+"topics": [
+"career",
+"education"
+],
+"effect": "You tend to speak well, with a clear, persuasive way of getting your ideas across.",
+"effect_es": "Tiendes a hablar bien, con una manera clara y persuasiva de transmitir tus ideas.",
+"clarity": "inferred"
+},
+{
+"id": "CB.158b",
+"n": 158,
+"name": "Yukthi Samanwithavagmi Yoga (A)",
+"requires": [
+{
+"planet": "L2",
+"in_houses": [
+1,
+4,
+5,
+7,
+9,
+10
+]
+},
+{
+"a": "L2",
+"b": "Venus",
+"relation": "conjunct"
+}
+],
+"tone": "good",
+"topics": [
+"career",
+"education"
+],
+"effect": "You tend to speak well, with a clear, persuasive way of getting your ideas across.",
+"effect_es": "Tiendes a hablar bien, con una manera clara y persuasiva de transmitir tus ideas.",
+"clarity": "inferred"
+},
+{
+"id": "CB.158c",
+"n": 158,
+"name": "Yukthi Samanwithavagmi Yoga (A)",
+"requires": [
+{
+"planet": "L2",
+"in_houses": [
+1,
+4,
+5,
+7,
+9,
+10
+]
+},
+{
+"a": "L2",
+"b": "Mercury",
+"relation": "conjunct"
+}
+],
+"tone": "good",
+"topics": [
+"career",
+"education"
+],
+"effect": "You tend to speak well, with a clear, persuasive way of getting your ideas across.",
+"effect_es": "Tiendes a hablar bien, con una manera clara y persuasiva de transmitir tus ideas.",
+"clarity": "inferred"
+},
+{
+"id": "CB.158d",
+"n": 158,
+"name": "Yukthi Samanwithavagmi Yoga (A)",
+"requires": [
+{
+"planet": "L2",
+"dignity": [
+"exalted"
+]
+},
+{
+"a": "L2",
+"b": "Jupiter",
+"relation": "conjunct"
+}
+],
+"tone": "good",
+"topics": [
+"career",
+"education"
+],
+"effect": "You tend to speak well, with a clear, persuasive way of getting your ideas across.",
+"effect_es": "Tiendes a hablar bien, con una manera clara y persuasiva de transmitir tus ideas.",
+"clarity": "inferred"
+},
+{
+"id": "CB.162a",
+"n": 162,
+"name": "Jada Yoga",
+"requires": [
+{
+"planet": "L2",
+"in_houses": [
+10
+]
+},
+{
+"a": "L2",
+"b": "Sun",
+"relation": "conjunct"
+}
+],
+"tone": "bad",
+"topics": [
+"career",
+"other"
+],
+"effect": "Speaking in front of a large crowd may make you nervous, even when you know your subject well.",
+"effect_es": "Hablar frente a un grupo grande puede ponerte nervioso, incluso cuando conoces bien el tema.",
+"clarity": "inferred"
+},
+{
+"id": "CB.162b",
+"n": 162,
+"name": "Jada Yoga",
+"requires": [
+{
+"planet": "L2",
+"in_houses": [
+10
+]
+},
+{
+"a": "L2",
+"b": "Mars",
+"relation": "conjunct"
+}
+],
+"tone": "bad",
+"topics": [
+"career",
+"other"
+],
+"effect": "Speaking in front of a large crowd may make you nervous, even when you know your subject well.",
+"effect_es": "Hablar frente a un grupo grande puede ponerte nervioso, incluso cuando conoces bien el tema.",
+"clarity": "inferred"
+},
+{
+"id": "CB.162c",
+"n": 162,
+"name": "Jada Yoga",
+"requires": [
+{
+"planet": "L2",
+"in_houses": [
+10
+]
+},
+{
+"a": "L2",
+"b": "Saturn",
+"relation": "conjunct"
+}
+],
+"tone": "bad",
+"topics": [
+"career",
+"other"
+],
+"effect": "Speaking in front of a large crowd may make you nervous, even when you know your subject well.",
+"effect_es": "Hablar frente a un grupo grande puede ponerte nervioso, incluso cuando conoces bien el tema.",
+"clarity": "inferred"
+},
+{
+"id": "CB.162d",
+"n": 162,
+"name": "Jada Yoga",
+"requires": [
+{
+"planet": "L2",
+"in_houses": [
+10
+]
+},
+{
+"a": "L2",
+"b": "Rahu",
+"relation": "conjunct"
+}
+],
+"tone": "bad",
+"topics": [
+"career",
+"other"
+],
+"effect": "Speaking in front of a large crowd may make you nervous, even when you know your subject well.",
+"effect_es": "Hablar frente a un grupo grande puede ponerte nervioso, incluso cuando conoces bien el tema.",
+"clarity": "inferred"
+},
+{
+"id": "CB.162e",
+"n": 162,
+"name": "Jada Yoga",
+"requires": [
+{
+"planet": "L2",
+"in_houses": [
+10
+]
+},
+{
+"a": "L2",
+"b": "Ketu",
+"relation": "conjunct"
+}
+],
+"tone": "bad",
+"topics": [
+"career",
+"other"
+],
+"effect": "Speaking in front of a large crowd may make you nervous, even when you know your subject well.",
+"effect_es": "Hablar frente a un grupo grande puede ponerte nervioso, incluso cuando conoces bien el tema.",
+"clarity": "inferred"
+}
+]
+}
