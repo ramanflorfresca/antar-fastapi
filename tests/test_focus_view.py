@@ -136,3 +136,11 @@ def test_focus_pattern_skips_spouse_lines_for_someone_who_is_not_partnered(monke
 
 def rr_ev(text, rid):
     return fv.rr.Evidence(rid, "x", ["love"], "good", "specific", {"en": text}, {"en": ""})
+
+
+def test_pattern_never_uses_a_year_level_statement(monkeypatch):
+    from tests.test_rule_registry import ctx
+    ev = [rr_ev("This is a favourable year for a wedding.", "A"), rr_ev("You value steady partnership.", "B")]
+    monkeypatch.setattr(fv.rr, "applicable", lambda c: ev)
+    monkeypatch.setattr(fv.rr, "for_subject", lambda evs, s: evs)
+    assert fv._pattern(ctx(), ("love",), "en", {"partnered": False})["text"] == "You value steady partnership."

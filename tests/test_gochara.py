@@ -111,3 +111,18 @@ def test_week_never_repeats_a_practical_step_and_never_carries_year_level_rules(
     assert len(dos) == len(set(dos)) and len(b["watch"]) == 2 and len(b["watch_more"]) == 1
     txt = " ".join(i["text"] for i in b["lean_in"] + b["watch"] + b["watch_more"])
     assert "This year" not in txt and "wedding" not in txt
+
+
+def test_week_items_carry_the_life_area_so_the_app_can_place_them():
+    from antar_engine import weekly_layer as wl, public_view as pv
+    out = {"jaimini": [{"rule_id": "BK.A", "book": "x", "tone": "good", "subjects": ["marriage"], "text": "A.", "days": ["d"]},
+                       {"rule_id": "BK.B", "book": "x", "tone": "bad", "subjects": ["money"], "text": "B.", "days": ["d"]}],
+           "lal_kitab": {"rules": []},
+           "vimshottari": {"gochara": {"background": [{"planet_key": "Saturn", "state": "bad", "text": "Patience.", "house_from_moon": 1}],
+                                       "this_month": [], "best_days": [], "slow_days": []}}}
+    b = wl._blocks(out, "en")
+    assert [i["area"] for i in b["lean_in"]] == ["partnership"]
+    areas = {w["text"]: w["area"] for w in b["watch"]}
+    assert areas["B."] == "money" and areas["Patience."] == "work"
+    pub = pv.week({"start": "d", "days": 7, "vimshottari": out["vimshottari"], **b})
+    assert pub["lean_in"][0]["area"] == "partnership"
