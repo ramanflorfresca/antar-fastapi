@@ -27,11 +27,15 @@ def load_rules(path: str = DATA_PATH) -> List[dict]:
     return rules
 
 
-def kp_state(chart: dict, gender: Optional[str] = None) -> dict:
-    """Pre-compute what the clauses ask about. chart = compute_kp_chart(_from_jd) output."""
+def kp_state(chart: dict, gender: Optional[str] = None, ruling: Optional[set] = None) -> dict:
+    """Pre-compute what the clauses ask about. chart = compute_kp_chart(_from_jd) output.
+    ruling = the ruling planets at the moment of judgement (optional; clauses that need it never hold without it)."""
     from antar_engine.kp.kp_significators import build_significators
+    from antar_engine.kp import kp_levels
+    kp_levels.enrich(chart)
     _hs, planet_sig = build_significators(chart)
-    return {"chart": chart, "sig": planet_sig, "gender": gender, "periods": None}
+    return {"chart": chart, "sig": planet_sig, "gender": gender, "periods": None,
+            "levels": kp_levels.sig_levels(chart), "ruling": set(ruling or [])}
 
 
 def _mode_ok(have: set, want, mode: str) -> bool:
@@ -58,6 +62,54 @@ def holds(c: dict, st: dict) -> bool:
     if c.get("frame") != "kp":
         return False
     mode = c.get("mode", "any")
+    from antar_engine.kp import kp_levels as kl
+    ch_ = st["chart"]
+    if "links_to_cusps" in c:                       # a planet / cusp lord is linked (sign, star, sub or sub-sub lord) with these cusps
+        if "planet" in c:
+            who = c["planet"]
+        elif "cusp" in c:
+            cu_ = ch_["cusps"].get(c["cusp"])
+            if not cu_:
+                return False
+            who = cu_.get(c.get("lord_level", "sub_sub_lord"))
+        else:
+            return False
+        have = set(kl.links(ch_, who, tuple(c.get("via", ("sign", "star", "sub", "sub_sub")))))
+        return _mode_ok(have, c["links_to_cusps"], mode)
+    if "retrograde" in c and "planet" in c:
+        pl_ = ch_["planets"].get(c["planet"])
+        return bool(pl_) and bool(pl_.get("retrograde")) == bool(c["retrograde"])
+    if "sign_type" in c:
+        if "planet" in c:
+            sg = ch_["planets"].get(c["planet"], {}).get("sign")
+        elif "cusp" in c:
+            sg = ch_["cusps"].get(c["cusp"], {}).get("sign")
+        else:
+            return False
+        return sg is not None and kl.sign_type(sg) in (c["sign_type"] if isinstance(c["sign_type"], list) else [c["sign_type"]])
+    if "in_sign" in c and ("planet" in c or "cusp" in c):
+        sg = ch_["planets"].get(c["planet"], {}).get("sign") if "planet" in c else ch_["cusps"].get(c["cusp"], {}).get("sign")
+        return sg in (c["in_sign"] if isinstance(c["in_sign"], list) else [c["in_sign"]])
+    if "owns" in c and "planet" in c:
+        return _mode_ok(set(kl.owned_houses(ch_, c["planet"])), c["owns"], mode)
+    if "star_lord_owns" in c and "planet" in c:
+        sl = ch_["planets"].get(c["planet"], {}).get("star_lord")
+        return bool(sl) and _mode_ok(set(kl.owned_houses(ch_, sl)), c["star_lord_owns"], mode)
+    if "signifies_level" in c and "planet" in c:    # {"houses":[2,11],"max_level":2} strong significator (star of occupant / occupant)
+        d = c["signifies_level"]
+        lv = (st.get("levels") or {}).get(c["planet"], {})
+        return _mode_ok({h for h, v in lv.items() if v <= d.get("max_level", 2)}, d.get("houses"), mode)
+    if "ruling_includes" in c:                      # the planet is among the ruling planets at the moment of judgement
+        return c["ruling_includes"] in (st.get("ruling") or set())
+    if "cusp" in c and any(k in c for k in ("sub_sub_lord", "sub_sub_lord_signifies")):
+        cu_ = ch_["cusps"].get(c["cusp"])
+        if not cu_:
+            return False
+        if "sub_sub_lord" in c:
+            return cu_.get("sub_sub_lord") == c["sub_sub_lord"]
+        return _mode_ok(set(st["sig"].get(cu_.get("sub_sub_lord"), [])), c["sub_sub_lord_signifies"], mode)
+    if "planet" in c and "sub_sub_lord" in c:
+        return ch_["planets"].get(c["planet"], {}).get("sub_sub_lord") == c["sub_sub_lord"]
     if "cusp" in c:
         cu = ch["cusps"].get(c["cusp"])
         if not cu:
@@ -103,7 +155,20 @@ def act_holds(a: dict, st: dict, jd: Optional[float]) -> bool:
     if "dasha_signifies" in a:
         d = a["dasha_signifies"]
         lord = lords_at(st, jd).get(d.get("level"))
-        return bool(lord) and _mode_ok(set(st["sig"].get(lord, [])), d.get("houses"), d.get("mode", "any"))
+        if not lord:
+            return False
+        if d.get("max_level"):                       # only strong significators (star of occupant / occupant ...) count
+            have = {h for h, v in (st.get("levels") or {}).get(lord, {}).items() if v <= d["max_level"]}
+            return _mode_ok(have, d.get("houses"), d.get("mode", "any"))
+        return _mode_ok(set(st["sig"].get(lord, [])), d.get("houses"), d.get("mode", "any"))
+    if "dasha_lord_ruling" in a:                     # the running period lord at that level is among the ruling planets
+        lord = lords_at(st, jd).get(a["dasha_lord_ruling"].get("level"))
+        return bool(lord) and lord in (st.get("ruling") or set())
+    if "dasha_links_to_cusps" in a:                  # the running period lord is linked (sign/star/sub/sub-sub) with these cusps
+        from antar_engine.kp import kp_levels as kl
+        d = a["dasha_links_to_cusps"]
+        lord = lords_at(st, jd).get(d.get("level"))
+        return bool(lord) and _mode_ok(set(kl.links(st["chart"], lord, tuple(d.get("via", ("sign", "star", "sub", "sub_sub"))))), d.get("cusps"), d.get("mode", "any"))
     if "dasha" in a:
         d = a["dasha"]
         return lords_at(st, jd).get(d.get("level")) in (d.get("lords") or [])
@@ -114,6 +179,8 @@ def applying(st: dict, jd: Optional[float] = None, rules: Optional[List[dict]] =
     """Standing rules when jd is None; with a jd, timed rules whose activation also holds."""
     out = []
     for r in (load_rules() if rules is None else rules):
+        if r.get("asked_at_judgement") and not st.get("ruling"):
+            continue                                  # question-time rule: needs the ruling planets of a question moment
         if not all(holds(c, st) for c in r.get("requires", [])):
             continue
         acts = r.get("activation", [])
