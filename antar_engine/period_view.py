@@ -26,7 +26,7 @@ TX = {
            "strong": "{areas} lead", "strong_past": "{areas} led", "none": "A steadier stretch: ordinary progress, nothing pushing hard either way.",
            "none_past": "A steadier stretch: ordinary progress, nothing pushing hard either way.",
            "care": "{areas} need care.", "care_past": "{areas} needed care.",
-           "do": "Do this month", "do_y": "Do this year", "avoid": "Not this month", "avoid_y": "Not this year", "instead": "Instead",
+           "do": "Do this month", "do_y": "Do this year", "do_w": "Do this week", "avoid_w": "Not this week", "avoid": "Not this month", "avoid_y": "Not this year", "instead": "Instead",
            "do_past": "What would have helped", "avoid_past": "What to have avoided",
            "best_week": "Best week", "avoid_week": "Quieter week", "best_week_past": "Strongest week", "avoid_week_past": "Quieter week",
            "best_month": "Best month", "avoid_month": "Quieter month", "best_month_past": "Strongest month", "avoid_month_past": "Quieter month",
@@ -34,6 +34,10 @@ TX = {
            "best_text_past": "This was the stretch for asks and decisions.", "avoid_text_past": "This was the stretch to keep commitments light.",
            "domains": "How it reads by area", "key_dates": "Key dates", "to": "to", "quiet": "Nothing pushes hard either way here.",
            "quiet_past": "Nothing pushed hard either way here.",
+           "best_day": "Best day", "care_day": "Take care", "best_day_past": "Strongest day", "care_day_past": "Slower day",
+           "best_day_text": "Take the important asks and decisions here.", "care_day_text": "Keep commitments light; save big decisions for another day.",
+           "best_day_text_past": "This was the day for asks and decisions.", "care_day_text_past": "This was the day to keep commitments light.",
+           "running": "The stretch you are in", "ongoing": "ongoing", "until": "until", "from": "from",
            "domain_money": "Money", "domain_love": "Love", "domain_career": "Career", "domain_health": "Health", "domain_mind": "Mind",
            "chapter_begins": "{a} {theme} chapter begins ({nature})",
            "title_m": "{month} {year}", "title_y": "{year}", "current": "This", "past": "Last", "next": "Next"},
@@ -42,7 +46,7 @@ TX = {
            "strong": "Destacan {areas}", "strong_past": "Destacaron {areas}", "none": "Un tramo más tranquilo: avance normal, nada empuja con fuerza.",
            "none_past": "Un tramo más tranquilo: avance normal, nada empuja con fuerza.",
            "care": "{areas} necesitan cuidado.", "care_past": "{areas} necesitaron cuidado.",
-           "do": "Qué hacer este mes", "do_y": "Qué hacer este año", "avoid": "Qué evitar este mes", "avoid_y": "Qué evitar este año", "instead": "En su lugar",
+           "do": "Qué hacer este mes", "do_y": "Qué hacer este año", "do_w": "Qué hacer esta semana", "avoid_w": "Qué evitar esta semana", "avoid": "Qué evitar este mes", "avoid_y": "Qué evitar este año", "instead": "En su lugar",
            "do_past": "Lo que habría ayudado", "avoid_past": "Lo que convenía evitar",
            "best_week": "Mejor semana", "avoid_week": "Semana más tranquila", "best_week_past": "La semana más fuerte", "avoid_week_past": "Semana más tranquila",
            "best_month": "Mejor mes", "avoid_month": "Mes más tranquilo", "best_month_past": "El mes más fuerte", "avoid_month_past": "Mes más tranquilo",
@@ -50,6 +54,10 @@ TX = {
            "best_text_past": "Fue el tramo para peticiones y decisiones.", "avoid_text_past": "Fue el tramo para mantener los compromisos ligeros.",
            "domains": "Cómo se lee por área", "key_dates": "Fechas clave", "to": "a", "quiet": "Nada empuja con fuerza en un sentido ni en otro.",
            "quiet_past": "Nada empujó con fuerza en un sentido ni en otro.",
+           "best_day": "Mejor día", "care_day": "Cuidado", "best_day_past": "El día más fuerte", "care_day_past": "Día más lento",
+           "best_day_text": "Lleva aquí las peticiones y decisiones importantes.", "care_day_text": "Mantén los compromisos ligeros; deja las decisiones grandes para otro día.",
+           "best_day_text_past": "Fue el día para peticiones y decisiones.", "care_day_text_past": "Fue el día para mantener los compromisos ligeros.",
+           "running": "El tramo en que estás", "ongoing": "en curso", "until": "hasta", "from": "desde",
            "domain_money": "Dinero", "domain_love": "Amor", "domain_career": "Carrera", "domain_health": "Salud", "domain_mind": "Mente",
            "chapter_begins": "Empieza un capítulo de {theme} ({nature})",
            "title_m": "{month} de {year}", "title_y": "{year}", "current": "Este", "past": "Pasado", "next": "Próximo"},
@@ -67,6 +75,9 @@ PAST_TURN = {
 
 
 def window(scope: str, offset: int, today: date) -> Tuple[date, date]:
+    if scope == "week":
+        a = today + timedelta(days=7 * offset)
+        return a, a + timedelta(days=6)
     if scope == "year":
         y = today.year + offset
         return date(y, 1, 1), date(y, 12, 31)
@@ -79,7 +90,9 @@ def _relation(offset: int) -> str:
     return "past" if offset < 0 else ("next" if offset > 0 else "current")
 
 
-def _title(scope: str, start: date, lang: str) -> str:
+def _title(scope: str, start: date, lang: str, end: Optional[date] = None) -> str:
+    if scope == "week" and end:
+        return _range_lbl(start, end, lang)
     if scope == "year":
         return TX[lang]["title_y"].format(year=start.year)
     t = TX[lang]["title_m"].format(month=MONTHS[lang][start.month - 1], year=start.year)
@@ -194,6 +207,26 @@ def _lean_steps() -> dict:
         except Exception:
             _LEAN = {}
     return _LEAN
+
+
+WEEKDAYS = {"en": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], "es": ["lun", "mar", "mié", "jue", "vie", "sáb", "dom"]}
+
+
+def _day_lbl(d: date, lang: str) -> str:
+    return f"{WEEKDAYS[lang][d.weekday()]} {_lbl(d, lang)}" if lang == "en" else f"{WEEKDAYS[lang][d.weekday()]} {_lbl(d, lang)}"
+
+
+def _span_lbl(i: dict, lang: str, horizon_end: Optional[date] = None) -> str:
+    """The stretch an item really runs, for the week view: "until Dec 31" when its end is known, "ongoing" when it runs to the end of the
+    range we looked at (so we never claim an end date we did not find)."""
+    tx = TX[lang]
+    try:
+        e_ = date.fromisoformat(i["end"][:10])
+    except Exception:
+        return i.get("label")
+    if horizon_end is not None and e_ >= horizon_end - timedelta(days=3):
+        return tx["ongoing"]
+    return f"{tx['until']} {_lbl(e_, lang)}"
 
 
 def _a(word: str, lang: str) -> str:
@@ -347,7 +380,60 @@ def _key_dates(turns: List[dict], chapters: List[dict], start: date, lang: str) 
     return items[:12]
 
 
-def build(ctx, lib: dict, life: Optional[dict], scope: str, offset: int, language: str = "en", today: Optional[date] = None) -> dict:
+def _tone_of_score(score) -> str:
+    """The same bands as the day strip and the Today card: 7 and up good, under 4 tough, else steady."""
+    return "good" if score >= 7 else ("tough" if score < 4 else "steady")
+
+
+def _week_days(ctx, start: date, end: date, turns: List[dict], lang: str, past: bool, day_scores: Optional[dict] = None) -> dict:
+    """Seven days with a tone each, one best day and one take-care day. With `day_scores` ({iso date: score}, the same score the day
+    strip and the Today card use) the week agrees with them by construction; without, it falls back to the Moon-based easy and slow
+    days plus the dated turns."""
+    tx = TX[lang]
+    days = []
+    d = start
+    if day_scores:
+        while d <= end:
+            sc = day_scores.get(d.isoformat())
+            days.append((d, sc, _tone_of_score(sc) if sc is not None else "steady"))
+            d += timedelta(days=1)
+        scored = [(x, sc) for x, sc, _ in days if sc is not None]
+        if not scored:
+            return {}
+        best = max(scored, key=lambda t: (t[1], -t[0].toordinal()))
+        care = min(scored, key=lambda t: (t[1], t[0].toordinal()))
+        has_pair = best[1] - care[1] >= 2
+    else:
+        moon = ctx.planets.get("Moon")
+        if moon is None:
+            return {}
+        while d <= end:
+            st = gochara.state_on(moon.sign, d)["Moon"]["state"]
+            sc = 1 if st == "good" else (-1 if st == "bad" else 0)
+            for t in turns:
+                if t["date"] == d.isoformat():
+                    sc += 2 if t["tone"] == "good" else (-2 if t["tone"] == "care" else 0)
+            days.append((d, sc, "good" if sc > 0 else ("tough" if sc < 0 else "steady")))
+            d += timedelta(days=1)
+        best = max([(x, sc) for x, sc, _ in days], key=lambda t: (t[1], -t[0].toordinal()))
+        care = min([(x, sc) for x, sc, _ in days], key=lambda t: (t[1], t[0].toordinal()))
+        has_pair = best[1] > care[1]
+    out = {"days": [{"date": x.isoformat(), "label": _day_lbl(x, lang), "tone": tone, **({"score": sc} if sc is not None and day_scores else {})}
+                    for x, sc, tone in days]}
+    if has_pair:
+        out["best_day"] = {"date": best[0].isoformat(), "label": _day_lbl(best[0], lang),
+                           "title": tx["best_day_past"] if past else tx["best_day"],
+                           "text": tx["best_day_text_past"] if past else tx["best_day_text"]}
+        out["care_day"] = {"date": care[0].isoformat(), "label": _day_lbl(care[0], lang),
+                           "title": tx["care_day_past"] if past else tx["care_day"],
+                           "text": tx["care_day_text_past"] if past else tx["care_day_text"]}
+        out["headline"] = {"text": f"{out['best_day']['title']} {out['best_day']['label']}. {out['care_day']['title']} {out['care_day']['label']}.",
+                           "tone": "care"}
+    return out
+
+
+def build(ctx, lib: dict, life: Optional[dict], scope: str, offset: int, language: str = "en", today: Optional[date] = None,
+          day_scores: Optional[dict] = None) -> dict:
     lang = "es" if language == "es" else "en"
     today = today or ctx.today
     start, end = window(scope, offset, today)
@@ -355,6 +441,10 @@ def build(ctx, lib: dict, life: Optional[dict], scope: str, offset: int, languag
     past = rel == "past"
     tx = TX[lang]
     area_defs = focus_view._areas(life)
+    try:
+        hz_end = date.fromisoformat((lib.get("horizon") or [None, None])[1][:10])
+    except Exception:
+        hz_end = None
     subj_area = {}
     for key, subjects, labels in area_defs:
         for s_ in subjects:
@@ -375,7 +465,10 @@ def build(ctx, lib: dict, life: Optional[dict], scope: str, offset: int, languag
         if not pair:
             continue
         a = areas.setdefault(pair[0], {"key": pair[0], "label": pair[1], "lean_in": [], "watch": [], "strong": False})
-        item = public_view._item(_clip(i, start, end, lang))
+        clipped = _clip(i, start, end, lang)
+        if scope == "week":
+            clipped = {**clipped, "label": _span_lbl(i, lang, hz_end) if date.fromisoformat(i["end"][:10]) > end else clipped.get("label")}
+        item = public_view._item(clipped)
         if past:
             item.pop("do", None)
             item.pop("remedy", None)
@@ -403,7 +496,7 @@ def build(ctx, lib: dict, life: Optional[dict], scope: str, offset: int, languag
     else:
         summary = tx["none_past"] if past else tx["none"]
 
-    out = {"scope": scope, "offset": offset, "relation": rel, "title": _title(scope, start, lang),
+    out = {"scope": scope, "offset": offset, "relation": rel, "title": _title(scope, start, lang, end),
            "start": start.isoformat(), "end": end.isoformat(), "verdict": _verdict(out_areas), "summary": summary, "areas": out_areas,
            "chapters": _chapters(ctx, start, end, scope, lang),
            "labels": {"lean_in": tx["lean_past"] if past else tx["lean"], "watch": tx["watch_past"] if past else tx["watch"],
@@ -419,11 +512,15 @@ def build(ctx, lib: dict, life: Optional[dict], scope: str, offset: int, languag
             out["do"] = do
         if avoid:
             out["avoid"] = avoid
-        out["labels"].update({"do": tx["do"] if scope == "month" else tx["do_y"], "avoid": tx["avoid"] if scope == "month" else tx["avoid_y"],
+        out["labels"].update({"do": tx["do_y"] if scope == "year" else (tx["do_w"] if scope == "week" else tx["do"]),
+                              "avoid": tx["avoid_y"] if scope == "year" else (tx["avoid_w"] if scope == "week" else tx["avoid"]),
                               "instead": tx["instead"]})
     else:
         out["labels"].update({"instead": tx["instead"]})
     out["labels"].update({"domains": tx["domains"], "key_dates": tx["key_dates"]})
+    if scope == "week":
+        out.update(_week_days(ctx, start, end, out["turns"], lang, past, day_scores))
+        out["labels"]["running"] = tx["running"]
     if scope == "month":
         out.update(_best_avoid_week(ctx, start, end, out["turns"], lang, past))
     if scope == "year":

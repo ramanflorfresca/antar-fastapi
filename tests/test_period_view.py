@@ -131,3 +131,41 @@ def test_english_article_in_the_chapter_line():
 def test_spanish_v2_has_no_english_labels():
     o = _build(lang="es")
     assert o["labels"]["do"] == "Qué hacer este mes" and o["domains"][0]["label"] == "Dinero"
+
+
+# ── week: the same day score as the day strip, honest "ongoing" labels ────────────────────────────────────────────
+def _scores(vals, start=date(2026, 10, 14)):
+    return {(start.fromordinal(start.toordinal() + i)).isoformat(): v for i, v in enumerate(vals)}
+
+
+def test_week_best_and_care_days_come_from_the_day_score_and_match_the_strip():
+    o = pv.build(_Ctx(), _lib(), {"employed": True}, "week", 0, "en", today=date(2026, 10, 14),
+                 day_scores=_scores([8, 4, 1, 0, 10, 4, 9]))
+    assert o["title"] == "Oct 14 to Oct 20" and o["start"] == "2026-10-14"
+    assert [d["tone"] for d in o["days"]] == ["good", "steady", "tough", "tough", "good", "steady", "good"]
+    assert o["best_day"]["date"] == "2026-10-18" and o["care_day"]["date"] == "2026-10-17"       # what the strip says
+    assert o["headline"]["text"] == "Best day Sun Oct 18. Take care Sat Oct 17."
+    assert o["labels"]["do"] == "Do this week"
+
+
+def test_week_with_no_spread_has_no_best_or_care_day():
+    o = pv.build(_Ctx(), _lib(), {"employed": True}, "week", 0, "en", today=date(2026, 10, 14), day_scores=_scores([5, 5, 6, 5, 5, 6, 5]))
+    assert "best_day" not in o and "headline" not in o
+
+
+def test_week_labels_a_running_line_with_its_end_or_ongoing_never_an_invented_end():
+    lib = _lib()
+    lib["horizon"] = ["2026-10-14", "2027-02-11"]
+    lib["vimshottari"]["lean_in"][0]["end"] = "2026-12-31"
+    o = pv.build(_Ctx(), lib, {"employed": True}, "week", 0, "en", today=date(2026, 10, 14), day_scores=_scores([8, 4, 1, 0, 10, 4, 9]))
+    lean = next(i for a in o["areas"] for i in a["lean_in"])
+    assert lean["label"] == "until Dec 31"
+    lib["vimshottari"]["lean_in"][0]["end"] = "2027-02-10"                    # runs to the end of what we looked at
+    o = pv.build(_Ctx(), lib, {"employed": True}, "week", 0, "en", today=date(2026, 10, 14), day_scores=_scores([8, 4, 1, 0, 10, 4, 9]))
+    assert next(i for a in o["areas"] for i in a["lean_in"])["label"] == "ongoing"
+
+
+def test_week_window_is_seven_days_and_moves_by_weeks():
+    assert pv.window("week", 0, date(2026, 10, 14)) == (date(2026, 10, 14), date(2026, 10, 20))
+    assert pv.window("week", -1, date(2026, 10, 14)) == (date(2026, 10, 7), date(2026, 10, 13))
+    assert pv.window("week", 1, date(2026, 10, 14)) == (date(2026, 10, 21), date(2026, 10, 27))

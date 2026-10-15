@@ -79,12 +79,26 @@ def when(wc: Optional[dict]) -> Optional[dict]:
 
 
 def week(out: Optional[dict]) -> Optional[dict]:
+    """The week feed. A line that is live on every day of the week (or only a background line with no days) is a standing stretch,
+    not something about THIS week: it goes under `running`, not `lean_in` / `watch`. Only lines live on some of the days stay as the
+    week's own. The Home strip and the This-week sheet read `lean_in` / `watch`, so they no longer present a season line as the week."""
     if not out:
         return out
     g = (out.get("vimshottari") or {}).get("gochara") or {}
+    n = int(out.get("days") or 7)
+
+    def _own(i):
+        d = i.get("days") or []
+        return 0 < len(d) < n
+
+    lean_all = [_item(i) | {"_own": _own(i)} for i in out.get("lean_in", [])]
+    watch_all = [_item(i) | {"_own": _own(i)} for i in out.get("watch", [])]
+    strip = lambda items: [{k: v for k, v in i.items() if k != "_own"} for i in items]
     return {"start": out["start"], "days": out["days"],
-            "lean_in": _dedupe([_item(i) for i in out.get("lean_in", [])], 4),
-            "watch": [_item(i) for i in out.get("watch", [])],
+            "lean_in": _dedupe(strip([i for i in lean_all if i["_own"]]), 4),
+            "watch": strip([i for i in watch_all if i["_own"]]),
+            "running": {"lean_in": _dedupe(strip([i for i in lean_all if not i["_own"]]), 4),
+                        "watch": strip([i for i in watch_all if not i["_own"]])},
             "watch_more": len(out.get("watch_more", [])),
             "best_days": g.get("best_days", []), "slow_days": g.get("slow_days", []),
             "wellness": wellness(out.get("wellness"))}
