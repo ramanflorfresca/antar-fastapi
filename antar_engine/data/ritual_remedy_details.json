@@ -1,0 +1,26 @@
+{
+  "_about": "How-to details for the annual remedies shown on the Rituals card. Edit the wording here; the match is a case-insensitive regex on the remedy sentence. Keep it plain: no planet, book or method names. {day} is the weekday named in the remedy; {covers} is what that weekday stands for.",
+  "remedies": [
+    {"match": "\\bfast(s|ing)?\\b",
+     "how_plain": "Eat lightly: skip your usual meals and keep to water, milk or fruit until evening, then break it with a simple meal.",
+     "when_plain": "{day}, from sunrise to sunset",
+     "how_long_plain": "Every {day} through this year",
+     "for_plain": "Supports {covers}.",
+     "safety_plain": "Skip the fast, or keep it very light, if you are unwell, pregnant, diabetic or on medication."},
+    {"match": "gayatri|chant|recite|mantra",
+     "how_plain": "Say it 11 times, slowly and out loud or under your breath, ideally at sunrise or before you start work.",
+     "when_plain": "Daily, ideally at sunrise",
+     "how_long_plain": "Daily through this year",
+     "for_plain": "Steadies the mind and sharpens focus."},
+    {"match": "cow|cow-feed|fodder",
+     "how_plain": "Give a cow green fodder or a roti with jaggery, or contribute to a cow shelter.",
+     "when_plain": "Any day; doing it regularly matters more than the day",
+     "how_long_plain": "Through this year",
+     "for_plain": "Eases the strain your year carries."},
+    {"match": "donat|give away|charity|feed (the )?(poor|crows|dogs|birds)",
+     "how_plain": "Give it with your own hand, quietly, to someone who needs it, and do not tell anyone.",
+     "when_plain": "{day_or_any}",
+     "how_long_plain": "Through this year",
+     "for_plain": "Eases the strain your year carries."}
+  ]
+}
