@@ -79,3 +79,55 @@ def test_verdict_and_cell_verdicts():
     assert pv._verdict([{"lean_in": [1], "watch": []}, {"lean_in": [1], "watch": []}, {"lean_in": [], "watch": [1]}]) == "good"
     assert pv._verdict([{"lean_in": [], "watch": [1]}]) == "tough"
     assert pv._verdict([{"lean_in": [1], "watch": [1]}]) == "steady"
+
+
+# ── v2: area reads, do / avoid, best and quieter week/month, key dates, ready-made labels ─────────────────────────
+def _build(scope="month", offset=0, lib=None, lang="en"):
+    return pv.build(_Ctx(), lib or _lib(), {"employed": True}, scope, offset, lang, today=date(2026, 10, 14))
+
+
+def test_five_area_reads_always_present_with_a_tone_and_no_repeated_line():
+    o = _build()
+    assert [d["key"] for d in o["domains"]] == ["money", "love", "career", "health", "mind"]
+    assert all(d["verdict"] in ("good", "steady", "tough") for d in o["domains"])
+    texts = [l["text"] for d in o["domains"] for l in d["lines"]]
+    assert len(texts) == len(set(texts))
+    quiet = [d for d in o["domains"] if not d["lines"]]
+    assert quiet and all(d["quiet"] for d in quiet)
+
+
+def test_item_dates_are_clipped_to_the_window_and_labelled_ready_to_show():
+    o = _build()                                         # the library item runs Sep 1 to Dec 31; October is one month of it
+    first = next(i for a in o["areas"] for i in a["lean_in"])
+    assert first["start"] == "2026-10-01" and first["end"] == "2026-10-31" and first["label"] == "Oct 1 to Oct 31"
+
+
+def test_do_and_avoid_exist_for_current_and_next_not_for_past():
+    cur = _build()
+    assert cur["do"] and cur["avoid"] and cur["avoid"][0]["instead"]
+    assert cur["labels"]["do"] == "Do this month" and cur["labels"]["avoid"] == "Not this month"
+    assert "do" not in _build(offset=-1) and "avoid" not in _build(offset=-1)
+    assert _build("year")["labels"]["do"] == "Do this year"
+
+
+def test_every_label_is_a_ready_made_string_not_an_iso_date():
+    o = _build()
+    for t in o["turns"] + o["key_dates"]:
+        assert not t["label"][:4].isdigit()
+    for c in o["chapters"]:
+        assert c["label"] and not c["label"][:4].isdigit()
+
+
+def test_year_has_one_best_and_one_quieter_month_and_they_differ():
+    o = _build("year")
+    if "best_month" in o:
+        assert o["best_month"]["month"] != o["avoid_month"]["month"]
+
+
+def test_english_article_in_the_chapter_line():
+    assert pv._a("intellect", "en") == "an" and pv._a("growth", "en") == "a" and pv._a("intellect", "es") == "a"
+
+
+def test_spanish_v2_has_no_english_labels():
+    o = _build(lang="es")
+    assert o["labels"]["do"] == "Qué hacer este mes" and o["domains"][0]["label"] == "Dinero"
