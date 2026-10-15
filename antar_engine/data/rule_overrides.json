@@ -4,6 +4,10 @@
   "BVJ1.20": {
    "effect": "You are drawn to uncertain, high-stakes situations, and you do best when you turn that pull into calculated risk.",
    "effect_es": "Te atraen las situaciones inciertas y de alto riesgo, y te va mejor cuando conviertes esa atracción en riesgo calculado."
+  },
+  "BVHPA2.42": {
+   "effect": "Money can slip away or feel unsettled in this stretch, especially around travel or anything far from home.",
+   "effect_es": "El dinero puede escaparse o sentirse inestable en esta etapa, sobre todo en viajes o en lo que queda lejos de casa."
   }
  }
 }
