@@ -213,3 +213,74 @@ def test_month_colours_pass_the_year_avoid_list():
     wd = {"Rahu": ["Smoky Grey", "Dark Blue"]}
     out = RT.month_colours("Rahu", wd, lambda nm: "neutral", set(), ["Dark Blue"])
     assert [c["name"] for c in out] == ["Smoky Grey"]
+
+
+# ── specific details: remedy how/when/how long/for, colour where/supports/skip reasons, food specifics ──────────────
+from antar_engine import ritual_details as RD
+
+
+def test_a_weekday_fast_has_how_when_how_long_for_and_a_safety_line():
+    d = RD.remedy_details("Keep a fast on Wednesdays.", date(2026, 10, 14))
+    assert {"how_plain", "when_plain", "how_long_plain", "for_plain", "safety_plain"} <= set(d)
+    assert d["when_plain"] == "Wednesday, from sunrise to sunset" and d["how_long_plain"] == "Every Wednesday through this year"
+    assert d["for_plain"] == "Supports your thinking, speaking, trading and learning."
+    assert "unwell" in d["safety_plain"]
+
+
+def test_the_fast_reads_its_foods_from_the_weekday_planets_table_not_from_typed_text():
+    wed = RD.remedy_details("Keep a fast on Wednesdays.", date(2026, 10, 14))
+    sat = RD.remedy_details("Keep a fast on Saturdays.", date(2026, 10, 17))
+    assert "moong" in wed["break_with_plain"].lower() and "sesame" in sat["break_with_plain"].lower()
+    assert wed["foods_plain"] != sat["foods_plain"] and wed["avoid_plain"] != sat["avoid_plain"]
+    assert RT.jargon_leaks(wed) == [] and RT.jargon_leaks(sat) == []
+    import json as _j, os as _o
+    raw = open(_o.path.join(_o.path.dirname(RD.__file__), "data", "ritual_remedy_details.json")).read().lower()
+    assert "moong" not in raw and "sesame" not in raw          # no food is typed into the remedy table
+
+
+def test_how_strict_the_fast_is_comes_from_the_persons_constitution():
+    cd = lambda sign: {"planets": {"Moon": {"sign": sign}}}
+    vata = RD.remedy_details("Keep a fast on Wednesdays.", None, cd("Gemini"))["how_plain"]
+    pitta = RD.remedy_details("Keep a fast on Wednesdays.", None, cd("Leo"))["how_plain"]
+    kapha = RD.remedy_details("Keep a fast on Wednesdays.", None, cd("Cancer"))["how_plain"]
+    assert len({vata, pitta, kapha}) == 3
+    assert "vata" not in (vata + pitta + kapha).lower()
+    assert RD.remedy_details("Keep a fast on Wednesdays.", None, {})["how_plain"]      # no chart: the cautious fallback
+
+
+def test_remedy_why_names_the_part_of_life_the_day_stands_for_not_the_generic_verdict():
+    w = RD.remedy_why("Keep a fast on Wednesdays.")
+    assert w and "Wednesdays stand for your thinking" in w
+    assert RD.remedy_why("Recite the Gayatri mantra regularly.") is None      # no day: the caller falls back
+
+
+def test_remedy_details_never_name_a_planet_and_unknown_remedies_return_nothing():
+    assert RD.remedy_details("Bury a coin under a tree at midnight.") == {}
+    for t in ("Keep a fast on Sundays.", "Recite the Gayatri mantra regularly.", "Donate or serve a good cow (or give cow-feed).",
+              "Donate rice on Fridays."):
+        assert RT.jargon_leaks(RD.remedy_details(t, date(2026, 10, 14))) == []
+
+
+def test_colour_details_say_where_to_wear_what_it_supports_and_why_each_colour_is_skipped():
+    col = {"name": "Green", "basis": "weekday_ruler:mercury", "scope": "day"}
+    d = RD.colour_details(col, {"support": "Green/Emerald"}, [{"name": "Dark Blue", "hex": "#2F4B7C"}, {"name": "Red", "hex": "#c00"}],
+                          ["Never take free electrical goods, blue clothing or steel."])
+    assert "shirt" in d["where_plain"] and d["supports_plain"] == "Green supports your thinking, speaking, trading and learning today."
+    assert "support_colour_plain" not in d                    # the support colour is the colour already chosen
+    why = {r["name"]: r["why_plain"] for r in d["skip_reasons"]}
+    assert "refuse dark blue" in why["Dark Blue"] and "does not suit your chart" in why["Red"]
+
+
+def test_food_details_carry_the_engines_own_specifics():
+    d = RD.food_details({"herb": "Ashwagandha", "why_avoid": "these push the day further", "duration": "Repeat weekly",
+                         "best_day": "Saturday", "is_best_day": False})
+    assert d["herb_plain"].endswith("Ashwagandha.") and d["why_avoid_plain"].startswith("These push")
+    assert d["best_day_plain"] == "Works best on Saturdays." and d["repeat_plain"] == "Repeat weekly."
+    assert "best_day_plain" not in RD.food_details({"best_day": "Saturday", "is_best_day": True})
+
+
+def test_the_cards_carry_details_and_the_stripped_payload_stays_clean():
+    p = _compose(date(2026, 10, 14))
+    assert p["cards"]["remedy"]["details"]["when_plain"].startswith("Wednesday")
+    assert "Wednesdays stand for" in p["cards"]["remedy"]["why_plain"]
+    assert RT.jargon_leaks(RT.strip_internal(p)) == []
