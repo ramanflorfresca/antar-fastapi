@@ -14892,6 +14892,23 @@ async def ritual_today(chart_id: str, language: str = "en", tz: float = None):
     except Exception:
         pass
 
+    _month_lord, _sub_lord = None, None
+    try:
+        from antar_engine import rule_registry as _rr_c
+        _vim_c = (await asyncio.to_thread(lambda: get_dashas_for_chart(chart_id) or {})).get("vimsottari") or []
+        _bd_c = locals().get("_bd")
+        _cx = _rr_c.Ctx(_cd, _bd_c, _vim_c) if (_cd and _bd_c) else None
+        _month_lord = ((_cx.periods_at(_today) or {}).get("pd")) if _cx else None
+    except Exception as _ce:
+        print(f"[ritual-today] month ruler skipped (non-fatal): {_ce}")
+    try:
+        from antar_engine.kp.kp_moment import kp_moment as _kpm
+        from datetime import datetime as _dtc, timedelta as _tdc
+        _noon_utc = _dtc.combine(_today, _dtc.min.time()).replace(hour=12) - _tdc(hours=((float(tz) / 60.0 if abs(float(tz)) > 14 else float(tz)) if tz is not None else 0.0))
+        _sub_lord = ((_kpm(_noon_utc, 0.0, 0.0, 0.0) or {}).get("kp") or {}).get("sub_lord")
+    except Exception as _ke:
+        print(f"[ritual-today] moon sub ruler skipped (non-fatal): {_ke}")
+
     _done, _streak = set(), 0
     try:
         _lg = await asyncio.to_thread(lambda: supabase.table("practice_log").select("practice_id,completed_at")
@@ -14906,7 +14923,7 @@ async def ritual_today(chart_id: str, language: str = "en", tz: float = None):
         natal_mat=_natal if isinstance(_natal, dict) else {}, year_mat=_yr_shaped, nak_lord=_nak_lord,
         completed_ids=_done, streak=_streak, longest=_streak, assess=_assess, weekday_colours=_wd_cols,
         caution="A gemstone is potent. Check the stone, weight and metal with a qualified jeweller-astrologer before wearing one.",
-        practice=_prac)
+        practice=_prac, sub_lord=_sub_lord, month_lord=_month_lord)
     return _rt.strip_internal(out)
 
 

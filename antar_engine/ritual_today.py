@@ -93,25 +93,36 @@ def _lk_refused_colours(lk_year: dict) -> set:
 
 
 def pick_colour_of_the_day(today: Optional[_date], nak_lord: Optional[str], favor_shades: list, assess, refused: set,
-                           weekday_colours: dict, weekday_planet: Optional[str] = None) -> dict:
-    """The safety-gated colour of the day.
+                           weekday_colours: dict, weekday_planet: Optional[str] = None, sub_lord: Optional[str] = None,
+                           month_lord: Optional[str] = None, year_avoid: Optional[list] = None) -> dict:
+    """The safety-gated colour of the day, chosen by a hierarchy where the longer period decides what the shorter may pick.
 
-    Candidates, in order: the weekday ruler's colour, the Moon-star ruler's colour (one signal when it is the same
-    planet), then the year's favourable shades. Every candidate passes assess(colour) -> 'favor'|'neutral'|'avoid'|None.
-    avoid is never chosen and is returned in `skip`. neutral is used only when nothing is favourable. Nothing eligible
-    gives colour=None (the page uses its neutral theme)."""
+    YEAR sets the avoid list: a colour the year says to refuse (the year's afflicted ruler, the year's remedies) is never chosen.
+    DAY candidates, in order: the weekday ruler's colour, the Moon-star ruler's colour, the Moon's sub-lord colour (one signal
+    each: the same planet is not counted twice). MONTH candidate: the running sub-period ruler's colour. YEAR candidate: the
+    year's favourable shades. Every candidate passes assess(colour) -> 'favor'|'neutral'|'avoid'|None. A favourable colour is
+    taken in tier order (day, month, year); neutral only when nothing is favourable; avoid never. The result says which tier it
+    came from (`scope`), so a month or year colour is never shown as if it were today's."""
+    refused = set(refused or ()) | {str(n).lower() for n in (year_avoid or [])}
     wd_planet = weekday_planet or _WEEKDAY_PLANET[today.weekday()]
-    cands = []   # (name, basis)
-    for nm in (weekday_colours.get(wd_planet) or []):
-        cands.append((nm, f"weekday_ruler:{wd_planet.lower()}"))
-    if nak_lord and nak_lord != wd_planet:      # same planet = ONE signal, not two
-        for nm in (weekday_colours.get(nak_lord) or []):
-            cands.append((nm, f"moon_star_ruler:{nak_lord.lower()}"))
+    cands = []   # (name, basis, scope)
+    seen_planets = set()
+    for planet, tag in ((wd_planet, "weekday_ruler"), (nak_lord, "moon_star_ruler"), (sub_lord, "moon_sub_ruler")):
+        if not planet or planet in seen_planets:
+            continue
+        seen_planets.add(planet)
+        for nm in (weekday_colours.get(planet) or []):
+            cands.append((nm, f"{tag}:{planet.lower()}", "day"))
+    if month_lord:
+        for nm in (weekday_colours.get(month_lord) or []):
+            cands.append((nm, f"month_ruler:{month_lord.lower()}", "month"))
     for nm in favor_shades:
-        cands.append((nm, "year_favourable"))
+        cands.append((nm, "year_favourable", "year"))
 
-    favor, neutral, skip, seen = None, None, [], set()
-    for nm, basis in cands:
+    tiers = {"day": {"favor": None, "neutral": None}, "month": {"favor": None, "neutral": None},
+             "year": {"favor": None, "neutral": None}}
+    skip, seen = [], set()
+    for nm, basis, scope in cands:
         key = nm.lower()
         if key in seen:
             continue
@@ -122,11 +133,27 @@ def pick_colour_of_the_day(today: Optional[_date], nak_lord: Optional[str], favo
         v = "avoid" if any(r in key or key in r for r in refused) else assess(nm)
         if v == "avoid":
             skip.append({"name": _cap(nm), "hex": hx, "basis": basis})
-        elif v == "favor" and favor is None:
-            favor = {"name": _cap(nm), "hex": hx, "basis": basis, "verdict": "favor"}
-        elif v == "neutral" and neutral is None:
-            neutral = {"name": _cap(nm), "hex": hx, "basis": basis, "verdict": "neutral"}
-    return {"colour": favor or neutral, "skip": skip}
+        elif v in ("favor", "neutral") and tiers[scope][v] is None:
+            tiers[scope][v] = {"name": _cap(nm), "hex": hx, "basis": basis, "scope": scope, "verdict": v}
+    # the closest period that has anything eligible decides: a day colour (even a neutral one) beats the month's,
+    # and the month's beats the year's, so the 'colour of the day' is not the year's shade every day
+    for scope in ("day", "month", "year"):
+        t = tiers[scope]
+        if t["favor"] or t["neutral"]:
+            return {"colour": t["favor"] or t["neutral"], "skip": skip}
+    return {"colour": None, "skip": skip}
+
+
+def month_colours(month_lord: Optional[str], weekday_colours: dict, assess, refused: set, year_avoid: Optional[list]) -> list:
+    """The colours of the running month: its ruler's shades that pass the year's avoid list and the chart's own check."""
+    ref = set(refused or ()) | {str(n).lower() for n in (year_avoid or [])}
+    out = []
+    for nm in (weekday_colours.get(month_lord or "") or []):
+        key = nm.lower()
+        if not hex_for(nm) or any(r in key or key in r for r in ref) or assess(nm) == "avoid":
+            continue
+        out.append({"name": _cap(nm), "hex": hex_for(nm)})
+    return out
 
 
 # ── cards ────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -301,7 +328,8 @@ def _stone(entry: dict, caution: str) -> Optional[dict]:
 
 
 def wear_card(today: _date, *, natal_mat: dict, year_mat: dict, lk_year: dict, nak_lord: Optional[str], assess,
-              weekday_colours: dict, caution: str, done_ids: set) -> dict:
+              weekday_colours: dict, caution: str, done_ids: set, sub_lord: Optional[str] = None,
+              month_lord: Optional[str] = None) -> dict:
     refused = _lk_refused_colours(lk_year)
     def _ok(nm):
         k = nm.lower()
@@ -311,8 +339,12 @@ def wear_card(today: _date, *, natal_mat: dict, year_mat: dict, lk_year: dict, n
                 if _ok(s["name"])]
     fav_life = [s["name"] for e in ((natal_mat or {}).get("favorable") or natal_mat.get("favor") or [])
                 for s in split_shades(e.get("shade") or e.get("color") or "") if _ok(s["name"])] if natal_mat else []
-    pick = pick_colour_of_the_day(today, nak_lord, fav_year + fav_life, assess, refused, weekday_colours)
+    year_avoid_names = [s_["name"] for e in ((year_mat or {}).get("avoid") or [])
+                        for s_ in split_shades(e.get("shade") or e.get("color") or "")]
+    pick = pick_colour_of_the_day(today, nak_lord, fav_year + fav_life, assess, refused, weekday_colours,
+                                  sub_lord=sub_lord, month_lord=month_lord, year_avoid=year_avoid_names)
     col = pick["colour"]
+    month_cols = month_colours(month_lord, weekday_colours, assess, refused, year_avoid_names)
 
     gem = ((lk_year or {}).get("gemstones") or {})
     timed = next((s for s in (_stone(e, caution) for e in (gem.get("timed") or [])) if s), None)
@@ -338,6 +370,8 @@ def wear_card(today: _date, *, natal_mat: dict, year_mat: dict, lk_year: dict, n
     if year_colours or timed:
         scopes["this_year"] = {"colors": year_colours, "avoid": year_avoid + refused_sw, "stone": timed,
                                "metal": _metal(timed, None), "note_plain": None}
+    if month_cols:
+        scopes["this_month"] = {"colors": month_cols, "avoid": year_avoid + refused_sw, "stone": None, "metal": None, "note_plain": None}
     if life_colours or life:
         scopes["for_life"] = {"colors": life_colours, "avoid": life_avoid, "stone": life,
                               "metal": _metal(life, life_metal), "note_plain": None}
@@ -350,22 +384,27 @@ def wear_card(today: _date, *, natal_mat: dict, year_mat: dict, lk_year: dict, n
                                                      if not _ok(s["name"]) else "Not one of your colours right now.")}
                                       for s in pick["skip"]],
                        "stone": base.get("stone"), "metal": base.get("metal"),
-                       "note_plain": None if col else "No colour needed today."}
+                       "note_plain": None if col else "No colour needed today.", "colour_scope": (col or {}).get("scope")}
     if not (scopes or today_scope):
         return _hidden("no colour, stone or metal source")
     reason = None
     if col:
         wd = _DAYNAME[today.weekday()]
-        reason = (f"{wd} suits {col['name'].lower()}, and it works for you." if col["basis"].startswith("weekday")
-                  else f"{col['name']} works for you today.")
+        ok = "it works for you" if col["verdict"] == "favor" else "it sits comfortably with your chart"
+        reason = (f"{wd} suits {col['name'].lower()}, and {ok}." if col["basis"].startswith("weekday")
+                  else f"{col['name']} is your colour this month, and {ok}." if col["scope"] == "month"
+                  else f"{col['name']} is one of your colours this year; nothing stronger points to a colour today." if col["scope"] == "year"
+                  else f"{col['name']} works for you today." if col["verdict"] == "favor"
+                  else f"{col['name']} suits the Moon today, and it sits comfortably with your chart.")
     card = {"status": "ready", "practice_id": "wear_today", "default_scope": "today" if today_scope else next(iter(scopes)),
+            "scope_order": [k for k in ("today", "this_month", "this_year", "for_life") if (k == "today" and today_scope) or k in scopes],
             "accent_hex": col["hex"] if col else None, "done_today": "wear_today" in done_ids,
             "why_chart": {"source": "material_advice+lk_year", "colour_basis": (col or {}).get("basis"),
                           "verdict": (col or {}).get("verdict"), "refused_by_lk": sorted(refused)}}
     if today_scope:
         card["today"] = today_scope
     card.update(scopes)
-    card["_colour_of_the_day"] = ({"name": col["name"], "hex": col["hex"], "reason_plain": reason,
+    card["_colour_of_the_day"] = ({"name": col["name"], "hex": col["hex"], "reason_plain": reason, "scope": col["scope"],
                                    "verdict": col["verdict"], "why_chart": {"basis": col["basis"]}} if col else None)
     return card
 
@@ -398,11 +437,13 @@ def card_kind(key: str, card: dict, today: _date) -> str:
 
 def compose(*, today: _date, language: str, chart: dict, lk: Optional[dict], schedule: dict, wisdom: dict, daily: dict,
             vastu: dict, natal_mat: dict, year_mat: dict, nak_lord: Optional[str], completed_ids: set, streak: int,
-            longest: int, assess, weekday_colours: dict, caution: str, practice: Optional[dict] = None) -> dict:
+            longest: int, assess, weekday_colours: dict, caution: str, practice: Optional[dict] = None,
+            sub_lord: Optional[str] = None, month_lord: Optional[str] = None) -> dict:
     lk_year = (((schedule or {}).get("lal_kitab") or {}).get("year")) or {}
     cards = {
         "wear": wear_card(today, natal_mat=natal_mat or {}, year_mat=year_mat or {}, lk_year=lk_year, nak_lord=nak_lord,
-                          assess=assess, weekday_colours=weekday_colours, caution=caution, done_ids=completed_ids),
+                          assess=assess, weekday_colours=weekday_colours, caution=caution, done_ids=completed_ids,
+                          sub_lord=sub_lord, month_lord=month_lord),
         "remedy": remedy_card(today, lk_year, completed_ids),
         "mantra": mantra_card(wisdom, completed_ids, practice),
         "verse": verse_card(wisdom, completed_ids),
