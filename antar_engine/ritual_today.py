@@ -20,6 +20,8 @@ from typing import Optional
 
 VERSION = "ritual-today-1"
 
+from antar_engine import ritual_why as _rw
+
 # ── plain-language guard ─────────────────────────────────────────────────────────────────────────────────────────
 _BANNED = re.compile(
     r"(?i)\b(lal\s*kitab|varshphal|varshaphal|dasha|mahadasha|antardasha|nakshatra|vata|pitta|kapha|karaka|"
@@ -196,10 +198,13 @@ def remedy_card(today: _date, lk_year: dict, done_ids: set, chart_data: Optional
     pid = "remedy_" + re.sub(r"[^a-z0-9]+", "_", pick.lower())[:40].strip("_")
     from antar_engine import ritual_details as _rd
     details = _rd.remedy_details(pick, today, chart_data)
+    _chant = _rw.chant_for(pick)
+    if _chant and _chant.get("how_plain"):
+        details = dict(details or {}, how_plain=_chant["how_plain"])   # "11 times" is wrong for a long chant
     why = _rd.remedy_why(pick) or _VERDICT_LINE.get(str((lk_year or {}).get("verdict") or "").lower(),
                                                     "A small steady act on its day keeps your year balanced.")
     return {"status": "ready", "practice_id": pid, "title": pick.rstrip("."), "details": details,
-            "why_plain": why,
+            "why_plain": why, "chant": _chant,
             "cadence_label": cadence, "accent_hex": "#5F5E5A", "done_today": pid in done_ids,
             "why_chart": {"source": "lk_varshphal_year.remedies", "verdict": (lk_year or {}).get("verdict")}}
 
@@ -223,6 +228,7 @@ def mantra_card(wisdom: dict, done_ids: set, practice: Optional[dict] = None) ->
                 "full_count": fm["count"], "purpose_plain": fm["why"] or fm["label"],
                 "best_time_plain": fm["when"], "audio_url": fm["audio_url"], "tone_hz": fm["tone_hz"],
                 "accent_hex": "#E0B93A", "done_today": pid in done_ids,
+                "why_this": _rw.mantra_why(((practice or {}).get("today_priority") or {}).get("planet")),
                 "why_chart": {"source": "daily_practice.today_priority.mantra"}}
     m = (wisdom or {}).get("mantra") or {}
     name = clean(m.get("name"))
@@ -238,7 +244,7 @@ def mantra_card(wisdom: dict, done_ids: set, practice: Optional[dict] = None) ->
     pid = "mantra_" + re.sub(r"[^a-z0-9]+", "_", name.lower())[:30].strip("_")
     return {"status": "ready", "practice_id": pid, "text_roman": name, "repeats": reps,
             "purpose_plain": use or None, "best_time_plain": None, "accent_hex": "#E0B93A",
-            "done_today": pid in done_ids,
+            "done_today": pid in done_ids, "why_this": _rw.mantra_why(None),
             "why_chart": {"source": "daily_wisdom.mantra", "season": (wisdom or {}).get("season")}}
 
 
@@ -250,7 +256,7 @@ def verse_card(wisdom: dict, done_ids: set) -> dict:
         return _hidden("no verse")
     pid = "verse_" + re.sub(r"[^a-z0-9]+", "_", str(ref).lower()).strip("_")
     return {"status": "ready", "practice_id": pid, "sanskrit": v["sanskrit"], "transliteration": v.get("transliteration"),
-            "reference": ref, "meaning_plain": meaning, "why_plain": clean((wisdom or {}).get("why_now")),
+            "reference": ref, "meaning_plain": meaning, "why_plain": clean((wisdom or {}).get("why_now")), "why_this": _rw.verse_why(wisdom),
             "accent_hex": "#C9A227", "done_today": pid in done_ids,
             "why_chart": {"source": "daily_wisdom.verse", "season": (wisdom or {}).get("season"),
                           "season_cause": (wisdom or {}).get("season_cause")}}
@@ -265,8 +271,12 @@ def food_card(daily: dict, done_ids: set) -> dict:
     tex = clean(f.get("texture"))
     head = f"Eat {tex} foods today." if tex else "What to eat today."
     from antar_engine import ritual_details as _rd
+    why_this = _rw.food_why(f)
+    details = _rd.food_details(f)
+    if why_this and why_this.get("adds_plain") and avoid:
+        details["why_avoid_plain"] = why_this["adds_plain"]   # the old line said the opposite of the Eat list
     return {"status": "ready", "practice_id": "food_today", "headline": head, "eat": eat, "avoid": avoid,
-            "details": _rd.food_details(f),
+            "details": details, "why_this": why_this,
             "why_plain": clean(f.get("why_eat")) or clean(f.get("why")), "accent_hex": "#5FA36B",
             "done_today": "food_today" in done_ids,
             "why_chart": {"source": "daily.food", "planet": f.get("planet"), "mode": f.get("mode")}}
