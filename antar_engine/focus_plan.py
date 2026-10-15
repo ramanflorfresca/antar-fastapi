@@ -118,7 +118,8 @@ def timeline(ctx, chapters_: list, turns: list, peaks: Optional[list], near_mont
     for c in chapters_:
         if c["start"] > ctx.today.isoformat():             # the running chapter is not a future event; later ones are
             items.append({"date": c["start"], "end": c["end"], "kind": "chapter", "tone": "good" if c.get("nature") == "supportive" else "care",
-                          "text": TL[lang]["chapter"].format(theme=(c.get("theme") or "").lower(), nature=(c.get("nature") or "").lower())})
+                          "text": TL[lang]["chapter"].format(theme=(c.get("theme") or "").lower(), nature=(c.get("nature") or "").lower())
+                                  .replace("A " + (c.get("theme") or "").lower(), ("An " if (c.get("theme") or "")[:1].lower() in "aeiou" and lang == "en" else "A ") + (c.get("theme") or "").lower(), 1)})
     for t in turns:
         items.append({"date": t["date"], "end": None, "kind": "turn", "tone": t["kind"], "text": t["text"]})
     items.sort(key=lambda i: (i["date"], i["kind"]))

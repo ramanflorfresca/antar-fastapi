@@ -1,0 +1,14 @@
+{
+  "_about": "Plain 'do' steps for a month or year where an area runs strong, one per life area key (see focus_view.AREAS). Owner-editable wording; no planet, book or method names.",
+  "lean": {
+    "money":       ["Make the money moves you have been delaying: ask for the payment, review pricing, set the budget.", "Haz los movimientos de dinero que has pospuesto: pide el pago, revisa precios, fija el presupuesto."],
+    "business":    ["Pitch, raise, price up and close deals in this stretch; keep costs flexible.", "Presenta, busca financiamiento, sube precios y cierra tratos en esta etapa; mantén costos flexibles."],
+    "work":        ["Take on the visible project or conversation at work; this is the stretch to be seen.", "Toma el proyecto o la conversación visible en el trabajo; es la etapa para hacerte notar."],
+    "partnership": ["Put time into the relationship: plan something together and have the conversation that matters.", "Dedica tiempo a la relación: planeen algo juntos y tengan la conversación que importa."],
+    "family":      ["Spend deliberate time with family; settle what has been left open.", "Pasa tiempo deliberado en familia; resuelve lo que ha quedado pendiente."],
+    "learning":    ["Start the course, exam or skill you have been postponing; study in short daily blocks.", "Empieza el curso, examen o habilidad que has pospuesto; estudia en bloques cortos diarios."],
+    "home":        ["Move on the home, property or travel plan; check the documents first.", "Avanza con el plan de hogar, propiedad o viaje; revisa primero los documentos."],
+    "health":      ["Build the routine: regular sleep, movement and meals, and book the check-up.", "Construye la rutina: sueño regular, movimiento y comidas, y agenda el chequeo."],
+    "inner":       ["Keep a short steady daily practice; quiet time pays off now.", "Mantén una práctica diaria corta y constante; el tiempo en calma rinde ahora."]
+  }
+}
