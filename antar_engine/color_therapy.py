@@ -352,17 +352,103 @@ def resolve_day_graha(nakshatra: Optional[str],
             "soften": None, "vara": vara, "nakshatra_lord": None}
 
 
+_GATE_CACHE: Dict[Any, Any] = {}
+
+
+def chart_colour_gate(chart_data: Optional[dict], lk_data: Optional[dict] = None) -> Optional[Dict[str, Any]]:
+    """{assess, favor_shades} for THIS chart, or None when the chart can't support a gate (the caller then keeps the
+    ungated legacy colour). assess(colour_word) -> 'favor' | 'neutral' | 'avoid' | None, from material_advice."""
+    try:
+        import json as _json
+        from antar_engine import material_advice as MA
+        from antar_engine.ritual_today import split_shades
+        cd = chart_data if isinstance(chart_data, dict) else {}
+        lagna = (cd.get("lagna") or {}).get("sign")
+        if not (cd.get("planets") and lagna):
+            return None
+        key = (lagna, _json.dumps(cd.get("planets"), sort_keys=True, default=str)[:6000], bool(lk_data))
+        if key in _GATE_CACHE:
+            return _GATE_CACHE[key]
+        natal = MA.material_guidance(cd, lk_data)
+        if not natal.get("available"):
+            return None
+        favour = [s["name"] for e in (natal.get("favorable") or []) for s in split_shades(e.get("color") or "")]
+
+        def assess(nm):
+            try:
+                r = MA.assess_color(nm, cd, lk_data)
+                return r.get("verdict") if r.get("available") else None
+            except Exception:
+                return None
+        gate = {"assess": assess, "favor_shades": favour}
+        if len(_GATE_CACHE) > 256:
+            _GATE_CACHE.clear()
+        _GATE_CACHE[key] = gate
+        return gate
+    except Exception:
+        return None
+
+
+def _gated_color(nakshatra, weekday_index, tara_quality, gate, refused) -> Optional[Dict[str, Any]]:
+    """The colour guidance once it must suit THIS chart: favourable first, neutral only as a fallback, never an
+    avoid colour. None (show nothing) when nothing is eligible."""
+    from antar_engine.ritual_today import pick_colour_of_the_day, split_shades
+    vara = weekday_lord(weekday_index)
+    nak_lord = nakshatra_lord(nakshatra)
+    adverse = str(tara_quality or "").strip().lower() in _ADVERSE_TARA
+    if adverse:
+        nak_lord = None          # an adverse day must not amplify the nakshatra lord (unchanged rule)
+    wd = {}
+    for pl in (vara, nak_lord):
+        if pl:
+            wd[pl] = [s["name"] for s in split_shades(_color_of(pl) or "")]
+    pick = pick_colour_of_the_day(None, nak_lord, gate.get("favor_shades") or [], gate["assess"], set(refused or ()),
+                                  wd, weekday_planet=vara)
+    col = pick["colour"]
+    if not col:
+        return None
+    basis = str(col.get("basis") or "")
+    planet = basis.split(":", 1)[1].title() if ":" in basis else None
+    name = col["name"]
+    if basis.startswith("weekday"):
+        why = f"{_DAY_NAME[int(weekday_index) % 7]} suits {name.lower()}, and it works for you."
+    elif col.get("verdict") == "favor":
+        why = f"{name} is one of your supportive colours today."
+    else:
+        why = f"Nothing stands out for you today. {name} is a safe choice."
+    skip = pick["skip"]
+    return {
+        "primary": name, "primary_from": planet, "wear": name.lower(),
+        "support": None, "support_from": None,
+        # a stone is far more potent than a colour: only when the day's own planet is a favourable choice
+        "gem": (_gem_of(planet) if (planet and col.get("verdict") == "favor") else None),
+        "why": why, "why_wear": None,
+        "soften": (skip[0]["name"] if skip else None),
+        "why_soften": ("Not one of your colours right now." if skip else None),
+        "gated": True, "verdict": col.get("verdict"),
+    }
+
+
+_DAY_NAME = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+
+
 def color_for_day(nakshatra: Optional[str],
                   weekday_index: int,
                   tara_quality: Optional[str] = None,
                   lagna_sign: Optional[str] = None,
-                  chart_data: Optional[dict] = None) -> Optional[Dict[str, Any]]:
+                  chart_data: Optional[dict] = None,
+                  gate: Optional[Dict[str, Any]] = None,
+                  refused: Optional[set] = None) -> Optional[Dict[str, Any]]:
     """Return today's colour guidance, or None when the inputs are unusable.
 
     None means "we don't know" and the caller must show nothing — a fabricated
     colour is worse than an absent one, and the whole engine is built on not
     inventing.
     """
+    if gate:
+        # [colour-gate 2026-10-15] a colour recommended with no check against the person's chart told a chart that
+        # refuses blue to wear dark blue. With a gate: favourable first, never an avoid colour.
+        return _gated_color(nakshatra, weekday_index, tara_quality, gate, refused)
     vara = weekday_lord(weekday_index)
     nak_lord = nakshatra_lord(nakshatra)
 

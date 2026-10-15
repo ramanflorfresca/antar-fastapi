@@ -92,15 +92,15 @@ def _lk_refused_colours(lk_year: dict) -> set:
     return refused
 
 
-def pick_colour_of_the_day(today: _date, nak_lord: Optional[str], favor_shades: list, assess, refused: set,
-                           weekday_colours: dict) -> dict:
+def pick_colour_of_the_day(today: Optional[_date], nak_lord: Optional[str], favor_shades: list, assess, refused: set,
+                           weekday_colours: dict, weekday_planet: Optional[str] = None) -> dict:
     """The safety-gated colour of the day.
 
     Candidates, in order: the weekday ruler's colour, the Moon-star ruler's colour (one signal when it is the same
     planet), then the year's favourable shades. Every candidate passes assess(colour) -> 'favor'|'neutral'|'avoid'|None.
     avoid is never chosen and is returned in `skip`. neutral is used only when nothing is favourable. Nothing eligible
     gives colour=None (the page uses its neutral theme)."""
-    wd_planet = _WEEKDAY_PLANET[today.weekday()]
+    wd_planet = weekday_planet or _WEEKDAY_PLANET[today.weekday()]
     cands = []   # (name, basis)
     for nm in (weekday_colours.get(wd_planet) or []):
         cands.append((nm, f"weekday_ruler:{wd_planet.lower()}"))
