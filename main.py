@@ -30620,9 +30620,46 @@ async def _ask_hindi_finalize(result, request):
     return result
 
 
+async def _ask_chip_fast(request: "AskRequest", scope: str):
+    """[ask-chip 2026-10-15] The Home focus chips are answered from the daily engine's own result (today) or the period composer
+    (month, year): the authority Home already shows, so Home and Ask can never disagree, and there is no second run to wait for.
+    Fail-open: None sends the question to the full Ask pipeline. ASK_CHIP_FASTPATH=off disables."""
+    from antar_engine import ask_chip as _ac
+    cid = (request.chart_id or "").strip()
+    lang = (request.language or "en").split("-")[0].lower()
+    if scope == "today":
+        daily = await get_daily_signal_endpoint(chart_id=cid, request={}, language=lang, full_compute=False)
+        out = _ac.answer_today(daily if isinstance(daily, dict) else {}, lang)
+    else:
+        per = await get_chart_period(cid, None, scope, 0, lang, request.tz_offset)
+        out = _ac.answer_period(per if isinstance(per, dict) else {}, scope)
+    if not out:
+        return None
+    try:
+        await _ask_persist(supabase, cid, request.question, out, lang, "explore")
+    except Exception as _pe:
+        print(f"[ask-chip] persist skipped (non-blocking): {_pe}")
+    try:
+        from antar_engine import daily_loop as _dl
+        await run_in_threadpool(_dl.record_step, supabase, cid, "ask", request.tz_offset or 0)
+    except Exception as _le:
+        print(f"[ask-chip] loop step skipped (non-blocking): {_le!r}")
+    return out
+
+
 @app.post("/api/v1/ask")
 async def ask_endpoint(request: AskRequest):
     """Unified ASK endpoint — see _ask_endpoint_impl. Wraps it with the Hindi language guard."""
+    try:
+        from antar_engine import ask_chip as _ac0
+        _chip = _ac0.chip_scope(request.question)
+        if (_chip and (request.chart_id or "").strip() and (request.mode or "explore") == "explore"
+                and os.getenv("ASK_CHIP_FASTPATH", "on").strip().lower() not in ("off", "0", "false")):
+            _fast = await _ask_chip_fast(request, _chip)
+            if _fast:
+                return _fast
+    except Exception as _ce:
+        print(f"[ask-chip] fast path skipped (non-fatal): {_ce}")
     _ASK_REFRAMED.set(None)
     _res = await _ask_hindi_finalize(await _ask_endpoint_impl(request), request)
     _rf = _ASK_REFRAMED.get()
