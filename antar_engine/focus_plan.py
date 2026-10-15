@@ -101,3 +101,27 @@ def turning_points(ctx, area_label: str, subjects, months: int, lang: str) -> Li
                     out.append({"date": day.isoformat(), "kind": TONE_OF[key], "text": TXT[lang][key].format(a=area_label.lower())})
         prev = cur
     return out
+
+
+TL = {"en": {"peak": "Strongest stretch", "chapter": "A {theme} chapter begins ({nature})"},
+      "es": {"peak": "Tramo más fuerte", "chapter": "Empieza un capítulo de {theme} ({nature})"}}
+
+
+def timeline(ctx, chapters_: list, turns: list, peaks: Optional[list], near_months: int, lang: str) -> List[dict]:
+    """ONE dated list from the chapters, turning points and the strongest stretch, sorted by date, each marked near (inside the focus
+    horizon) or beyond. This replaces the month-by-month strip on the detail page, which would repeat the 'This month' view."""
+    lang = "es" if lang == "es" else "en"
+    cut = (ctx.today + timedelta(days=int(near_months * 30.4))).isoformat()
+    items = []
+    for pk in peaks or []:
+        items.append({"date": pk["start"], "end": pk["end"], "kind": "peak", "tone": "good", "text": TL[lang]["peak"]})
+    for c in chapters_:
+        if c["start"] > ctx.today.isoformat():             # the running chapter is not a future event; later ones are
+            items.append({"date": c["start"], "end": c["end"], "kind": "chapter", "tone": "good" if c.get("nature") == "supportive" else "care",
+                          "text": TL[lang]["chapter"].format(theme=(c.get("theme") or "").lower(), nature=(c.get("nature") or "").lower())})
+    for t in turns:
+        items.append({"date": t["date"], "end": None, "kind": "turn", "tone": t["kind"], "text": t["text"]})
+    items.sort(key=lambda i: (i["date"], i["kind"]))
+    for i in items:
+        i["beyond"] = i["date"] > cut
+    return items

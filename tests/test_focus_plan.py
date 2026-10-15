@@ -58,5 +58,19 @@ def test_detail_carries_the_plan_block(monkeypatch):
     from tests.test_focus_view import _run2
     out = _run2(monkeypatch, {"employed": False}, area="money")
     plan = out["detail"]["plan"]
-    assert plan is None or set(plan) == {"months", "chapters", "turns"}
+    assert plan is None or set(plan) == {"timeline", "near_months", "months", "chapters", "turns"}
     assert out["labels"]["plan_months"] == "Month by month" and out["labels"]["supports"] == "Touches this topic"
+
+
+def test_timeline_is_one_dated_list_with_near_and_beyond_and_no_running_chapter():
+    chapters_ = [{"start": "2026-10-14", "end": "2027-01-07", "theme": "Ambition", "nature": "testing", "supports": True},
+                 {"start": "2027-01-07", "end": "2027-04-14", "theme": "Growth", "nature": "supportive", "supports": True}]
+    turns = [{"date": "2026-10-31", "kind": "good", "text": "Growth and luck move into your money area."},
+             {"date": "2027-03-01", "kind": "care", "text": "A slow, testing influence settles into your money area."}]
+    tl = fp.timeline(_Ctx, chapters_, turns, [{"start": "2026-10-14", "end": "2026-11-26"}], 3, "en")
+    assert [i["date"] for i in tl] == sorted(i["date"] for i in tl)
+    kinds = [i["kind"] for i in tl]
+    assert kinds.count("peak") == 1 and kinds.count("turn") == 2 and kinds.count("chapter") == 1      # the chapter already running is not listed
+    assert tl[0]["text"] == "Strongest stretch" and not tl[0]["beyond"]
+    assert [i["beyond"] for i in tl if i["date"] == "2027-03-01"] == [True]
+    assert any("growth chapter begins (supportive)" in i["text"] for i in tl)
