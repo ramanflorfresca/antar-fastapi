@@ -39676,8 +39676,17 @@ def get_subscription_status(chart_id: str):
     from antar_engine.subscription_engine import (
         get_subscription, get_usage, PLANS
     )
-    sub   = get_subscription(chart_id, supabase)
-    usage = get_usage(chart_id, supabase)
+    # [entitlements-perf 2026-10-15] independent reads run together (they were one after another)
+    from concurrent.futures import ThreadPoolExecutor
+    from antar_engine.entitlements import ask_quota as _aq0, has_unlimited_ask as _hu0
+    with ThreadPoolExecutor(max_workers=5) as _ex:
+        f_sub = _ex.submit(get_subscription, chart_id, supabase)
+        f_usage = _ex.submit(get_usage, chart_id, supabase)
+        f_quota = _ex.submit(_aq0, chart_id, supabase)
+        f_unlim = _ex.submit(_hu0, chart_id, supabase)
+        f_bill = _ex.submit(_billing_view_safe, chart_id)
+        sub, usage = f_sub.result(), f_usage.result()
+        _mc_q0, _mc_u0, _bill0 = f_quota.result(), f_unlim.result(), f_bill.result()
     plan  = sub.get("plan", "free")
     plan_data = PLANS.get(plan, PLANS["free"])
     # [model-c 2026-06-29] Report the LIVE limits, not the static PLANS
@@ -39686,11 +39695,11 @@ def get_subscription_status(chart_id: str):
     from antar_engine.entitlements import (
         ask_quota as _mc_ask_quota, has_unlimited_ask as _mc_unlim,
     )
-    _mc_q = _mc_ask_quota(chart_id, supabase)
+    _mc_q = _mc_q0
     return {
         "plan":            plan,
         "status":          sub.get("status", "active"),
-        "is_paid":         (plan != "free") or _mc_unlim(chart_id, supabase),
+        "is_paid":         (plan != "free") or _mc_u0,
         "pred_used":       usage.get("pred_count", 0),
         "pred_limit":      None,                       # unlimited (Model C)
         "ask_used":        _mc_q.get("used"),
@@ -39700,7 +39709,7 @@ def get_subscription_status(chart_id: str):
         "compat_limit":    PLANS["free"]["compat_limit"],
         "period_end":      sub.get("current_period_end"),
         "features":        PLANS["free"]["features"],
-        "billing":         _billing_view_safe(chart_id),
+        "billing":         _bill0,
     }
 
 

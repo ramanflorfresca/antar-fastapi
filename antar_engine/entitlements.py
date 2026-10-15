@@ -254,6 +254,11 @@ _ENT_TTL = 60.0
 
 def bust_entitlement_cache(chart_id: str) -> None:
     _ENT_CACHE.pop(chart_id, None)
+    try:
+        from antar_engine.subscription_engine import bust_subscription_cache
+        bust_subscription_cache(chart_id)
+    except Exception:
+        pass
 
 
 def get_entitlement(chart_id: str, sb) -> str:
@@ -570,16 +575,29 @@ def entitlement_summary(chart_id: str, sb) -> dict:
     without trial-and-error.
     """
     tier = get_entitlement(chart_id, sb)
-    quota = ask_quota(chart_id, sb, tier)
-    # [gamification] Earned credits are additive to the free daily allowance.
-    # ask_remaining stays the FREE remainder so existing callers keep their
-    # meaning; ask_total_available is what the user can actually ask right now.
-    try:
-        from antar_engine import gamification as _gam
-        _earned_ask = _gam.balance(sb, chart_id, "ask")
-        _earned_compat = _gam.balance(sb, chart_id, "compat")
-    except Exception:
-        _earned_ask = _earned_compat = 0
+    # [entitlements-perf 2026-10-15] these reads do not depend on each other; they ran one after
+    # another (~1 s). Run together; each keeps its own fail-soft behaviour.
+    from concurrent.futures import ThreadPoolExecutor
+
+    def _credits():
+        # [gamification] Earned credits are additive to the free daily allowance.
+        # ask_remaining stays the FREE remainder so existing callers keep their
+        # meaning; ask_total_available is what the user can actually ask right now.
+        try:
+            from antar_engine import gamification as _gam
+            return _gam.balance(sb, chart_id, "ask"), _gam.balance(sb, chart_id, "compat")
+        except Exception:
+            return 0, 0
+
+    with ThreadPoolExecutor(max_workers=4) as _ex:
+        f_quota = _ex.submit(ask_quota, chart_id, sb, tier)
+        f_cred = _ex.submit(_credits)
+        f_slots = _ex.submit(compat_slots, chart_id, sb, tier)
+        f_trial = _ex.submit(flagship_trial_state, chart_id, sb) if tier not in PAID_TIERS else None
+        quota = f_quota.result()
+        _earned_ask, _earned_compat = f_cred.result()
+        _slots = f_slots.result()
+        _ft_pre = f_trial.result() if f_trial else None
     _free_rem = quota["remaining"]
     # [resplit] grandfather existing free users: keep the flagship features full so
     # the FE never locks someone who already had them. New signups (post-cutoff)
@@ -592,7 +610,7 @@ def entitlement_summary(chart_id: str, sb) -> dict:
     # have "full" from the matrix. No free-forever cohort — the trial governs all.
     _ft = None
     if tier not in PAID_TIERS:
-        _ft = flagship_trial_state(chart_id, sb)
+        _ft = _ft_pre
         if _ft.get("active"):
             for _ff in GRANDFATHERED_FEATURES:
                 _feats[_ff] = "full"
@@ -608,5 +626,5 @@ def entitlement_summary(chart_id: str, sb) -> dict:
         "features": _feats,
         "grandfathered": False,  # deprecated — launch-anchored trial governs everyone now
         "flagship_trial": _ft,   # {active,started_on,ends_on,days_left} for free users; None if paid
-        "compat_slots": compat_slots(chart_id, sb, tier),
+        "compat_slots": _slots,
     }
