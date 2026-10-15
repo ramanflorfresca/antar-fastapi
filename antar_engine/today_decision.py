@@ -155,6 +155,32 @@ def clock_range(window):
         return None
 
 
+def _fmt12(hm: str) -> str:
+    h, m = int(hm[:2]), int(hm[3:5])
+    return f"{(h % 12) or 12}:{m:02d} {'AM' if h < 12 else 'PM'}"
+
+
+def clear_of(best, avoid, min_minutes: int = 20):
+    """The best window with any overlap with the avoid window cut away, as "12:23 PM \u2013 1:11 PM"
+    text. The two come from different generic sources (best hour, Rahu Kalam) and can overlap, which
+    told the user to commit and not to commit in the same minutes. Keeps the longer clear side; None
+    when less than `min_minutes` is left, or when either window cannot be read (then the caller keeps
+    what it had: never a guess)."""
+    b, a = clock_range(best), clock_range(avoid)
+    if not b or not a:
+        return best
+    mm = lambda hm: int(hm[:2]) * 60 + int(hm[3:5])
+    bs, be, as_, ae = mm(b[0]), mm(b[1]), mm(a[0]), mm(a[1])
+    if be <= as_ or bs >= ae:
+        return best
+    left, right = (bs, min(be, as_)), (max(bs, ae), be)
+    seg = max((x for x in (left, right) if x[1] - x[0] >= min_minutes), key=lambda x: x[1] - x[0], default=None)
+    if not seg:
+        return None
+    f = lambda v: _fmt12(f"{v // 60:02d}:{v % 60:02d}")
+    return f"{f(seg[0])} \u2013 {f(seg[1])}"
+
+
 def _between(w: str, tx: dict) -> str:
     if not w:
         return ""
@@ -164,12 +190,32 @@ def _between(w: str, tx: dict) -> str:
     return "between " + w if tx is _TX["en"] else "en " + w
 
 
-def compose(p: dict, language: str = "en"):
+_REL = {
+    "past": {
+        "en": {"pos": "That day favoured {lead}.", "neg": "That day was a hold day for {lead}.",
+               "light": "It was a lighter-touch day.", "overreach": "", "care1": "{x} needed care.", "careN": "{x} needed care.",
+               "w_today": "That day"},
+        "es": {"pos": "Ese d\u00eda favoreci\u00f3 {lead}.", "neg": "Ese d\u00eda fue de pausa para {lead}.",
+               "light": "Fue un d\u00eda de toque ligero.", "overreach": "", "care1": "{x} necesit\u00f3 cuidado.", "careN": "{x} necesitaron cuidado.",
+               "w_today": "Ese d\u00eda"},
+    },
+    "future": {
+        "en": {"pos": "That day favours {lead}.", "neg": "That day is a hold day for {lead} \u2014 protect what you have rather than push.",
+               "w_today": "That day"},
+        "es": {"pos": "Ese d\u00eda favorece {lead}.", "neg": "Ese d\u00eda es de pausa para {lead}: protege lo que tienes en lugar de forzar.",
+               "w_today": "Ese d\u00eda"},
+    },
+}
+
+
+def compose(p: dict, language: str = "en", relation: str = "today"):
     """The decision block, or None when the payload can't support a truthful one."""
     try:
         if language not in _TX or not isinstance(p, dict):
             return None
-        L, tx = language, _TX[language]
+        L, tx = language, dict(_TX[language])
+        if relation in ("past", "future"):
+            tx.update((_REL[relation].get(L) or {}))
         ev = p.get("evidence") or {}
         chosen = [k for k in (ev.get("chosen") or []) if k in _LABEL]
         if not chosen:
@@ -200,7 +246,7 @@ def compose(p: dict, language: str = "en"):
         if other:
             joined = tx["and"].join(other)
             pred += " " + (tx["care1"] if len(other) == 1 else tx["careN"]).format(x=joined.capitalize() if L == "en" else joined)
-        if overreach and any(k in ("work", "network") for k in chosen) and not weekend:
+        if overreach and tx["overreach"] and any(k in ("work", "network") for k in chosen) and not weekend:
             pred += " " + tx["overreach"]
         if light:
             pred += " " + tx["light"]
@@ -241,6 +287,8 @@ def compose(p: dict, language: str = "en"):
 
         best = (p.get("hora") or {}).get("best_window") or (p.get("panchanga") or {}).get("best_time") or p.get("abhijit")
         avoid = p.get("rahu_kalam") or (p.get("hora") or {}).get("avoid_window")
+        if best and avoid:
+            best = clear_of(best, avoid)
         if improves and at:
             holds = tx["holds_up"].format(at=at, best=(tx["holds_up_best"].format(best=best) if best else ""))
             when = tx["w_after"].format(at=at)
@@ -284,7 +332,10 @@ def compose(p: dict, language: str = "en"):
             # replaces within seconds, so the card showed one "Your move" then swapped it (2026-10-11 UI audit).
             # Publish no move until the full phase so the client never shows a sentence that is then replaced.
             move = ""
-        out = {"prediction": pred, "why": why, "holds": holds, "breaks": brk, "move": move,
+        if relation == "past":
+            # nothing to act on in a day that is over: what it favoured, and why
+            return {"prediction": pred, "why": why, "relation": "past", "version": "today-decision-1"} if pred else None
+        out = {"prediction": pred, "why": why, "holds": holds, "breaks": brk, "move": move, "relation": relation,
                "window": {"best": best, "avoid": avoid, "shift_at": at if (improves or worsens) else None,
                           # structured, so the app can offer "add to calendar" without parsing prose
                           **({"best_start": _cr[0], "best_end": _cr[1]} if (_cr := clock_range(best)) else {})},
