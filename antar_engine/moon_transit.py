@@ -238,6 +238,12 @@ def split_day(profile: Dict[str, Any],
         "difficult":      "Runs against you",
     }
 
+    try:
+        from antar_engine.color_therapy import chart_colour_gate as _ccg
+        _colour_gate = _ccg(chart_data)
+    except Exception:
+        _colour_gate = None
+
     def _half(nak: str) -> Dict[str, Any]:
         try:
             pr = compute_daily_precision(
@@ -251,7 +257,8 @@ def split_day(profile: Dict[str, Any],
         tq = pr.get("tara_quality")
         col = color_for_day(nak, weekday_index, tq,
                             lagna_sign=natal_lagna_sign,
-                            chart_data=chart_data) or {}
+                            chart_data=chart_data,
+                            gate=_colour_gate) or {}
         fd = food_for_day(nak, weekday_index, tq) or {}
         return {
             "nakshatra":    nak,
