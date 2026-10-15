@@ -180,12 +180,22 @@ _VERDICT_LINE = {
 }
 
 
-def remedy_card(today: _date, lk_year: dict, done_ids: set, chart_data: Optional[dict] = None) -> dict:
+def remedy_card(today: _date, lk_year: dict, done_ids: set, chart_data: Optional[dict] = None,
+                actives: Optional[list] = None) -> dict:
     rem = [r for r in ((lk_year or {}).get("remedies") or [])
            if clean(r) and not re.match(r"(?i)\s*(never|don'?t|do not|avoid|refuse)\b", r)]
+    # [chant-by-affliction 2026-10-15] a chant is offered when the area it serves is under strain: on its own weekday it
+    # leads; otherwise it joins the rotation of everyday remedies. The reason names the area, never the planet.
+    _extra_why = {}
+    for _c in _rw.chants_for_actives(actives):
+        if any(re.search(_c["key"].split("_")[0], r, re.I) for r in rem):
+            continue
+        rem.append(_c["title"])
+        _extra_why[_c["title"]] = _c
     if not rem:
         return _hidden("no lk year remedies")
-    todays = [r for r in rem if _day_remedy_match(r, today) is True]
+    _due = [t for t, c in _extra_why.items() if today.weekday() in c["days"]]
+    todays = _due or [r for r in rem if _day_remedy_match(r, today) is True]
     agnostic = [r for r in rem if _day_remedy_match(r, today) is None]
     if todays:
         pick, cadence = todays[0], f"Every {_DAYNAME[today.weekday()]}"
@@ -201,7 +211,7 @@ def remedy_card(today: _date, lk_year: dict, done_ids: set, chart_data: Optional
     _chant = _rw.chant_for(pick)
     if _chant and _chant.get("how_plain"):
         details = dict(details or {}, how_plain=_chant["how_plain"])   # "11 times" is wrong for a long chant
-    why = _rd.remedy_why(pick) or _VERDICT_LINE.get(str((lk_year or {}).get("verdict") or "").lower(),
+    why = (_extra_why.get(pick) or {}).get("why_plain") or _rd.remedy_why(pick) or _VERDICT_LINE.get(str((lk_year or {}).get("verdict") or "").lower(),
                                                     "A small steady act on its day keeps your year balanced.")
     return {"status": "ready", "practice_id": pid, "title": pick.rstrip("."), "details": details,
             "why_plain": why, "chant": _chant,
@@ -477,7 +487,8 @@ def compose(*, today: _date, language: str, chart: dict, lk: Optional[dict], sch
                           assess=assess, weekday_colours=weekday_colours, caution=caution, done_ids=completed_ids,
                           sub_lord=sub_lord, month_lord=month_lord,
                           daily_color=(daily or {}).get("color")),
-        "remedy": remedy_card(today, lk_year, completed_ids, _chart_data_of(chart)),
+        "remedy": remedy_card(today, lk_year, completed_ids, _chart_data_of(chart),
+                              actives=(practice or {}).get("active")),
         "mantra": mantra_card(wisdom, completed_ids, practice),
         "verse": verse_card(wisdom, completed_ids),
         "space": space_card(vastu, completed_ids),

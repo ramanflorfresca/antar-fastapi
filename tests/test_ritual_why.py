@@ -57,3 +57,36 @@ def test_chalisa_and_sahasranama_are_text_only():
 def test_remedy_card_how_row_matches_the_chant():
     card = rt.remedy_card(rt._date(2026, 10, 15), {"remedies": ["Recite the Hanuman Chalisa daily."], "verdict": "mixed"}, set())
     assert "forty verses" in card["details"]["how_plain"] and card["chant"]["name"] == "Hanuman Chalisa"
+
+
+def _day(y, m, d):
+    return rt._date(y, m, d)
+
+
+def test_chants_offered_for_the_strained_area():
+    got = rw.chants_for_actives([{"planet": "Mars", "severity": 0.8}, {"planet": "Jupiter", "severity": 0.4}])
+    assert [c["key"] for c in got] == ["hanuman_chalisa", "vishnu_sahasranama"]
+    assert "drive, courage" in got[0]["why_plain"]
+    assert rw.chants_for_actives([{"planet": "Venus", "severity": 0.9}]) == []
+    assert rw.chants_for_actives(None) == []
+
+
+def test_chalisa_leads_on_its_weekday_when_mars_is_strained():
+    # 2026-10-13 is a Tuesday
+    card = rt.remedy_card(_day(2026, 10, 13), {"remedies": ["Keep a fast on Fridays."], "verdict": "mixed"}, set(),
+                          actives=[{"planet": "Mars", "severity": 0.8}])
+    assert card["title"] == "Recite the Hanuman Chalisa" and card["cadence_label"] == "Every Tuesday"
+    assert card["chant"]["key"] == "hanuman_chalisa" and "drive, courage" in card["why_plain"]
+    assert rt.jargon_leaks({"x": card["why_plain"], "t": card["title"]}) == []
+
+
+def test_no_strain_no_extra_chant():
+    card = rt.remedy_card(_day(2026, 10, 13), {"remedies": ["Recite the Gayatri mantra regularly."], "verdict": "mixed"}, set(),
+                          actives=[{"planet": "Venus", "severity": 0.9}])
+    assert card["title"].startswith("Recite the Gayatri")
+
+
+def test_existing_chant_remedy_is_not_duplicated():
+    card = rt.remedy_card(_day(2026, 10, 14), {"remedies": ["Hanuman Chalisa daily"], "verdict": "mixed"}, set(),
+                          actives=[{"planet": "Saturn", "severity": 0.7}])
+    assert card["title"] == "Hanuman Chalisa daily"

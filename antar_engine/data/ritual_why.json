@@ -1,12 +1,36 @@
 {
   "_about": "Owner-editable. The plain reason behind each Rituals card: what is happening, why this answers it, and how it changes from day to day. No planet, book or method names. {theme} is the verse's own subject words.",
   "food_state": {
-    "Pitta":      {"state_plain": "On a hot, sharp day the body runs warm and short-tempered, and digestion burns fast.", "helps_plain": "Cooling, mild foods calm that heat and keep the day even.", "adds_plain": "Spicy, sour, fried or very salty foods add more heat to a day that already has plenty."},
-    "Vata":       {"state_plain": "On a dry, restless day the body runs cold and uneven, and digestion and sleep get erratic.", "helps_plain": "Warm, moist, grounding food settles digestion and the nerves.", "adds_plain": "Cold, dry or raw food, and skipped meals, add to the unevenness."},
-    "Kapha":      {"state_plain": "On a heavy day digestion and energy run slow, and the body holds on to what it eats.", "helps_plain": "Light, warm, bitter or pungent food is easier to digest and keeps you moving.", "adds_plain": "Sweets, oily or heavy meals and overeating add to the slowness."},
-    "Kapha/Vata": {"state_plain": "Today swings between heavy and restless, so digestion is uneven.", "helps_plain": "Warm, simple meals at regular times steady both ends of the swing.", "adds_plain": "Cold, heavy or irregular meals feed the swing."},
-    "Vata/Pitta": {"state_plain": "Today runs restless and a little hot, so appetite and mood can flare and drop.", "helps_plain": "Regular mealtimes and mild, not spicy, food keep it level.", "adds_plain": "Spice, caffeine and skipped meals add fuel to the restlessness."},
-    "Pitta/Vata": {"state_plain": "Today runs hot and scattered at once.", "helps_plain": "Cooling but grounding food, eaten calmly, settles both.", "adds_plain": "Spice, cold raw food and eating in a rush add to the scatter."}
+    "Pitta": {
+      "state_plain": "On a hot, sharp day the body runs warm and short-tempered, and digestion burns fast.",
+      "helps_plain": "Cooling, mild foods calm that heat and keep the day even.",
+      "adds_plain": "Spicy, sour, fried or very salty foods add more heat to a day that already has plenty."
+    },
+    "Vata": {
+      "state_plain": "On a dry, restless day the body runs cold and uneven, and digestion and sleep get erratic.",
+      "helps_plain": "Warm, moist, grounding food settles digestion and the nerves.",
+      "adds_plain": "Cold, dry or raw food, and skipped meals, add to the unevenness."
+    },
+    "Kapha": {
+      "state_plain": "On a heavy day digestion and energy run slow, and the body holds on to what it eats.",
+      "helps_plain": "Light, warm, bitter or pungent food is easier to digest and keeps you moving.",
+      "adds_plain": "Sweets, oily or heavy meals and overeating add to the slowness."
+    },
+    "Kapha/Vata": {
+      "state_plain": "Today swings between heavy and restless, so digestion is uneven.",
+      "helps_plain": "Warm, simple meals at regular times steady both ends of the swing.",
+      "adds_plain": "Cold, heavy or irregular meals feed the swing."
+    },
+    "Vata/Pitta": {
+      "state_plain": "Today runs restless and a little hot, so appetite and mood can flare and drop.",
+      "helps_plain": "Regular mealtimes and mild, not spicy, food keep it level.",
+      "adds_plain": "Spice, caffeine and skipped meals add fuel to the restlessness."
+    },
+    "Pitta/Vata": {
+      "state_plain": "Today runs hot and scattered at once.",
+      "helps_plain": "Cooling but grounding food, eaten calmly, settles both.",
+      "adds_plain": "Spice, cold raw food and eating in a rush add to the scatter."
+    }
   },
   "food_strengthen_adds_plain": "These pull against what today is feeding, so keep them small.",
   "food_variation_plain": "This follows the day, not a fixed list: the food guidance changes as the day's character changes, and the same day of the week brings it back around.",
@@ -25,16 +49,55 @@
     "Ketu": "your focus and your ability to let go"
   },
   "chants": [
-    {"match": "gayatri", "key": "gayatri", "name": "Gayatri",
-     "how_plain": "Say it 11 times, slowly, at sunrise or before you start work.",
-     "audio": "gayatri-en",
-     "audio_credit_plain": "Recording by Fadzil odd Huzairie, shared under CC BY-SA 2.5, via the Internet Archive."},
-    {"match": "hanuman\\s*chalisa", "key": "hanuman_chalisa", "name": "Hanuman Chalisa",
-     "how_plain": "Read or recite the forty verses once, steadily, on its day or when you need courage and steadiness.",
-     "audio": null},
-    {"match": "vishnu\\s*sahasra", "key": "vishnu_sahasranama", "name": "Vishnu Sahasranama",
-     "how_plain": "Recite or listen to the thousand names once, calmly, on a quiet morning.",
-     "audio": null}
+    {
+      "match": "gayatri",
+      "key": "gayatri",
+      "name": "Gayatri",
+      "how_plain": "Say it 11 times, slowly, at sunrise or before you start work.",
+      "audio": "gayatri-en",
+      "audio_credit_plain": "Recording by Fadzil odd Huzairie, shared under CC BY-SA 2.5, via the Internet Archive.",
+      "planets": [
+        "Sun"
+      ],
+      "days": [
+        6
+      ],
+      "title": "Recite the Gayatri mantra"
+    },
+    {
+      "match": "hanuman\\s*chalisa",
+      "key": "hanuman_chalisa",
+      "name": "Hanuman Chalisa",
+      "how_plain": "Read or recite the forty verses once, steadily, on its day or when you need courage and steadiness.",
+      "audio": null,
+      "planets": [
+        "Mars",
+        "Saturn"
+      ],
+      "days": [
+        1,
+        5
+      ],
+      "title": "Recite the Hanuman Chalisa"
+    },
+    {
+      "match": "vishnu\\s*sahasra",
+      "key": "vishnu_sahasranama",
+      "name": "Vishnu Sahasranama",
+      "how_plain": "Recite or listen to the thousand names once, calmly, on a quiet morning.",
+      "audio": null,
+      "planets": [
+        "Mercury",
+        "Jupiter"
+      ],
+      "days": [
+        3
+      ],
+      "title": "Recite the Vishnu Sahasranama"
+    }
   ],
-  "audio_available": ["gayatri-en"]
+  "audio_available": [
+    "gayatri-en"
+  ],
+  "_about_chants": "planets: the afflicted areas this chant is offered for (from the chart tables, editable). days: weekdays it is due (0=Mon). title: the remedy line shown. A chant is offered only when its planet is among the chart's active areas."
 }

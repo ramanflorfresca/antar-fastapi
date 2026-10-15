@@ -108,3 +108,25 @@ def chant_for(remedy_title: str) -> Optional[dict]:
                 out["audio_credit_plain"] = c.get("audio_credit_plain")
             return {k: v for k, v in out.items() if v}
     return None
+
+
+def chants_for_actives(actives: list) -> list:
+    """Chants offered because an area of the chart is under strain right now: [{title, key, planet, days, why_plain}],
+    strongest strain first. `actives` is the practice engine's merged active areas (planet + severity)."""
+    d = _data()
+    best = {}
+    for a in actives or []:
+        p, sev = str(a.get("planet") or "").title(), float(a.get("severity") or 0)
+        if p and sev > best.get(p, -1):
+            best[p] = sev
+    out = []
+    for c in d.get("chants") or []:
+        hit = [p for p in (c.get("planets") or []) if p in best]
+        if not hit or not c.get("title"):
+            continue
+        p = max(hit, key=lambda x: best[x])
+        area = (d.get("planet_area") or {}).get(p)
+        out.append({"title": c["title"], "key": c["key"], "planet": p, "sev": best[p], "days": c.get("days") or [],
+                    "why_plain": (f"This is offered because {area} is asking for support right now." if area else None)})
+    out.sort(key=lambda x: -x["sev"])
+    return out
