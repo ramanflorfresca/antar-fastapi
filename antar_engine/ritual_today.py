@@ -13,6 +13,7 @@ Contract (see Antar.world/LOVABLE_BRIEF_ritual_prescription.md):
 Pure functions: no network, no database. The route in main.py gathers the inputs."""
 from __future__ import annotations
 
+import json
 import re
 from datetime import date as _date
 from typing import Optional
@@ -177,7 +178,7 @@ _VERDICT_LINE = {
 }
 
 
-def remedy_card(today: _date, lk_year: dict, done_ids: set) -> dict:
+def remedy_card(today: _date, lk_year: dict, done_ids: set, chart_data: Optional[dict] = None) -> dict:
     rem = [r for r in ((lk_year or {}).get("remedies") or [])
            if clean(r) and not re.match(r"(?i)\s*(never|don'?t|do not|avoid|refuse)\b", r)]
     if not rem:
@@ -194,7 +195,7 @@ def remedy_card(today: _date, lk_year: dict, done_ids: set) -> dict:
         cadence = f"Next on {nxt}" if nxt else "Keep it up through the year"
     pid = "remedy_" + re.sub(r"[^a-z0-9]+", "_", pick.lower())[:40].strip("_")
     from antar_engine import ritual_details as _rd
-    details = _rd.remedy_details(pick, today)
+    details = _rd.remedy_details(pick, today, chart_data)
     why = _rd.remedy_why(pick) or _VERDICT_LINE.get(str((lk_year or {}).get("verdict") or "").lower(),
                                                     "A small steady act on its day keeps your year balanced.")
     return {"status": "ready", "practice_id": pid, "title": pick.rstrip("."), "details": details,
@@ -446,6 +447,16 @@ def card_kind(key: str, card: dict, today: _date) -> str:
     return "info"
 
 
+def _chart_data_of(chart: Optional[dict]) -> dict:
+    cd = (chart or {}).get("chart_data")
+    if isinstance(cd, str):
+        try:
+            cd = json.loads(cd)
+        except Exception:
+            cd = {}
+    return cd if isinstance(cd, dict) else {}
+
+
 def compose(*, today: _date, language: str, chart: dict, lk: Optional[dict], schedule: dict, wisdom: dict, daily: dict,
             vastu: dict, natal_mat: dict, year_mat: dict, nak_lord: Optional[str], completed_ids: set, streak: int,
             longest: int, assess, weekday_colours: dict, caution: str, practice: Optional[dict] = None,
@@ -456,7 +467,7 @@ def compose(*, today: _date, language: str, chart: dict, lk: Optional[dict], sch
                           assess=assess, weekday_colours=weekday_colours, caution=caution, done_ids=completed_ids,
                           sub_lord=sub_lord, month_lord=month_lord,
                           daily_color=(daily or {}).get("color")),
-        "remedy": remedy_card(today, lk_year, completed_ids),
+        "remedy": remedy_card(today, lk_year, completed_ids, _chart_data_of(chart)),
         "mantra": mantra_card(wisdom, completed_ids, practice),
         "verse": verse_card(wisdom, completed_ids),
         "space": space_card(vastu, completed_ids),

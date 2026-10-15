@@ -221,10 +221,31 @@ from antar_engine import ritual_details as RD
 
 def test_a_weekday_fast_has_how_when_how_long_for_and_a_safety_line():
     d = RD.remedy_details("Keep a fast on Wednesdays.", date(2026, 10, 14))
-    assert set(d) == {"how_plain", "when_plain", "how_long_plain", "for_plain", "safety_plain"}
+    assert {"how_plain", "when_plain", "how_long_plain", "for_plain", "safety_plain"} <= set(d)
     assert d["when_plain"] == "Wednesday, from sunrise to sunset" and d["how_long_plain"] == "Every Wednesday through this year"
     assert d["for_plain"] == "Supports your thinking, speaking, trading and learning."
     assert "unwell" in d["safety_plain"]
+
+
+def test_the_fast_reads_its_foods_from_the_weekday_planets_table_not_from_typed_text():
+    wed = RD.remedy_details("Keep a fast on Wednesdays.", date(2026, 10, 14))
+    sat = RD.remedy_details("Keep a fast on Saturdays.", date(2026, 10, 17))
+    assert "moong" in wed["break_with_plain"].lower() and "sesame" in sat["break_with_plain"].lower()
+    assert wed["foods_plain"] != sat["foods_plain"] and wed["avoid_plain"] != sat["avoid_plain"]
+    assert RT.jargon_leaks(wed) == [] and RT.jargon_leaks(sat) == []
+    import json as _j, os as _o
+    raw = open(_o.path.join(_o.path.dirname(RD.__file__), "data", "ritual_remedy_details.json")).read().lower()
+    assert "moong" not in raw and "sesame" not in raw          # no food is typed into the remedy table
+
+
+def test_how_strict_the_fast_is_comes_from_the_persons_constitution():
+    cd = lambda sign: {"planets": {"Moon": {"sign": sign}}}
+    vata = RD.remedy_details("Keep a fast on Wednesdays.", None, cd("Gemini"))["how_plain"]
+    pitta = RD.remedy_details("Keep a fast on Wednesdays.", None, cd("Leo"))["how_plain"]
+    kapha = RD.remedy_details("Keep a fast on Wednesdays.", None, cd("Cancer"))["how_plain"]
+    assert len({vata, pitta, kapha}) == 3
+    assert "vata" not in (vata + pitta + kapha).lower()
+    assert RD.remedy_details("Keep a fast on Wednesdays.", None, {})["how_plain"]      # no chart: the cautious fallback
 
 
 def test_remedy_why_names_the_part_of_life_the_day_stands_for_not_the_generic_verdict():

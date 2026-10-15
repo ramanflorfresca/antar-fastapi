@@ -16,18 +16,48 @@ from antar_engine.ritual_today import _BANNED, _DAYNAME, clean
 _PATH = os.path.join(os.path.dirname(__file__), "data", "ritual_remedy_details.json")
 _WEEKDAY_PLANET = {"Monday": "Moon", "Tuesday": "Mars", "Wednesday": "Mercury", "Thursday": "Jupiter",
                    "Friday": "Venus", "Saturday": "Saturn", "Sunday": "Sun"}
-_TABLE = None
+_DATA = None
+
+
+def _data() -> dict:
+    global _DATA
+    if _DATA is None:
+        try:
+            with open(_PATH, encoding="utf-8") as fh:
+                _DATA = json.load(fh)
+        except Exception:
+            _DATA = {}
+    return _DATA
 
 
 def _table() -> list:
-    global _TABLE
-    if _TABLE is None:
-        try:
-            with open(_PATH, encoding="utf-8") as fh:
-                _TABLE = json.load(fh).get("remedies") or []
-        except Exception:
-            _TABLE = []
-    return _TABLE
+    return _data().get("remedies") or []
+
+
+def constitution(chart_data: Optional[dict]) -> Optional[str]:
+    """vata | pitta | kapha from the person's Moon sign element (the same mapping the daily food uses), or None."""
+    try:
+        from antar_engine import food_engine as FE
+        sign = FE._moon_sign(chart_data or {})
+        return FE.ELEMENT_DOSHA.get(FE.SIGN_ELEMENT.get(sign)) if sign else None
+    except Exception:
+        return None
+
+
+def _planet_foods(planet: Optional[str]) -> dict:
+    """The weekday planet's Ayurveda entry, cleaned to plain food names: {break_with, favour, avoid, herb}."""
+    try:
+        from antar_engine import ayurveda_astrology as A
+        e = A.PLANET_AYURVEDA_FOODS.get(planet or "") or {}
+        rf = re.sub(r"(?i)\s+on\s+(" + "|".join(_DAYNAME) + r")\b.*$", "", str(e.get("remedy_food") or ""))
+        rf = re.sub(r"(?i)\s+(offered to|to the)\b.*$", "", rf).strip(" ,")
+        rf = rf if rf and not re.match(r"(?i)offer\b", rf) else ""
+        favour = [clean(x) for x in A._plain_food(e.get("strengthen_with"), 3)]
+        avoid = [clean(x) for x in A._plain_food(e.get("avoid_if_afflicted"), 3)]
+        return {"break_with": clean(rf) or None, "favour": [x for x in favour if x], "avoid": [x for x in avoid if x],
+                "herb": clean(A._plain_herb(e.get("herb"))) or None}
+    except Exception:
+        return {"break_with": None, "favour": [], "avoid": [], "herb": None}
 
 
 def covers_of(planet: Optional[str]) -> Optional[str]:
@@ -61,8 +91,10 @@ def _weekday_in(text: str) -> Optional[str]:
     return next((d for d in _DAYNAME if re.search(r"(?i)\b" + d[:3] + r"[a-z]*\b", text or "")), None)
 
 
-def remedy_details(text: str, today: Optional[_date] = None) -> dict:
-    """{how_plain, when_plain, how_long_plain, for_plain, safety_plain} for a remedy sentence; keys with nothing sound are omitted."""
+def remedy_details(text: str, today: Optional[_date] = None, chart_data: Optional[dict] = None) -> dict:
+    """{how_plain, when_plain, how_long_plain, for_plain, safety_plain, ...} for a remedy sentence; keys with nothing sound are omitted.
+    A weekday fast is built from the chart: how strict from the person's constitution, what to break it with, which foods suit
+    that day and what to avoid from the weekday planet's Ayurveda entry. Nothing about the foods is typed in here."""
     t = text or ""
     day = _weekday_in(t)
     covers = covers_of(_WEEKDAY_PLANET.get(day)) if day else None
@@ -70,6 +102,21 @@ def remedy_details(text: str, today: Optional[_date] = None) -> dict:
         if not re.search(row["match"], t, re.I):
             continue
         out = {}
+        if row["match"].startswith("\\bfast") and day:
+            d0 = _data()
+            con = constitution(chart_data)
+            how = (d0.get("fast_by_constitution") or {}).get(con or "") or d0.get("fast_fallback_how")
+            if clean(how):
+                out["how_plain"] = clean(how)
+            pf = _planet_foods(_WEEKDAY_PLANET.get(day))
+            if pf["break_with"]:
+                out["break_with_plain"] = clean(f"Break it with {pf['break_with'][:1].lower() + pf['break_with'][1:]}.")
+            if pf["favour"]:
+                out["foods_plain"] = clean(f"Foods that suit {day}: {', '.join(x.lower() for x in pf['favour'])}.")
+            if pf["avoid"]:
+                out["avoid_plain"] = clean(f"On the day, go easy on: {', '.join(x.lower() for x in pf['avoid'])}.")
+            if pf["herb"]:
+                out["herb_plain"] = clean(f"A herb that goes with it: {pf['herb']}.")
         for k in ("how_plain", "when_plain", "how_long_plain", "for_plain", "safety_plain"):
             v = row.get(k)
             if not v:
