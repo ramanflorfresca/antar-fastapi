@@ -20824,32 +20824,66 @@ class _LoopStepIn(BaseModel):
     tz_offset: Optional[int] = 0           # minutes east of UTC, same as /streak
 
 
+_LOOP_POOL = None
+
+
+def _loop_pool():
+    global _LOOP_POOL
+    if _LOOP_POOL is None:
+        from concurrent.futures import ThreadPoolExecutor
+        _LOOP_POOL = ThreadPoolExecutor(max_workers=8, thread_name_prefix="daily-loop")
+    return _LOOP_POOL
+
+
 @app.get("/api/v1/daily-loop/{chart_id}")
 def get_daily_loop(chart_id: str, language: Optional[str] = None, tz_offset: Optional[int] = 0):
     """[daily-loop 2026-10-12] Today's 3-step loop for the Home card: which steps are done, the day's
     mantra (target 11, full round 108), the day's question picked from what is active in the chart (same
     ranking as "Questions for you", stable all day, no repeat inside 14 days), and the streak with its
-    lifetime totals. Read-only apart from storing the day's question. Never an error for storage trouble."""
+    lifetime totals. Read-only apart from storing the day's question. Never an error for storage trouble.
+
+    [daily-loop-perf 2026-10-15] This read the "Questions for you" ranking first (8 s cold, ~0.3 s warm), then the row, the mantra, the
+    streak and the totals ONE AFTER ANOTHER, and Home waits for it. Now the independent reads run together; and when the day's question
+    is already stored, the ranking (used only for its 'why' line and the next-theme hint) is waited for at most 1 s and then left to
+    finish in the background, so a cold ranking can no longer hold Home. The first call of a day, which must pick the question, still waits."""
+    from concurrent.futures import TimeoutError as _FutTimeout
     from antar_engine import daily_loop as _dl, gamification as _gam, topic_copy as _tc
     lang = _tc.serve_language(language)
     today = _dl.local_date(tz_offset or 0)
-    sq = _suggested_questions_compute(chart_id, language, tz_offset, 5)
+    pool = _loop_pool()
+
+    def _wisdom():
+        try:
+            w = get_daily_wisdom(chart_id, lang) or {}
+            mm = w.get("mantra") or {}
+            return {"name": mm.get("name"), "transliteration": mm.get("transliteration"),
+                    "use": mm.get("use"), "why": mm.get("why")}
+        except Exception as e:
+            print(f"[daily-loop] mantra skipped: {e!r}")
+            return {}
+
+    f_sq = pool.submit(_suggested_questions_compute, chart_id, language, tz_offset, 5)
+    f_row = pool.submit(_dl.get_row, supabase, chart_id, today)
+    f_mantra = pool.submit(_wisdom)
+    f_streak = pool.submit(_gam.state, supabase, chart_id, tz_offset or 0)
+    f_totals = pool.submit(_dl.totals, supabase, chart_id)
+    row = f_row.result() or {}
+    if row.get("question_text"):
+        try:
+            sq = f_sq.result(timeout=1.0)
+        except _FutTimeout:
+            sq = {"questions": []}          # keeps running in the background and fills the cache for the next call
+    else:
+        sq = f_sq.result()
     if sq is None:
         raise HTTPException(status_code=404, detail="Chart not found")
     q = _dl.ensure_question(supabase, chart_id, today, sq.get("questions") or [])
-    row = _dl.get_row(supabase, chart_id, today) or {}
+    row = _dl.get_row(supabase, chart_id, today) or row if not row.get("question_text") else row
     steps = _dl._steps(row)
-    mantra = {}
-    try:
-        w = get_daily_wisdom(chart_id, lang) or {}
-        m = w.get("mantra") or {}
-        mantra = {"name": m.get("name"), "transliteration": m.get("transliteration"),
-                  "use": m.get("use"), "why": m.get("why")}
-    except Exception as e:
-        print(f"[daily-loop] mantra skipped: {e!r}")
+    mantra = f_mantra.result()
     labels = _tc.LABEL.get(lang) or _tc.LABEL["en"]
-    streak = _gam.state(supabase, chart_id, tz_offset or 0)
-    streak["totals"] = _dl.totals(supabase, chart_id)
+    streak = f_streak.result()
+    streak["totals"] = f_totals.result()
     streak["unlocks"] = _dl.unlock_list(streak.get("longest_streak"))
     _nm = streak.get("next_milestone")
     if isinstance(_nm, dict):     # the app reads `days` and `credits`; keep the original keys too
