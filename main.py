@@ -7513,6 +7513,71 @@ def outcomes_due(chart_id: str, authorization: str = Header(...)):
     return {"due": out}
 
 
+@app.get("/api/v1/ask/thread/{chart_id}")
+async def ask_thread(chart_id: str, limit: int = 30, before: str = None, language: str = "en", tz: float = None,
+                     authorization: str = Header(...)):
+    """[ask-thread 2026-10-15] The 'Ask Antar' screen: every past question and answer as one conversation (oldest first, so the app
+    appends to the bottom; pass `before` = a page's `next_before` to load older ones), with a day divider and a time on every item and the
+    'Did this hold?' check-ins that are due as messages from Antar at the end. Owner only (the history is the most personal data in the
+    app). The backend owns every label. An empty thread returns three starter questions."""
+    from antar_engine import ask_thread as _at
+    user_id = verify_token(authorization)
+    if not _oc_owned_chart(user_id, chart_id):
+        raise HTTPException(403, "not your chart")
+    lang = (language or "en").split("-")[0].lower()
+    hist = await ask_history(chart_id, limit, before, lang)
+    if not isinstance(hist, dict):
+        hist = {"messages": [], "has_more": False, "next_before": None}
+    checkins = []
+    if not before:
+        try:
+            checkins = (await run_in_threadpool(outcomes_due, chart_id, authorization)).get("due", [])
+        except Exception as _ce:
+            print(f"[ask-thread] check-ins skipped (non-fatal): {_ce}")
+    sd = _get_local_start_date(tz_offset=tz)
+    today = sd.date() if hasattr(sd, "date") else sd
+    out = _at.build(hist.get("messages") or [], checkins, tz, today, lang)
+    out.update({"has_more": bool(hist.get("has_more")), "next_before": hist.get("next_before"), "chart_id": chart_id})
+    return out
+
+
+@app.delete("/api/v1/ask/thread/{chart_id}/message/{message_id}")
+def ask_thread_delete_message(chart_id: str, message_id: str, authorization: str = Header(...)):
+    """Delete one exchange from the thread. Owner only; the row must belong to this chart."""
+    user_id = verify_token(authorization)
+    if not _oc_owned_chart(user_id, chart_id):
+        raise HTTPException(403, "not your chart")
+    try:
+        got = (supabase.table("chat_messages").select("id").eq("id", message_id).eq("chart_id", chart_id).limit(1).execute()).data or []
+        if not got:
+            raise HTTPException(404, "message not found")
+        supabase.table("chat_messages").delete().eq("id", message_id).eq("chart_id", chart_id).execute()
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[ask-thread] delete failed: {e}")
+        raise HTTPException(503, "could not delete the message")
+    return {"deleted": True, "message_id": message_id}
+
+
+@app.delete("/api/v1/ask/thread/{chart_id}")
+def ask_thread_clear(chart_id: str, confirm: str = "", authorization: str = Header(...)):
+    """Clear the whole thread for this chart (requires confirm=yes). Owner only. Removes the conversation from the app; check-in
+    records used to learn from outcomes are kept until the account itself is deleted, which purges them too."""
+    user_id = verify_token(authorization)
+    if not _oc_owned_chart(user_id, chart_id):
+        raise HTTPException(403, "not your chart")
+    if confirm != "yes":
+        raise HTTPException(400, "confirm=yes is required to clear the thread")
+    try:
+        n = len((supabase.table("chat_messages").select("id").eq("chart_id", chart_id).limit(5000).execute()).data or [])
+        supabase.table("chat_messages").delete().eq("chart_id", chart_id).execute()
+    except Exception as e:
+        print(f"[ask-thread] clear failed: {e}")
+        raise HTTPException(503, "could not clear the thread")
+    return {"cleared": True, "deleted": n}
+
+
 class _FollowIn(BaseModel):
     ref: str
     text: str
