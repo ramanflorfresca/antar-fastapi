@@ -70,3 +70,12 @@ def test_no_method_planet_or_rule_words_leak():
     o = pv.build(_Ctx(), _lib(), {"employed": True}, "year", 1, "es", today=date(2026, 10, 14))
     blob = json.dumps(o, ensure_ascii=False)
     assert not re.search(r"rule_id|Jupiter|Saturn|Rahu|Ketu|dasha|lagna|Jaimini|Parashar|Lal Kitab", blob)
+
+
+def test_verdict_and_cell_verdicts():
+    o = pv.build(_Ctx(), _lib(), {"employed": True}, "year", 0, "en", today=date(2026, 10, 14))
+    assert o["verdict"] in ("good", "steady", "tough")
+    assert all(c["verdict"] in ("good", "steady", "tough") for c in o["months"])
+    assert pv._verdict([{"lean_in": [1], "watch": []}, {"lean_in": [1], "watch": []}, {"lean_in": [], "watch": [1]}]) == "good"
+    assert pv._verdict([{"lean_in": [], "watch": [1]}]) == "tough"
+    assert pv._verdict([{"lean_in": [1], "watch": [1]}]) == "steady"

@@ -99,6 +99,16 @@ def _chapters(ctx, start: date, end: date, scope: str, lang: str) -> List[dict]:
     return out
 
 
+VERDICT_OF = {"good": "good", "mixed": "steady", "quiet": "steady", "care": "tough"}
+
+
+def _verdict(areas: List[dict]) -> str:
+    """good | steady | tough for the whole window: more areas helping than needing care is good, the reverse is tough."""
+    g = sum(1 for a in areas if a["lean_in"])
+    c = sum(1 for a in areas if a["watch"])
+    return "good" if g > c else ("tough" if c > g else "steady")
+
+
 def _tone(has_good: bool, has_bad: bool) -> str:
     return "mixed" if (has_good and has_bad) else ("good" if has_good else ("care" if has_bad else "quiet"))
 
@@ -110,6 +120,7 @@ def _month_cells(items: List[dict], year: int, lang: str) -> List[dict]:
         hit = [i for i in items if _overlaps(i, ms, me)]
         cells.append({"month": f"{year}-{m:02d}", "label": SHORT[lang][m - 1],
                       "tone": _tone(any(i["tone"] == "good" for i in hit), any(i["tone"] == "care" for i in hit))})
+        cells[-1]["verdict"] = VERDICT_OF[cells[-1]["tone"]]
     return cells
 
 
@@ -203,7 +214,7 @@ def build(ctx, lib: dict, life: Optional[dict], scope: str, offset: int, languag
         summary = tx["none_past"] if past else tx["none"]
 
     out = {"scope": scope, "offset": offset, "relation": rel, "title": _title(scope, start, lang),
-           "start": start.isoformat(), "end": end.isoformat(), "summary": summary, "areas": out_areas,
+           "start": start.isoformat(), "end": end.isoformat(), "verdict": _verdict(out_areas), "summary": summary, "areas": out_areas,
            "chapters": _chapters(ctx, start, end, scope, lang),
            "labels": {"lean_in": tx["lean_past"] if past else tx["lean"], "watch": tx["watch_past"] if past else tx["watch"],
                       "chapters": tx["chapters_past"] if past else tx["chapters"], "look_after": tx["look_after"]}}
