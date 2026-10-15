@@ -14862,6 +14862,65 @@ async def ritual_today(chart_id: str, language: str = "en", tz: float = None):
     return _rt.strip_internal(out)
 
 
+_DAY_STRIP_CACHE: dict = {}
+
+
+@app.get("/api/v1/day-strip/{chart_id}")
+@translate_response(fields_to_translate=["label"], endpoint_name="day-strip")
+async def day_strip(chart_id: str, language: str = "en", tz: float = None):
+    """[day-strip 2026-10-15] 7 days back, today and 7 days ahead for the Today-in-detail view. Deterministic (the day
+    score the Today card already uses, no LLM); past days are re-read from the chart for that date and say so."""
+    from uuid import UUID as _UUID_DS
+    try:
+        _UUID_DS(str(chart_id))
+    except (ValueError, AttributeError, TypeError):
+        raise HTTPException(404, "Chart not found")
+    from antar_engine import day_strip as _ds
+    from antar_engine.daily_prediction_engine import generate_weekly_signals as _gws
+    from datetime import timedelta as _tdl
+    _lang = (language or "en").split("-")[0].lower()
+    _sd = _get_local_start_date(tz_offset=tz)
+    _today = _sd.date() if hasattr(_sd, "date") else _sd
+    _ck = (chart_id, _today.isoformat(), _lang)
+    _hit = _DAY_STRIP_CACHE.get(_ck)
+    if _hit and _time.time() - _hit[0] < 6 * 3600:
+        return _hit[1]
+    try:
+        _row = await asyncio.to_thread(lambda: (supabase.table("charts").select("chart_data").eq("id", chart_id).single().execute().data) or {})
+    except Exception:
+        _row = {}
+    if not _row:
+        raise HTTPException(404, "Chart not found")
+    _cd = _row.get("chart_data")
+    if isinstance(_cd, str):
+        _cd = _safe_jsonb(_cd)
+    _moon = None
+    try:
+        _m = ((_cd or {}).get("planets") or {}).get("Moon")
+        _moon = (_m.get("sign") or _m.get("rashi")) if isinstance(_m, dict) else None
+    except Exception:
+        pass
+    if not _moon:
+        raise HTTPException(422, "chart has no Moon sign")
+    # the engine caps one call at 7 days: past 7, today + 6 ahead, and the 7th day ahead are three parallel deterministic reads
+    async def _read(off, n):
+        try:
+            return await asyncio.wait_for(_gws(
+                _moon, start_date=_sd + _tdl(days=off), chart_id=chart_id, supabase_client=supabase, language="en",
+                tz_offset=tz or 0, fast_mode=True, days_to_generate=n, persist=False), timeout=40)
+        except Exception as _e:
+            print(f"[day-strip] read {off:+d}/{n} skipped (non-fatal): {_e}")
+            return []
+    _parts = await asyncio.gather(_read(-_ds.DAYS_BACK, _ds.DAYS_BACK), _read(0, 7), _read(7, _ds.DAYS_AHEAD - 6))
+    _days = [d for part in _parts for d in (part or [])]
+    out = _ds.build_strip(_days, _today, _lang)
+    if any(x["status"] == "ready" for x in out["days"]):
+        if len(_DAY_STRIP_CACHE) > 500:
+            _DAY_STRIP_CACHE.clear()
+        _DAY_STRIP_CACHE[_ck] = (_time.time(), out)
+    return out
+
+
 # [life-events standardization 2026-09-28] Normalize the free-form capture so the
 # forward-validation loop (validate_from_life_events.py) and personalization can
 # consume it: canonical metadata.{direction, domain, magnitude} + a stamped
