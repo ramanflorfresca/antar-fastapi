@@ -96,7 +96,7 @@ def test_cards_without_a_real_source_are_hidden_and_progress_counts_only_ready_c
     p = _compose(date(2026, 10, 14), vastu={"available": False}, wisdom={}, daily={})
     assert p["cards"]["space"]["status"] == p["cards"]["mantra"]["status"] == p["cards"]["verse"]["status"] == "hidden"
     assert p["cards"]["food"]["status"] == "hidden"
-    assert p["progress"]["total"] == sum(1 for c in p["cards"].values() if c["status"] == "ready")
+    assert p["progress"]["total"] == sum(1 for c in p["cards"].values() if c["status"] == "ready" and c["kind"] == "action")
 
 
 def test_jargon_strings_are_dropped_not_shown():
@@ -113,9 +113,47 @@ def test_the_stripped_payload_has_no_internal_fields_and_no_jargon():
     assert RT.jargon_leaks(s) == []
 
 
-def test_done_cards_count_toward_progress():
+def test_only_action_cards_count_toward_progress_and_info_cards_have_no_tick():
     p = _compose(date(2026, 10, 14), completed_ids={"wear_today", "food_today"})
-    assert p["progress"]["done"] == 2
+    kinds = {k: c["kind"] for k, c in p["cards"].items()}
+    assert kinds["wear"] == kinds["verse"] == kinds["space"] == kinds["food"] == "info"
+    assert kinds["mantra"] == "action" and kinds["remedy"] == "action"       # Wednesday: the fast is due
+    assert p["progress"]["done"] == 0 and p["progress"]["total"] == 2
+    q = _compose(date(2026, 10, 14), completed_ids={p["cards"]["mantra"]["practice_id"], p["cards"]["remedy"]["practice_id"]})
+    assert q["progress"] == {"done": 2, "total": 2}
+
+
+def test_a_remedy_that_is_next_on_another_day_is_information_not_a_task():
+    assert RT.card_kind("remedy", {"status": "ready", "cadence_label": "Next on Wednesday"}, date(2026, 10, 15)) == "info"
+    assert RT.card_kind("remedy", {"status": "ready", "cadence_label": "Every Wednesday"}, date(2026, 10, 14)) == "action"
+    assert RT.card_kind("remedy", {"status": "ready", "cadence_label": "Keep it up through the year"}, date(2026, 10, 15)) == "action"
+
+
+def test_why_plan_lines_are_plain_and_not_repeated():
+    p = _compose(date(2026, 10, 14))
+    lines = p["why_plan"]["lines"]
+    assert lines and len(lines) == len(set(lines))
+    assert RT.jargon_leaks(p["why_plan"]) == []
+
+
+def test_mantra_prefers_the_focus_mantra_with_its_audio():
+    practice = {"today_priority": {"mantra": {"advanced": {"transliteration": "OM SHAM SHANAISHCHARAYA NAMAHA"}, "count": 108,
+                                              "when": "Before sunset", "why": "It steadies the mind.", "tone_hz": 295,
+                                              "audio_url": "https://x/saturn-en.mp3"}}}
+    c = RT.mantra_card({}, set(), practice)
+    assert c["status"] == "ready" and c["audio_url"].endswith("saturn-en.mp3") and c["tone_hz"] == 295
+    assert c["repeats"] == 11 and c["full_count"] == 108 and c["best_time_plain"] == "Before sunset"
+    # no audio on the practice mantra: fall back to the season mantra
+    assert RT.mantra_card({"mantra": {"name": "Om Gam Ganapataye Namaha", "use": "Chant 11 times."}}, set(), {"today_priority": {"mantra": {"name": "x"}}})["text_roman"] == "Om Gam Ganapataye Namaha"
+
+
+def test_space_card_has_an_about_line_and_no_lowercase_default_sentence():
+    p = _compose(date(2026, 10, 14))
+    sp = p["cards"]["space"]
+    assert sp["about_plain"].startswith("Vastu is")
+    for d in sp["directions"]:
+        assert not (d["why_plain"] or "A").startswith("your chart")
+        assert "traditional default" not in (d["why_plain"] or "")
 
 
 def test_same_planet_weekday_and_moon_star_is_one_signal():

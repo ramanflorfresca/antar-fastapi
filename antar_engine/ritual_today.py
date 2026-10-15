@@ -173,7 +173,26 @@ def remedy_card(today: _date, lk_year: dict, done_ids: set) -> dict:
             "why_chart": {"source": "lk_varshphal_year.remedies", "verdict": (lk_year or {}).get("verdict")}}
 
 
-def mantra_card(wisdom: dict, done_ids: set) -> dict:
+def _focus_mantra(practice: dict) -> Optional[dict]:
+    """Today's focus mantra from the daily practice (the one with the chant audio and pitch), or None."""
+    m = (((practice or {}).get("today_priority") or {}).get("mantra")) or {}
+    adv = m.get("advanced") or {}
+    name = clean(adv.get("transliteration")) or clean(adv.get("name")) or clean(m.get("name"))
+    if not name or not m.get("audio_url"):
+        return None
+    return {"name": _cap(name.title() if name.isupper() else name), "audio_url": m.get("audio_url"), "tone_hz": m.get("tone_hz"),
+            "count": m.get("count"), "when": clean(m.get("when")), "why": clean(m.get("why")), "label": clean(m.get("label"))}
+
+
+def mantra_card(wisdom: dict, done_ids: set, practice: Optional[dict] = None) -> dict:
+    fm = _focus_mantra(practice)
+    if fm:
+        pid = "mantra_" + re.sub(r"[^a-z0-9]+", "_", fm["name"].lower())[:30].strip("_")
+        return {"status": "ready", "practice_id": pid, "text_roman": fm["name"], "repeats": 11,
+                "full_count": fm["count"], "purpose_plain": fm["why"] or fm["label"],
+                "best_time_plain": fm["when"], "audio_url": fm["audio_url"], "tone_hz": fm["tone_hz"],
+                "accent_hex": "#E0B93A", "done_today": pid in done_ids,
+                "why_chart": {"source": "daily_practice.today_priority.mantra"}}
     m = (wisdom or {}).get("mantra") or {}
     name = clean(m.get("name"))
     if not name:
@@ -234,6 +253,21 @@ _KIND = {"sleep_head": ("sleep", "Sleep with your head toward the"), "work_facin
          "eat_facing": ("eat", "Face the")}
 
 
+SPACE_ABOUT = ("Vastu is the traditional way of arranging where you sleep, work and eat so your space supports your day. "
+               "These directions follow your chart. Where it has no strong preference, the usual guidance is shown.")
+
+
+def _space_why(why) -> Optional[str]:
+    t = clean(why)
+    if not t:
+        return None
+    t = re.sub(r"(?i)^your chart has no strong preference here, so the traditional default stands\.?$",
+               "Your chart has no strong preference here, so the usual guidance applies.", t)
+    if "traditional default" in t:
+        return "Your chart has no strong preference here, so the usual guidance applies."
+    return _cap(t)
+
+
 def space_card(vastu: dict, done_ids: set) -> dict:
     if not (vastu or {}).get("available"):
         return _hidden("vastu unavailable or flag off")
@@ -247,10 +281,11 @@ def space_card(vastu: dict, done_ids: set) -> dict:
         hx, note = _ZONE_COLOUR[zone]
         out.append({"kind": kind, "label": f"{lead} {label}" + (" while you eat" if kind == "eat" else ""),
                     "zone": zone, "bearing_deg": _ZONE_BEARING[zone], "colour_hex": hx, "colour_note_plain": note,
-                    "why_plain": clean(d.get("why")), "status": d.get("status")})
+                    "why_plain": _space_why(d.get("why")), "status": d.get("status")})
     if not out:
         return _hidden("no directions")
     return {"status": "ready", "practice_id": "space_today", "directions": out, "accent_hex": out[0]["colour_hex"],
+            "about_plain": SPACE_ABOUT,
             "done_today": "space_today" in done_ids,
             "why_chart": {"source": "vastu_engine", "src": [dirs.get(k, {}).get("src") for k in _KIND]}}
 
@@ -336,27 +371,55 @@ def wear_card(today: _date, *, natal_mat: dict, year_mat: dict, lk_year: dict, n
 
 
 # ── the payload ──────────────────────────────────────────────────────────────────────────────────────────────────
+def why_plan(headline, subline, cod, cards) -> dict:
+    """The plain reasons behind today's plan, for the 'Why this plan' sheet: one short line each, no repeats, no method names."""
+    lines = []
+    for x in (headline, subline, (cod or {}).get("reason_plain"),
+              (cards.get("remedy") or {}).get("why_plain") if (cards.get("remedy") or {}).get("status") == "ready" else None,
+              (cards.get("mantra") or {}).get("purpose_plain") if (cards.get("mantra") or {}).get("status") == "ready" else None,
+              (cards.get("food") or {}).get("why_plain") if (cards.get("food") or {}).get("status") == "ready" else None):
+        x = clean(x)
+        if x and x not in lines:
+            lines.append(x)
+    return {"title": "Why this plan", "lines": lines,
+            "note": "Each item is chosen from your chart for today. Do the ones that fit; none of them replaces medical or professional advice."}
+
+
+def card_kind(key: str, card: dict, today: _date) -> str:
+    """`action` = something the person does and ticks off (it gets Mark done and counts toward the day);
+    `info` = guidance to read (colour, verse, space, food): no button, no count. The mantra completes by counting to its target.
+    A remedy is an action only on the day it is due."""
+    if key == "mantra":
+        return "action"
+    if key == "remedy":
+        return "info" if str(card.get("cadence_label") or "").startswith("Next on") else "action"
+    return "info"
+
+
 def compose(*, today: _date, language: str, chart: dict, lk: Optional[dict], schedule: dict, wisdom: dict, daily: dict,
             vastu: dict, natal_mat: dict, year_mat: dict, nak_lord: Optional[str], completed_ids: set, streak: int,
-            longest: int, assess, weekday_colours: dict, caution: str) -> dict:
+            longest: int, assess, weekday_colours: dict, caution: str, practice: Optional[dict] = None) -> dict:
     lk_year = (((schedule or {}).get("lal_kitab") or {}).get("year")) or {}
     cards = {
         "wear": wear_card(today, natal_mat=natal_mat or {}, year_mat=year_mat or {}, lk_year=lk_year, nak_lord=nak_lord,
                           assess=assess, weekday_colours=weekday_colours, caution=caution, done_ids=completed_ids),
         "remedy": remedy_card(today, lk_year, completed_ids),
-        "mantra": mantra_card(wisdom, completed_ids),
+        "mantra": mantra_card(wisdom, completed_ids, practice),
         "verse": verse_card(wisdom, completed_ids),
         "space": space_card(vastu, completed_ids),
         "food": food_card(daily, completed_ids),
     }
     cod = (cards["wear"] or {}).pop("_colour_of_the_day", None)
-    ready = [k for k, c in cards.items() if c.get("status") == "ready"]
+    for k, c in cards.items():
+        c["kind"] = card_kind(k, c, today)
+    ready = [k for k, c in cards.items() if c.get("status") == "ready" and c["kind"] == "action"]
     done = [k for k in ready if cards[k].get("done_today")]
     dec = (daily or {}).get("decision") or {}
     headline = (_VERDICT_LINE.get(str(lk_year.get("verdict") or "").lower()) or
                 "Small steady acts keep your day balanced.")
     return {"chart_id": (chart or {}).get("id"), "date": today.isoformat(), "language": language,
             "headline": headline, "subline": clean(dec.get("prediction")),
+            "why_plan": why_plan(headline, clean(dec.get("prediction")), cod, cards),
             "progress": {"done": len(done), "total": len(ready)},
             "colour_of_the_day": cod, "cards": cards,
             "streak": {"current": streak, "longest": max(longest, streak),
