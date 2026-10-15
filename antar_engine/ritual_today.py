@@ -193,9 +193,12 @@ def remedy_card(today: _date, lk_year: dict, done_ids: set) -> dict:
         nxt = next((d for d in _DAYNAME if re.search(r"(?i)\b" + d[:3], pick)), "")
         cadence = f"Next on {nxt}" if nxt else "Keep it up through the year"
     pid = "remedy_" + re.sub(r"[^a-z0-9]+", "_", pick.lower())[:40].strip("_")
-    return {"status": "ready", "practice_id": pid, "title": pick.rstrip("."),
-            "why_plain": _VERDICT_LINE.get(str((lk_year or {}).get("verdict") or "").lower(),
-                                           "A small steady act on its day keeps your year balanced."),
+    from antar_engine import ritual_details as _rd
+    details = _rd.remedy_details(pick, today)
+    why = _rd.remedy_why(pick) or _VERDICT_LINE.get(str((lk_year or {}).get("verdict") or "").lower(),
+                                                    "A small steady act on its day keeps your year balanced.")
+    return {"status": "ready", "practice_id": pid, "title": pick.rstrip("."), "details": details,
+            "why_plain": why,
             "cadence_label": cadence, "accent_hex": "#5F5E5A", "done_today": pid in done_ids,
             "why_chart": {"source": "lk_varshphal_year.remedies", "verdict": (lk_year or {}).get("verdict")}}
 
@@ -260,7 +263,9 @@ def food_card(daily: dict, done_ids: set) -> dict:
         return _hidden("no food guidance")
     tex = clean(f.get("texture"))
     head = f"Eat {tex} foods today." if tex else "What to eat today."
+    from antar_engine import ritual_details as _rd
     return {"status": "ready", "practice_id": "food_today", "headline": head, "eat": eat, "avoid": avoid,
+            "details": _rd.food_details(f),
             "why_plain": clean(f.get("why_eat")) or clean(f.get("why")), "accent_hex": "#5FA36B",
             "done_today": "food_today" in done_ids,
             "why_chart": {"source": "daily.food", "planet": f.get("planet"), "mode": f.get("mode")}}
@@ -329,7 +334,7 @@ def _stone(entry: dict, caution: str) -> Optional[dict]:
 
 def wear_card(today: _date, *, natal_mat: dict, year_mat: dict, lk_year: dict, nak_lord: Optional[str], assess,
               weekday_colours: dict, caution: str, done_ids: set, sub_lord: Optional[str] = None,
-              month_lord: Optional[str] = None) -> dict:
+              month_lord: Optional[str] = None, daily_color: Optional[dict] = None) -> dict:
     refused = _lk_refused_colours(lk_year)
     def _ok(nm):
         k = nm.lower()
@@ -377,12 +382,18 @@ def wear_card(today: _date, *, natal_mat: dict, year_mat: dict, lk_year: dict, n
                               "metal": _metal(life, life_metal), "note_plain": None}
     today_scope = None
     if col or pick["skip"]:
+        from antar_engine import ritual_details as _rd
+        refused_texts = [t for t in (list((lk_year or {}).get("remedies") or []) + list((lk_year or {}).get("what_to_avoid") or []))
+                         if isinstance(t, str) and re.search(r"(?i)\b(never|don'?t|do not|avoid|refuse)\b", t)]
+        cd = _rd.colour_details(col, daily_color or {}, pick["skip"], refused_texts)
+        skip_why = {r["name"]: r["why_plain"] for r in cd.get("skip_reasons", [])}
         base = scopes.get("this_year") or scopes.get("for_life") or {}
         today_scope = {"colors": ([{"name": col["name"], "hex": col["hex"]}] if col else []),
                        "skip_today": [{"name": s["name"], "hex": s["hex"],
-                                       "why_plain": ("Your year's remedies say to steer clear of this one."
+                                       "why_plain": skip_why.get(s["name"]) or ("Your year's remedies say to steer clear of this one."
                                                      if not _ok(s["name"]) else "Not one of your colours right now.")}
                                       for s in pick["skip"]],
+                       **{k: cd[k] for k in ("where_plain", "supports_plain", "support_colour_plain") if cd.get(k)},
                        "stone": base.get("stone"), "metal": base.get("metal"),
                        "note_plain": None if col else "No colour needed today.", "colour_scope": (col or {}).get("scope")}
     if not (scopes or today_scope):
@@ -443,7 +454,8 @@ def compose(*, today: _date, language: str, chart: dict, lk: Optional[dict], sch
     cards = {
         "wear": wear_card(today, natal_mat=natal_mat or {}, year_mat=year_mat or {}, lk_year=lk_year, nak_lord=nak_lord,
                           assess=assess, weekday_colours=weekday_colours, caution=caution, done_ids=completed_ids,
-                          sub_lord=sub_lord, month_lord=month_lord),
+                          sub_lord=sub_lord, month_lord=month_lord,
+                          daily_color=(daily or {}).get("color")),
         "remedy": remedy_card(today, lk_year, completed_ids),
         "mantra": mantra_card(wisdom, completed_ids, practice),
         "verse": verse_card(wisdom, completed_ids),
@@ -484,7 +496,8 @@ def jargon_leaks(o, path="") -> list:
     if isinstance(o, dict):
         for k, v in o.items():
             if k in ("hex", "practice_id", "date", "language", "version", "chart_id", "kind", "zone", "status",
-                     "verdict", "default_scope", "sanskrit", "transliteration", "reference", "text_roman", "metal"):
+                     "verdict", "default_scope", "sanskrit", "transliteration", "reference", "text_roman", "metal",
+                     "audio_url", "scope_order", "colour_scope", "scope"):
                 continue
             bad += jargon_leaks(v, f"{path}.{k}")
     elif isinstance(o, list):

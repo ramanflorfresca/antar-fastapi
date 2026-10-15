@@ -37,6 +37,26 @@ def covers_of(planet: Optional[str]) -> Optional[str]:
     return clean(c.split(";")[0].strip()) if c else None
 
 
+def _andlist(txt: Optional[str]) -> Optional[str]:
+    """"thinking, speaking, trading, learning" -> "your thinking, speaking, trading and learning"."""
+    if not txt:
+        return None
+    parts = [x.strip() for x in txt.split(",") if x.strip()]
+    if not parts:
+        return None
+    body = parts[0] if len(parts) == 1 else ", ".join(parts[:-1]) + " and " + parts[-1]
+    return "your " + body
+
+
+def remedy_why(text: str) -> Optional[str]:
+    """One specific sentence on why this remedy: the part of life its day stands for. None when the remedy names no day."""
+    day = _weekday_in(text)
+    cov = _andlist(covers_of(_WEEKDAY_PLANET.get(day))) if day else None
+    if not cov:
+        return None
+    return clean(f"Your year's remedies ask for this. {day}s stand for {cov}, and keeping this steady helps those hold.")
+
+
 def _weekday_in(text: str) -> Optional[str]:
     return next((d for d in _DAYNAME if re.search(r"(?i)\b" + d[:3] + r"[a-z]*\b", text or "")), None)
 
@@ -58,7 +78,7 @@ def remedy_details(text: str, today: Optional[_date] = None) -> dict:
                 continue
             if "{covers}" in v and not covers:
                 continue
-            v = v.replace("{day_or_any}", (day or "Any day") if day else "Any day").replace("{day}", day or "").replace("{covers}", covers or "")
+            v = v.replace("{day_or_any}", day or "Any day").replace("{day}", day or "").replace("{covers}", _andlist(covers) or "")
             v = clean(v.strip())
             if v:
                 out[k] = v
@@ -73,11 +93,12 @@ def colour_details(col: Optional[dict], daily_color: dict, skip: list, refused_t
         planet = ((col.get("basis") or "").split(":") + [None])[1]
         sup = covers_of(planet.capitalize() if planet else None)
         if sup and col.get("scope") == "day":
-            out["supports_plain"] = clean(f"{col['name']} supports {sup} today.")
+            out["supports_plain"] = clean(f"{col['name']} supports {_andlist(sup)} today.")
         out["where_plain"] = "Wear it where it is seen or touches you: a shirt, scarf, tie or bag. A small piece is enough if the outfit does not allow it."
     ds = (daily_color or {})
-    if clean(ds.get("support")):
-        out["support_colour_plain"] = clean(f"If you want a second colour, add {ds['support'].split('/')[0].lower()}.")
+    sup2 = (ds.get("support") or "").split("/")[0].strip().lower()
+    if clean(ds.get("support")) and sup2 and (not col or sup2 not in col["name"].lower()):
+        out["support_colour_plain"] = clean(f"If you want a second colour, add {sup2}.")
     reasons = []
     for s in skip or []:
         nm = s.get("name", "")
