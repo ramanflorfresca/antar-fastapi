@@ -36316,6 +36316,23 @@ def _cap_first_items(items):
     return [(x[:1].upper() + x[1:]) if isinstance(x, str) and x else x for x in items]
 
 
+import contextvars as _ctxv
+_DS_LOCAL_TODAY = _ctxv.ContextVar("ds_local_today", default=None)
+
+
+def _day_relation(date_str):
+    """past | today | future for a requested day, against the user's LOCAL today (set by the endpoint)."""
+    try:
+        lt = _DS_LOCAL_TODAY.get()
+        if lt is None or not date_str:
+            return "today"
+        from datetime import datetime as _dr
+        d = _dr.strptime(str(date_str)[:10], "%Y-%m-%d").date()
+        return "past" if d < lt else ("future" if d > lt else "today")
+    except Exception:
+        return "today"
+
+
 def _attach_today_decision(fn):
     """[today-decision 2026-10-10] The Today card calls GET /daily-signal/{id} (confirmed by the front end), so the
     decision block is attached HERE — to the payload the card actually renders — not only on the /predict/daily
@@ -36327,9 +36344,14 @@ def _attach_today_decision(fn):
         r = await fn(*args, **kwargs)
         try:
             _tl = (kwargs.get("language") or "en").split("-")[0].lower()
+            _rel0 = _day_relation(r.get("date")) if isinstance(r, dict) else "today"
+            if (isinstance(r, dict) and _rel0 != "today" and isinstance(r.get("decision"), dict)
+                    and r["decision"].get("relation") != _rel0):
+                r = {k: v for k, v in r.items() if k != "decision"}   # a day cached as "today" is read later as past or future
             if isinstance(r, dict) and "decision" not in r and _tl in ("en", "es"):
                 from antar_engine.today_decision import compose as _td_compose
-                _td = _td_compose(r, _tl)
+                _rel = _rel0
+                _td = _td_compose(r, _tl, _rel)
                 if _td:
                     r["decision"] = _td
                     # [legacy-reconcile 2026-10-11] the old prose fields must not contradict the block
@@ -36475,6 +36497,10 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
             start_date = _ds_requested_date.replace(hour=0, minute=0, second=0, microsecond=0)
         else:
             start_date = _get_local_start_date(tz_offset=effective_offset)
+        try:   # the wrapper needs the user's local today to tell a past or future day from today
+            _DS_LOCAL_TODAY.set(_get_local_start_date(tz_offset=effective_offset).date())
+        except Exception:
+            pass
 
         # [full-payload-cache 2026-09-12] Serve the whole composed+localized card
         # from L2 when warm, skipping ALL of the below (generation, panchanga,
