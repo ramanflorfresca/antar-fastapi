@@ -98,7 +98,7 @@ def turning_points(ctx, area_label: str, subjects, months: int, lang: str) -> Li
                 # only a real change of membership counts: moving between two houses that are both part of this topic is not an event
                 key = kind + "_in" if (new_h in hs and old_h not in hs) else (kind + "_out" if (old_h in hs and new_h not in hs) else None)
                 if key:
-                    out.append({"date": day.isoformat(), "kind": TONE_OF[key], "text": TXT[lang][key].format(a=area_label.lower())})
+                    out.append({"date": day.isoformat(), "kind": TONE_OF[key], "key": key, "text": TXT[lang][key].format(a=area_label.lower())})
         prev = cur
     return out
 
