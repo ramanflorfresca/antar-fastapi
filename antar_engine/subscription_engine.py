@@ -81,8 +81,30 @@ def get_current_month() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m")
 
 
+_SUB_CACHE: dict = {}
+_SUB_TTL = 10.0
+
+
+def bust_subscription_cache(chart_id: str) -> None:
+    _SUB_CACHE.pop(chart_id, None)
+
+
 def get_subscription(chart_id: str, sb) -> dict:
-    """Get subscription status for a chart."""
+    """Get subscription status for a chart.
+
+    [entitlements-perf 2026-10-15] One /subscription or /entitlements call read this row
+    3-4 times (tier, unlimited-ask, billing view, the plan itself). A 10 s per-chart cache
+    makes that one read; every writer already calls bust_entitlement_cache, which clears it."""
+    import time as _t
+    hit = _SUB_CACHE.get(chart_id)
+    if hit and hit[0] > _t.time():
+        return dict(hit[1])
+    sub = _get_subscription_uncached(chart_id, sb)
+    _SUB_CACHE[chart_id] = (_t.time() + _SUB_TTL, dict(sub))
+    return sub
+
+
+def _get_subscription_uncached(chart_id: str, sb) -> dict:
     try:
         res = sb.table("subscriptions").select("*").eq(
             "chart_id", chart_id

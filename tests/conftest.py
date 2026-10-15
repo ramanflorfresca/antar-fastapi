@@ -90,3 +90,14 @@ def _no_live_wa_log_writes(monkeypatch):
             return None
 
     monkeypatch.setattr(wa_log, "_pool", _Drop())
+
+
+# The 10 s subscription-row cache is per process; tests reuse chart ids with different fake databases.
+@pytest.fixture(autouse=True)
+def _clear_subscription_cache():
+    try:
+        from antar_engine import subscription_engine as _se
+        _se._SUB_CACHE.clear()
+    except Exception:
+        pass
+    yield
