@@ -1446,7 +1446,7 @@ async def _wa_alert_job():
             tz_min = (await _aio_wa.to_thread(_wa_resolve_tz, cid, number, ctx))[0]
             local = now + timedelta(minutes=int(tz_min or 0))
             if local.hour == _wal.LOCAL_HOUR:
-                await _sync_life_alerts(cid)
+                await run_in_threadpool(_sync_life_alerts, cid)
                 rows = await _aio_wa.to_thread(lambda: supabase.table("user_alerts").select("*")
                                                .eq("chart_id", cid).is_("dismissed_at", "null")
                                                .in_("alert_type", list(_wal.SENDABLE))
@@ -39498,7 +39498,7 @@ _LIFE_ALERT_TYPES = ("wealth_window", "lean_stretch", "risk_window",
                      "strain_window", "dasha_turn")
 
 
-async def _sync_life_alerts(chart_id: str):
+def _sync_life_alerts(chart_id: str):
     """[life-alerts 2026-09-16] Compute the CALM proactive life/financial alerts
     and upsert new ones into user_alerts (idempotent by alert_type+window month;
     throttled to once/day per chart). Fail-open — never breaks the alerts feed."""
@@ -39552,7 +39552,7 @@ async def _sync_life_alerts(chart_id: str):
 )
 async def get_alerts(chart_id: str, unread_only: bool = False, language: str = "en"):
     """Get personal alerts for a chart — powers in-app badge."""
-    await _sync_life_alerts(chart_id)
+    await run_in_threadpool(_sync_life_alerts, chart_id)
     query = supabase.table("user_alerts").select("*").eq(
         "chart_id", chart_id
     ).is_("dismissed_at", "null").order("created_at", desc=True).limit(20)
@@ -44312,7 +44312,7 @@ async def get_monthly_deepdive(chart_id: str, refresh: bool = False, language: s
         # Keep the latency behaviour, drop the lie: flag the payload as stale and
         # regenerating so the UI can say "updating..." and re-poll. `wait=true` is
         # the explicit opt-in for callers that genuinely want to block.
-        _md_cached = None if wait else _md_read_cache(chart_id, _md_month_key, supabase, language)
+        _md_cached = None if wait else await run_in_threadpool(_md_read_cache, chart_id, _md_month_key, supabase, language)
         if _md_cached:
             # copy before mutating: _read_cache hands back the cached blob, and
             # writing flags onto it would poison what the next reader sees.
@@ -46822,9 +46822,9 @@ async def _resolve_current_moment_location(row, chart_id=None):
     # (1) persisted coords on the chart (skip geocode entirely)
     if chart_id:
         try:
-            _pr = supabase.table("charts").select(
+            _pr = await run_in_threadpool(lambda: supabase.table("charts").select(
                 "current_latitude,current_longitude,current_timezone,current_geocode_city"
-            ).eq("id", chart_id).limit(1).execute()
+            ).eq("id", chart_id).limit(1).execute())
             if _pr.data:
                 _d0 = _pr.data[0]
                 if (_d0.get("current_latitude") is not None
@@ -46843,10 +46843,10 @@ async def _resolve_current_moment_location(row, chart_id=None):
             result = (float(lat), float(lng), tz_id)
             if chart_id:
                 try:
-                    supabase.table("charts").update({
+                    await run_in_threadpool(lambda: supabase.table("charts").update({
                         "current_latitude": float(lat), "current_longitude": float(lng),
                         "current_timezone": tz_id, "current_geocode_city": city,
-                    }).eq("id", chart_id).execute()
+                    }).eq("id", chart_id).execute())
                 except Exception:
                     pass  # columns not present yet → skip persist; request still served
         except Exception:
