@@ -185,4 +185,4 @@ def test_detail_has_only_this_topics_statements_and_everything_in_one_place(monk
     assert d["do"] == ["Line up your asks."] and d["avoid"][0]["instead"] == "Check the numbers twice."
     assert d["remedies"][0]["text"].startswith("Bury barley") and d["mantra"]["text"] == "Om Budhaya Namaha"
     assert d["windows"]["avoid"] == [{"start": "2027-02-01", "end": "2027-03-01"}] and d["windows"]["best"]["start"] == "2026-10-14"
-    assert out["labels"]["focus_title"].startswith("for the next 3 to 6 months") and out["labels"]["do"] == "Do"
+    assert out["labels"]["focus_title"].startswith("for the next 3 months") and out["labels"]["do"] == "Do"

@@ -45,14 +45,14 @@ GOAL = {"money": {"en": "Grow your income", "es": "Hacer crecer tus ingresos"},
         "inner": {"en": "Deepen your inner practice", "es": "Profundizar tu práctica interior"}}
 MANTRA_PLANET = {"money": "Jupiter", "business": "Mercury", "work": "Saturn", "partnership": "Venus", "family": "Jupiter",
                  "learning": "Mercury", "home": "Moon", "health": "Sun", "inner": "Jupiter"}
-LABELS_EXTRA = {"en": {"focus_title": "for the next 3 to 6 months, focus on", "goal": "Your goal", "bring": "What the next months bring",
+LABELS_EXTRA = {"en": {"focus_title": "for the next 3 months, focus on", "goal": "Your goal", "bring": "What the next months bring",
                        "do": "Do", "avoid": "Avoid", "instead": "Instead", "remedies": "Remedies", "mantra": "Mantra", "when": "When",
-                       "best_window": "Best window", "avoid_window": "Take care", "plan_months": "Month by month",
+                       "best_window": "Best window", "avoid_window": "Take care", "plan_months": "Month by month", "plan": "Your plan", "near": "Next 3 months", "beyond": "Beyond",
                        "plan_chapters": "Chapters in these months", "plan_turns": "Turning points", "supports": "Touches this topic",
                        "quiet": "Quiet for this", "tone_good": "Supportive", "tone_mixed": "Mixed", "tone_bad": "Careful"},
-                "es": {"focus_title": "en los próximos 3 a 6 meses, enfócate en", "goal": "Tu meta", "bring": "Lo que traen los próximos meses",
+                "es": {"focus_title": "en los próximos 3 meses, enfócate en", "goal": "Tu meta", "bring": "Lo que traen los próximos meses",
                        "do": "Haz", "avoid": "Evita", "instead": "En su lugar", "remedies": "Remedios", "mantra": "Mantra", "when": "Cuándo",
-                       "best_window": "Mejor ventana", "avoid_window": "Cuidado", "plan_months": "Mes a mes",
+                       "best_window": "Mejor ventana", "avoid_window": "Cuidado", "plan_months": "Mes a mes", "plan": "Tu plan", "near": "Próximos 3 meses", "beyond": "Más adelante",
                        "plan_chapters": "Capítulos de estos meses", "plan_turns": "Puntos de giro", "supports": "Toca este tema",
                        "quiet": "Tranquilo para esto", "tone_good": "Favorable", "tone_mixed": "Mixto", "tone_bad": "Con cuidado"}}
 LABELS = {"en": {"pattern": "Your pattern", "season": "Your season", "move": "Your move", "watch": "Watch",
@@ -251,9 +251,12 @@ def _detail(ctx, library: dict, life: Optional[dict], lang: str, area: str, card
                         if season.get("start") else None),
                "avoid": [{"start": a["start"], "end": a["end"]} for a in avoid if a.get("start") and a.get("end")]}
     try:
-        plan = {"months": focus_plan.months_strip(ctx, subjects, months, lang, (card.get("season") or {}).get("peaks")),
-                "chapters": focus_plan.chapters(ctx, subjects, months, lang),
-                "turns": focus_plan.turning_points(ctx, card["label"], subjects, months, lang)}
+        plan_months = months if months >= 6 else min(6, months * 2)       # 3-month focus, but the plan shows up to 6 months of what is coming
+        ch = focus_plan.chapters(ctx, subjects, plan_months, lang)
+        tp = focus_plan.turning_points(ctx, card["label"], subjects, plan_months, lang)
+        peaks = (card.get("season") or {}).get("peaks")
+        plan = {"timeline": focus_plan.timeline(ctx, ch, tp, peaks, months, lang), "near_months": months,
+                "months": focus_plan.months_strip(ctx, subjects, plan_months, lang, peaks), "chapters": ch, "turns": tp}
     except Exception:
         plan = None
     return {"area": area, "label": card["label"], "goal": GOAL.get(area, {}).get(lang), "window": card.get("window"),
