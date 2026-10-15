@@ -942,6 +942,20 @@ _MIND = {"consolidating": {"en": "today your mind favours turning inward and bui
                     "pt": "hoje sua mente est\u00e1 est\u00e1vel e equilibrada"}}
 
 
+def cause_sentence(season: str, cause: dict, lang: str) -> str:
+    """The real cause of today's tone in plain words (no leading capital, no full stop)."""
+    kind = (cause or {}).get("kind")
+    if kind == "moon" and isinstance((cause or {}).get("house"), int):
+        return _MIND.get(season, _MIND["steady"])[lang]
+    if kind == "dasha" and (cause or {}).get("lord"):
+        lean = _LEAN[season][lang]
+        return {"en": f"today is a neutral day, so the stretch of life you are in sets the tone and it is {lean}",
+                "es": f"hoy es un d\u00eda neutro, as\u00ed que la etapa de vida en que est\u00e1s marca el tono y es {lean}",
+                "pt": f"hoje \u00e9 um dia neutro, ent\u00e3o a fase da vida em que voc\u00ea est\u00e1 d\u00e1 o tom e \u00e9 {lean}"}[lang]
+    return {"en": "today reads as a steady day for you", "es": "hoy se lee como un d\u00eda estable para ti",
+            "pt": "hoje se l\u00ea como um dia est\u00e1vel para voc\u00ea"}[lang]
+
+
 def _why_mantra(season: str, cause: dict, name: str, lang: str) -> str:
     """One plain sentence: the real cause of the season, then why this mantra answers it."""
     tone, does = _TONE.get(season, _TONE["steady"])[lang]
@@ -1062,6 +1076,7 @@ def build_daily_wisdom(chart_data: dict, dashas: dict, chart_id: str = "",
                 "sanskrit": verse["sanskrit"],
                 "transliteration": verse["translit"],
                 "translation": tr,
+                "themes": list(verse.get("themes") or []),
             },
             "why_now": WHY_NOW.get(season, WHY_NOW["steady"])[lang],
             "mantra": _mantra_with_why(season, _cause, lang),
