@@ -2894,15 +2894,51 @@ def get_guest_usage(chart_id: str) -> dict:
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+# [verify-token-cache 2026-10-15] Every authenticated request called supabase.auth.get_user(token): a blocking network round trip to
+# Supabase Auth, once per request. Home fires several authenticated calls at once (/me, /me/charts, entitlements, subscription, ...), so
+# they queued behind each other and behind the shared auth connection (Home took ~9 s in the browser while each endpoint alone takes
+# under 1 s). A verified token is now remembered for a short time (never longer than the token's own expiry); a failure is never
+# remembered, so a bad or expired token is still refused every time.
+_TOKEN_CACHE: dict = {}
+_TOKEN_CACHE_TTL = 45.0
+_TOKEN_CACHE_MAX = 4000
+
+
+def _token_exp(token: str):
+    """The `exp` claim of a JWT (seconds since epoch) without verifying it, or None. Only ever used to CAP how long we remember a token."""
+    try:
+        import base64 as _b64
+        seg = token.split(".")[1]
+        seg += "=" * (-len(seg) % 4)
+        return float(json.loads(_b64.urlsafe_b64decode(seg.encode())).get("exp"))
+    except Exception:
+        return None
+
+
 def verify_token(authorization: str) -> str:
     if not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Invalid authorization header")
     token = authorization[7:]
+    import hashlib as _hl
+    key = _hl.sha256(token.encode()).hexdigest()
+    now = _time.time()
+    hit = _TOKEN_CACHE.get(key)
+    if hit and hit[1] > now:
+        return hit[0]
     try:
         user = supabase.auth.get_user(token)
-        return user.user.id
+        uid = user.user.id
     except Exception:
+        _TOKEN_CACHE.pop(key, None)
         raise HTTPException(status_code=401, detail="Invalid or expired token")
+    exp = _token_exp(token)
+    ttl = _TOKEN_CACHE_TTL if exp is None else min(_TOKEN_CACHE_TTL, exp - now - 5)
+    if ttl > 0:
+        if len(_TOKEN_CACHE) >= _TOKEN_CACHE_MAX:
+            for k in [k for k, v in _TOKEN_CACHE.items() if v[1] <= now] or list(_TOKEN_CACHE)[:_TOKEN_CACHE_MAX // 2]:
+                _TOKEN_CACHE.pop(k, None)
+        _TOKEN_CACHE[key] = (uid, now + ttl)
+    return uid
 
 
 # [chart-create-422] validation exception handler
