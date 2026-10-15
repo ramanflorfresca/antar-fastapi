@@ -17,11 +17,18 @@ def _c(nak, wd, tq=None, gate=GATE, refused=None):
     return CT.color_for_day(nak, wd, tq, gate=gate, refused=refused)
 
 
-def test_a_favourable_colour_beats_the_days_own_neutral_colour():
-    # Anuradha is ruled by Saturn (dark blue / black): neutral for this chart, so a favourable colour leads
+def test_the_days_own_colour_leads_even_when_neutral_and_the_years_favourable_shade_is_the_fallback():
+    # [colour-hierarchy 2026-10-15] the year decides what is AVOIDED; the closest eligible period decides the colour.
+    # Anuradha is ruled by Saturn and Wednesday by Mercury: both neutral for this chart, so a day colour leads and the
+    # colour of the day is not the year's favourable shade every day.
     c = _c("Anuradha", 2)                       # Wednesday
-    assert c["primary"].lower() in FAV and c["gated"] and c["verdict"] == "favor"
-    assert "dark blue" not in (c["wear"] or "").lower()
+    assert c["primary"] == "Green" and c["gated"] and c["verdict"] == "neutral"
+    # when no day candidate is usable (all avoid), the favourable year shade is the fallback
+    gate = {"assess": lambda n: "avoid" if n.lower() in ("green", "emerald", "black", "dark blue", "purple") else _assess(n),
+            "favor_shades": ["White", "Pink", "Sky Blue"]}
+    c2 = CT.color_for_day("Anuradha", 2, None, gate=gate)
+    assert c2["primary"].lower() in FAV and c2["verdict"] == "favor"
+    assert "dark blue" not in (c2["wear"] or "").lower()
 
 
 def test_never_an_avoid_colour_and_it_is_named_to_skip():

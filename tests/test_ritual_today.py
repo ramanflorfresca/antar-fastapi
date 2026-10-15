@@ -160,3 +160,56 @@ def test_same_planet_weekday_and_moon_star_is_one_signal():
     # Saturday ruler == Saturn == the Moon-star ruler: the colour basis names it once, never twice
     c = RT.pick_colour_of_the_day(date(2026, 10, 17), "Saturn", [], lambda n: "favor", set(), WD)["colour"]
     assert c["basis"] == "weekday_ruler:saturn"
+
+
+# ── colour hierarchy: year decides what is allowed, month and day pick inside it ─────────────────────────────────
+def _pick(**kw):
+    wd = {"Mercury": ["Green"], "Saturn": ["Black"], "Venus": ["Pink", "White"], "Rahu": ["Smoky Grey"], "Moon": ["White"]}
+    base = dict(today=date(2026, 10, 14), nak_lord="Saturn", favor_shades=["Pink"], refused=set(), weekday_colours=wd,
+                assess=lambda nm: {"pink": "favor"}.get(nm.lower(), "neutral"))
+    base.update(kw)
+    return RT.pick_colour_of_the_day(**base)
+
+
+def test_a_neutral_day_colour_beats_the_years_favourable_shade():
+    c = _pick()["colour"]
+    assert c["name"] == "Green" and c["scope"] == "day"      # Wednesday's ruler, not the year's pink every day
+
+
+def test_year_avoid_wins_over_every_day_candidate():
+    c = _pick(year_avoid=["Green", "Black"])["colour"]
+    assert c["name"] != "Green" and c["name"] != "Black"
+
+
+def test_moon_sub_ruler_is_a_day_candidate_and_one_planet_counts_once():
+    wd = {"Mercury": [], "Saturn": [], "Rahu": ["Smoky Grey"], "Venus": ["Pink"]}
+    c = _pick(weekday_colours=wd, sub_lord="Rahu")["colour"]
+    assert c["name"] == "Smoky Grey" and c["basis"] == "moon_sub_ruler:rahu" and c["scope"] == "day"
+    assert _pick(weekday_colours=wd, sub_lord="Saturn", nak_lord="Saturn")["colour"]["scope"] != "day"
+
+
+def test_month_colour_is_used_when_no_day_colour_is_eligible_and_year_is_last():
+    wd = {"Mercury": [], "Saturn": [], "Venus": ["Pink"], "Rahu": ["Smoky Grey"]}
+    c = _pick(weekday_colours=wd, month_lord="Rahu")["colour"]
+    assert c["scope"] == "month" and c["name"] == "Smoky Grey"
+    c = _pick(weekday_colours=wd)["colour"]
+    assert c["scope"] == "year" and c["name"] == "Pink"
+
+
+def test_nothing_eligible_gives_no_colour_not_a_repeat_of_something_refused():
+    r = _pick(favor_shades=[], assess=lambda nm: "avoid")
+    assert r["colour"] is None and r["skip"]
+
+
+def test_the_colour_of_the_day_says_which_period_it_comes_from_and_never_overclaims():
+    p = _compose(date(2026, 10, 14))
+    cod = p["colour_of_the_day"]
+    assert cod["scope"] in ("day", "month", "year")
+    if cod["scope"] == "year":
+        assert "this year" in cod["reason_plain"] and "today" in cod["reason_plain"]
+
+
+def test_month_colours_pass_the_year_avoid_list():
+    wd = {"Rahu": ["Smoky Grey", "Dark Blue"]}
+    out = RT.month_colours("Rahu", wd, lambda nm: "neutral", set(), ["Dark Blue"])
+    assert [c["name"] for c in out] == ["Smoky Grey"]
