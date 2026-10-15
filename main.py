@@ -4679,6 +4679,44 @@ async def get_chart_focus(chart_id: str, http_request: Request, language: str = 
     return out
 
 
+@app.get("/api/v1/chart/{chart_id}/period")
+async def get_chart_period(chart_id: str, http_request: Request, scope: str = "month", offset: int = 0, language: str = "en"):
+    """A calendar month or year: last (offset -1), this (0) or next (1). Composed deterministically from the dated library signals
+    built for that window, the sub-period chapters inside it and the wellness themes. Past windows read in the past tense and carry no
+    instructions. One voice: no method, book or rule names."""
+    if scope not in ("month", "year") or offset not in (-1, 0, 1):
+        raise HTTPException(400, "scope must be month|year and offset -1, 0 or 1")
+
+    def _run():
+        row = _chart_row_for_forecast(chart_id)
+        if not row.data:
+            return None
+        cd = row.data.get("chart_data") or {}
+        if isinstance(cd, str):
+            cd = json.loads(cd)
+        from antar_engine import rule_registry as rr, reading_library, period_view, life_context
+        vim = (get_dashas_for_chart(chart_id) or {}).get("vimsottari") or []
+        ctx = rr.Ctx(cd, row.data.get("birth_date") or cd.get("birth_date"), vim,
+                     birth_time_accuracy=row.data.get("birth_time_accuracy"), gender=row.data.get("gender"))
+        start, end = period_view.window(scope, offset, ctx.today)
+        lib = reading_library.build(ctx, ((end - start).days + 1.5) / 30.4, language, start=start)
+        life = None
+        try:
+            life = life_context.resolve_life_facts(life_context._fetch_chart_row(chart_id, supabase))
+        except Exception as _e:
+            print(f"[period] life facts non-fatal: {_e}")
+        return period_view.build(ctx, lib, life, scope, offset, language)
+
+    try:
+        out = await asyncio.to_thread(lambda: _pv_cached(("period", chart_id, language, scope, offset, date.today().isoformat()), 600, _run))
+    except Exception as e:
+        print(f"[period] failed: {e}")
+        raise HTTPException(500, "period unavailable")
+    if out is None:
+        raise HTTPException(404, "Chart not found")
+    return out
+
+
 @app.get("/api/v1/chart/{chart_id}/week")
 async def get_chart_week(chart_id: str, http_request: Request, language: str = "en", days: int = 7, exclude: str = ""):
     """Week ahead as separate labelled lines: Vimshottari (+ Moon-based Gochara), Jaimini/book timed rules, Lal Kitab
