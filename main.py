@@ -14793,7 +14793,7 @@ async def vastu_directions(chart_id: str, language: str = "en"):
 @translate_response(
     fields_to_translate=["headline", "subline", "title", "why_plain", "cadence_label", "purpose_plain",
                          "best_time_plain", "meaning_plain", "label", "colour_note_plain", "reason_plain", "name",
-                         "note_plain", "caution_plain", "eat", "avoid", "finger", "remedy_label"],
+                         "note_plain", "caution_plain", "eat", "avoid", "finger", "remedy_label", "about_plain", "lines", "note"],
     endpoint_name="ritual-today",
 )
 async def ritual_today(chart_id: str, language: str = "en", tz: float = None):
@@ -14836,12 +14836,21 @@ async def ritual_today(chart_id: str, language: str = "en", tz: float = None):
             print(f"[ritual-today] {label} skipped (non-fatal): {_e}")
             return {}
 
-    _sched, _wis, _daily, _vas = await asyncio.gather(
+    async def _practice_today():
+        try:
+            return await daily_practice(DailyPracticeRequest(chart_id=chart_id, language="en", tz_offset=int(tz) if tz is not None else None), None)
+        except Exception as _pe:
+            print(f"[ritual-today] practice skipped (non-fatal): {_pe}")
+            return {}
+
+    _sched, _wis, _daily, _vas, _prac = await asyncio.gather(
         _safe(get_practice_schedule_endpoint(chart_id, language="en"), "schedule"),
         _safe(asyncio.to_thread(get_daily_wisdom, chart_id, "en"), "wisdom"),
         _safe(get_daily_signal_endpoint(chart_id=chart_id, request={}, language="en"), "daily"),
         _safe(vastu_directions(chart_id, "en"), "vastu"),
+        _safe(_practice_today(), "practice"),
     )
+    _prac = _prac if isinstance(_prac, dict) else {}
     _sched = ((_sched or {}).get("schedule") if isinstance(_sched, dict) else None) or {}
     _daily = _daily if isinstance(_daily, dict) else {}
     _vas = _vas if isinstance(_vas, dict) else {}
@@ -14896,7 +14905,8 @@ async def ritual_today(chart_id: str, language: str = "en", tz: float = None):
         today=_today, language=_lang, chart=_row, lk=_lk, schedule=_sched, wisdom=_wis, daily=_daily, vastu=_vas,
         natal_mat=_natal if isinstance(_natal, dict) else {}, year_mat=_yr_shaped, nak_lord=_nak_lord,
         completed_ids=_done, streak=_streak, longest=_streak, assess=_assess, weekday_colours=_wd_cols,
-        caution="A gemstone is potent. Check the stone, weight and metal with a qualified jeweller-astrologer before wearing one.")
+        caution="A gemstone is potent. Check the stone, weight and metal with a qualified jeweller-astrologer before wearing one.",
+        practice=_prac)
     return _rt.strip_internal(out)
 
 
