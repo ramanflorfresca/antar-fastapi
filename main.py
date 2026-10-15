@@ -44219,7 +44219,7 @@ async def get_monthly_deepdive(chart_id: str, refresh: bool = False, language: s
     wait    = bool(wait)
     refresh = bool(refresh or force_refresh or wait)
     try:
-        chart_res = supabase.table("charts").select("*").eq("id", chart_id).execute()
+        chart_res = await run_in_threadpool(lambda: supabase.table("charts").select("*").eq("id", chart_id).execute())
         if not chart_res.data:
             raise HTTPException(status_code=404, detail="Chart not found")
         chart_record = chart_res.data[0]
@@ -44245,14 +44245,14 @@ async def get_monthly_deepdive(chart_id: str, refresh: bool = False, language: s
         _current_dasha = ""
         try:
             from datetime import date as _date
-            _dr = supabase.table("dasha_periods") \
+            _dr = await run_in_threadpool(lambda: supabase.table("dasha_periods") \
                 .select("planet_or_sign") \
                 .eq("chart_id", chart_id) \
                 .eq("system", "vimsottari") \
                 .eq("level", 1) \
                 .lte("start_date", str(_date.today())) \
                 .gte("end_date", str(_date.today())) \
-                .limit(1).execute()
+                .limit(1).execute())
             if _dr.data:
                 _current_dasha = _dr.data[0].get("planet_or_sign", "")
         except Exception:
@@ -44265,13 +44265,14 @@ async def get_monthly_deepdive(chart_id: str, refresh: bool = False, language: s
         # the synchronous generation cost.
         from antar_engine.monthly_deepdive import _read_cache as _md_read_cache
         from datetime import datetime as _md_dt, timezone as _md_tz
+        _md_dashas = await run_in_threadpool(lambda: get_dashas_for_chart(chart_id) or {})
         _md_kwargs = dict(
             chart_id=chart_id,
             chart_data=chart_data,
             # [convergence-sweep 2026-09-07 #1] was {} — monthly never had daśā
             # data. The house-activation ranker needs the full Vimśottarī +
             # Jaimini periods to score daśā activation + convergence.
-            dashas=(get_dashas_for_chart(chart_id) or {}),
+            dashas=_md_dashas,
             first_name=chart_record.get("first_name", ""),
             lagna=chart_record.get("lagna_sign", "") or chart_data.get("lagna", {}).get("sign", ""),
             moon_sign=chart_record.get("moon_sign", "") or chart_data.get("planets", {}).get("Moon", {}).get("sign", ""),
@@ -44330,7 +44331,7 @@ async def get_monthly_deepdive(chart_id: str, refresh: bool = False, language: s
             from datetime import datetime as _hlm_dt
             _hlm_md = _hlm_ad = ""
             try:
-                _hlm_ds = get_dashas_for_chart(chart_id)
+                _hlm_ds = await run_in_threadpool(get_dashas_for_chart, chart_id)
                 _hlm_vim = _hlm_ds.get("vimsottari", []) if isinstance(_hlm_ds, dict) else (_hlm_ds or [])
                 _hlm_now = _hlm_dt.utcnow()
                 for _hlm_r in _hlm_vim:
@@ -44682,7 +44683,7 @@ async def get_annual_plan(chart_id: str, refresh: bool = False, language: str = 
 
     refresh = bool(refresh or force_refresh)
     try:
-        chart_res = supabase.table("charts").select("*").eq("id", chart_id).execute()
+        chart_res = await run_in_threadpool(lambda: supabase.table("charts").select("*").eq("id", chart_id).execute())
         if not chart_res.data:
             raise HTTPException(status_code=404, detail="Chart not found")
         chart_record = chart_res.data[0]
@@ -44715,14 +44716,14 @@ async def get_annual_plan(chart_id: str, refresh: bool = False, language: str = 
         _current_dasha = ""
         try:
             from datetime import date as _date
-            _dr = supabase.table("dasha_periods") \
+            _dr = await run_in_threadpool(lambda: supabase.table("dasha_periods") \
                 .select("planet_or_sign") \
                 .eq("chart_id", chart_id) \
                 .eq("system", "vimsottari") \
                 .eq("level", 1) \
                 .lte("start_date", str(_date.today())) \
                 .gte("end_date", str(_date.today())) \
-                .limit(1).execute()
+                .limit(1).execute())
             if _dr.data:
                 _current_dasha = _dr.data[0].get("planet_or_sign", "")
         except Exception:
@@ -44733,7 +44734,7 @@ async def get_annual_plan(chart_id: str, refresh: bool = False, language: str = 
         # every annual plan ever generated. The year is defined by which period
         # you are in and when it turns; the reading could not see either.
         try:
-            _yr_dashas = get_dashas_for_chart(chart_id) or {}
+            _yr_dashas = await run_in_threadpool(lambda: get_dashas_for_chart(chart_id) or {})
         except Exception as _yd:
             print(f"[yearly] dasha fetch failed: {_yd}")
             _yr_dashas = {}
@@ -44748,11 +44749,11 @@ async def get_annual_plan(chart_id: str, refresh: bool = False, language: str = 
             _today = str(_d2.today())
             for _sys, _lvls in (("vimsottari", (1, 2, 3)), ("jaimini", (1, 2))):
                 for _lvl in _lvls:
-                    _q = supabase.table("dasha_periods") \
+                    _q = await run_in_threadpool(lambda: supabase.table("dasha_periods") \
                         .select("planet_or_sign,start_date,end_date") \
                         .eq("chart_id", chart_id).eq("system", _sys).eq("level", _lvl) \
                         .lte("start_date", _today).gte("end_date", _today) \
-                        .limit(1).execute()
+                        .limit(1).execute())
                     if _q.data:
                         _yr_levels[f"{_sys}_{_lvl}"] = _q.data[0]
         except Exception as _le:
