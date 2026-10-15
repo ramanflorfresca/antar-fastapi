@@ -30647,6 +30647,83 @@ async def _ask_chip_fast(request: "AskRequest", scope: str):
     return out
 
 
+async def _ask_day_results(cid: str, lang: str, dates: list, today) -> dict:
+    """{date: daily payload} for the dates, from the daily engine (cached per date), four at a time; a date that fails is left out."""
+    sem = asyncio.Semaphore(4)
+
+    async def _one(d):
+        async with sem:
+            try:
+                r = await asyncio.wait_for(get_daily_signal_endpoint(
+                    chart_id=cid, request={}, language=lang, date=(None if d == today else d.isoformat()), full_compute=False), timeout=45)
+                return d, (r if isinstance(r, dict) else None)
+            except Exception as _e:
+                print(f"[ask-time] day {d} skipped (non-fatal): {_e}")
+                return d, None
+    return {d: r for d, r in await asyncio.gather(*[_one(d) for d in dates]) if r}
+
+
+async def _ask_time_route(request: "AskRequest"):
+    """[ask-time 2026-10-15] Time-aware answers for any topic ("how is money tomorrow", "next 4 days for my work", "best day this month
+    for a pitch"). The message is read by the shared understanding layer; the daily engine for each date is the authority, so the answer
+    cannot disagree with the Today view of that date. Fail-open: None sends the question to the full Ask. ASK_TIME_ROUTER=off disables."""
+    from antar_engine import ask_time_router as _atr
+    if _nlu_mode() == "off":
+        return None
+    cid = (request.chart_id or "").strip()
+    lang = (request.language or "en").split("-")[0].lower()
+    sd = _get_local_start_date(tz_offset=request.tz_offset)
+    today = sd.date() if hasattr(sd, "date") else sd
+    u = await _nlu_read(request.question, cid, lang)
+    pl = _atr.plan(u, request.question, today)
+    if not pl:
+        return None
+    dates = pl["dates"]
+    if pl["mode"] == "best" and len(dates) > 8:
+        # shortlist by the day score (same score as the day strip), then read the area on the best and the most careful days only
+        try:
+            row = await asyncio.to_thread(lambda: (supabase.table("charts").select("chart_data").eq("id", cid).single().execute().data) or {})
+            cd = row.get("chart_data")
+            cd = _safe_jsonb(cd) if isinstance(cd, str) else (cd or {})
+            mn = ((cd.get("planets") or {}).get("Moon") or {})
+            moon = mn.get("sign") or mn.get("rashi")
+            from antar_engine.daily_prediction_engine import generate_weekly_signals as _gws_t
+            chunks = [dates[i:i + 7] for i in range(0, len(dates), 7)]
+            parts = await asyncio.gather(*[asyncio.wait_for(_gws_t(
+                moon, start_date=datetime.combine(c[0], datetime.min.time()), chart_id=cid, supabase_client=supabase, language="en",
+                tz_offset=request.tz_offset or 0, fast_mode=True, days_to_generate=len(c), persist=False), timeout=40) for c in chunks],
+                return_exceptions=True)
+            scored = {}
+            for part in parts:
+                for dd in (part if isinstance(part, list) else []):
+                    try:
+                        scored[date.fromisoformat(str(dd.get("date"))[:10])] = float(dd.get("score"))
+                    except Exception:
+                        pass
+            if scored:
+                order = sorted(scored, key=lambda x: (-scored[x], x))
+                keep = set(order[:5] + order[-2:])
+                dates = [d for d in dates if d in keep]
+        except Exception as _se:
+            print(f"[ask-time] shortlist skipped (non-fatal): {_se}")
+            dates = dates[:8]
+        pl = {**pl, "dates": dates}
+    per_day = await _ask_day_results(cid, lang, dates, today)
+    out = _atr.compose(pl, per_day, today, lang)
+    if not out:
+        return None
+    try:
+        await _ask_persist(supabase, cid, request.question, out, lang, "explore")
+    except Exception as _pe:
+        print(f"[ask-time] persist skipped (non-blocking): {_pe}")
+    try:
+        from antar_engine import daily_loop as _dl
+        await run_in_threadpool(_dl.record_step, supabase, cid, "ask", request.tz_offset or 0)
+    except Exception as _le:
+        print(f"[ask-time] loop step skipped (non-blocking): {_le!r}")
+    return out
+
+
 @app.post("/api/v1/ask")
 async def ask_endpoint(request: AskRequest):
     """Unified ASK endpoint — see _ask_endpoint_impl. Wraps it with the Hindi language guard."""
@@ -30660,6 +30737,15 @@ async def ask_endpoint(request: AskRequest):
                 return _fast
     except Exception as _ce:
         print(f"[ask-chip] fast path skipped (non-fatal): {_ce}")
+    try:
+        from antar_engine import ask_time_router as _atr0
+        if ((request.chart_id or "").strip() and (request.mode or "explore") == "explore" and _atr0.TIME_HINT.search(request.question or "")
+                and os.getenv("ASK_TIME_ROUTER", "on").strip().lower() not in ("off", "0", "false")):
+            _timed = await _ask_time_route(request)
+            if _timed:
+                return _timed
+    except Exception as _te:
+        print(f"[ask-time] router skipped (non-fatal): {_te}")
     _ASK_REFRAMED.set(None)
     _res = await _ask_hindi_finalize(await _ask_endpoint_impl(request), request)
     _rf = _ASK_REFRAMED.get()
