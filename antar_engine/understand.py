@@ -210,6 +210,8 @@ SYSTEM = (
     "an illness getting worse),\n"
     ' "horizon_days": integer days the question looks ahead, or null if unstated '
     '("next 60 days" → 60, "this month" → 31, "today" → 1),\n'
+    ' "start_offset_days": integer days from TODAY when the question starts, or null if unstated '
+    '("today" → 0, "tomorrow" → 1, "day after tomorrow" → 2, "next Friday" → days until it, "this week" → 0),\n'
     ' "yes_no_fit": true only if a straight yes-or-no answer makes sense for this '
     "exact question,\n"
     ' "crisis": true if the message shows distress, hopelessness, self-harm or '
@@ -304,6 +306,12 @@ def parse(raw: str, original: str = "") -> Optional[dict]:
         hz = hz if hz is None or 1 <= hz <= 3650 else None
     except (TypeError, ValueError):
         hz = None
+    so = obj.get("start_offset_days")
+    try:
+        so = int(so) if so is not None and str(so).strip().lower() not in ("", "null") else None
+        so = so if so is None or 0 <= so <= 3650 else None
+    except (TypeError, ValueError):
+        so = None
     standalone = str(obj.get("standalone") or "").strip() or original
     if len(standalone) > 600:
         standalone = original
@@ -385,6 +393,7 @@ def parse(raw: str, original: str = "") -> Optional[dict]:
         "subject": _clean_enum(obj.get("subject"), SUBJECTS, "self"),
         "polarity": polarity,
         "horizon_days": hz,
+        "start_offset_days": so,
         "yes_no_fit": bool(obj.get("yes_no_fit")),
         "crisis": bool(obj.get("crisis")),
         "gambling": bool(obj.get("gambling")),
