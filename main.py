@@ -14751,6 +14751,117 @@ async def vastu_directions(chart_id: str, language: str = "en"):
         return {"available": False, "error": str(e)[:160]}
 
 
+@app.get("/api/v1/ritual/{chart_id}/today")
+@translate_response(
+    fields_to_translate=["headline", "subline", "title", "why_plain", "cadence_label", "purpose_plain",
+                         "best_time_plain", "meaning_plain", "label", "colour_note_plain", "reason_plain", "name",
+                         "note_plain", "caution_plain", "eat", "avoid", "finger", "remedy_label"],
+    endpoint_name="ritual-today",
+)
+async def ritual_today(chart_id: str, language: str = "en", tz: float = None):
+    """[ritual-today 2026-10-14] ONE plain-language plan for today for the Ritual screen: wear (colour of the day,
+    stone, metal), remedy, mantra, verse, space (vastu) and food. Aggregates the existing engines only
+    (antar_engine/ritual_today.py); the front end renders it and decides nothing. A card with no real chart source
+    comes back `hidden`. The colour of the day is gated by assess_color and the Lal Kitab refusals: it is never a
+    colour that reads `avoid` for this chart. `why_chart` never leaves the server."""
+    from uuid import UUID as _UUID_RT
+    try:
+        _UUID_RT(str(chart_id))
+    except (ValueError, AttributeError, TypeError):
+        raise HTTPException(404, "Chart not found")
+    _ent_deny = _ent_feature_gate(chart_id, "practice")
+    if _ent_deny is not None:
+        return _ent_deny
+    from antar_engine import ritual_today as _rt
+    from antar_engine import material_advice as _ma
+    _lang = (language or "en").split("-")[0].lower()
+    try:
+        _row = await asyncio.to_thread(lambda: (supabase.table("charts")
+                                       .select("id,chart_data,lal_kitab_data").eq("id", chart_id).single().execute().data) or {})
+    except Exception:
+        _row = {}
+    if not _row:
+        raise HTTPException(404, "Chart not found")
+    _cd = _row.get("chart_data")
+    if isinstance(_cd, str):
+        _cd = _safe_jsonb(_cd)
+    _lk = _row.get("lal_kitab_data")
+    if isinstance(_lk, str):
+        _lk = _safe_jsonb(_lk)
+    _sd = _get_local_start_date(tz_offset=tz)
+    _today = _sd.date() if hasattr(_sd, "date") else _sd
+
+    async def _safe(coro, label, secs=40):
+        try:
+            return await asyncio.wait_for(coro, timeout=secs)
+        except Exception as _e:
+            print(f"[ritual-today] {label} skipped (non-fatal): {_e}")
+            return {}
+
+    _sched, _wis, _daily, _vas = await asyncio.gather(
+        _safe(get_practice_schedule_endpoint(chart_id, language="en"), "schedule"),
+        _safe(asyncio.to_thread(get_daily_wisdom, chart_id, "en"), "wisdom"),
+        _safe(get_daily_signal_endpoint(chart_id=chart_id, request={}, language="en"), "daily"),
+        _safe(vastu_directions(chart_id, "en"), "vastu"),
+    )
+    _sched = ((_sched or {}).get("schedule") if isinstance(_sched, dict) else None) or {}
+    _daily = _daily if isinstance(_daily, dict) else {}
+    _vas = _vas if isinstance(_vas, dict) else {}
+    _wis = _wis if isinstance(_wis, dict) else {}
+
+    try:
+        _natal = _ma.material_guidance(_cd, _lk) if _cd else {}
+        _bd = None
+        try:
+            _bd = (await asyncio.to_thread(lambda: supabase.table("charts").select("birth_date").eq("id", chart_id).single().execute().data) or {}).get("birth_date")
+        except Exception:
+            pass
+        _yr = _ma.varshphal_material_overlay(_cd, _bd, _lk) if (_cd and _bd) else {}
+    except Exception as _me:
+        print(f"[ritual-today] material skipped (non-fatal): {_me}")
+        _natal, _yr = {}, {}
+    _yr_shaped = {"favor": (_yr.get("favor") if _yr.get("available") else []) or [],
+                  "avoid": (_yr.get("avoid") if _yr.get("available") else []) or []}
+
+    def _assess(nm):
+        try:
+            r = _ma.assess_color(nm, _cd, _lk)
+            return r.get("verdict") if r.get("available") else None
+        except Exception:
+            return None
+
+    _wd_cols = {}
+    for _p in ("Sun", "Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn", "Rahu", "Ketu"):
+        try:
+            _wd_cols[_p] = [s["name"] for s in _rt.split_shades(_ma._material(_p).get("color") or "")]
+        except Exception:
+            _wd_cols[_p] = []
+    _nak_lord = None
+    try:
+        from antar_engine.antar_ephemeris import NAKSHATRAS as _NK, NAKSHATRA_LORDS as _NKL
+        _nn = str(_daily.get("moon_nakshatra") or "").split("·")[0].strip().lower()
+        _ix = next((i for i, n in enumerate(_NK) if str(n).lower() == _nn), None)
+        _nak_lord = _NKL[_ix] if _ix is not None else None
+    except Exception:
+        pass
+
+    _done, _streak = set(), 0
+    try:
+        _lg = await asyncio.to_thread(lambda: supabase.table("practice_log").select("practice_id,completed_at")
+                                      .eq("chart_id", chart_id).gte("completed_at", _today.isoformat()).execute().data or [])
+        _done = {r["practice_id"] for r in _lg if str(r.get("completed_at") or "")[:10] == _today.isoformat()}
+        _streak = await _practice_calc_streak(chart_id, _today)
+    except Exception as _le:
+        print(f"[ritual-today] log skipped (non-fatal): {_le}")
+
+    out = _rt.compose(
+        today=_today, language=_lang, chart=_row, lk=_lk, schedule=_sched, wisdom=_wis, daily=_daily, vastu=_vas,
+        natal_mat=_natal if isinstance(_natal, dict) else {}, year_mat=_yr_shaped, nak_lord=_nak_lord,
+        completed_ids=_done, streak=_streak, longest=_streak, assess=_assess, weekday_colours=_wd_cols,
+        caution="A gemstone is potent. Check the stone, weight and metal with a qualified jeweller-astrologer before wearing one.")
+    return _rt.strip_internal(out)
+
+
 # [life-events standardization 2026-09-28] Normalize the free-form capture so the
 # forward-validation loop (validate_from_life_events.py) and personalization can
 # consume it: canonical metadata.{direction, domain, magnitude} + a stamped
