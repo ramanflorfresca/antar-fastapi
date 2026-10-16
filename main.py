@@ -30923,6 +30923,36 @@ async def _ask_composer_answer(request: "AskRequest") -> Optional[dict]:
             a, t = await asyncio.gather(asyncio.to_thread(_lg.analyze_legal, cd),
                                         asyncio.to_thread(_lg.legal_timing, cd, dashas, bd, today.isoformat()))
             facts = _ac.legal_facts(a, t, scope, today, lang)
+    elif topic == "speculation":
+        from antar_engine import speculation_policy as _spp
+        row = await asyncio.to_thread(lambda: (supabase.table("charts").select("*").eq("id", cid).single().execute().data) or {})
+        cd = row.get("chart_data")
+        cd = _safe_jsonb(cd) if isinstance(cd, str) else (cd or {})
+        bd = row.get("birth_date") or (cd or {}).get("birth_date")
+        dashas = await asyncio.to_thread(get_dashas_for_chart, cid)
+        natal = await asyncio.to_thread(_spp.natal_read, cd, dashas, bd or "")
+        client, win, hz, verdict = "", "", None, ""
+        try:
+            from antar_engine.event_narrator import run_event_engine as _ree
+            ee = await asyncio.to_thread(_ree, cd, None, dashas, bd or "", "speculation")
+            if ee:
+                client, win = ee.get("client_verdict") or "", ee.get("timing_label") or ""
+                hz, verdict = ee.get("horizon_months"), str((ee.get("verdict") or {}).get("verdict") or "")
+        except Exception as _ee:
+            print(f"[ask-composer] event engine skipped (non-fatal): {_ee!r}")
+        if not win and not client:
+            client, win = _spp.natal_window(natal)
+        st = _spp.state(natal, client, verdict, hz)
+        kp = await asyncio.to_thread(_spp.kp_natal, row)
+        st = _spp.combine(st, kp, client, hz)
+        day_para = None
+        if scope == "day":
+            from antar_engine import day_paragraph as _dp
+            daily = await get_daily_signal_endpoint(chart_id=cid, request={}, language=lang)
+            rows_ = _dp.paragraphs(daily.get("day_map") or [], None, ((daily.get("decision") or {}).get("window") or {}), lang)
+            hit = next((r for r in rows_ if r.get("key") == "speculation"), None)
+            day_para = hit["paragraph"] if hit else None
+        facts = _ac.speculation_facts(st, win, scope, day_para, request.question, lang)
     elif topic in ("money", "career", "love", "mind"):
         if scope == "day":
             from antar_engine import day_paragraph as _dp
