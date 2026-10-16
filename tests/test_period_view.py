@@ -194,3 +194,21 @@ def test_current_month_best_week_is_never_one_that_is_already_over():
     bw = o.get("best_week")
     assert bw is None or bw["end"] >= "2026-10-15"
     assert all(d >= "2026-10-15" for d in o.get("best_days", []))
+
+
+def test_a_mixed_area_is_under_do_only_with_its_care_step_folded_in():
+    lib = {"vimshottari": {"lean_in": [{"rule_id": "R.a", "text": "This period is prosperous for you.", "start": "2026-09-01", "end": "2026-12-31",
+                                       "label": "x", "subject": "money", "tendency": False}],
+                           "watch": [{"rule_id": "R.b", "text": "Money can slip away around travel.", "start": "2026-09-01", "end": "2026-12-31",
+                                      "label": "x", "subject": "money", "tendency": False, "do": "Hold off on big spending away from home."}]},
+           "jaimini": {"lean_in": [], "watch": []}, "agree": [], "wellness": None}
+    o = pv.build(_Ctx(), lib, {"employed": True}, "month", 0, "en", today=date(2026, 10, 14))
+    areas = [a["area"] for a in o.get("do", [])]
+    avoid_areas = [a["area"] for a in o.get("avoid", [])]
+    assert areas and not (set(areas) & set(avoid_areas))                      # never in both lists
+    assert any("Be careful, though: hold off on big spending away from home." in d["text"] for d in o["do"])   # the care step is part of the Do line
+
+
+def test_care_only_area_stays_under_avoid_with_its_instead():
+    o = pv.build(_Ctx(), _lib(), {"employed": True}, "month", 0, "en", today=date(2026, 10, 14))
+    assert any(a["text"] == "Spending runs ahead of income." and a["instead"] == "Hold off on big spending." for a in o["avoid"])
