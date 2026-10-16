@@ -311,17 +311,24 @@ def _week_blocks(start: date, end: date) -> List[tuple]:
     return blocks
 
 
-def _best_avoid_week(ctx, start: date, end: date, turns: List[dict], lang: str, past: bool) -> dict:
-    """One best and one quieter week of the month, from the Moon-based easy / slow days and the dated turns inside each week."""
+def _best_avoid_week(ctx, start: date, end: date, turns: List[dict], lang: str, past: bool,
+                     day_scores: Optional[dict] = None) -> dict:
+    """One best and one quieter week of the month and its easy / slow days, plus the dated turns inside each week. When the day scores
+    are given (the same score the day strip and the Today card use: good >= 7, tough < 4) the days come from them, so the month can
+    never call a day best that the strip marks tough; otherwise from the Moon-based easy / slow days."""
     moon = ctx.planets.get("Moon")
-    if moon is None:
+    if moon is None and not day_scores:
         return {}
     tx = TX[lang]
     scored = []
     for (a, b) in _week_blocks(start, end):
         sc, d, good_days, slow_days = 0, a, [], []
         while d <= b:
-            st = gochara.state_on(moon.sign, d)["Moon"]["state"]
+            if day_scores and day_scores.get(d.isoformat()) is not None:
+                v = day_scores[d.isoformat()]
+                st = "good" if v >= 7 else ("bad" if v < 4 else "mid")
+            else:
+                st = gochara.state_on(moon.sign, d)["Moon"]["state"] if moon is not None else "mid"
             if st == "good":
                 sc += 1
                 good_days.append(d.isoformat())
@@ -527,7 +534,7 @@ def build(ctx, lib: dict, life: Optional[dict], scope: str, offset: int, languag
         out.update(_week_days(ctx, start, end, out["turns"], lang, past, day_scores))
         out["labels"]["running"] = tx["running"]
     if scope == "month":
-        out.update(_best_avoid_week(ctx, start, end, out["turns"], lang, past))
+        out.update(_best_avoid_week(ctx, start, end, out["turns"], lang, past, day_scores))
     if scope == "year":
         out["months"] = _month_cells(
             [{"start": i["start"], "end": i["end"], "tone": i["tone"]} for i in flat], start.year, lang)

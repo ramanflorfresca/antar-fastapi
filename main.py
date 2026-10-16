@@ -4745,17 +4745,24 @@ async def get_chart_period(chart_id: str, http_request: Request, scope: str = "m
         except Exception as _e:
             print(f"[period] life facts non-fatal: {_e}")
         scores = None
-        if scope == "week":
-            try:   # the same day score the day strip and the Today card use
+        if scope in ("week", "month"):
+            try:   # the same day score the day strip and the Today card use (a month = up to five 7-day reads, run together)
                 from antar_engine.daily_prediction_engine import generate_weekly_signals as _gws_p
                 _mn = ((cd.get("planets") or {}).get("Moon") or {})
                 _moon = _mn.get("sign") or _mn.get("rashi")
-                _sig = asyncio.run(asyncio.wait_for(_gws_p(
-                    _moon, start_date=datetime.combine(start, datetime.min.time()), chart_id=chart_id, supabase_client=supabase,
-                    language="en", tz_offset=tz or 0, fast_mode=True, days_to_generate=7, persist=False), timeout=40)) if _moon else []
+
+                async def _score_reads():
+                    n_days = (end - start).days + 1
+                    chunks = [(start + timedelta(days=i), min(7, n_days - i)) for i in range(0, n_days, 7)]
+                    parts = await asyncio.gather(*[asyncio.wait_for(_gws_p(
+                        _moon, start_date=datetime.combine(a, datetime.min.time()), chart_id=chart_id, supabase_client=supabase,
+                        language="en", tz_offset=tz or 0, fast_mode=True, days_to_generate=n, persist=False), timeout=40)
+                        for a, n in chunks], return_exceptions=True)
+                    return [d for p_ in parts if isinstance(p_, list) for d in p_]
+                _sig = asyncio.run(_score_reads()) if _moon else []
                 scores = {str(d.get("date"))[:10]: d.get("score") for d in (_sig or []) if d.get("score") is not None} or None
             except Exception as _se:
-                print(f"[period] week scores non-fatal: {_se}")
+                print(f"[period] day scores non-fatal: {_se}")
         return period_view.build(ctx, lib, life, scope, offset, language, day_scores=scores)
 
     try:
@@ -30929,6 +30936,24 @@ async def ask_endpoint(request: AskRequest):
                     _tr.apply_to_answer(_res, _tr_rc, _res["timing"])
     except Exception as _tre:
         print(f"[ask] timing reconcile skipped (non-fatal): {_tre}")
+    # [ask-windows 2026-10-15] An answer with no window of its own ("the timing supports a move") must still agree with the
+    # Windows feed Home and the Year sheet show: say where the person stands today for that topic, with the feed's own dates.
+    try:
+        if (isinstance(_res, dict) and _res.get("mode") == "explore" and not _res.get("locked")
+                and not (isinstance(_res.get("timing"), str) and _res["timing"].strip()) and not _res.get("timing_note")
+                and (request.chart_id or "").strip()
+                and os.getenv("ASK_STANDING_NOTE", "on").strip().lower() not in ("off", "0", "false")):
+            from antar_engine import timing_reconcile as _tr2
+            _tr2_topic = _tr2.topic_for_concern(_detect_concern(request.question))
+            if _tr2_topic:
+                _tr2_feed = await run_in_threadpool(_windows_compute, request.chart_id.strip(), request.language,
+                                                    request.tz_offset or 0, 24)
+                _tr2_note = _tr2.standing_note(_tr2.windows_for_topic(_tr2_feed, _tr2_topic), _tr2_topic, request.language,
+                                               _prac_local_date(request.tz_offset or 0))
+                if _tr2_note:
+                    _tr2.apply_standing(_res, _tr2_note)
+    except Exception as _tre2:
+        print(f"[ask] standing note skipped (non-fatal): {_tre2}")
     # [ask-decision-view 2026-10-13] structured decision (prediction / holds / breaks / move / why) split from the text the
     # engine already wrote, so the answer sheet can render it. Additive, only for decision-shaped explore answers.
     try:

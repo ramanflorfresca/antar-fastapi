@@ -150,3 +150,51 @@ def apply_to_answer(res: Dict[str, Any], rc: Dict[str, Any], original_label: str
         res["timing"] = new
     res["timing_note"] = {"status": rc["status"], "text": note}
     return res
+
+
+_OWN = {"en": {"money": "your money", "career": "your job and career", "business": "your business", "love": "your love life",
+               "health": "your health"},
+        "es": {"money": "tu dinero", "career": "tu trabajo y carrera", "business": "tu negocio", "love": "tu vida amorosa",
+               "health": "tu salud"}}
+
+
+def standing_note(windows: List[Dict[str, Any]], topic: str, language: str = "en", today: Optional[date] = None) -> Optional[Dict[str, str]]:
+    """[ask-windows 2026-10-15] An answer that names no window of its own ("the timing supports a move") still has to agree with the
+    Windows feed the Home and Year screens show. This reads the SAME feed for the topic and says where the person stands today:
+    in a care stretch (until when, and when the next open one starts), in an open window (until when), or when the next open one
+    starts. {status, text}, or None when the feed knows nothing for the topic. It invents no dates."""
+    lg = "es" if str(language or "en").lower().startswith("es") else "en"
+    today = today or date.today()
+    ws = [w for w in windows or [] if w.get("end") and w["end"] >= today]
+    if not ws:
+        return None
+    name = _OWN[lg].get(topic, topic)
+    care_on = next((w for w in ws if w["kind"] == "care" and w["start"] <= today <= w["end"]), None)
+    open_on = next((w for w in ws if w["kind"] == "open" and w["start"] <= today <= w["end"]), None)
+    nxt = min((w for w in ws if w["kind"] == "open" and w["start"] > today), key=lambda w: w["start"], default=None)
+    md = lambda d: _md(d, lg)
+    if care_on:
+        base = (f"Right now {name} is in a care stretch until {md(care_on['end'])}, so keep big commitments light until then."
+                if lg == "en" else f"Ahora mismo {name} está en un tramo de cuidado hasta el {md(care_on['end'])}; mantén los compromisos grandes ligeros hasta entonces.")
+        tail = ((f" The next open window starts {md(nxt['start'])}." if lg == "en" else f" La próxima ventana abierta empieza el {md(nxt['start'])}.")
+                if nxt else "")
+        return {"status": "care_now", "text": base + tail}
+    if open_on:
+        return {"status": "open_now", "text": (f"A window for {name} is open now, until {md(open_on['end'])}." if lg == "en"
+                                               else f"Hay una ventana abierta para {name} hasta el {md(open_on['end'])}.")}
+    if nxt:
+        return {"status": "open_next", "text": (f"The next open window for {name} starts {md(nxt['start'])}." if lg == "en"
+                                                else f"La próxima ventana abierta para {name} empieza el {md(nxt['start'])}.")}
+    return None
+
+
+def apply_standing(res: Dict[str, Any], note: Dict[str, str]) -> Dict[str, Any]:
+    """Add the standing note to the read (once) and record it as timing_note."""
+    if not note or not isinstance(res, dict) or res.get("timing_note"):
+        return res
+    read = res.get("read")
+    if isinstance(read, str) and read and note["text"] not in read:
+        m = re.search(r"(?<![A-Za-z])(It holds if|Se sostiene si|Se sustenta se)\b", read)
+        res["read"] = (read[:m.start()].rstrip() + " " + note["text"] + " " + read[m.start():]) if m else (read.rstrip() + " " + note["text"])
+    res["timing_note"] = {"status": note["status"], "text": note["text"]}
+    return res
