@@ -88,3 +88,24 @@ def test_speculation_day_question_puts_todays_read_first_and_unknown_state_is_no
     f = ac.speculation_facts("losses", "", "day", "Risk runs against you today — a bet is prone to unravel.", "how is speculation today", "en")
     assert ac.compose(f, TODAY)["read"].startswith("Risk runs against you today")
     assert ac.speculation_facts("weird", "", "day", None, "", "en") is None
+
+
+def _ses(*nets, valid=True):
+    return [{"net_units": n, "valid": valid} for n in nets]
+
+
+def test_own_pattern_speaks_only_when_clear_and_a_caution():
+    assert ac.own_pattern(_ses(-50, -20, 30, -10, -40, 5), "en") == (
+        "Your own logged sessions point the same way: 2 of 6 finished up, and the total is down. "
+        "Use the window for unearned income and keep any play small and capped.")
+    assert ac.own_pattern(_ses(-50, -20, 30, -10), "en") is None                       # too few sessions
+    assert ac.own_pattern(_ses(80, 20, 30, -10, 40, 5), "en") is None                 # a good run: say nothing, never encourage
+    assert ac.own_pattern(_ses(-50, 20, 30, -10, -40, 25), "en") is None              # up 3 of 6: not clearly against
+    assert ac.own_pattern(_ses(-5, -5, -5, -5, -5, valid=False), "en") is None        # invalid sessions are ignored
+    assert ac.own_pattern([{"net_units": None, "valid": True}] * 6, "en") is None and ac.own_pattern(None) is None
+
+
+def test_own_pattern_is_added_after_the_window_and_stays_plain():
+    own = ac.own_pattern(_ses(-50, -20, 30, -10, -40, 5), "en")
+    r = ac.compose(ac.speculation_facts("later", "Jun 2027 – Oct 2027", "year", None, "how is speculation", "en", own), TODAY)
+    assert r["read"].index("opens Jun 2027") < r["read"].index("Your own logged sessions") and rt.jargon_leaks({"r": r["read"]}) == []

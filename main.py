@@ -30952,7 +30952,14 @@ async def _ask_composer_answer(request: "AskRequest") -> Optional[dict]:
             rows_ = _dp.paragraphs(daily.get("day_map") or [], None, ((daily.get("decision") or {}).get("window") or {}), lang)
             hit = next((r for r in rows_ if r.get("key") == "speculation"), None)
             day_para = hit["paragraph"] if hit else None
-        facts = _ac.speculation_facts(st, win, scope, day_para, request.question, lang)
+        own = None
+        try:   # the person's own logged sessions, only when they are clear and a caution (never to encourage play)
+            _ss = await asyncio.to_thread(lambda: (supabase.table("speculation_sessions").select("net_units,valid")
+                                                   .eq("chart_id", cid).eq("valid", True).limit(200).execute().data) or [])
+            own = _ac.own_pattern(_ss, lang)
+        except Exception as _oe:
+            print(f"[ask-composer] own sessions skipped (non-fatal): {_oe!r}")
+        facts = _ac.speculation_facts(st, win, scope, day_para, request.question, lang, own)
     elif topic in ("money", "career", "love", "mind"):
         if scope == "day":
             from antar_engine import day_paragraph as _dp
