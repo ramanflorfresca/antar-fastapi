@@ -1,0 +1,35 @@
+{
+  "_about": "Owner-editable wording for the 2-3 sentence paragraph under each area on the week, month and year views. Plain words only: no planet, book or method names. {area} is the area name, {when} is 'this month' / 'next week' / 'last year', {label} is a date range.",
+  "en": {
+    "lead": {"good": "{area} looks good {when}.", "mixed": "{area} is mixed {when}, with an upside.", "care": "{area} needs care {when}.", "quiet": "{area} is steady {when}."},
+    "lead_past": {"good": "{area} went well {when}.", "mixed": "{area} was mixed {when}, with an upside.", "care": "{area} needed care {when}.", "quiet": "{area} was steady {when}."},
+    "catch": "The catch: {text}",
+    "catch_past": "What needed care: {text}",
+    "quiet_body": "Nothing strong pushes it either way, so steady, visible effort does more than a big move.",
+    "quiet_body_past": "Nothing pushed it hard either way.",
+    "best_window": "The strongest stretch for asks and decisions is {label}.",
+    "best_window_past": "The strongest stretch was {label}.",
+    "avoid_window": "Keep commitments light during {label}.",
+    "avoid_window_past": "{label} was the quieter stretch.",
+    "turn": "On {label}: {text}",
+    "when": {"week": {"current": "this week", "next": "next week", "past": "last week"},
+             "month": {"current": "this month", "next": "next month", "past": "last month"},
+             "year": {"current": "this year", "next": "next year", "past": "last year"}}
+  },
+  "es": {
+    "lead": {"good": "{area} se ve bien {when}.", "mixed": "{area} está mixto {when}, con un lado favorable.", "care": "{area} pide cuidado {when}.", "quiet": "{area} está estable {when}."},
+    "lead_past": {"good": "{area} fue bien {when}.", "mixed": "{area} fue mixto {when}, con un lado favorable.", "care": "{area} pidió cuidado {when}.", "quiet": "{area} estuvo estable {when}."},
+    "catch": "Lo que cuidar: {text}",
+    "catch_past": "Lo que pidió cuidado: {text}",
+    "quiet_body": "Nada empuja con fuerza en un sentido ni en otro, así que el esfuerzo constante y visible rinde más que un gran movimiento.",
+    "quiet_body_past": "Nada empujó con fuerza en un sentido ni en otro.",
+    "best_window": "El mejor tramo para peticiones y decisiones es {label}.",
+    "best_window_past": "El tramo más fuerte fue {label}.",
+    "avoid_window": "Mantén los compromisos ligeros durante {label}.",
+    "avoid_window_past": "{label} fue el tramo más tranquilo.",
+    "turn": "El {label}: {text}",
+    "when": {"week": {"current": "esta semana", "next": "la próxima semana", "past": "la semana pasada"},
+             "month": {"current": "este mes", "next": "el próximo mes", "past": "el mes pasado"},
+             "year": {"current": "este año", "next": "el próximo año", "past": "el año pasado"}}
+  }
+}
