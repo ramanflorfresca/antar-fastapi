@@ -48,7 +48,7 @@ def test_shortcuts_dots_and_status_from_the_one_windows_feed():
     r = SC.build(FEED, "en", T)
     k = {x["key"]: x for x in r["topics"]}
     assert r["default"] == ["money", "love", "legal", "career", "health"] and r["max"] == 6
-    assert k["money"]["dot"] == "g" and k["money"]["stat"].startswith("A window is open until Oct 20.") and "Your next stretch runs Jan 10 – May 9." in k["money"]["stat"]
+    assert k["money"]["dot"] == "g" and k["money"]["stat"].startswith("A window is open until Oct 20.") and "Your next stretch runs Jan 10, 2027 – May 9, 2027." in k["money"]["stat"]
     assert k["health"]["dot"] == "c" and k["health"]["stat"] == "Take care Nov 1 – Nov 20."          # starts within 45 days
     assert k["love"]["dot"] == "" and k["love"]["stat"] == "Nothing big marked in the next 12 months."
     assert "not legal advice" in k["legal"]["stat"] and "not a calendar window" in k["job"]["stat"] and k["legal"]["glyph"] == "§"

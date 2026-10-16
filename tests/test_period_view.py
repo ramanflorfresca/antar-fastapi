@@ -181,3 +181,16 @@ def test_month_best_and_slow_days_follow_the_day_scores_not_a_second_rule():
     o = pv.build(ctx, _lib(), {"employed": True}, "month", 0, "en", today=date(2026, 10, 14), day_scores=scores)
     assert "2026-10-16" not in o.get("best_days", []) and "2026-10-17" not in o.get("best_days", [])
     assert "2026-10-16" in o.get("slow_days", []) or "2026-10-17" in o.get("slow_days", []) or o.get("avoid_week")
+
+
+def test_current_month_best_week_is_never_one_that_is_already_over():
+    class _M:
+        sign = "Aries"
+    ctx = _Ctx()
+    ctx.today = date(2026, 10, 15)
+    ctx.planets = {"Moon": _M()}
+    scores = {f"2026-10-{d:02d}": (9 if d <= 14 else 5) for d in range(1, 32)}   # the strong days were all before today
+    o = pv.build(ctx, _lib(), {"employed": True}, "month", 0, "en", today=date(2026, 10, 15), day_scores=scores)
+    bw = o.get("best_week")
+    assert bw is None or bw["end"] >= "2026-10-15"
+    assert all(d >= "2026-10-15" for d in o.get("best_days", []))

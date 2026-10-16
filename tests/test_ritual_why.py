@@ -28,7 +28,7 @@ def test_verse_why_has_cause_theme_and_variation():
     w = rw.verse_why({"season": "expansive", "season_cause": {"kind": "moon", "house": 3},
                       "verse": {"themes": ["courage", "action"]}})
     assert "favours moving forward" in w["cause_plain"]
-    assert "courage and action" in w["about_plain"]
+    assert w["about_plain"] == "It is paired with a verse about courage and action."
     assert "rotates" in w["variation_plain"] and _clean(w)
 
 

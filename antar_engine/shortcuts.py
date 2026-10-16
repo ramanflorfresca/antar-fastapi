@@ -64,8 +64,13 @@ def _lang(language) -> str:
     return "es" if str(language or "en").lower().startswith("es") else "en"
 
 
-def _md(d: date, lg: str) -> str:
-    return f"{d.day} {_MON[lg][d.month - 1]}" if lg == "es" else f"{_MON[lg][d.month - 1]} {d.day}"
+def _md(d: date, lg: str, today: Optional[date] = None) -> str:
+    """"Oct 31", and "Aug 1, 2027" when the date is in another year or more than about six months away, so a stretch next year is
+    never read as this year's."""
+    base = f"{d.day} {_MON[lg][d.month - 1]}" if lg == "es" else f"{_MON[lg][d.month - 1]} {d.day}"
+    if today is not None and (d.year != today.year or (d - today).days > 183):
+        return f"{base} {d.year}" if lg == "es" else f"{base}, {d.year}"
+    return base
 
 
 def _windows(feed: Optional[dict], topic: str, today: date) -> List[tuple]:
@@ -99,14 +104,14 @@ def _dot_and_stat(topic: str, feed: Optional[dict], lg: str, today: date) -> Dic
     ca_next = next((w for w in ws if w[2] == "care" and w[0] > today), None)
     if op_now:
         dot = "g"
-        parts.append(t["open_now"] if op_now[1] == today else t["open_until"].format(d=_md(op_now[1], lg)))
+        parts.append(t["open_now"] if op_now[1] == today else t["open_until"].format(d=_md(op_now[1], lg, today)))
     if ca_now:
         dot = "c"
-        parts.append(t["care_now"].format(d=_md(ca_now[1], lg)))
+        parts.append(t["care_now"].format(d=_md(ca_now[1], lg, today)))
     if op_next:
-        parts.append(t["next_open"].format(a=_md(op_next[0], lg), b=_md(op_next[1], lg)))
+        parts.append(t["next_open"].format(a=_md(op_next[0], lg, today), b=_md(op_next[1], lg, today)))
     if ca_next:
-        parts.append(t["care"].format(a=_md(ca_next[0], lg), b=_md(ca_next[1], lg)))
+        parts.append(t["care"].format(a=_md(ca_next[0], lg, today), b=_md(ca_next[1], lg, today)))
         if not dot and ca_next[0] <= today + timedelta(days=45):
             dot = "c"
     return {"dot": dot, "stat": " ".join(parts)}
