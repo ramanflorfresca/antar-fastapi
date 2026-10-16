@@ -204,8 +204,26 @@ AREA_TOPIC: Dict[str, Optional[str]] = {
 }
 
 
-def _row(dom: dict, key: str, with_move: bool, stage: Optional[str] = None) -> dict:
+# [one-day-story 2026-10-16] The Today detail's five-area strip and this day map read the same day from two engines. Found live: the strip
+# said Money "volatile: gain and loss are both live, do not put money at risk" while the map said "Money moves your way, take the
+# inflow". The strip is what Today in detail and the Ask chips show, so it is the authority for the areas it covers: when it reads a
+# day as volatile or cautious, the map cannot call that area a clean opportunity ("rise"); it keeps the honest two-sided "caution" line.
+_STRIP_KEY = {"work": "work", "authority": "work", "money": "money", "health": "body", "relationship": "people",
+              "family": "people", "spiritual": "mind"}
+
+
+def strip_states(strip: Optional[list]) -> Dict[str, str]:
+    out: Dict[str, str] = {}
+    for e in strip or []:
+        if isinstance(e, dict) and e.get("key") and e.get("state"):
+            out[str(e["key"])] = str(e["state"])
+    return out
+
+
+def _row(dom: dict, key: str, with_move: bool, stage: Optional[str] = None, strip_state: Optional[str] = None) -> dict:
     band = _band(dom)
+    if band == "rise" and strip_state in ("volatile", "caution"):
+        band = "caution"
     cell = _cell_for(key, band, stage)
     # [house-aware 2026-10-07] tone must follow the BAND, so the card doesn't
     # colour a protect line ("sit this one out") green: a row downgraded to
@@ -230,7 +248,8 @@ def build_day_map(active_domains: Optional[list],
                   life_ctx: Optional[dict] = None,
                   max_areas: int = 6,
                   move_lead: int = 2,
-                  always_include: Optional[set] = None) -> List[dict]:
+                  always_include: Optional[set] = None,
+                  strip: Optional[list] = None) -> List[dict]:
     """Return an ordered, plain-language 'your day, area by area' list:
       [{key, label, line, tone}] — lead (active/ranked) areas first, then the
     most-activated quiet ones, capped at max_areas.
@@ -254,6 +273,8 @@ def build_day_map(active_domains: Optional[list],
     quiet = list(quiet_domains or [])
     stage = (life_ctx or {}).get("career_stage")
     force = {(k or "").lower() for k in (always_include or set())}
+    sst = strip_states(strip)
+    _st = lambda k: sst.get(_STRIP_KEY.get(k, ""))
 
     # quiet areas worth showing: some transit activity or a leaning tone
     def _notable(q):
@@ -280,7 +301,7 @@ def build_day_map(active_domains: Optional[list],
         if not key or grp in seen or key not in _LINES:
             continue
         seen.add(grp)
-        out.append(_row(dom, key, with_move=len(out) < move_lead, stage=stage))
+        out.append(_row(dom, key, with_move=len(out) < move_lead, stage=stage, strip_state=_st(key)))
         if len(out) >= max_areas:
             break
 
@@ -298,7 +319,7 @@ def build_day_map(active_domains: Optional[list],
                 continue
             dom = by_key.get(key) or {"key": key, "polarity": "neutral"}
             seen.add(grp)
-            out.append(_row(dom, key, with_move=len(out) < move_lead, stage=stage))
+            out.append(_row(dom, key, with_move=len(out) < move_lead, stage=stage, strip_state=_st(key)))
 
     return out
 
