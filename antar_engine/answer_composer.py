@@ -190,7 +190,34 @@ def legal_facts(legal: dict, timing: dict, scope: str, today: date, lang: str = 
             "windows": wins, "do_plain": t["legal_do"], "avoid_plain": None}
 
 
-def speculation_facts(state: str, window: str, scope: str, day_paragraph: Optional[str], question: str = "", lang: str = "en") -> Optional[dict]:
+MIN_SESSIONS = 5
+_OWN_TX = {"en": "Your own logged sessions point the same way: {w} of {n} finished up, and the total is down. Use the window for unearned income and keep any play small and capped.",
+           "es": "Tus propias sesiones registradas apuntan en la misma dirección: {w} de {n} terminaron en positivo y el total va a la baja. Usa la ventana para ingresos no ganados y mantén cualquier juego pequeño y con tope."}
+
+
+def own_pattern(sessions: Optional[list], lang: str = "en") -> Optional[str]:
+    """What the person's OWN logged sessions say, only when it is both clear and a caution: at least MIN_SESSIONS valid sessions, the
+    total down and fewer than half finished up. A good run adds nothing (an answer never encourages play on the strength of a few wins),
+    and too few sessions say nothing. `sessions` = rows with net_units and valid."""
+    nets = []
+    for r in sessions or []:
+        if r.get("valid") is False or r.get("net_units") is None:
+            continue
+        try:
+            nets.append(float(r["net_units"]))
+        except (TypeError, ValueError):
+            continue
+    n = len(nets)
+    if n < MIN_SESSIONS:
+        return None
+    wins = sum(1 for x in nets if x > 0)
+    if sum(nets) < 0 and wins * 2 < n:
+        return _OWN_TX[_lang(lang)].format(w=wins, n=n)
+    return None
+
+
+def speculation_facts(state: str, window: str, scope: str, day_paragraph: Optional[str], question: str = "", lang: str = "en",
+                      own: Optional[str] = None) -> Optional[dict]:
     """The person's own pattern for speculative gains (does the chart support it, is the unearned-gains window open or ahead, or do bets tend to
     cost more than they pay) in the speculation policy's own astrologer wording, with today's read in front for a day question. Never a best day
     or hour, and no game-specific line: the state and the window are the answer."""
@@ -203,6 +230,8 @@ def speculation_facts(state: str, window: str, scope: str, day_paragraph: Option
         return None
     if scope == "day" and day_paragraph:
         read = f"{day_paragraph} {read}"
+    if own:
+        read = f"{read} {own}"
     return {"topic": "speculation", "scope": scope, "preset_read": read, "windows": [], "do_plain": (pol or {}).get("next") or None,
             "avoid_plain": None}
 
