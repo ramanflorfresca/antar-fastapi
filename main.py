@@ -15099,9 +15099,16 @@ async def day_strip(chart_id: str, language: str = "en", tz: float = None):
         except Exception as _e:
             print(f"[day-strip] read {off:+d}/{n} skipped (non-fatal): {_e}")
             return []
-    _parts = await asyncio.gather(_read(-_ds.DAYS_BACK, _ds.DAYS_BACK), _read(0, 7), _read(7, _ds.DAYS_AHEAD - 6))
-    _days = [d for part in _parts for d in (part or [])]
-    out = _ds.build_strip(_days, _today, _lang)
+    async def _today_card():
+        try:   # the Today card's own day energy is the authority for TODAY (the strip's score is the engine's fast read)
+            _dsg = await asyncio.wait_for(get_daily_signal_endpoint(chart_id=chart_id, request={}, language="en"), timeout=20)
+            return _dsg if isinstance(_dsg, dict) else None
+        except Exception as _tce:
+            print(f"[day-strip] today card unavailable (non-fatal): {_tce}")
+            return None
+    _parts = await asyncio.gather(_read(-_ds.DAYS_BACK, _ds.DAYS_BACK), _read(0, 7), _read(7, _ds.DAYS_AHEAD - 6), _today_card())
+    _days = [d for part in _parts[:3] for d in (part or [])]
+    out = _ds.build_strip(_days, _today, _lang, today_card=_parts[3])
     if any(x["status"] == "ready" for x in out["days"]):
         if len(_DAY_STRIP_CACHE) > 500:
             _DAY_STRIP_CACHE.clear()
@@ -37197,7 +37204,9 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
             try:  # [area-dedupe 2026-10-02] payloads cached before the dedupe existed
                 from antar_engine.daily_life_areas import dedupe_day_map as _ddm
                 if isinstance(_ds_full_cached.get("day_map"), list):
-                    _ds_full_cached = {**_ds_full_cached, "day_map": _ddm(_ds_full_cached["day_map"])}
+                    from antar_engine.daily_life_areas import reconcile_served as _rcs
+                    _ds_full_cached = {**_ds_full_cached,
+                                       "day_map": _rcs(_ddm(_ds_full_cached["day_map"]), _ds_full_cached.get("domains"))}
             except Exception:
                 pass
             return {**_ds_full_cached, "_already_localized": True}
