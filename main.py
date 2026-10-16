@@ -30890,6 +30890,69 @@ async def _ask_time_route(request: "AskRequest"):
     return out
 
 
+async def _ask_composer_answer(request: "AskRequest") -> Optional[dict]:
+    """[answer-composer 2026-10-16] The one astrologer-shaped answer (verdict, because, when, do) for a question about one area of the
+    reader's own life, at the question's own horizon, from the SAME reads the screens show (health / legal engines, the week-month-year
+    area paragraphs, the day areas). Returns the Ask-shaped answer WITHOUT persisting it, or None (the full Ask answers).
+    ASK_COMPOSER = off (default) | shadow (computed after the real answer and only logged) | on (served)."""
+    from antar_engine import answer_composer as _ac
+    cid = (request.chart_id or "").strip()
+    lang = (request.language or "en").split("-")[0].lower()
+    lang = lang if lang in ("en", "es") else "en"
+    sd = _get_local_start_date(tz_offset=request.tz_offset)
+    today = sd.date() if hasattr(sd, "date") else sd
+    u = await _nlu_read(request.question, cid, lang)
+    pl = _ac.plan(u)
+    if not pl:
+        return None
+    topic, scope = pl["topic"], pl["scope"]
+    facts = None
+    if topic in ("health", "legal"):
+        row = await asyncio.to_thread(lambda: (supabase.table("charts").select("chart_data,birth_date").eq("id", cid).single().execute().data) or {})
+        cd = row.get("chart_data")
+        cd = _safe_jsonb(cd) if isinstance(cd, str) else (cd or {})
+        bd = row.get("birth_date") or (cd or {}).get("birth_date")
+        dashas = await asyncio.to_thread(get_dashas_for_chart, cid)
+        if topic == "health":
+            from antar_engine import health as _h
+            a, t = await asyncio.gather(asyncio.to_thread(_h.analyze_health, cd),
+                                        asyncio.to_thread(_h.health_timing, cd, dashas, bd, today.isoformat()))
+            facts = _ac.health_facts(a, t, scope, today, lang)
+        else:
+            from antar_engine import legal as _lg
+            a, t = await asyncio.gather(asyncio.to_thread(_lg.analyze_legal, cd),
+                                        asyncio.to_thread(_lg.legal_timing, cd, dashas, bd, today.isoformat()))
+            facts = _ac.legal_facts(a, t, scope, today, lang)
+    elif topic in ("money", "career", "love", "mind"):
+        if scope == "day":
+            from antar_engine import day_paragraph as _dp
+            key = {"money": "money", "career": "work", "love": "relationship", "mind": "spiritual"}[topic]
+            daily = await get_daily_signal_endpoint(chart_id=cid, request={}, language=lang)
+            month = await get_chart_period(cid, None, "month", 0, lang, request.tz_offset)
+            rows = _dp.paragraphs(daily.get("day_map") or [], (month or {}).get("domains"),
+                                  ((daily.get("decision") or {}).get("window") or {}), lang)
+            hit = next((r for r in rows if r.get("key") == key), None)
+            facts = _ac.period_facts({"paragraph": hit["paragraph"]} if hit else None, None, None, topic, scope)
+        else:
+            per = await get_chart_period(cid, None, scope, 0, lang, request.tz_offset)
+            dom = next((d for d in (per or {}).get("domains") or [] if d.get("key") == topic), None)
+            facts = _ac.period_facts(dom, per.get("best_week") or per.get("best_month"), per.get("avoid_week") or per.get("avoid_month"),
+                                     topic, scope)
+    return _ac.compose(facts, today, lang)
+
+
+async def _ask_composer_shadow(request: "AskRequest", actual: Optional[dict]):
+    """Compute the composer's answer after the real one has gone out and log both, so the two can be compared on real questions."""
+    try:
+        got = await asyncio.wait_for(_ask_composer_answer(request), timeout=60)
+        print("[ask-composer shadow] " + json.dumps({
+            "q": (request.question or "")[:200], "composer": (got or {}).get("read"), "composer_next": (got or {}).get("next"),
+            "actual": ((actual or {}).get("read") or "")[:600], "route": (got or {}).get("route"), "area": (got or {}).get("area")},
+            ensure_ascii=False))
+    except Exception as _e:
+        print(f"[ask-composer shadow] skipped (non-fatal): {_e!r}")
+
+
 @app.post("/api/v1/ask")
 async def ask_endpoint(request: AskRequest):
     """Unified ASK endpoint — see _ask_endpoint_impl. Wraps it with the Hindi language guard."""
@@ -30912,6 +30975,23 @@ async def ask_endpoint(request: AskRequest):
                 return _timed
     except Exception as _te:
         print(f"[ask-time] router skipped (non-fatal): {_te}")
+    _composer_mode = os.getenv("ASK_COMPOSER", "off").strip().lower()
+    if (_composer_mode == "on" and (request.chart_id or "").strip() and (request.mode or "explore") == "explore"):
+        try:
+            _comp = await asyncio.wait_for(_ask_composer_answer(request), timeout=45)
+            if _comp:
+                try:
+                    await _ask_persist(supabase, request.chart_id.strip(), request.question, _comp, (request.language or "en").split("-")[0].lower(), "explore")
+                except Exception as _pe2:
+                    print(f"[ask-composer] persist skipped (non-blocking): {_pe2}")
+                try:
+                    from antar_engine import daily_loop as _dl2
+                    await run_in_threadpool(_dl2.record_step, supabase, request.chart_id.strip(), "ask", request.tz_offset or 0)
+                except Exception as _le2:
+                    print(f"[ask-composer] loop step skipped (non-blocking): {_le2!r}")
+                return _comp
+        except Exception as _ce2:
+            print(f"[ask-composer] skipped (non-fatal): {_ce2!r}")
     _ASK_REFRAMED.set(None)
     _res = await _ask_hindi_finalize(await _ask_endpoint_impl(request), request)
     _rf = _ASK_REFRAMED.get()
@@ -30972,6 +31052,8 @@ async def ask_endpoint(request: AskRequest):
                                     request.tz_offset or 0)
     except Exception as _le:
         print(f"[daily-loop] ask step skipped (non-blocking): {_le!r}")
+    if _composer_mode == "shadow" and (request.chart_id or "").strip() and (request.mode or "explore") == "explore":
+        _spawn_bg(_ask_composer_shadow(request, _res if isinstance(_res, dict) else None), "ask-composer-shadow")
     return _res
 
 
