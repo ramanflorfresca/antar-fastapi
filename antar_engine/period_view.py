@@ -209,6 +209,11 @@ def _lean_steps() -> dict:
     return _LEAN
 
 
+def _step_by_area(lang: str) -> dict:
+    i = 1 if lang == "es" else 0
+    return {k: v[i] for k, v in _lean_steps().items() if isinstance(v, list) and len(v) > i}
+
+
 WEEKDAYS = {"en": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], "es": ["lun", "mar", "mié", "jue", "vie", "sáb", "dom"]}
 
 
@@ -527,6 +532,16 @@ def build(ctx, lib: dict, life: Optional[dict], scope: str, offset: int, languag
         out["months"] = _month_cells(
             [{"start": i["start"], "end": i["end"], "tone": i["tone"]} for i in flat], start.year, lang)
         out.update(_best_avoid_month(out["months"], out["turns"], lang, past))
+    try:
+        from antar_engine import area_paragraph as _ap
+        _by = {a["key"]: a for a in out_areas}
+        _best = out.get("best_week") or out.get("best_month") or out.get("best_day")
+        _avoid = out.get("avoid_week") or out.get("avoid_month") or out.get("care_day")
+        for dom, (_k, _keys) in zip(out["domains"], DOMAINS):
+            dom["paragraph"] = _ap.paragraph(dom, scope=scope, relation=rel, lang=lang, areas_by_key=_by, area_keys=_keys,
+                                             turns=out["turns"], best=_best, avoid=_avoid, steps=_step_by_area(lang))
+    except Exception as _e:
+        print(f"[period] paragraphs non-fatal: {_e}")
     if not past:
         w = public_view.wellness(lib.get("wellness"))
         if w and w.get("themes"):
