@@ -282,17 +282,28 @@ def _domain_reads(out_areas: List[dict], past: bool, lang: str) -> List[dict]:
 
 
 def _do_avoid(out_areas: List[dict], lang: str, scope: str):
-    """Do: one step per strong area. Avoid: each care item with what to do instead. Past windows get neither (the caller skips this)."""
+    """Do: one step per area that has something going for it. Avoid: each area that needs care and has nothing going for it, with what to do
+    instead. An area with BOTH a lean and a care line (a mixed one) appears once, under Do, with its care step folded into the same line:
+    it used to appear in both lists ("Pitch and close deals" under Do and "Money can slip away" under Not), which read as a contradiction.
+    Past windows get neither (the caller skips this)."""
     lean = _lean_steps()
-    do, seen = [], set()
+    do, seen, mixed = [], set(), set()
     for a in out_areas:
         if a["lean_in"] and a["key"] in lean:
             t = lean[a["key"]][1 if lang == "es" else 0]
+            if a["watch"]:
+                mixed.add(a["key"])
+                care = a["watch"][0].get("do")
+                if care and care.strip().lower().rstrip(".") not in t.lower():
+                    c = care.strip()
+                    t = t.rstrip(".") + (". Be careful, though: " if lang != "es" else ". Ojo, sin embargo: ") + c[:1].lower() + c[1:]
             if t not in seen:
                 seen.add(t)
                 do.append({"area": a["label"], "text": t})
     avoid, seen = [], set()
     for a in out_areas:
+        if a["key"] in mixed:
+            continue
         for i in a["watch"][:1]:
             if i["text"] not in seen:
                 seen.add(i["text"])
