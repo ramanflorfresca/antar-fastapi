@@ -169,3 +169,15 @@ def test_week_window_is_seven_days_and_moves_by_weeks():
     assert pv.window("week", 0, date(2026, 10, 14)) == (date(2026, 10, 14), date(2026, 10, 20))
     assert pv.window("week", -1, date(2026, 10, 14)) == (date(2026, 10, 7), date(2026, 10, 13))
     assert pv.window("week", 1, date(2026, 10, 14)) == (date(2026, 10, 21), date(2026, 10, 27))
+
+
+def test_month_best_and_slow_days_follow_the_day_scores_not_a_second_rule():
+    class _M:
+        sign = "Aries"
+    ctx = _Ctx()
+    ctx.planets = {"Moon": _M()}
+    scores = {f"2026-10-{d:02d}": 5 for d in range(1, 32)}
+    scores.update({"2026-10-17": 2, "2026-10-16": 2, "2026-10-18": 9, "2026-10-14": 8, "2026-10-13": 8})   # Oct 16-17 tough on the strip
+    o = pv.build(ctx, _lib(), {"employed": True}, "month", 0, "en", today=date(2026, 10, 14), day_scores=scores)
+    assert "2026-10-16" not in o.get("best_days", []) and "2026-10-17" not in o.get("best_days", [])
+    assert "2026-10-16" in o.get("slow_days", []) or "2026-10-17" in o.get("slow_days", []) or o.get("avoid_week")

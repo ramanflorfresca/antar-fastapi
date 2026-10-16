@@ -57,3 +57,40 @@ def test_windows_for_topic_and_concern_map():
 def test_spanish_note():
     rc = TR.reconcile("Jun 2027 – Oct 2027", W, "money", "es", TODAY)
     assert rc["status"] == "trimmed" and "tramo de cuidado para el dinero" in rc["note"]
+
+
+# ── standing note: an answer with no window of its own still agrees with the Windows feed ─────────────────────────
+from datetime import date as _d2
+from antar_engine import timing_reconcile as _tr_s
+
+_T = _d2(2026, 10, 15)
+
+
+def _w(kind, a, b):
+    return {"kind": kind, "start": _d2(*a), "end": _d2(*b)}
+
+
+def test_standing_note_in_a_care_stretch_names_the_end_and_the_next_open_window():
+    n = _tr_s.standing_note([_w("care", (2026, 8, 1), (2026, 10, 31)), _w("open", (2027, 1, 10), (2027, 5, 9))], "career", "en", _T)
+    assert n["status"] == "care_now" and "your job and career is in a care stretch until Oct 31" in n["text"] and "starts Jan 10" in n["text"]
+
+
+def test_standing_note_open_now_and_open_next():
+    assert _tr_s.standing_note([_w("open", (2026, 10, 1), (2026, 12, 20))], "money", "en", _T)["status"] == "open_now"
+    n = _tr_s.standing_note([_w("open", (2027, 2, 1), (2027, 3, 1))], "money", "en", _T)
+    assert n["status"] == "open_next" and "starts Feb 1" in n["text"]
+
+
+def test_standing_note_none_without_a_future_window_and_spanish():
+    assert _tr_s.standing_note([_w("care", (2025, 1, 1), (2025, 2, 1))], "career", "en", _T) is None
+    assert "tramo de cuidado hasta el 31 oct" in _tr_s.standing_note([_w("care", (2026, 8, 1), (2026, 10, 31))], "career", "es", _T)["text"]
+
+
+def test_apply_standing_adds_the_sentence_once_before_it_holds_if():
+    res = {"read": "The timing supports a move. It holds if you keep it steady.", "mode": "explore"}
+    note = _tr_s.standing_note([_w("care", (2026, 8, 1), (2026, 10, 31))], "career", "en", _T)
+    _tr_s.apply_standing(res, note)
+    assert res["read"].index("care stretch") < res["read"].index("It holds if") and res["timing_note"]["status"] == "care_now"
+    before = res["read"]
+    _tr_s.apply_standing(res, note)
+    assert res["read"] == before
