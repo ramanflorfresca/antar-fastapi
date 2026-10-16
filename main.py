@@ -15102,6 +15102,30 @@ async def day_strip(chart_id: str, language: str = "en", tz: float = None):
     return out
 
 
+@app.get("/api/v1/day-areas/{chart_id}")
+async def day_areas(chart_id: str, language: str = "en", tz: float = None):
+    """[day-paragraph 2026-10-15] Today's area lines as 3-4 sentence paragraphs for "Today in detail": each area's own line and move,
+    how it sits inside the month (the same read the This-month sheet shows) and the day's best / steer-clear window. Composed only from
+    those reads; nothing is invented. The Home card keeps its short lines."""
+    from uuid import UUID as _UUID_DA
+    try:
+        _UUID_DA(str(chart_id))
+    except (ValueError, AttributeError, TypeError):
+        raise HTTPException(404, "Chart not found")
+    from antar_engine import day_paragraph as _dp
+    _lang = (language or "en").split("-")[0].lower()
+    _lang = _lang if _lang in ("en", "es") else "en"
+    _daily, _month = await asyncio.gather(
+        get_daily_signal_endpoint(chart_id=chart_id, request={}, language=_lang),
+        get_chart_period(chart_id, None, "month", 0, _lang, tz),
+        return_exceptions=True)
+    if not isinstance(_daily, dict):
+        raise HTTPException(503, "today unavailable")
+    _doms = _month.get("domains") if isinstance(_month, dict) else None
+    return {"chart_id": chart_id, "language": _lang,
+            "areas": _dp.paragraphs(_daily.get("day_map") or [], _doms, ((_daily.get("decision") or {}).get("window") or {}), _lang)}
+
+
 # [life-events standardization 2026-09-28] Normalize the free-form capture so the
 # forward-validation loop (validate_from_life_events.py) and personalization can
 # consume it: canonical metadata.{direction, domain, magnitude} + a stamped

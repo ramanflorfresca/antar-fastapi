@@ -1,0 +1,33 @@
+{
+  "_about": "Owner-editable wording that turns each day-map line into a 3-4 sentence paragraph: the day's own line and move, how it sits inside the month, and the window to use or avoid. Plain words only. {area} is the lower-case area name; {window} is the clock range.",
+  "en": {
+    "context": {
+      "opportunity": {"good": "That fits the bigger picture: {area} is running well this month too.",
+                      "steady": "A brighter day inside a steadier month for {area}, so make use of it.",
+                      "tough": "A brighter day inside a month that asks for care with {area}, so use it without stretching."},
+      "risk": {"good": "A harder day inside a good month for {area}, so it will pass; do not read it as the trend.",
+               "steady": "A harder day in an otherwise steady month for {area}; wait it out.",
+               "tough": "This adds to a month that already needs care with {area}, so keep things light."},
+      "neutral": {"good": "{area} is running well this month, and today does not change that.",
+                  "steady": "{area} is steady this month, and today does not change that.",
+                  "tough": "{area} needs care this month, and today does not change that."}
+    },
+    "best_window": "The best window to act on it is {window}.",
+    "avoid_window": "Steer clear of {window} for anything final."
+  },
+  "es": {
+    "context": {
+      "opportunity": {"good": "Encaja con el panorama general: {area} también va bien este mes.",
+                      "steady": "Un día más luminoso dentro de un mes más estable para {area}; aprovéchalo.",
+                      "tough": "Un día más luminoso dentro de un mes que pide cuidado con {area}; aprovéchalo sin forzar."},
+      "risk": {"good": "Un día más duro dentro de un buen mes para {area}; pasará, no lo leas como la tendencia.",
+               "steady": "Un día más duro en un mes por lo demás estable para {area}; déjalo pasar.",
+               "tough": "Esto se suma a un mes que ya pide cuidado con {area}; mantén todo ligero."},
+      "neutral": {"good": "{area} va bien este mes, y hoy no lo cambia.",
+                  "steady": "{area} está estable este mes, y hoy no lo cambia.",
+                  "tough": "{area} pide cuidado este mes, y hoy no lo cambia."}
+    },
+    "best_window": "La mejor ventana para actuar es {window}.",
+    "avoid_window": "Evita {window} para algo definitivo."
+  }
+}
