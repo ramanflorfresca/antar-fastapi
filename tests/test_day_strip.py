@@ -85,3 +85,15 @@ def test_no_best_day_named_when_nothing_stands_out():
 def test_week_line_spanish():
     out = DS.build_strip(_wk([5, 4, 2, 8, 5, 6, 5]), date(2026, 10, 15), "es")
     assert out["week_line"]["text"].startswith("Mejor día dom oct 18")
+
+
+def test_today_follows_the_today_cards_own_day_energy():
+    scores = {0: 1, 1: 8, 2: 5}   # the strip's fast read says today is tough (score 1)
+    card = {"date": TODAY.isoformat(), "day_energy": {"key": "light", "label": "LIGHTER-TOUCH DAY", "tone": "neutral", "score": 4}}
+    p = DS.build_strip(_days(scores), TODAY, "en", today_card=card)
+    t = p["days"][7]
+    assert t["energy"]["key"] == "light" and t["score"] == 4 and t["source"] == "today_card"
+    assert p["days"][8]["energy"]["key"] == "steady"                      # other days keep the engine score
+    # a card for another date, or none, changes nothing
+    assert DS.build_strip(_days(scores), TODAY, "en", today_card={"date": "2020-01-01", "day_energy": card["day_energy"]})["days"][7]["energy"]["key"] == "friction"
+    assert DS.build_strip(_days(scores), TODAY, "en")["days"][7]["energy"]["key"] == "friction"

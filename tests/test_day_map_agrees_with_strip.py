@@ -30,3 +30,13 @@ def test_other_areas_and_missing_strip_are_untouched():
 def test_risk_band_stays_risk():
     act = [{"key": "money", "polarity": "risk", "tone": -0.8}]
     assert dla.build_day_map(act, [], strip=[{"key": "money", "state": "volatile"}])[0]["tone"] == "risk"
+
+
+def test_cached_rows_are_reconciled_at_serve_time():
+    rise = dla._LINES["money"]["rise"]
+    rows = [{"key": "money", "label": "Your wallet", "tone": "opportunity", "line": f"{rise['line']} Take the inflow, but keep a light eye on the outflow."},
+            {"key": "work", "label": "Work", "tone": "opportunity", "line": dla._LINES["work"]["rise"]["line"]}]
+    out = dla.reconcile_served(rows, [{"key": "money", "state": "volatile"}, {"key": "work", "state": "steady"}])
+    assert out[0]["line"].startswith("Money is active today") and out[0]["line"].endswith("Let any big purchase wait a day.")
+    assert out[1]["line"] == rows[1]["line"]
+    assert dla.reconcile_served(rows, None) == rows and dla.reconcile_served(None, None) == []

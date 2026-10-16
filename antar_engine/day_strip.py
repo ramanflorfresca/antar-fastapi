@@ -52,7 +52,7 @@ def _day_name(dt: _date, lang: str) -> str:
     return f"{wk[dt.weekday()]} {mo[dt.month - 1]} {dt.day}"
 
 
-def build_strip(days: list, today: _date, language: str = "en") -> dict:
+def build_strip(days: list, today: _date, language: str = "en", today_card: Optional[dict] = None) -> dict:
     """days: engine day dicts (need `date` and `score`). Returns the strip; days with no usable date/score are left out."""
     lang = (language or "en").split("-")[0].lower()
     by_date = {}
@@ -73,6 +73,18 @@ def build_strip(days: list, today: _date, language: str = "en") -> dict:
                     "kind": "today" if off == 0 else ("past" if off < 0 else "future"),
                     "status": "ready", "energy": {"key": de["key"], "label": de["label"], "tone": de["tone"]},
                     "score": de["score"], "source": "recomputed" if off < 0 else "live"})
+    # TODAY follows the Today card's own day energy (house-activation reconciled): the strip's fast score read can say "tough" while the
+    # card says "lighter-touch" for the same day, and the sheet then shows both. Other days stay on the engine score.
+    try:
+        de = (today_card or {}).get("day_energy") or {}
+        if de.get("key") in ("steady", "light", "friction") and (today_card or {}).get("date", "")[:10] == today.isoformat():
+            for x in out:
+                if x["kind"] == "today" and x.get("status") == "ready":
+                    x["energy"] = {"key": de["key"], "label": de.get("label") or x["energy"]["label"], "tone": de.get("tone") or x["energy"]["tone"]}
+                    x["score"] = de.get("score", x.get("score"))
+                    x["source"] = "today_card"
+    except Exception:
+        pass
     ahead = [x for x in out if x["kind"] == "future" and x["status"] == "ready"]
     best = max(ahead, key=lambda x: x["score"]) if ahead else None
     care = min(ahead, key=lambda x: x["score"]) if ahead else None

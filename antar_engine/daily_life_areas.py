@@ -324,6 +324,29 @@ def build_day_map(active_domains: Optional[list],
     return out
 
 
+def reconcile_served(rows: Optional[list], strip: Optional[list]) -> list:
+    """Serve-time twin of the strip cap in build_day_map, for payloads cached before it existed: a row whose line is a clean "rise" line for
+    an area the strip reads as volatile or cautious gets that area's two-sided "caution" line instead (keeping its micro-move if it had one)."""
+    sst = strip_states(strip)
+    out = []
+    for r in rows or []:
+        row = r
+        try:
+            key = (r.get("key") or "").lower()
+            if sst.get(_STRIP_KEY.get(key, "")) in ("volatile", "caution") and key in _LINES:
+                cells = [_LINES[key]] + [st.get(key) for st in _LINES_NOJOB.values() if st.get(key)]
+                for cs in cells:
+                    rise, caution = cs.get("rise"), cs.get("caution")
+                    if rise and caution and (r.get("line") or "").startswith(rise["line"]):
+                        had_move = bool(rise.get("move")) and (rise["move"][:1].upper() + rise["move"][1:]) in r["line"]
+                        row = {**r, "line": _compose(caution, with_move=had_move)}
+                        break
+        except Exception:
+            row = r
+        out.append(row)
+    return out
+
+
 def dedupe_day_map(rows: Optional[list]) -> list:
     """Serve-time twin of build_day_map's display-group dedupe, for payloads that
     were cached before it existed (keeps the first, i.e. higher-ranked, row)."""
