@@ -54,3 +54,34 @@ def test_garbage_input_never_raises():
 def test_spanish_labels():
     d = DS.build_strip(_days({0: 8}), TODAY, "es")["days"][7]
     assert d["energy"]["label"] == "DÍA ESTABLE"
+
+
+def _wk(scores, start=date(2026, 10, 15)):
+    return [{"date": (start + timedelta(days=i)).isoformat(), "score": s} for i, s in enumerate(scores)]
+
+
+def test_week_line_names_best_and_slower_day_with_reasons():
+    scores = [5, 4, 2, 8, 5, 6, 5]          # Oct 15 .. 21: day 2 (Oct 17) tough, day 3 (Oct 18) best
+    out = DS.build_strip(_wk(scores), date(2026, 10, 15), "en")
+    wl = out["week_line"]
+    assert wl["best"]["label"] == "Sun Oct 18" and "strongest day" in wl["best"]["reason_plain"]
+    assert wl["care"]["label"] == "Sat Oct 17" and "avoid signing" in wl["care"]["reason_plain"]
+    assert wl["text"] == "Best day Sun Oct 18. Slower day Sat Oct 17."
+    tags = {x["date"]: x.get("tag") for x in out["days"]}
+    assert tags["2026-10-18"] == "best" and tags["2026-10-17"] == "slower"
+    assert [l["key"] for l in out["legend"]] == ["steady", "light", "friction"]
+
+
+def test_no_slower_day_named_when_none_is_tough():
+    out = DS.build_strip(_wk([5, 5, 6, 8, 5, 6, 5]), date(2026, 10, 15), "en")
+    assert out["week_line"]["care"] is None and "Slower" not in out["week_line"]["text"]
+
+
+def test_no_best_day_named_when_nothing_stands_out():
+    out = DS.build_strip(_wk([5, 5, 5, 5, 5, 5, 5]), date(2026, 10, 15), "en")
+    assert out["week_line"]["best"] is None and out["week_line"]["text"] is None
+
+
+def test_week_line_spanish():
+    out = DS.build_strip(_wk([5, 4, 2, 8, 5, 6, 5]), date(2026, 10, 15), "es")
+    assert out["week_line"]["text"].startswith("Mejor día dom oct 18")
