@@ -15116,6 +15116,32 @@ async def day_strip(chart_id: str, language: str = "en", tz: float = None):
     return out
 
 
+def _day_lead_for(chart_id: str, tz_minutes) -> Optional[dict]:
+    """[day-lead 2026-10-16] The day's highlight and watch-point from the Moon's star lord and sub lord (KP) read against this chart,
+    with the KP rule table's own favourable / unfavourable houses. Planet names stay out of the payload (one voice)."""
+    from datetime import timezone as _tzz
+    from antar_engine import day_lead as _dlm
+    from antar_engine.kp.kp_moment import kp_moment as _kpm
+    row = (supabase.table("charts").select("chart_data,current_latitude,current_longitude,latitude,longitude")
+           .eq("id", chart_id).single().execute().data) or {}
+    cd = row.get("chart_data")
+    cd = _safe_jsonb(cd) if isinstance(cd, str) else (cd or {})
+    lat = row.get("current_latitude") or row.get("latitude")
+    lng = row.get("current_longitude") or row.get("longitude")
+    if not cd or lat is None or lng is None:
+        return None
+    tzh = (float(tz_minutes) / 60.0) if tz_minutes is not None else 0.0
+    sd = _get_local_start_date(tz_offset=tz_minutes)
+    d = sd.date() if hasattr(sd, "date") else sd
+    local = datetime(d.year, d.month, d.day, 8, 0)
+    utc = (local - timedelta(hours=tzh)).replace(tzinfo=_tzz.utc)
+    k = (_kpm(utc, float(lat), float(lng), tzh) or {}).get("kp") or {}
+    r = _dlm.lead(cd, k.get("star_lord"), k.get("sub_lord"))
+    if not r:
+        return None
+    return {"text": r["text"], "highlight": r["highlight"], "caution": r["caution"]}
+
+
 @app.get("/api/v1/day-areas/{chart_id}")
 async def day_areas(chart_id: str, language: str = "en", tz: float = None):
     """[day-paragraph 2026-10-15] Today's area lines as 3-4 sentence paragraphs for "Today in detail": each area's own line and move,
@@ -15136,7 +15162,18 @@ async def day_areas(chart_id: str, language: str = "en", tz: float = None):
     if not isinstance(_daily, dict):
         raise HTTPException(503, "today unavailable")
     _doms = _month.get("domains") if isinstance(_month, dict) else None
+    _dl_mode = os.getenv("DAY_LEAD", "off").strip().lower()
+    _day_lead = None
+    if _dl_mode in ("on", "shadow"):
+        try:
+            _day_lead = await asyncio.to_thread(_day_lead_for, chart_id, tz)
+            if _dl_mode == "shadow":
+                print("[day-lead shadow] " + json.dumps({"chart": chart_id[:8], "lead": _day_lead,
+                      "old_headline": (_daily.get("headline") or "")[:120]}, ensure_ascii=False))
+        except Exception as _dle:
+            print(f"[day-lead] skipped (non-fatal): {_dle!r}")
     return {"chart_id": chart_id, "language": _lang,
+            **({"day_lead": _day_lead} if (_dl_mode == "on" and _day_lead) else {}),
             "areas": _dp.paragraphs(_daily.get("day_map") or [], _doms, ((_daily.get("decision") or {}).get("window") or {}), _lang)}
 
 

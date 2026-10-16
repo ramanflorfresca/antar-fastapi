@@ -1,0 +1,52 @@
+{
+  "_about": "Owner-editable wording and the mapping from each area of life to the KP rule it follows. The favourable and unfavourable HOUSES are NOT set here: they are read from the KP rule table (antar_engine/kp/kp_significators.QUESTION_TYPES, the book rules) so there is one source. star_weight/sub_weight: the star lord decides what the day is about, the sub lord whether it goes through (KP). No planet or house names in the plain text.",
+  "star_weight": 2,
+  "sub_weight": 1,
+  "domains": {
+    "money": {
+      "label": "money",
+      "up": "money coming in, or a payment moving",
+      "down": "money going out, or a payment held up",
+      "kp_type": "money"
+    },
+    "work": {
+      "label": "work",
+      "up": "a visible win or recognition at work",
+      "down": "friction or delay at work",
+      "kp_type": "promotion"
+    },
+    "relationship": {
+      "label": "relationships",
+      "up": "a warm or useful conversation with someone close",
+      "down": "a misunderstanding with someone close",
+      "kp_type": "marriage"
+    },
+    "health": {
+      "label": "health",
+      "up": "good energy and recovery",
+      "down": "low energy or something to watch in your body",
+      "kp_type": "recovery"
+    },
+    "travel": {
+      "label": "travel",
+      "up": "a trip, or news from far away",
+      "down": "delays or disruption when moving around",
+      "kp_type": "foreign_travel"
+    },
+    "home": {
+      "label": "home",
+      "up": "something settling at home or with property",
+      "down": "friction at home, or a property matter stalling",
+      "kp_type": "property"
+    },
+    "speculation": {
+      "label": "risk and bets",
+      "up": "an opening that pays",
+      "down": "a bet that goes wrong",
+      "kp_type": "speculation"
+    }
+  },
+  "quiet": "Nothing stands out today: the lords of the day touch no area strongly.",
+  "highlight": "Today's highlight: {label}, with {event}.",
+  "caution": "Watch: {label}, where you may meet {event}."
+}
