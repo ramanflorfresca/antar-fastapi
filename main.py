@@ -37910,6 +37910,7 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                      "marital_status": row.get("marital_status"),
                      "career_stage": _dm_career_stage},
                     always_include=_force_areas,
+                    strip=result.get("domains"),
                 )
             except Exception as _dm_e:
                 print(f"[daily-signal] day_map build skipped: {_dm_e}")
