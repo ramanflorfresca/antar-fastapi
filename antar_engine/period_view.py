@@ -322,6 +322,9 @@ def _best_avoid_week(ctx, start: date, end: date, turns: List[dict], lang: str, 
     tx = TX[lang]
     scored = []
     for (a, b) in _week_blocks(start, end):
+        if not past and b < ctx.today:
+            continue        # a stretch that is already over is not "the best week" to act in; only today and later count
+        a = a if past else max(a, ctx.today)
         sc, d, good_days, slow_days = 0, a, [], []
         while d <= b:
             if day_scores and day_scores.get(d.isoformat()) is not None:

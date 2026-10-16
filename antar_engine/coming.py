@@ -43,8 +43,16 @@ def _d(s) -> Optional[date]:
         return None
 
 
-def _md(d: date, lg: str) -> str:
+def _md(d: date, lg: str, today: Optional[date] = None) -> str:
     return f"{d.day} {MON[lg][d.month - 1]}" if lg == "es" else f"{MON[lg][d.month - 1]} {d.day}"
+
+
+def _mdy(d: date, lg: str) -> str:
+    """A stretch in another calendar year than today's carries its year ("Jan 10, 2027"), so it is never read as this year's."""
+    base = _md(d, lg)
+    if d.year != date.today().year:
+        return f"{base} {d.year}" if lg == "es" else f"{base}, {d.year}"
+    return base
 
 
 def _my(d: date, lg: str) -> str:
@@ -146,7 +154,7 @@ def _cell_text(ws: List[Dict[str, Any]], a: date, b: date, topic: str, lg: str) 
 
 def _sentence(w: Dict[str, Any], lg: str) -> str:
     nm = topic_label(w["topic"], lg).lower()
-    a, b = _md(w["start"], lg), _md(w["end"], lg)
+    a, b = _mdy(w["start"], lg), _mdy(w["end"], lg)
     if lg == "es":
         return (f"Tu ventana de {nm} va del {a} al {b}." if w["kind"] == "open"
                 else f"Un tramo de cuidado para {nm} va del {a} al {b}.")
@@ -187,13 +195,13 @@ def headline(ws: List[Dict[str, Any]], topic: str, lang: str = "en") -> Dict[str
         w = max(opens, key=lambda x: (_runs_len(x), -x["start"].toordinal()))
         who = (f"para {nm}" if es else f"for {nm}") if topic != "all" else (f"para {topic_label(w['topic'], lg).lower()}" if es
                                                                               else f"for {topic_label(w['topic'], lg).lower()}")
-        parts.append((f"Tu mejor tramo {who} va de {_md(w['start'], lg)} a {_md(w['end'], lg)}." if es
-                      else f"Your best stretch {who} runs {_md(w['start'], lg)} to {_md(w['end'], lg)}."))
+        parts.append((f"Tu mejor tramo {who} va de {_mdy(w['start'], lg)} a {_mdy(w['end'], lg)}." if es
+                      else f"Your best stretch {who} runs {_mdy(w['start'], lg)} to {_mdy(w['end'], lg)}."))
     if cares:
         w = max(cares, key=lambda x: (_runs_len(x), -x["start"].toordinal()))
         who = (f"con {topic_label(w['topic'], lg).lower()}" if es else f"with {topic_label(w['topic'], lg).lower()}") if topic == "all" else ""
-        parts.append((f"Cuidado {who} de {_md(w['start'], lg)} a {_md(w['end'], lg)}.".replace("  ", " ") if es
-                      else f"Take care {who} from {_md(w['start'], lg)} to {_md(w['end'], lg)}.".replace("  ", " ")))
+        parts.append((f"Cuidado {who} de {_mdy(w['start'], lg)} a {_mdy(w['end'], lg)}.".replace("  ", " ") if es
+                      else f"Take care {who} from {_mdy(w['start'], lg)} to {_mdy(w['end'], lg)}.".replace("  ", " ")))
     return {"head": " ".join(parts), "sub": sub}
 
 

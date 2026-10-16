@@ -31,7 +31,8 @@ def test_year_all_has_tiles_sentence_and_only_in_range_moments():
     assert k["Feb"]["kind"] == "open" and k["Feb"]["care_too"] is True           # money open + business care
     assert k["Jun"]["kind"] == "care" and k["Jun"]["text"].startswith("Care: money")
     assert k["Nov"]["kind"] == "quiet"
-    assert r["head"] == "Your best stretch for money runs Jan 10 to May 9. Take care with money from Jun 9 to Sep 6."
+    assert r["head"] == (f"Your best stretch for money runs {C._mdy(date(2027, 1, 10), 'en')} to {C._mdy(date(2027, 5, 9), 'en')}. "
+                         f"Take care with money from {C._mdy(date(2027, 6, 9), 'en')} to {C._mdy(date(2027, 9, 6), 'en')}.")
     assert all(x["start"] <= "2027-09-30" for x in r["moments"])                 # the Oct-2027 window is outside the 12 tiles
     assert [x["title"] for x in r["moments"]][0] == "Money window" and r["moments"][0]["range"] == "Jan 10 – May 9"
     assert [c["key"] for c in r["topics"]][0] == "all" and "love" in [c["key"] for c in r["topics"]]
@@ -43,8 +44,8 @@ def test_single_topic_tile_words_and_why_line():
     k = {m["month"]: m for m in r["months"]}
     assert k["Jan"]["text"] == "Opens 10th" and k["Feb"]["text"] == "Open" and k["May"]["text"] == "Closes 9th"
     assert k["Jun"]["text"] == "Care from 9th" and k["Sep"]["text"] == "Care ends 6th"
-    assert k["Jan"]["lines"] == ["Your money window runs Jan 10 to May 9."] and k["Jan"]["why"] == "Tied to income."
-    assert r["head"].endswith("Take care from Jun 9 to Sep 6.")
+    assert k["Jan"]["lines"] == [f"Your money window runs {C._mdy(date(2027, 1, 10), 'en')} to {C._mdy(date(2027, 5, 9), 'en')}."] and k["Jan"]["why"] == "Tied to income."
+    assert r["head"].endswith(f"Take care from {C._mdy(date(2027, 6, 9), 'en')} to {C._mdy(date(2027, 9, 6), 'en')}.")
 
 
 def test_quiet_topic_is_honest_not_empty():
@@ -64,7 +65,7 @@ def test_life_moves_are_ask_prompts_not_tiles():
 
 def test_spanish_and_bad_topic():
     r = C.build_year(FEED, "all", T, "es")
-    assert r["head"].startswith("Tu mejor tramo para dinero va de 10 ene a 9 may.")
+    assert r["head"].startswith(f"Tu mejor tramo para dinero va de {C._mdy(date(2027, 1, 10), 'es')} a {C._mdy(date(2027, 5, 9), 'es')}.")
     assert {m["month"]: m for m in r["months"]}["ene"]["text"] == "Dinero abierto"
     assert C.build_year(FEED, "nonsense", T, "en")["topic"] == "all"
 

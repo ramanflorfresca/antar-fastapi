@@ -71,7 +71,7 @@ def verse_why(wisdom: dict) -> Optional[dict]:
         print(f"[ritual-why] cause skipped: {e}")
     themes = [t.replace("_", " ") for t in ((w.get("verse") or {}).get("themes") or [])][:3]
     if themes:
-        out["about_plain"] = "This verse is about " + ", ".join(themes[:-1]) + (" and " if len(themes) > 1 else "") + themes[-1] + ", which is what that calls for."
+        out["about_plain"] = "It is paired with a verse about " + ", ".join(themes[:-1]) + (" and " if len(themes) > 1 else "") + themes[-1] + "."
     out["variation_plain"] = d.get("verse_variation_plain")
     return {k: v for k, v in out.items() if v}
 
