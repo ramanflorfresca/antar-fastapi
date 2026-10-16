@@ -73,3 +73,18 @@ def test_when_sentence_now_next_and_year_labels():
 def test_nothing_real_means_none():
     assert ac.compose(None, TODAY) is None and ac.health_facts({"available": False}, {}, "month", TODAY) is None
     assert ac.legal_facts(None, {}, "month", TODAY) is None
+
+
+def test_speculation_answer_is_the_persons_own_pattern_with_no_best_day_and_no_game_line():
+    for st, must in (("losses", "points to losses"), ("no", "honest answer is no"), ("later", "opens Jun 2027"), ("open", "open now")):
+        f = ac.speculation_facts(st, "Jun 2027" if st in ("later", "open") else "", "month", None, "how is my casino luck", "en")
+        r = ac.compose(f, TODAY)
+        assert must in r["read"] and r["next"]
+        assert "casino, lottery or betting-specific" not in r["read"] and "best day" not in r["read"].lower()
+        assert rt.jargon_leaks({"r": r["read"], "n": r["next"]}) == []
+
+
+def test_speculation_day_question_puts_todays_read_first_and_unknown_state_is_none():
+    f = ac.speculation_facts("losses", "", "day", "Risk runs against you today — a bet is prone to unravel.", "how is speculation today", "en")
+    assert ac.compose(f, TODAY)["read"].startswith("Risk runs against you today")
+    assert ac.speculation_facts("weird", "", "day", None, "", "en") is None

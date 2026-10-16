@@ -190,6 +190,23 @@ def legal_facts(legal: dict, timing: dict, scope: str, today: date, lang: str = 
             "windows": wins, "do_plain": t["legal_do"], "avoid_plain": None}
 
 
+def speculation_facts(state: str, window: str, scope: str, day_paragraph: Optional[str], question: str = "", lang: str = "en") -> Optional[dict]:
+    """The person's own pattern for speculative gains (does the chart support it, is the unearned-gains window open or ahead, or do bets tend to
+    cost more than they pay) in the speculation policy's own astrologer wording, with today's read in front for a day question. Never a best day
+    or hour, and no game-specific line: the state and the window are the answer."""
+    from antar_engine import speculation_policy as spp
+    if state not in ("losses", "no", "open", "later"):
+        return None
+    pol = spp.lead(state, window or "", gambling=False, language=_lang(lang), question=question or "")
+    read = (pol or {}).get("read")
+    if not read:
+        return None
+    if scope == "day" and day_paragraph:
+        read = f"{day_paragraph} {read}"
+    return {"topic": "speculation", "scope": scope, "preset_read": read, "windows": [], "do_plain": (pol or {}).get("next") or None,
+            "avoid_plain": None}
+
+
 def period_facts(domain: Optional[dict], best: Optional[dict], avoid: Optional[dict], topic: str, scope: str) -> Optional[dict]:
     """A period read's own area paragraph (verdict, support, catch, step, window all in one) is already the whole answer."""
     if not isinstance(domain, dict) or not domain.get("paragraph"):
