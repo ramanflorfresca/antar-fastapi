@@ -78,7 +78,8 @@ def chapters(ctx, subjects, months: int, lang: str) -> List[dict]:
             sits = _house_of(ctx, lord)
             supports = bool(hs & (ruled | ({sits} if sits else set())))
             out.append({"start": max(pd["start"], start).date().isoformat(), "end": min(pd["end"], end).date().isoformat(),
-                        "theme": blk.get("name"), "nature": blk.get("nature"), "supports": supports})
+                        "theme": blk.get("name"), "nature": blk.get("nature"), "supports": supports,
+                        "covers": blk.get("covers"), "watch": blk.get("watch"), "helps": blk.get("helps")})
     return out
 
 
