@@ -26,9 +26,9 @@ def test_decision_has_prediction_why_holds_breaks_move():
     assert d["prediction"].startswith("Today favours work and reputation, then income and your network.")
     assert "Health needs care." in d["prediction"] and "taking on too much at work" in d["prediction"]
     assert "lighter-touch day" in d["prediction"]
-    # the Moon-house area (fortune & travel) is one the prediction leads with (father = fortune and the long view), so it is kept
+    # the Moon-house area (fortune & travel) is only the THIRD lead (father); the prediction names work and network, so no spotlight sentence
     assert d["why"] == ("Until 1:10 PM the day runs against you; after that it is in your favour. "
-                        "It puts fortune & travel in the spotlight. Your current chapter adds friction, so go steady.")
+                        "Your current chapter adds friction, so go steady.")
     # one voice: no star name, house number, planet or dasha chain in the user-facing why
     assert not any(w in d["why"] for w in ("Hasta", "Chitra", "house", "Rahu", "Moon", "9th"))
     assert d["holds"].startswith("It holds if you prepare before 1:10 PM and commit after it")
@@ -71,7 +71,7 @@ def test_spanish_block_is_native_spanish_with_no_english_leaks():
     assert d["prediction"].startswith("Hoy favorece el trabajo y la reputaci\u00f3n, y luego los ingresos y tu red de contactos.")
     assert "La salud necesita cuidado." in d["prediction"] and "Cuida no asumir demasiado en el trabajo." in d["prediction"]
     assert d["why"].startswith("Hasta las 1:10 PM el d\u00eda va en tu contra; despu\u00e9s queda a tu favor.")
-    assert "Pone fortuna y viajes en primer plano." in d["why"] and "Tu etapa actual a\u00f1ade fricci\u00f3n" in d["why"]
+    assert "primer plano" not in d["why"] and "Tu etapa actual a\u00f1ade fricci\u00f3n" in d["why"]
     assert not any(w in d["why"] for w in ("Hasta ", "Chitra", "Rahu", "Luna", "casa 9")) or d["why"].startswith("Hasta las")
     assert d["holds"].startswith("Se sostiene si preparas antes de las 1:10 PM y te comprometes despu\u00e9s")
     assert d["breaks"] == ("Se rompe si fuerzas una decisi\u00f3n o una conversaci\u00f3n dif\u00edcil entre 9:52 AM y 11:17 AM. "
@@ -89,7 +89,7 @@ def test_spanish_block_never_leaks_an_english_move_or_unknown_label():
                          "changes_at": "1:10 PM", "from_nakshatra": "Hasta", "to_nakshatra": "Chitra"})
     d = compose(q, "es")
     assert d["move"] == "" and "Audit" not in d["breaks"] and "stake" not in d["breaks"]
-    assert "Some New Label" not in d["why"] and d["why"] == "Pone fortuna y viajes en primer plano. Tu etapa actual a\u00f1ade fricci\u00f3n, as\u00ed que ve con calma."
+    assert "Some New Label" not in d["why"] and d["why"] == "Tu etapa actual a\u00f1ade fricci\u00f3n, as\u00ed que ve con calma."
 
 
 def test_daily_signal_route_attaches_the_decision_block():
@@ -222,3 +222,14 @@ def test_decision_window_carries_the_clock_range_only_when_readable():
     r = {**P, "hora": {"best_window": "around noon"}}
     out = compose(r)
     assert out["window"]["best"] == "around noon" and "best_start" not in out["window"]
+
+
+def test_spotlight_compares_with_the_two_areas_the_prediction_names():
+    """[spotlight 2026-10-17] Live Oct 19: the prediction named 'home and property, then income and your network' while a third lead
+    (health) matched the Moon-house area, so 'self & vitality in the spotlight' still told a second story."""
+    two = compose(dict(P, moon_house_from_lagna=1, lit_domain="self & vitality",
+                       evidence={"chosen": ["home", "network", "body"], "lead_dir": "positive"}))
+    assert "spotlight" not in two["why"]
+    first = compose(dict(P, moon_house_from_lagna=1, lit_domain="self & vitality",
+                         evidence={"chosen": ["work", "body", "network"], "lead_dir": "positive"}))
+    assert "It puts self & vitality in the spotlight." in first["why"]
