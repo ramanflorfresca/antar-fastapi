@@ -76,6 +76,13 @@ _TX = {
     },
 }
 
+# the Moon-house area (daily_precision._HOUSE_DOMAIN wording) -> the day-lead keys it is the same area as
+_LIT_KEYS = {
+    "self & vitality": ("body",), "money & voice": ("money",), "home & peace": ("home", "family"),
+    "creativity & romance": ("relationship",), "work & health": ("work", "body"), "partnership": ("relationship",),
+    "fortune & travel": ("father", "travel"), "career & visibility": ("work",), "gains & network": ("network", "money"),
+}
+
 import re as _re
 from datetime import date as _date
 
@@ -279,7 +286,10 @@ def compose(p: dict, language: str = "en", relation: str = "today"):
                 bits.append(tx["moon_shift"].format(at=at, qb=vb, qa=va))
         h = p.get("moon_house_from_lagna")
         lit = p.get("lit_domain") if L == "en" else I18.HOUSE_LIT[L].get(h)
-        if h and lit:
+        # [spotlight 2026-10-17] the Moon-house area and the day's chosen lead come from two different reads; a card that says
+        # "Today favours visibility and reputation" and then "It puts rest & retreat in the spotlight" tells two stories. The spotlight
+        # sentence is kept only when the Moon-house area is one of the areas the prediction itself leads with.
+        if h and lit and set(_LIT_KEYS.get(p.get("lit_domain") or "", ())) & set(chosen):
             bits.append(tx["house"].format(lit=lit))
         for sg in (p.get("signals") or []):
             if sg.get("key") == "dasha" and sg.get("value"):

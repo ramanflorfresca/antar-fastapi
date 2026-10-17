@@ -26,6 +26,7 @@ def test_decision_has_prediction_why_holds_breaks_move():
     assert d["prediction"].startswith("Today favours work and reputation, then income and your network.")
     assert "Health needs care." in d["prediction"] and "taking on too much at work" in d["prediction"]
     assert "lighter-touch day" in d["prediction"]
+    # the Moon-house area (fortune & travel) is one the prediction leads with (father = fortune and the long view), so it is kept
     assert d["why"] == ("Until 1:10 PM the day runs against you; after that it is in your favour. "
                         "It puts fortune & travel in the spotlight. Your current chapter adds friction, so go steady.")
     # one voice: no star name, house number, planet or dasha chain in the user-facing why
@@ -88,7 +89,7 @@ def test_spanish_block_never_leaks_an_english_move_or_unknown_label():
                          "changes_at": "1:10 PM", "from_nakshatra": "Hasta", "to_nakshatra": "Chitra"})
     d = compose(q, "es")
     assert d["move"] == "" and "Audit" not in d["breaks"] and "stake" not in d["breaks"]
-    assert "Some New Label" not in d["why"] and "Pone fortuna y viajes en primer plano." in d["why"]
+    assert "Some New Label" not in d["why"] and d["why"] == "Pone fortuna y viajes en primer plano. Tu etapa actual a\u00f1ade fricci\u00f3n, as\u00ed que ve con calma."
 
 
 def test_daily_signal_route_attaches_the_decision_block():
@@ -119,7 +120,20 @@ def test_why_never_names_a_house_a_star_or_a_dasha_chain():
             assert not bad.search(d["why"]), (lang, h, d["why"])
             if lang == "en":
                 assert "Hasta" not in d["why"]
-    assert "It puts self & vitality in the spotlight." in compose(dict(P, moon_house_from_lagna=1, lit_domain="self & vitality"))["why"]
+    # (every house, with a lead that matches it, still reads without jargon)
+    for h, lit, lead_key in ((1, "self & vitality", "body"), (10, "career & visibility", "work"), (11, "gains & network", "network")):
+        w = compose(dict(P, moon_house_from_lagna=h, lit_domain=lit, evidence={"chosen": [lead_key], "lead_dir": "positive"}))["why"]
+        assert f"It puts {lit} in the spotlight." in w and not bad.search(w), (h, w)
+
+
+def test_spotlight_only_when_it_is_an_area_the_prediction_leads_with():
+    """[spotlight 2026-10-17] Live: the prediction led with visibility and reputation while the why said 'rest & retreat in the spotlight'."""
+    mismatch = compose(dict(P, moon_house_from_lagna=12, lit_domain="rest & retreat",
+                            evidence={"chosen": ["work", "network"], "lead_dir": "positive"}))
+    assert "spotlight" not in mismatch["why"]
+    match = compose(dict(P, moon_house_from_lagna=10, lit_domain="career & visibility",
+                         evidence={"chosen": ["work", "network"], "lead_dir": "positive"}))
+    assert "It puts career & visibility in the spotlight." in match["why"]
 
 
 def test_pending_fast_phase_publishes_no_move():
