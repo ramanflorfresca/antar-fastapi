@@ -288,8 +288,8 @@ def compose(p: dict, language: str = "en", relation: str = "today"):
         lit = p.get("lit_domain") if L == "en" else I18.HOUSE_LIT[L].get(h)
         # [spotlight 2026-10-17] the Moon-house area and the day's chosen lead come from two different reads; a card that says
         # "Today favours visibility and reputation" and then "It puts rest & retreat in the spotlight" tells two stories. The spotlight
-        # sentence is kept only when the Moon-house area is one of the areas the prediction itself leads with.
-        if h and lit and set(_LIT_KEYS.get(p.get("lit_domain") or "", ())) & set(chosen):
+        # sentence is kept only when the Moon-house area is one of the (up to two) areas the prediction itself names as its lead.
+        if h and lit and set(_LIT_KEYS.get(p.get("lit_domain") or "", ())) & set(chosen[:2]):
             bits.append(tx["house"].format(lit=lit))
         for sg in (p.get("signals") or []):
             if sg.get("key") == "dasha" and sg.get("value"):
