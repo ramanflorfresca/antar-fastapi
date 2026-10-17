@@ -31,10 +31,12 @@ _TX = {
         "care1": "{x} needs care.", "careN": "{x} need care.",
         "overreach": "Watch for taking on too much at work.",
         "light": "It's a lighter-touch day: steady progress, not big bets.",
-        "moon_shift": "The Moon is in {sign}, in {nak} ({qb}) until {at}, then {to} ({qa}).",
-        "moon": "The Moon is in {sign}, in {nak}.",
-        "house": "It lights your {h} house ({lit}).",
-        "dasha": "You're running {v}{d}.",
+        "moon_shift": "Until {at} the day {qb}; after that it {qa}.",
+        "moon": "",
+        "house": "It puts {lit} in the spotlight.",
+        "dasha": "",
+        "chapter_friction": "Your current chapter adds friction, so go steady.",
+        "chapter_support": "Your current chapter supports it.",
         "holds_up": "It holds if you prepare before {at} and commit after it, when the Moon's star turns in your favour{best}.",
         "holds_up_best": "; the sharpest single hour for an ask or a pitch is {best}",
         "holds_dn": "It holds if you commit before {at}, while the Moon's star still favours you, and keep the afternoon light.",
@@ -54,10 +56,12 @@ _TX = {
         "care1": "{x} necesita cuidado.", "careN": "{x} necesitan cuidado.",
         "overreach": "Cuida no asumir demasiado en el trabajo.",
         "light": "Es un d\u00eda de toque ligero: avance constante, sin grandes apuestas.",
-        "moon_shift": "La Luna est\u00e1 en {sign}, en {nak} ({qb}) hasta las {at}, y luego en {to} ({qa}).",
-        "moon": "La Luna est\u00e1 en {sign}, en {nak}.",
-        "house": "Ilumina tu casa {h} ({lit}).",
-        "dasha": "Est\u00e1s en el periodo {v}{d}.",
+        "moon_shift": "Hasta las {at} el d\u00eda {qb}; despu\u00e9s queda {qa}.",
+        "moon": "",
+        "house": "Pone {lit} en primer plano.",
+        "dasha": "",
+        "chapter_friction": "Tu etapa actual a\u00f1ade fricci\u00f3n, as\u00ed que ve con calma.",
+        "chapter_support": "Tu etapa actual lo apoya.",
         "holds_up": "Se sostiene si preparas antes de las {at} y te comprometes despu\u00e9s, cuando la estrella de la Luna cambia a tu favor{best}.",
         "holds_up_best": "; la mejor hora para pedir o proponer algo es {best}",
         "holds_dn": "Se sostiene si te comprometes antes de las {at}, mientras la estrella de la Luna a\u00fan te favorece, y mantienes la tarde ligera.",
@@ -257,32 +261,32 @@ def compose(p: dict, language: str = "en", relation: str = "today"):
         worsens = shift.get("material") and shift.get("direction") == "worsens"
 
         bits = []
+        # [plain-why 2026-10-17] The "why" used to name the Moon's star ("Purva Ashadha"), the house number ("1st house") and the dasha
+        # lords ("Rahu\u2013Rahu\u2013Rahu"): method names the product never shows. It now says the same three facts in plain words:
+        # when the day turns, which area it puts in the spotlight, and whether the current chapter helps or adds friction.
         msign = p.get("moon_sign")
         if msign:
-            msign = msign if L == "en" else I18.sign(msign, L)
-            frm = (p.get("moon_shift") or {}).get("from_nakshatra") or (p.get("panchanga") or {}).get("nakshatra")
             qb_raw = ((shift.get("before") or {}).get("quality_label") or "")
             qa_raw = ((shift.get("after") or {}).get("quality_label") or "")
             qb = qb_raw.lower() if L == "en" else I18.quality(qb_raw, L)
             qa = qa_raw.lower() if L == "en" else I18.quality(qa_raw, L)
-            to_nak = (p.get("moon_shift") or {}).get("to_nakshatra")
-            if (improves or worsens) and at and frm and qb and qa:
-                bits.append(tx["moon_shift"].format(sign=msign, nak=frm, qb=qb, at=at, to=to_nak, qa=qa))
-            elif frm:
-                bits.append(tx["moon"].format(sign=msign, nak=frm))
+            if (improves or worsens) and at and qb and qa:
+                if L == "en":
+                    vb = qb if qb.split()[0] in ("runs", "goes", "moves", "is") else "is " + qb
+                    va = qa if qa.split()[0] in ("runs", "goes", "moves", "is") else "is " + qa
+                else:
+                    vb, va = qb, qa
+                bits.append(tx["moon_shift"].format(at=at, qb=vb, qa=va))
         h = p.get("moon_house_from_lagna")
         lit = p.get("lit_domain") if L == "en" else I18.HOUSE_LIT[L].get(h)
         if h and lit:
-            bits.append(tx["house"].format(h=_ordinal_en(h) if L == "en" else h, lit=lit))
+            bits.append(tx["house"].format(lit=lit))
         for sg in (p.get("signals") or []):
             if sg.get("key") == "dasha" and sg.get("value"):
-                v = sg["value"].replace(" \u2192 ", "\u2013")
-                d = ""
-                if sg.get("direction") in ("friction", "adverse", "supportive"):
-                    d = f" ({sg['direction'] if L == 'en' else I18.SIGNAL_DIR[L][sg['direction']]})"
-                if L != "en":
-                    v = "\u2013".join(I18.planet(x, L) for x in v.split("\u2013"))
-                bits.append(tx["dasha"].format(v=v, d=d))
+                if sg.get("direction") in ("friction", "adverse"):
+                    bits.append(tx["chapter_friction"])
+                elif sg.get("direction") == "supportive":
+                    bits.append(tx["chapter_support"])
         why = " ".join(bits)
 
         best = (p.get("hora") or {}).get("best_window") or (p.get("panchanga") or {}).get("best_time") or p.get("abhijit")

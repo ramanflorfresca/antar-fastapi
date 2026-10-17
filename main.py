@@ -20233,6 +20233,8 @@ def settings_charts_delete(chart_id: str, authorization: Optional[str] = Header(
 #   for t in <tables>: supabase.table(t).select("chart_id").limit(1)
 # anything that succeeds and is not below is a leak.
 _CHART_DERIVED_TABLES = (
+    # [speculation log 2026-10-17] behavioural-sensitive session results (the table exists in production now): purged with the chart
+    "speculation_windows", "speculation_sessions",
     # [daily-loop / people-heavy-day 2026-10-12] the daily loop (it stores the day's question), starred people, alert log
     "daily_loop_log", "people_alert_stars", "people_alert_log",
     # natal / dasha / yoga

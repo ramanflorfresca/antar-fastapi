@@ -26,8 +26,10 @@ def test_decision_has_prediction_why_holds_breaks_move():
     assert d["prediction"].startswith("Today favours work and reputation, then income and your network.")
     assert "Health needs care." in d["prediction"] and "taking on too much at work" in d["prediction"]
     assert "lighter-touch day" in d["prediction"]
-    assert "Hasta (runs against you) until 1:10 PM, then Chitra (in your favour)" in d["why"]
-    assert "9th house (fortune & travel)" in d["why"] and "Rahu–Rahu–Rahu (friction)" in d["why"]
+    assert d["why"] == ("Until 1:10 PM the day runs against you; after that it is in your favour. "
+                        "It puts fortune & travel in the spotlight. Your current chapter adds friction, so go steady.")
+    # one voice: no star name, house number, planet or dasha chain in the user-facing why
+    assert not any(w in d["why"] for w in ("Hasta", "Chitra", "house", "Rahu", "Moon", "9th"))
     assert d["holds"].startswith("It holds if you prepare before 1:10 PM and commit after it")
     assert "the sharpest single hour for an ask or a pitch is 12:18 PM \u2013 1:06 PM" in d["holds"]
     assert d["breaks"] == ("It breaks if you force a decision or a hard conversation between 9:52 AM and 11:17 AM, "
@@ -67,8 +69,9 @@ def test_spanish_block_is_native_spanish_with_no_english_leaks():
     d = compose(q, "es")
     assert d["prediction"].startswith("Hoy favorece el trabajo y la reputaci\u00f3n, y luego los ingresos y tu red de contactos.")
     assert "La salud necesita cuidado." in d["prediction"] and "Cuida no asumir demasiado en el trabajo." in d["prediction"]
-    assert d["why"].startswith("La Luna est\u00e1 en Virgo, en Hasta (va en tu contra) hasta las 1:10 PM, y luego en Chitra (a tu favor).")
-    assert "Ilumina tu casa 9 (fortuna y viajes)." in d["why"] and "Rahu\u2013Rahu\u2013Rahu (fricci\u00f3n)" in d["why"]
+    assert d["why"].startswith("Hasta las 1:10 PM el d\u00eda va en tu contra; despu\u00e9s queda a tu favor.")
+    assert "Pone fortuna y viajes en primer plano." in d["why"] and "Tu etapa actual a\u00f1ade fricci\u00f3n" in d["why"]
+    assert not any(w in d["why"] for w in ("Hasta ", "Chitra", "Rahu", "Luna", "casa 9")) or d["why"].startswith("Hasta las")
     assert d["holds"].startswith("Se sostiene si preparas antes de las 1:10 PM y te comprometes despu\u00e9s")
     assert d["breaks"] == ("Se rompe si fuerzas una decisi\u00f3n o una conversaci\u00f3n dif\u00edcil entre 9:52 AM y 11:17 AM. "
                            "Y recuerda: no apuestes lo que no puedas permitirte perder.")
@@ -85,7 +88,7 @@ def test_spanish_block_never_leaks_an_english_move_or_unknown_label():
                          "changes_at": "1:10 PM", "from_nakshatra": "Hasta", "to_nakshatra": "Chitra"})
     d = compose(q, "es")
     assert d["move"] == "" and "Audit" not in d["breaks"] and "stake" not in d["breaks"]
-    assert "Some New Label" not in d["why"] and "La Luna est\u00e1 en Virgo, en Hasta." in d["why"]
+    assert "Some New Label" not in d["why"] and "Pone fortuna y viajes en primer plano." in d["why"]
 
 
 def test_daily_signal_route_attaches_the_decision_block():
@@ -104,11 +107,19 @@ def test_daily_signal_route_attaches_the_decision_block():
     assert "decision" not in asyncio.run(wrapped(chart_id="x", request={}, language="hinglish"))
 
 
-def test_house_ordinals_are_grammatical():
-    """Regression: the template said "{h}th house", so house 1 read "1th house" (2026-10-11 UI audit)."""
-    for h, word in ((1, "1st"), (2, "2nd"), (3, "3rd"), (4, "4th"), (11, "11th"), (12, "12th")):
-        d = compose(dict(P, moon_house_from_lagna=h))
-        assert f"{word} house (fortune & travel)" in d["why"], (h, d["why"])
+def test_why_never_names_a_house_a_star_or_a_dasha_chain():
+    """[plain-why 2026-10-17] Live: the sheet for another day said "Purva Ashadha ... It lights your 1st house ... Rahu\u2013Rahu\u2013Rahu".
+    The user-facing why says the same facts in plain words, for every house and either language."""
+    import re
+    bad = re.compile(r"(?i)\b(\d+(st|nd|rd|th)|house|casa|rahu|ketu|saturn|mars|mercury|venus|jupiter|nakshatra|ashadha|chitra|"
+                     r"dasha|periodo|per\u00edodo)\b")
+    for lang in ("en", "es"):
+        for h in range(1, 13):
+            d = compose(dict(P, moon_house_from_lagna=h), lang)
+            assert not bad.search(d["why"]), (lang, h, d["why"])
+            if lang == "en":
+                assert "Hasta" not in d["why"]
+    assert "It puts self & vitality in the spotlight." in compose(dict(P, moon_house_from_lagna=1, lit_domain="self & vitality"))["why"]
 
 
 def test_pending_fast_phase_publishes_no_move():
