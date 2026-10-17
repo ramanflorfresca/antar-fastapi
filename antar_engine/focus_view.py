@@ -259,8 +259,14 @@ def _detail(ctx, library: dict, life: Optional[dict], lang: str, area: str, card
                 "months": focus_plan.months_strip(ctx, subjects, plan_months, lang, peaks), "chapters": ch, "turns": tp}
     except Exception:
         plan = None
+    why = None
+    try:   # [focus-why 2026-10-17] why this stretch is strong (or hard) for the area, in plain words, for the sheet a tapped block opens
+        from antar_engine import focus_why
+        why = focus_why.build(card["label"], bring, (plan or {}).get("chapters") or [], windows, lang, ctx.today)
+    except Exception:
+        why = None
     return {"area": area, "label": card["label"], "goal": GOAL.get(area, {}).get(lang), "window": card.get("window"),
-            "bring": bring, "do": do, "avoid": avoid, "remedies": remedies, "mantra": mantra, "windows": windows, "plan": plan}
+            "why": why, "bring": bring, "do": do, "avoid": avoid, "remedies": remedies, "mantra": mantra, "windows": windows, "plan": plan}
 
 
 def build(ctx, library: dict, life: Optional[dict] = None, recent_topics: Optional[List[str]] = None,
